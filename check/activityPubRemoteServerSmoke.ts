@@ -3,12 +3,14 @@ import assert from 'node:assert';
 import {ActivityPubObjectReviewState} from '../app/modules/activityPub/interface.js';
 import {activityPubPublicCollection} from '../app/modules/activityPub/helpers.js';
 import {createActivityPubSmokeHarness} from './helpers/activityPubSmokeHarness.js';
+import {getSmokeReportPathEnvDescription, printSmokeReport as writeSmokeReport} from './helpers/smokeReport.js';
 
 const defaultResource = 'acct:Mastodon@mastodon.social';
 const defaultTimeoutMs = 15000;
 const defaultMaxCollectionItems = 20;
 const smokeGroupName = 'test-channel';
 const smokeReviewerUserId = 7;
+const smokeReportPathEnvName = 'ACTIVITYPUB_REMOTE_SMOKE_REPORT_PATH';
 
 async function run(): Promise<void> {
   if (process.argv.includes('-h') || process.argv.includes('--help')) {
@@ -461,7 +463,7 @@ function printSmokeSkip(options, reason: string, extra: any = {}): void {
 }
 
 function printSmokeReport(report): void {
-  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  writeSmokeReport(report, smokeReportPathEnvName);
 }
 
 function printUsage(): void {
@@ -479,7 +481,8 @@ Environment:
   ACTIVITYPUB_REMOTE_SMOKE_RESOURCE              WebFinger resource, default acct:Mastodon@mastodon.social
   ACTIVITYPUB_REMOTE_SMOKE_ACTOR_URL             Direct actor URL; skips WebFinger when set
   ACTIVITYPUB_REMOTE_SMOKE_TIMEOUT_MS            Fetch timeout, default 15000
-  ACTIVITYPUB_REMOTE_SMOKE_MAX_COLLECTION_ITEMS  Max featured/outbox items to inspect, default 20`);
+  ACTIVITYPUB_REMOTE_SMOKE_MAX_COLLECTION_ITEMS  Max featured/outbox items to inspect, default 20
+  ${getSmokeReportPathEnvDescription(smokeReportPathEnvName)}`);
 }
 
 run().catch((e) => {

@@ -345,7 +345,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiName IpfsContent
      * @apiGroup ContentData
      *
-     * @apiDescription Unversioned IPFS gateway-compatible content stream.
+     * @apiDescription Unversioned IPFS gateway-compatible content stream. Generated static-site roots include `X-Robots-Tag: noindex, nofollow` unless the static-site render options explicitly set `allowSearchIndexing` to boolean `true`.
      * @apiUse StorageErrors
     */
     app.ms.api.onUnversionGet('/ipfs/*', async (req, res) => {
@@ -360,7 +360,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiName IpfsContentHead
      * @apiGroup ContentData
      *
-     * @apiDescription Unversioned IPFS gateway-compatible HEAD request.
+     * @apiDescription Unversioned IPFS gateway-compatible HEAD request. Generated static-site roots include `X-Robots-Tag: noindex, nofollow` unless the static-site render options explicitly set `allowSearchIndexing` to boolean `true`.
      * @apiUse StorageErrors
      */
     app.ms.api.onUnversionHead('/ipfs/*', async (req, res) => {

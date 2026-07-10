@@ -4,9 +4,12 @@ import {
 	RICH_TEXT_MIME_TYPE,
 	RICH_TEXT_VERSION,
 	assertRichTextDocument,
+	contentTextToRichText,
 	createRichTextDocument,
 	htmlToRichText,
 	isRichTextDocument,
+	parseRichTextDocumentJson,
+	plainTextToRichText,
 	richTextToActivityPubTags,
 	richTextToAtProtoTextWithFacets,
 	richTextToFarcasterCast,
@@ -70,6 +73,28 @@ describe('richText helpers', () => {
 		assert.match(html, /<pre><code>x &lt; y<\/code><\/pre>/);
 		assert.match(html, /<ul><li>one<\/li><li>two<\/li><\/ul>/);
 		assert.equal(html.includes('bafy-image'), false);
+	});
+
+	it('normalizes stored content text formats into canonical rich text', () => {
+		const document = createRichTextDocument([{
+			type: 'paragraph',
+			children: [{text: 'Stored rich text'}]
+		}]);
+
+		assert.deepEqual(parseRichTextDocumentJson(JSON.stringify(document)), document);
+		assert.equal(parseRichTextDocumentJson('{bad json'), null);
+		assert.equal(parseRichTextDocumentJson({type: 'not-rich-text'}), null);
+		assert.equal(
+			richTextToPlainText(contentTextToRichText(JSON.stringify(document), RICH_TEXT_MIME_TYPE)!),
+			'Stored rich text'
+		);
+		assert.equal(
+			richTextToPlainText(contentTextToRichText('<p>Hello <strong>html</strong></p><script>x()</script>', 'text/html')!),
+			'Hello html'
+		);
+		assert.equal(richTextToPlainText(plainTextToRichText('line one\nline two')), 'line one\nline two');
+		assert.equal(contentTextToRichText('{"type":"geesome.richText"}', RICH_TEXT_MIME_TYPE), null);
+		assert.equal(contentTextToRichText('{"ok":true}', 'application/json'), null);
 	});
 
 	it('imports unsafe html into canonical rich text without preserving active content', () => {

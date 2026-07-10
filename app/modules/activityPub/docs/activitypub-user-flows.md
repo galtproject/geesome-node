@@ -4,6 +4,23 @@ This document describes how ActivityPub, ActivityPub Sources, and native Bluesky
 
 The goal is to keep protocol machinery out of ordinary publishing. Admins manage node health, trust, moderation policy, filters, and credentials. Users manage their groups, feeds, and posts inside normal GeeSome permissions.
 
+## UI Simplification Direction
+
+ActivityPub and Bluesky screens should lead with the common user job, then reveal edge-case controls only when the user needs them.
+
+- Default views should show the primary action, current status, latest useful result, and concise next step.
+- Advanced configuration should live in clearly named expandable groups, not beside the primary action.
+- Each expanded group should solve one kind of problem:
+  - **Advanced import policy** for media, relation, reply/quote, upload fallback, link-preview, language, and source-default choices;
+  - **Moderation filters** for review-first/auto-import mode, keyword rules, regex rules, source/group filters, and quarantine/block overrides;
+  - **Resolve migration ownership** for ActivityPub profile tokens, signed challenge proofs, admin-approved trust, and Bluesky account DID checks;
+  - **Repair replies and quotes** for dry-run/apply reconciliation, cross-group resolution, force options, cursors, and skipped/ambiguous relation reports;
+  - **Source refresh settings** for actor URL overrides, import limits, poller hints, queue status, and bridge/provider details;
+  - **Operator diagnostics** for smoke reports, worker state, raw protocol identifiers, and debug-only details.
+- The primary screen must still expose blockers. If a post cannot cross-post, a source cannot resolve, ownership cannot be proven, or content is quarantined, show the short reason in the main flow and offer a button/link to expand the relevant repair group.
+- Avoid dense protocol terms in the first view unless they affect trust or user choice. For example, say "via Bluesky bridge" or "native Bluesky" where it matters, but keep HTTP signatures, AT URIs, CIDs, and actor-key details in advanced/operator groups.
+- Admin-only settings should not appear in ordinary user flows unless the current user can actually use them.
+
 ## Roles
 
 - **Node admin/operator**: configures federation, workers, moderation mode, filter rules, source refreshes, credentials, and health checks.
@@ -26,8 +43,10 @@ The goal is to keep protocol machinery out of ordinary publishing. Admins manage
 3. Admin runs local or live smoke checks before exposing the feature:
    - deterministic ActivityPub interop smoke;
    - optional live Fediverse actor smoke;
+   - optional ActivityPub ownership-challenge proof smoke;
    - optional Bluesky-through-Bridgy smoke;
-   - native Bluesky public XRPC smoke.
+   - native Bluesky public XRPC smoke;
+   - optional credentialed native Bluesky smoke for account verification and opt-in create/update/delete lifecycle checks.
 4. Admin reviews the federation screens for:
    - actor discovery status;
    - delivery failures and retry state;
@@ -153,7 +172,7 @@ Boundary: public native reads do not need credentials. Credentialed account owne
 
 ## User Flow: Credentialed Bluesky Account
 
-This flow is bridge-free and uses the dedicated Bluesky/ATProto module. It is separate from public source reads and from future cross-posting.
+This flow is bridge-free and uses the dedicated Bluesky/ATProto module. It is separate from public source reads and from cross-posting.
 
 1. User opens the Bluesky account connection screen.
 2. User enters a Bluesky handle, DID, or login identifier plus an app password.
@@ -163,6 +182,8 @@ This flow is bridge-free and uses the dedicated Bluesky/ATProto module. It is se
 6. User or the UI can re-run verification later. If the stored account has a DID, DID match is the ownership check; handle changes should not break verification.
 
 Boundary: account verification does not create posts, store short-lived access/refresh JWTs, read private timelines, or bypass moderation/source identity.
+
+Operator smoke: `npm run bluesky:credentialed-smoke` skips without credentials, verifies account login plus stored `socNetAccount` lookup when `BLUESKY_CREDENTIAL_SMOKE_IDENTIFIER` and `BLUESKY_CREDENTIAL_SMOKE_APP_PASSWORD` are set, exercises local source import/refresh/sync paths without creating remote Bluesky records, and only creates a temporary remote post when `BLUESKY_CREDENTIAL_SMOKE_WRITE=1` is also set.
 
 ## User Flow: Migrate A Remote Social Page To GeeSome
 
@@ -175,11 +196,11 @@ This flow is for a user who wants a simple path to bring an existing public Blue
 2. User selects or creates the target personal GeeSome group/page.
 3. For a claimed "this is my page" migration, GeeSome verifies ownership when the protocol supports it:
    - Bluesky uses the stored `socNetAccount` DID match;
-   - ActivityPub supports admin-approved claims and a first non-admin public profile proof token, where the user places a bounded GeeSome token in public actor profile fields before import.
+   - ActivityPub supports admin-approved claims, a public profile proof token where the user places a bounded GeeSome token in public actor profile fields before import, and an advanced actor-signed detached challenge proof for tools/accounts that can sign arbitrary HTTP requests with the actor key.
 4. GeeSome previews a bounded page of public profile/outbox/feed records with counts for original posts, replies, reposts/reblogs, quotes, and referenced external actors/groups.
 5. For ActivityPub sources, the backend preview API resolves the public actor, reads bounded `featured`/`outbox` items, classifies public `Create`, direct object, and `Announce` records into local posts versus remote context, creates stable actor/object placeholder keys, adds source-identity metadata for later reconciliation, and sanitizes preview text so the UI can show what would happen without writing data.
 6. User can choose one-off migration moderation before writing: auto-import or review-first, plus bounded keyword/regex text or group-name filters that block or quarantine matching records.
-7. User starts a migration job. Native Bluesky currently supports claimed imports after stored-account DID/handle proof: immediate imports process one page, and queued imports can walk bounded cursor pages through `maxPages`. It also has a bounded dry-run/apply reconciliation route for already-imported posts in one group selected by `groupId` or `groupName`, so stored Bluesky reply and quote metadata can be linked to local `replyToId` and `repostOfId` after matching target posts exist. ActivityPub imports cache eligible own-authored public objects as remote-object candidates by default and can, when `createPosts=true`, create visible GeeSome remote posts only after an admin-approved claim or matching public profile `ownershipProofToken`, target group, accepted review state, and moderation policy allow it; the same bounded collection-page walking works through `maxPages` and the async queue.
+7. User starts a migration job. Native Bluesky currently supports claimed imports after stored-account DID/handle proof: immediate imports process one page, and queued imports can walk bounded cursor pages through `maxPages`. It also has a bounded dry-run/apply reconciliation route for already-imported posts in one group selected by `groupId` or `groupName`, so stored Bluesky reply and quote metadata can be linked to local `replyToId` and `repostOfId` after matching target posts exist. ActivityPub imports cache eligible own-authored public objects as remote-object candidates by default and can, when `createPosts=true`, create visible GeeSome remote posts only after an admin-approved claim, matching public profile `ownershipProofToken`, or short-lived actor-signed `ownershipChallengeProof`, target group, accepted review state, and moderation policy allow it; the signed challenge backend is request-IP-aware, rate-limited, and cleaned up after expiration/consumption. The same bounded collection-page walking works through `maxPages` and the async queue.
 8. GeeSome imports the migrating user's own public posts into the target GeeSome group while preserving original protocol identity, remote URL, timestamps, and import metadata.
 9. Replies, reposts/reblogs, quotes, and mentions keep their relation type. If the referenced item, author, or group is not local, GeeSome creates or reuses a remote source/group/account placeholder keyed by stable protocol identity:
    - ActivityPub actor/object IDs;
@@ -188,7 +209,7 @@ This flow is for a user who wants a simple path to bring an existing public Blue
 11. If a remote placeholder later migrates to GeeSome, reconciliation links the placeholder to the new local group/account/posts by protocol identity so partial thread/history content becomes connected without duplicate posts. Native Bluesky supports this for imported post reply/quote fields when both sides have matching AT URI source identity. ActivityPub now has the equivalent bounded dry-run/apply route for imported remote posts, resolving cached ActivityStreams `inReplyTo` and quote references to local `replyToId`/`repostOfId` when the target post identity is unambiguous.
 12. The job records progress, errors, and source cursors, dedupes by source identity, and can be safely rerun after backup/restore or partial failure.
 
-Boundary: migration imports only public or explicitly authorized content. It must reuse moderation review/auto-import/filter rules, canonical rich-text conversion, source identity, update/delete semantics, and bounded-page async-job limits. Private messages, private followers-only posts, encrypted content, and unproven ownership claims stay out of the first migration path.
+Boundary: migration imports only public or explicitly authorized content. It must reuse moderation review/auto-import/filter rules, canonical rich-text conversion, source identity, update/delete semantics, and bounded-page async-job limits. Private messages, private followers-only posts, encrypted content, and unproven ownership claims stay out of the first migration path. A hosted ActivityPub account that cannot produce a detached signed proof should use the public profile-token path or admin review rather than weakening the signature verifier.
 
 ## User Flow: Credentialed Bluesky Cross-Posting
 
@@ -210,9 +231,9 @@ This is bridge-free and uses the dedicated Bluesky/ATProto module. The current b
 9. If the GeeSome post is a local reply, GeeSome adds native Bluesky `reply.root`/`reply.parent` refs only when the referenced parent has stored/imported Bluesky URI/CID metadata; otherwise it rejects the cross-post instead of flattening the reply.
 10. If the GeeSome post references `repostOfId`, GeeSome publishes it as a native Bluesky quote embed only when the target has stored/imported Bluesky URI/CID metadata. If the post also has an image or external card, GeeSome wraps the quote through `app.bsky.embed.recordWithMedia`.
 11. Remaining media/link policy work:
+   - frontend controls should expose the backend image upload/link/reject, upload-failure fallback, attachment/link-preview card/link/reject/ignore, and reply/quote omit/require choices;
    - richer multi-embed/image-thumbnail behavior remains follow-up;
-   - private/encrypted or missing-public-URL attachments stay rejected;
-   - UI controls for choosing relation behavior remain follow-up.
+   - private/encrypted or missing-public-URL attachments stay rejected.
 12. User can update the stored cross-post in place. GeeSome verifies the stored URI belongs to the authenticated DID and feed-post collection, rebuilds the post through the same safety gates, calls `com.atproto.repo.putRecord` with the stored rkey and stored CID as `swapRecord`, preserves the original local `postedAt`, and stores the new CID plus `updatedAt`.
 13. User can delete the stored cross-post from Bluesky; GeeSome verifies the stored URI belongs to the authenticated DID and feed-post collection, calls `com.atproto.repo.deleteRecord`, treats already-missing remote records as local cleanup, and removes only that DID entry from local `propertiesJson.bluesky.crossPosts`.
 14. Later remote update/delete sync uses that identity to avoid changing unrelated local posts.
@@ -276,17 +297,14 @@ The UI should make these states explicit:
 - ActivityPub source reader can subscribe, refresh, read, and mark sources read.
 - Native Bluesky source reader can preview, subscribe, refresh/import, and read cached imported posts.
 - Native Bluesky update/delete sync is covered.
-- Credentialed Bluesky account ownership, first-pass text/facet/media/link/reply/quote cross-post idempotency, stored cross-post update, and stored cross-post deletion are covered; richer frontend relation controls and broader media/embed policy remain follow-up work before calling Bluesky publishing complete.
-- Simple remote social-page migration can import a user's public Bluesky or ActivityPub presence into a GeeSome personal group, preserve replies/reposts/quotes, create remote placeholders for referenced groups/accounts, and reconcile those placeholders when they later migrate. Native Bluesky imported-post reply/quote reconciliation is covered for already-imported group posts by `groupId` or `groupName`, and ActivityPub imported-post reply/quote reconciliation is covered for already-created visible remote posts. ActivityPub now has a first non-admin public profile-token proof for claimed visible imports; stronger signed challenges remain a future hardening option. The first social migration wizard and e2e path are covered; remaining migration work is richer relation/media policy controls plus explicit reconciliation action/status UI.
+- Credentialed Bluesky account ownership, first-pass text/facet/media/link/reply/quote cross-post idempotency, publish-time frontend policy controls, stored cross-post update, and stored cross-post deletion are covered.
+- Simple remote social-page migration can import a user's public Bluesky or ActivityPub presence into a GeeSome personal group, preserve replies/reposts/quotes, create remote placeholders for referenced groups/accounts, and reconcile those placeholders when they later migrate. Native Bluesky imported-post reply/quote reconciliation is covered for already-imported group posts by `groupId` or `groupName`, and ActivityPub imported-post reply/quote reconciliation is covered for already-created visible remote posts. ActivityPub now supports admin-approved ownership, first-pass public profile-token proof, and stronger short-lived actor-signed challenges for claimed visible imports. The first social migration wizard and e2e path now cover frontend relation/media policy controls plus explicit reconciliation action/status UI.
 - UI and e2e tests cover admin review, ActivityPub source feed, native Bluesky source feed, and safe rendering.
-- Live smoke scripts cover deterministic local checks, optional live Fediverse actor checks, bridge-backed Bluesky checks, and native ATProto public reads.
+- Live smoke scripts cover deterministic local checks, optional live Fediverse actor checks, optional ActivityPub ownership-challenge proof checks, bridge-backed Bluesky checks, native ATProto public reads, and optional credentialed native Bluesky account/write lifecycle checks. Each smoke can persist its secret-free JSON report with a script-specific `*_SMOKE_REPORT_PATH` env var or the shared `GEESOME_SMOKE_REPORT_PATH`; deeper Fedify/ActivityPub.Academy conformance tooling and disposable-server runs remain follow-up.
 
 ## Remaining Plan
 
-1. Add post-import relation reconciliation controls to the migration UI so users can run dry-run/apply repair and see progress/results after a Bluesky or ActivityPub migration.
-2. Add richer relation/media policy controls for migration and cross-posting, including unsupported attachments, link-preview cards, image fallback, reply/quote/repost behavior, and remote-context authorship.
-3. Add a stronger signed ActivityPub ownership challenge for non-admin claimed profile migrations, while keeping admin approval and public profile proof token as supported methods.
-4. Expose moderation-policy controls beyond the migration wizard for source subscriptions, review/import surfaces, and link-preview/import policy.
-5. Finish canonical GeeSome rich-text storage/editor integration for social content, keeping sanitized HTML as derived adapter output rather than the trusted editable source.
-6. Improve large social-page migration UX for long-running history imports, progress/errors/cursors, remote-context placeholders, and later reconciliation when referenced actors/groups migrate.
-7. Expand live interop/conformance checks with more real Fediverse fixtures and a focused Fedify/ActivityPub.Academy spike if it reveals protocol gaps worth addressing.
+1. Simplify the ActivityPub/Bluesky UI around the main user jobs first: source subscribe/read, account connect/verify, cross-post, migration preview/start, and visible status/errors.
+2. Move flexible policy, migration repair, ownership proof, source refresh, and operator diagnostics into task-named expandable groups so edge-case controls stay available without overwhelming default screens.
+3. Run and record live interop evidence against real Fediverse/Bridgy/native ATProto targets, including skipped capabilities, credentialed Bluesky checks when credentials are available, and ActivityPub ownership proof compatibility where a signer/tool exists.
+4. Feed live interop findings back into docs or focused follow-up issues only when they reveal product or protocol gaps; keep Fedify/ActivityPub.Academy work as a targeted conformance spike, not a broad rewrite by default.

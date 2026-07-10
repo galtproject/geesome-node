@@ -2,6 +2,8 @@ import {IGeesomeApp} from '../../interface.js';
 import IGeesomeActivityPubModule, {
 	IActivityPubDeliveryProcessOptions,
 	IActivityPubDeliveryProcessResult,
+	IActivityPubMigrationOwnershipChallengeCleanupOptions,
+	IActivityPubMigrationOwnershipChallengeCleanupResult,
 	IActivityPubSourceRefreshPollOptions,
 	IActivityPubSourceRefreshPollResult,
 	IActivityPubSourceRefreshQueueProcessOptions,
@@ -13,6 +15,7 @@ const defaultActivityPubDeliveryClaimTtlMs = 5 * 60 * 1000;
 const defaultActivityPubSourceRefreshWorkerLimit = 3;
 const defaultActivityPubSourceRefreshPollerLimit = 20;
 const defaultActivityPubSourceRefreshPollerStaleMs = 15 * 60 * 1000;
+const defaultActivityPubOwnershipChallengeCleanupLimit = 1000;
 
 export default class ActivityPubDeliveryCronService {
 	app: IGeesomeApp;
@@ -20,6 +23,7 @@ export default class ActivityPubDeliveryCronService {
 	deliveryInProcess = false;
 	sourceRefreshInProcess = false;
 	sourceRefreshPollInProcess = false;
+	ownershipChallengeCleanupInProcess = false;
 
 	constructor(app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) {
 		this.app = app;
@@ -73,6 +77,22 @@ export default class ActivityPubDeliveryCronService {
 			this.sourceRefreshPollInProcess = false;
 		}
 	}
+
+	async cleanupOwnershipChallenges(options: IActivityPubMigrationOwnershipChallengeCleanupOptions = {}): Promise<IActivityPubMigrationOwnershipChallengeCleanupResult> {
+		if (this.ownershipChallengeCleanupInProcess) {
+			return getSkippedOwnershipChallengeCleanupResult(this.app);
+		}
+
+		this.ownershipChallengeCleanupInProcess = true;
+		try {
+			return await this.activityPubModule.cleanupMigrationOwnershipChallenges({
+				...getActivityPubOwnershipChallengeCleanupOptions(this.app),
+				...options
+			});
+		} finally {
+			this.ownershipChallengeCleanupInProcess = false;
+		}
+	}
 }
 
 function getSkippedDeliveryProcessResult(): IActivityPubDeliveryProcessResult {
@@ -106,6 +126,23 @@ function getActivityPubSourceRefreshPollerOptions(app: IGeesomeApp): IActivityPu
 	return {
 		limit: parsePositiveInteger(config.sourceRefreshPollerLimit, defaultActivityPubSourceRefreshPollerLimit),
 		staleMs: parsePositiveInteger(config.sourceRefreshPollerStaleMs, defaultActivityPubSourceRefreshPollerStaleMs)
+	};
+}
+
+function getActivityPubOwnershipChallengeCleanupOptions(app: IGeesomeApp): IActivityPubMigrationOwnershipChallengeCleanupOptions {
+	const config = app.config.activityPubConfig || {};
+	return {
+		limit: parsePositiveInteger(config.ownershipChallengeCleanupLimit, defaultActivityPubOwnershipChallengeCleanupLimit)
+	};
+}
+
+function getSkippedOwnershipChallengeCleanupResult(app: IGeesomeApp): IActivityPubMigrationOwnershipChallengeCleanupResult {
+	const config = app.config.activityPubConfig || {};
+	return {
+		deleted: 0,
+		limit: parsePositiveInteger(config.ownershipChallengeCleanupLimit, defaultActivityPubOwnershipChallengeCleanupLimit),
+		retentionMs: parsePositiveInteger(config.ownershipChallengeCleanupRetentionMs, 24 * 60 * 60 * 1000),
+		cutoff: new Date()
 	};
 }
 

@@ -432,6 +432,8 @@ export interface IActivityPubMigrationPreviewInput extends IActivityPubSourceRes
 	claimed?: boolean | string;
 	maxPages?: number | string;
 	ownershipProofToken?: string;
+	ownershipChallengeProof?: IActivityPubMigrationOwnershipChallengeProofInput;
+	requestIp?: string;
 }
 
 export interface IActivityPubMigrationPreviewResult extends IActivityPubMigrationPreview {
@@ -467,6 +469,62 @@ export interface IActivityPubMigrationImportResult extends IActivityPubMigration
 }
 
 export interface IActivityPubMigrationImportQueueInput extends IActivityPubMigrationImportInput {}
+
+export interface IActivityPubMigrationOwnershipChallengeInput extends IActivityPubSourceResolveInput {
+	expiresInMs?: number | string;
+	requestIp?: string;
+}
+
+export interface IActivityPubMigrationOwnershipChallengeResult {
+	id?: number;
+	actor: string;
+	sourceActorUrl: string;
+	sourceResource?: string;
+	bridgeProvider?: string;
+	challengeToken: string;
+	challengeUrl: string;
+	verificationUrl: string;
+	expiresAt: Date;
+	body: Record<string, any>;
+	bodyJson: string;
+}
+
+export interface IActivityPubMigrationOwnershipChallengeProofInput {
+	challengeToken?: string;
+	method?: string;
+	url?: string;
+	headers?: Record<string, string | number | string[] | undefined>;
+	body?: string | Record<string, any>;
+	bodyJson?: string;
+}
+
+export interface IActivityPubMigrationOwnershipChallengeVerifyInput {
+	ownershipChallengeProof?: IActivityPubMigrationOwnershipChallengeProofInput;
+	requestIp?: string;
+}
+
+export interface IActivityPubMigrationOwnershipChallengeVerifyResult {
+	verified: boolean;
+	method: 'signedChallenge';
+	actor: string;
+	challengeToken: string;
+	verifiedAt: Date;
+	expiresAt: Date;
+	keyId: string;
+}
+
+export interface IActivityPubMigrationOwnershipChallengeCleanupOptions {
+	retentionMs?: number | string;
+	limit?: number | string;
+	now?: Date | string;
+}
+
+export interface IActivityPubMigrationOwnershipChallengeCleanupResult {
+	deleted: number;
+	limit: number;
+	retentionMs: number;
+	cutoff: Date;
+}
 
 export interface IActivityPubMigrationImportQueueProcessOptions {
 	limit?: number | string;
@@ -823,6 +881,12 @@ export default interface IGeesomeActivityPubModule {
 	getGroupFlagReports(groupName: string, filters?: IActivityPubFlagReportFilters, listParams?: IListParams): Promise<IActivityPubFlagReportListResponse>;
 
 	resolveActivityPubSource(input: IActivityPubSourceResolveInput): Promise<IActivityPubSourceResolveResult>;
+
+	createMigrationOwnershipChallenge(userId: number, input?: IActivityPubMigrationOwnershipChallengeInput): Promise<IActivityPubMigrationOwnershipChallengeResult>;
+
+	verifyMigrationOwnershipChallenge(userId: number, input?: IActivityPubMigrationOwnershipChallengeVerifyInput): Promise<IActivityPubMigrationOwnershipChallengeVerifyResult>;
+
+	cleanupMigrationOwnershipChallenges(options?: IActivityPubMigrationOwnershipChallengeCleanupOptions): Promise<IActivityPubMigrationOwnershipChallengeCleanupResult>;
 
 	getMigrationPreview(userId: number, input?: IActivityPubMigrationPreviewInput): Promise<IActivityPubMigrationPreviewResult>;
 

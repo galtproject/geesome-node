@@ -62,6 +62,8 @@ import IGeesomeBlueskyModule, {
 	IBlueskyCrossPostResult,
 	IBlueskyDeleteCrossPostInput,
 	IBlueskyDeleteCrossPostResult,
+	IBlueskyImportMediaPolicyInput,
+	IBlueskyImportRelationPolicyInput,
 	IBlueskyMigrationImportInput,
 	IBlueskyMigrationImportQueueInput,
 	IBlueskyMigrationImportQueueProcessOptions,
@@ -133,6 +135,36 @@ interface IBlueskyCrossPostFallbackLink {
 interface IBlueskyCrossPostImageResult {
 	embeds: any[];
 	fallbackLinks: IBlueskyCrossPostFallbackLink[];
+}
+
+type BlueskyCrossPostImagePolicy = 'upload' | 'link' | 'reject';
+type BlueskyCrossPostImageUploadFailurePolicy = 'link' | 'reject';
+type BlueskyCrossPostFallbackContentPolicy = 'card' | 'link' | 'reject' | 'ignore';
+type BlueskyCrossPostRelationPolicy = 'require' | 'omit';
+type BlueskyImportMediaPolicy = 'preserve' | 'ignore' | 'reject';
+type BlueskyImportRelationPolicy = 'preserve' | 'omit' | 'reject';
+
+interface IBlueskyCrossPostPolicy {
+	images: BlueskyCrossPostImagePolicy;
+	imageUploadFailure: BlueskyCrossPostImageUploadFailurePolicy;
+	attachments: BlueskyCrossPostFallbackContentPolicy;
+	linkPreviews: BlueskyCrossPostFallbackContentPolicy;
+	replies: BlueskyCrossPostRelationPolicy;
+	quotes: BlueskyCrossPostRelationPolicy;
+}
+
+interface IBlueskyCrossPostFallbackLinksResult {
+	textLinks: IBlueskyCrossPostFallbackLink[];
+	embedLinks: IBlueskyCrossPostFallbackLink[];
+}
+
+interface IBlueskyImportProjectionPolicy {
+	images: BlueskyImportMediaPolicy;
+	linkPreviews: BlueskyImportMediaPolicy;
+	unsupportedEmbeds: BlueskyImportMediaPolicy;
+	replies: BlueskyImportRelationPolicy;
+	quotes: BlueskyImportRelationPolicy;
+	reposts: BlueskyImportRelationPolicy;
 }
 
 interface IBlueskyStoredCrossPostRecord {
@@ -215,9 +247,13 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 			if (preview.list.length > 0 && !moderation.projections.length) {
 				throw new Error('bluesky_migration_moderation_no_importable_posts');
 			}
+			const importProjections = getBlueskyImportPolicyProjections(moderation.projections, importInput);
+			if (preview.list.length > 0 && !importProjections.length) {
+				throw new Error('bluesky_import_policy_no_importable_posts');
+			}
 			const importResult = await this.importPublicAuthorFeedPreview(userId, userApiKeyId, importInput, {
 				...preview,
-				list: moderation.projections
+				list: importProjections
 			});
 			return {
 				...importResult,
@@ -298,6 +334,8 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 			let ownership = null;
 			let dbChannel: ISocNetDbChannel | null = null;
 			let projectedPostsCount = 0;
+			let moderatedPostsCount = 0;
+			let importPolicyPostsCount = 0;
 			let imported = 0;
 			let pages = 0;
 			let moderation = getEmptyRemoteContentModerationSummary();
@@ -327,13 +365,16 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 				}
 				const moderated = getBlueskyModeratedMigrationProjections(preview.actor, importInput, projections);
 				moderation = getMergedRemoteContentModerationSummary(moderation, moderated.summary);
-				if (moderated.projections.length > 0) {
-					dbChannel = dbChannel || await this.importPublicAuthorChannel(userId, importInput, preview.actor, moderated.projections[0]);
+				const importProjections = getBlueskyImportPolicyProjections(moderated.projections, importInput);
+				moderatedPostsCount += moderated.projections.length;
+				importPolicyPostsCount += importProjections.length;
+				if (importProjections.length > 0) {
+					dbChannel = dbChannel || await this.importPublicAuthorChannel(userId, importInput, preview.actor, importProjections[0]);
 					imported += await importBlueskyPublicAuthorFeedProjections(
 						app,
 						userId,
 						dbChannel,
-						getBlueskyImportProjectionOrder(moderated.projections),
+						getBlueskyImportProjectionOrder(importProjections),
 						getBlueskyImportAdvancedSettings(importInput),
 						asyncOperation
 					);
@@ -346,6 +387,9 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 				}
 			}
 			if (!dbChannel || !ownership) {
+				if (moderatedPostsCount > 0 && importPolicyPostsCount === 0) {
+					throw new Error('bluesky_import_policy_no_importable_posts');
+				}
 				if (projectedPostsCount > 0) {
 					throw new Error('bluesky_migration_moderation_no_importable_posts');
 				}
@@ -373,8 +417,11 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 		async importPublicAuthorFeedPreview(userId: number, userApiKeyId: number | null, input: IBlueskyPublicAuthorFeedImportInput, preview: IBlueskyPublicAuthorFeedPreview) {
 			app.checkModules(['asyncOperation', 'group', 'content', 'socNetImport']);
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-			const projections = preview.list;
+			const projections = getBlueskyImportPolicyProjections(preview.list, input);
 			if (projections.length === 0) {
+				if (preview.list.length > 0) {
+					throw new Error('bluesky_import_policy_no_importable_posts');
+				}
 				throw new Error('bluesky_feed_empty');
 			}
 			const dbChannel = await this.importPublicAuthorChannel(userId, input, preview.actor, projections[0]);
@@ -383,7 +430,7 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 			return {
 				actor: preview.actor,
 				cursor: preview.cursor,
-				projectedPostsCount: projections.length,
+				projectedPostsCount: preview.list.length,
 				dbChannel: getBlueskyImportChannelResult(dbChannel),
 				asyncOperation
 			};
@@ -724,12 +771,20 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 			assertBlueskySourceReviewImportable(reviewRecord);
 
 			try {
-				const dbChannel = await this.importPublicAuthorChannel(userId, getBlueskySourceReviewImportInput(subscription, input), subscription.actor, projection);
+				const importInput = getBlueskySourceReviewImportInput(subscription, input);
+				const importProjections = getBlueskyImportPolicyProjections(
+					[getBlueskyModeratedProjection(projection, parseBlueskySourceReviewDecision(reviewRecord))],
+					importInput
+				);
+				if (!importProjections.length) {
+					throw new Error('bluesky_import_policy_no_importable_posts');
+				}
+				const dbChannel = await this.importPublicAuthorChannel(userId, importInput, subscription.actor, importProjections[0]);
 				const imported = await importBlueskyPublicAuthorFeedProjections(
 					app,
 					userId,
 					dbChannel,
-					[getBlueskyModeratedProjection(projection, parseBlueskySourceReviewDecision(reviewRecord))],
+					importProjections,
 					getBlueskySourceReviewAdvancedSettings(input)
 				);
 				await updateBlueskySourceSubscriptionRecord(subscription, getBlueskySourceRefreshSuccessData({
@@ -771,7 +826,8 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 				}
 				const moderation = getBlueskyModeratedSourceProjections(preview.actor, subscription, refreshInput, projections);
 				await storeBlueskySourceReviewProjections(models, userId, subscription, moderation.reviewProjections, refreshedAt);
-				if (!moderation.projections.length) {
+				const importProjections = getBlueskyImportPolicyProjections(moderation.projections, refreshInput);
+				if (!importProjections.length) {
 					await updateBlueskySourceSubscriptionRecord(subscription, getBlueskySourceRefreshSuccessData({
 						cursor: preview.cursor,
 						imported: 0,
@@ -780,12 +836,12 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 					return getBlueskySourceRefreshResult(subscription, preview.actor, preview.cursor, projections.length, 0, null, moderation.summary);
 				}
 
-				const dbChannel = await this.importPublicAuthorChannel(userId, refreshInput, preview.actor, moderation.projections[0]);
+				const dbChannel = await this.importPublicAuthorChannel(userId, refreshInput, preview.actor, importProjections[0]);
 				const imported = await importBlueskyPublicAuthorFeedProjections(
 					app,
 					userId,
 					dbChannel,
-					getBlueskyImportProjectionOrder(moderation.projections),
+					getBlueskyImportProjectionOrder(importProjections),
 					getBlueskyImportAdvancedSettings(refreshInput),
 					refreshOptions.asyncOperation
 				);
@@ -1121,6 +1177,7 @@ async function getBlueskyCrossPostRecordInput(
 	input: IBlueskyCrossPostInput,
 	session: IBlueskySession
 ): Promise<IBlueskyFeedPostRecordInput> {
+	const policy = getBlueskyCrossPostPolicy(input);
 	const contents = await app.ms.group.getPostContentData(post, '', {
 		includeText: true,
 		includeJson: true
@@ -1142,15 +1199,21 @@ async function getBlueskyCrossPostRecordInput(
 	if (unsupportedContents.length > 0) {
 		throw new Error('bluesky_cross_post_attachments_unsupported');
 	}
-	const attachmentFallbackLinks = getBlueskyCrossPostAttachmentFallbackLinks(app, attachmentContents);
-	const linkPreviewFallbackLinks = getBlueskyCrossPostLinkPreviewFallbackLinks(linkPreviewContents);
-	const quoteRecord = await getBlueskyCrossPostQuoteRecord(app, post, session.did);
-	const reply = await getBlueskyCrossPostReplyRef(app, options, post, session.did);
-	const imageResult = await getBlueskyCrossPostImageResult(app, options, session, imageContents);
+	assertBlueskyCrossPostImagePolicyAllows(imageContents, policy);
+	const attachmentFallbackLinks = getBlueskyCrossPostAttachmentFallbackLinks(app, attachmentContents, policy);
+	const linkPreviewFallbackLinks = getBlueskyCrossPostLinkPreviewFallbackLinks(linkPreviewContents, policy);
+	const quoteRecord = await getBlueskyCrossPostQuoteRecord(app, post, session.did, policy);
+	const reply = await getBlueskyCrossPostReplyRef(app, options, post, session.did, policy);
+	const imageResult = await getBlueskyCrossPostImageResult(app, options, session, imageContents, policy);
 	const fallbackLinks = [
 		...imageResult.fallbackLinks,
-		...attachmentFallbackLinks,
-		...linkPreviewFallbackLinks
+		...attachmentFallbackLinks.textLinks,
+		...linkPreviewFallbackLinks.textLinks
+	];
+	const embedFallbackLinks = [
+		...imageResult.fallbackLinks,
+		...attachmentFallbackLinks.embedLinks,
+		...linkPreviewFallbackLinks.embedLinks
 	];
 	const textWithFacets = appendBlueskyCrossPostFallbackLinks(
 		getBlueskyCrossPostAtProtoText(primaryContent),
@@ -1159,7 +1222,7 @@ async function getBlueskyCrossPostRecordInput(
 	if (!textWithFacets.text.trim()) {
 		throw new Error('bluesky_cross_post_text_required');
 	}
-	const mediaEmbed = getBlueskyCrossPostEmbed(imageResult, fallbackLinks);
+	const mediaEmbed = getBlueskyCrossPostEmbed(imageResult, embedFallbackLinks);
 	return {
 		text: textWithFacets.text,
 		facets: textWithFacets.facets,
@@ -1174,8 +1237,12 @@ async function getBlueskyCrossPostReplyRef(
 	app: IGeesomeApp,
 	options: any,
 	post: IPost,
-	did: string
+	did: string,
+	policy: IBlueskyCrossPostPolicy
 ) {
+	if (policy.replies === 'omit') {
+		return null;
+	}
 	const parentPost = await getBlueskyCrossPostRelatedPost(app, post.replyToId);
 	if (!parentPost) {
 		return null;
@@ -1191,7 +1258,15 @@ async function getBlueskyCrossPostReplyRef(
 	};
 }
 
-async function getBlueskyCrossPostQuoteRecord(app: IGeesomeApp, post: IPost, did: string): Promise<IBlueskyRecordRef | null> {
+async function getBlueskyCrossPostQuoteRecord(
+	app: IGeesomeApp,
+	post: IPost,
+	did: string,
+	policy: IBlueskyCrossPostPolicy
+): Promise<IBlueskyRecordRef | null> {
+	if (policy.quotes === 'omit') {
+		return null;
+	}
 	const quotePost = await getBlueskyCrossPostRelatedPost(app, post.repostOfId);
 	if (!quotePost) {
 		return null;
@@ -1358,6 +1433,64 @@ function getBlueskyCrossPostImageContents(contents: IContentData[], primaryConte
 	return imageContents;
 }
 
+function assertBlueskyCrossPostImagePolicyAllows(imageContents: IContentData[], policy: IBlueskyCrossPostPolicy): void {
+	if (policy.images !== 'reject' || imageContents.length === 0) {
+		return;
+	}
+	throw new Error('bluesky_cross_post_image_policy_reject');
+}
+
+function getBlueskyCrossPostPolicy(input: IBlueskyCrossPostInput): IBlueskyCrossPostPolicy {
+	const mediaPolicy = getPlainObject(input.mediaPolicy);
+	const relationPolicy = getPlainObject(input.relationPolicy);
+	return {
+		images: getBlueskyCrossPostImagePolicy(mediaPolicy.images),
+		imageUploadFailure: getBlueskyCrossPostImageUploadFailurePolicy(mediaPolicy.imageUploadFailure),
+		attachments: getBlueskyCrossPostFallbackContentPolicy(mediaPolicy.attachments, 'card'),
+		linkPreviews: getBlueskyCrossPostFallbackContentPolicy(mediaPolicy.linkPreviews, 'card'),
+		replies: getBlueskyCrossPostRelationPolicy(relationPolicy.replies),
+		quotes: getBlueskyCrossPostRelationPolicy(relationPolicy.quotes)
+	};
+}
+
+function getBlueskyCrossPostImagePolicy(value: any): BlueskyCrossPostImagePolicy {
+	const normalizedValue = getOptionalString(value)?.trim();
+	if (normalizedValue === 'linkOnly' || normalizedValue === 'fallbackLink') {
+		return 'link';
+	}
+	if (normalizedValue === 'link' || normalizedValue === 'reject') {
+		return normalizedValue;
+	}
+	return 'upload';
+}
+
+function getBlueskyCrossPostImageUploadFailurePolicy(value: any): BlueskyCrossPostImageUploadFailurePolicy {
+	const normalizedValue = getOptionalString(value)?.trim();
+	if (normalizedValue === 'reject') {
+		return 'reject';
+	}
+	return 'link';
+}
+
+function getBlueskyCrossPostFallbackContentPolicy(
+	value: any,
+	defaultValue: BlueskyCrossPostFallbackContentPolicy
+): BlueskyCrossPostFallbackContentPolicy {
+	const normalizedValue = getOptionalString(value)?.trim();
+	if (normalizedValue === 'card' || normalizedValue === 'link' || normalizedValue === 'reject' || normalizedValue === 'ignore') {
+		return normalizedValue;
+	}
+	return defaultValue;
+}
+
+function getBlueskyCrossPostRelationPolicy(value: any): BlueskyCrossPostRelationPolicy {
+	const normalizedValue = getOptionalString(value)?.trim();
+	if (normalizedValue === 'omit' || normalizedValue === 'ignore') {
+		return 'omit';
+	}
+	return 'require';
+}
+
 function getBlueskyCrossPostUnsupportedContents(
 	contents: IContentData[],
 	primaryContent: IContentData,
@@ -1441,14 +1574,15 @@ async function getBlueskyCrossPostImageResult(
 	app: IGeesomeApp,
 	options: any,
 	session: IBlueskySession,
-	contents: IContentData[]
+	contents: IContentData[],
+	policy: IBlueskyCrossPostPolicy
 ): Promise<IBlueskyCrossPostImageResult> {
 	const result: IBlueskyCrossPostImageResult = {
 		embeds: [],
 		fallbackLinks: []
 	};
 	for (const content of contents) {
-		const item = await getBlueskyCrossPostImageEmbedOrFallback(app, options, session, content);
+		const item = await getBlueskyCrossPostImageEmbedOrFallback(app, options, session, content, policy);
 		if (item.embed) {
 			result.embeds.push(item.embed);
 		}
@@ -1463,13 +1597,20 @@ async function getBlueskyCrossPostImageEmbedOrFallback(
 	app: IGeesomeApp,
 	options: any,
 	session: IBlueskySession,
-	content: IContentData
+	content: IContentData,
+	policy: IBlueskyCrossPostPolicy
 ): Promise<{embed?: any; fallbackLink?: IBlueskyCrossPostFallbackLink}> {
+	if (policy.images === 'link') {
+		return {fallbackLink: getRequiredBlueskyCrossPostImageFallbackLink(app, content)};
+	}
 	try {
 		return {
 			embed: await getBlueskyCrossPostImageEmbed(app, options, session, content)
 		};
 	} catch (e) {
+		if (policy.imageUploadFailure === 'reject') {
+			throw e;
+		}
 		const fallbackLink = getBlueskyCrossPostImageFallbackLink(app, content);
 		if (!fallbackLink) {
 			throw e;
@@ -1614,18 +1755,62 @@ function getBlueskyCrossPostImageFallbackLink(app: IGeesomeApp, content: IConten
 	};
 }
 
-function getBlueskyCrossPostAttachmentFallbackLinks(app: IGeesomeApp, contents: IContentData[]): IBlueskyCrossPostFallbackLink[] {
-	return contents.map(content => getBlueskyCrossPostAttachmentFallbackLink(app, content));
+function getRequiredBlueskyCrossPostImageFallbackLink(app: IGeesomeApp, content: IContentData): IBlueskyCrossPostFallbackLink {
+	const fallbackLink = getBlueskyCrossPostImageFallbackLink(app, content);
+	if (!fallbackLink) {
+		throw new Error('bluesky_cross_post_image_public_url_required');
+	}
+	return fallbackLink;
 }
 
-function getBlueskyCrossPostLinkPreviewFallbackLinks(contents: IContentData[]): IBlueskyCrossPostFallbackLink[] {
-	return contents.map((content) => {
-		const link = getBlueskyCrossPostLinkPreviewFallbackLink(content);
-		if (!link) {
-			throw new Error('bluesky_cross_post_link_preview_unsupported');
+function getBlueskyCrossPostAttachmentFallbackLinks(
+	app: IGeesomeApp,
+	contents: IContentData[],
+	policy: IBlueskyCrossPostPolicy
+): IBlueskyCrossPostFallbackLinksResult {
+	return getBlueskyCrossPostPolicyFallbackLinks(
+		contents,
+		policy.attachments,
+		'bluesky_cross_post_attachment_policy_reject',
+		content => getBlueskyCrossPostAttachmentFallbackLink(app, content)
+	);
+}
+
+function getBlueskyCrossPostLinkPreviewFallbackLinks(
+	contents: IContentData[],
+	policy: IBlueskyCrossPostPolicy
+): IBlueskyCrossPostFallbackLinksResult {
+	return getBlueskyCrossPostPolicyFallbackLinks(
+		contents,
+		policy.linkPreviews,
+		'bluesky_cross_post_link_preview_policy_reject',
+		(content) => {
+			const link = getBlueskyCrossPostLinkPreviewFallbackLink(content);
+			if (!link) {
+				throw new Error('bluesky_cross_post_link_preview_unsupported');
+			}
+			return link;
 		}
-		return link;
-	});
+	);
+}
+
+function getBlueskyCrossPostPolicyFallbackLinks(
+	contents: IContentData[],
+	policy: BlueskyCrossPostFallbackContentPolicy,
+	rejectErrorCode: string,
+	getLink: (content: IContentData) => IBlueskyCrossPostFallbackLink
+): IBlueskyCrossPostFallbackLinksResult {
+	if (contents.length === 0 || policy === 'ignore') {
+		return {textLinks: [], embedLinks: []};
+	}
+	if (policy === 'reject') {
+		throw new Error(rejectErrorCode);
+	}
+	const textLinks = contents.map(content => getLink(content));
+	return {
+		textLinks,
+		embedLinks: policy === 'card' ? textLinks : []
+	};
 }
 
 function getBlueskyCrossPostAttachmentFallbackLink(app: IGeesomeApp, content: IContentData): IBlueskyCrossPostFallbackLink {
@@ -1955,6 +2140,159 @@ function getBlueskyImportAdvancedSettings(input: IBlueskyPublicAuthorFeedImportI
 		advancedSettings.mergeSeconds = input.mergeSeconds;
 	}
 	return advancedSettings;
+}
+
+function getBlueskyImportPolicyProjections(
+	projections: IBlueskyPostProjection[],
+	input: Pick<IBlueskyPublicAuthorFeedImportInput, 'mediaPolicy' | 'relationPolicy'>
+): IBlueskyPostProjection[] {
+	const policy = getBlueskyImportProjectionPolicy(input);
+	return projections
+		.map(projection => getBlueskyImportPolicyProjection(projection, policy))
+		.filter(Boolean) as IBlueskyPostProjection[];
+}
+
+function getBlueskyImportPolicyProjection(
+	projection: IBlueskyPostProjection,
+	policy: IBlueskyImportProjectionPolicy
+): IBlueskyPostProjection | null {
+	assertBlueskyImportProjectionAllowed(projection, policy);
+	if (projection.repost && policy.reposts === 'omit') {
+		return null;
+	}
+	let result = projection;
+	if (projection.reply && policy.replies === 'omit') {
+		result = {...result, reply: null};
+	}
+	if (projection.quote && policy.quotes === 'omit') {
+		result = {...result, quote: null};
+	}
+	const embed = getBlueskyImportPolicyEmbed(result.embed, policy);
+	if (embed !== result.embed) {
+		result = {...result, embed};
+	}
+	return result;
+}
+
+function assertBlueskyImportProjectionAllowed(
+	projection: IBlueskyPostProjection,
+	policy: IBlueskyImportProjectionPolicy
+): void {
+	if (projection.repost && policy.reposts === 'reject') {
+		throw new Error('bluesky_import_repost_policy_reject');
+	}
+	if (projection.reply && policy.replies === 'reject') {
+		throw new Error('bluesky_import_reply_policy_reject');
+	}
+	if (projection.quote && policy.quotes === 'reject') {
+		throw new Error('bluesky_import_quote_policy_reject');
+	}
+	if (projection.embed?.images?.length && policy.images === 'reject') {
+		throw new Error('bluesky_import_image_policy_reject');
+	}
+	if (projection.embed?.external?.length && policy.linkPreviews === 'reject') {
+		throw new Error('bluesky_import_link_preview_policy_reject');
+	}
+	if (projection.embed?.unsupportedTypes?.length && policy.unsupportedEmbeds === 'reject') {
+		throw new Error('bluesky_import_unsupported_embed_policy_reject');
+	}
+}
+
+function getBlueskyImportPolicyEmbed(embed, policy: IBlueskyImportProjectionPolicy) {
+	if (!embed) {
+		return embed;
+	}
+	const images = policy.images === 'ignore' ? [] : embed.images;
+	const external = policy.linkPreviews === 'ignore' ? [] : embed.external;
+	const unsupportedTypes = policy.unsupportedEmbeds === 'ignore' ? [] : embed.unsupportedTypes;
+	if (images === embed.images && external === embed.external && unsupportedTypes === embed.unsupportedTypes) {
+		return embed;
+	}
+	return {
+		...embed,
+		images,
+		external,
+		unsupportedTypes
+	};
+}
+
+function getBlueskyImportProjectionPolicy(
+	input: Pick<IBlueskyPublicAuthorFeedImportInput, 'mediaPolicy' | 'relationPolicy'>
+): IBlueskyImportProjectionPolicy {
+	const mediaPolicy = getPlainObject(input.mediaPolicy);
+	const relationPolicy = getPlainObject(input.relationPolicy);
+	return {
+		images: getBlueskyImportMediaPolicy(mediaPolicy.images),
+		linkPreviews: getBlueskyImportMediaPolicy(mediaPolicy.linkPreviews),
+		unsupportedEmbeds: getBlueskyImportMediaPolicy(mediaPolicy.unsupportedEmbeds),
+		replies: getBlueskyImportRelationPolicy(relationPolicy.replies),
+		quotes: getBlueskyImportRelationPolicy(relationPolicy.quotes),
+		reposts: getBlueskyImportRelationPolicy(relationPolicy.reposts)
+	};
+}
+
+function getBlueskyImportMediaPolicy(value: any): BlueskyImportMediaPolicy {
+	const normalizedValue = getOptionalString(value)?.trim();
+	if (normalizedValue === 'ignore' || normalizedValue === 'omit') {
+		return 'ignore';
+	}
+	if (normalizedValue === 'reject') {
+		return 'reject';
+	}
+	return 'preserve';
+}
+
+function getBlueskyImportRelationPolicy(value: any): BlueskyImportRelationPolicy {
+	const normalizedValue = getOptionalString(value)?.trim();
+	if (normalizedValue === 'omit' || normalizedValue === 'ignore') {
+		return 'omit';
+	}
+	if (normalizedValue === 'reject') {
+		return 'reject';
+	}
+	return 'preserve';
+}
+
+function appendBlueskyImportPolicyJobInput(jobInput, input: Pick<IBlueskyPublicAuthorFeedImportInput, 'mediaPolicy' | 'relationPolicy'>): void {
+	const mediaPolicy = getOptionalBlueskyImportMediaPolicyInput(input);
+	const relationPolicy = getOptionalBlueskyImportRelationPolicyInput(input);
+	if (mediaPolicy) {
+		jobInput.mediaPolicy = mediaPolicy;
+	}
+	if (relationPolicy) {
+		jobInput.relationPolicy = relationPolicy;
+	}
+}
+
+function getOptionalBlueskyImportMediaPolicyInput(input: Pick<IBlueskyPublicAuthorFeedImportInput, 'mediaPolicy'>): any {
+	const mediaPolicy = getPlainObject(input.mediaPolicy);
+	const result = {};
+	appendBlueskyImportPolicyValue(result, mediaPolicy, 'images', getBlueskyImportMediaPolicy);
+	appendBlueskyImportPolicyValue(result, mediaPolicy, 'linkPreviews', getBlueskyImportMediaPolicy);
+	appendBlueskyImportPolicyValue(result, mediaPolicy, 'unsupportedEmbeds', getBlueskyImportMediaPolicy);
+	if (!Object.keys(result).length) {
+		return undefined;
+	}
+	return result;
+}
+
+function getOptionalBlueskyImportRelationPolicyInput(input: Pick<IBlueskyPublicAuthorFeedImportInput, 'relationPolicy'>): any {
+	const relationPolicy = getPlainObject(input.relationPolicy);
+	const result = {};
+	appendBlueskyImportPolicyValue(result, relationPolicy, 'replies', getBlueskyImportRelationPolicy);
+	appendBlueskyImportPolicyValue(result, relationPolicy, 'quotes', getBlueskyImportRelationPolicy);
+	appendBlueskyImportPolicyValue(result, relationPolicy, 'reposts', getBlueskyImportRelationPolicy);
+	if (!Object.keys(result).length) {
+		return undefined;
+	}
+	return result;
+}
+
+function appendBlueskyImportPolicyValue(result, source, key: string, normalizeValue: (value: any) => string): void {
+	if (!Object.prototype.hasOwnProperty.call(source, key)) {
+		return;
+	}
+	result[key] = normalizeValue(source[key]);
 }
 
 function getBlueskyMigrationImportInput(
@@ -2499,6 +2837,8 @@ function getBlueskySourceSubscriptionCreateData(userId: number, input: IBlueskyS
 		importLimit: getNullableImportLimit(input.importLimit),
 		moderationMode: moderationPolicy.mode,
 		moderationRulesJson: getBlueskyModerationRulesJson(moderationPolicy.rules),
+		importMediaPolicyJson: getBlueskyImportMediaPolicyJson(input),
+		importRelationPolicyJson: getBlueskyImportRelationPolicyJson(input),
 		lastError: null
 	};
 }
@@ -2513,6 +2853,8 @@ function getExistingBlueskySourceSubscriptionUpdateData(subscriptionData) {
 		importLimit: subscriptionData.importLimit,
 		moderationMode: subscriptionData.moderationMode,
 		moderationRulesJson: subscriptionData.moderationRulesJson,
+		importMediaPolicyJson: subscriptionData.importMediaPolicyJson,
+		importRelationPolicyJson: subscriptionData.importRelationPolicyJson,
 		lastError: null
 	};
 }
@@ -2542,6 +2884,12 @@ function getBlueskySourceSubscriptionUpdateData(input: IBlueskySourceSubscriptio
 		updateData.moderationMode = moderationPolicy.mode;
 		updateData.moderationRulesJson = getBlueskyModerationRulesJson(moderationPolicy.rules);
 	}
+	if (input.mediaPolicy !== undefined) {
+		updateData.importMediaPolicyJson = getBlueskyImportMediaPolicyJson(input);
+	}
+	if (input.relationPolicy !== undefined) {
+		updateData.importRelationPolicyJson = getBlueskyImportRelationPolicyJson(input);
+	}
 	return updateData;
 }
 
@@ -2556,7 +2904,9 @@ function getBlueskySourceRefreshImportInput(subscription, input: IBlueskySourceR
 		advancedSettings: input.advancedSettings || {},
 		force: input.force === undefined ? undefined : helpers.parseBoolean(input.force, false),
 		mergeSeconds: getNullablePositiveInteger(input.mergeSeconds) || undefined,
-		moderationPolicy: input.moderationPolicy
+		moderationPolicy: input.moderationPolicy,
+		mediaPolicy: getBlueskySourceImportMediaPolicyInput(subscription, input),
+		relationPolicy: getBlueskySourceImportRelationPolicyInput(subscription, input)
 	};
 }
 
@@ -2673,6 +3023,7 @@ function getBlueskyMigrationImportJobInputData(input: IBlueskyMigrationImportQue
 	if (input.moderationPolicy !== undefined) {
 		jobInput.moderationPolicy = getBlueskySourceRefreshJobModerationPolicy(input.moderationPolicy);
 	}
+	appendBlueskyImportPolicyJobInput(jobInput, input);
 	return jobInput;
 }
 
@@ -2754,6 +3105,7 @@ function getBlueskySourceRefreshJobInputData(input: IBlueskySourceRefreshQueueIn
 	if (input.moderationPolicy !== undefined) {
 		jobInput.moderationPolicy = getBlueskySourceRefreshJobModerationPolicy(input.moderationPolicy);
 	}
+	appendBlueskyImportPolicyJobInput(jobInput, input);
 	return jobInput;
 }
 
@@ -3022,11 +3374,13 @@ function parseBlueskySourceReviewDecision(reviewRecord): IRemoteContentModeratio
 	return parseJsonObject(reviewRecord.moderationDecisionJson) as IRemoteContentModerationDecision;
 }
 
-function getBlueskySourceReviewImportInput(subscription, _input: IBlueskySourceReviewImportInput): IBlueskyPublicAuthorFeedImportInput {
+function getBlueskySourceReviewImportInput(subscription, input: IBlueskySourceReviewImportInput): IBlueskyPublicAuthorFeedImportInput {
 	return {
 		actor: subscription.actor,
 		accountId: subscription.accountId || null,
-		groupName: subscription.groupName || undefined
+		groupName: subscription.groupName || undefined,
+		mediaPolicy: getBlueskySourceImportMediaPolicyInput(subscription, input),
+		relationPolicy: getBlueskySourceImportRelationPolicyInput(subscription, input)
 	};
 }
 
@@ -3174,6 +3528,50 @@ function getBlueskyModerationRulesJson(rules): string | null {
 	return JSON.stringify(rules);
 }
 
+function getBlueskyImportMediaPolicyJson(input: {mediaPolicy?: IBlueskyImportMediaPolicyInput | null}): string | null {
+	const policy = getOptionalBlueskyImportMediaPolicyInput(input);
+	if (!policy) {
+		return null;
+	}
+	return JSON.stringify(policy);
+}
+
+function getBlueskyImportRelationPolicyJson(input: {relationPolicy?: IBlueskyImportRelationPolicyInput | null}): string | null {
+	const policy = getOptionalBlueskyImportRelationPolicyInput(input);
+	if (!policy) {
+		return null;
+	}
+	return JSON.stringify(policy);
+}
+
+function getBlueskySourceImportMediaPolicyInput(
+	subscription,
+	input: {mediaPolicy?: IBlueskyImportMediaPolicyInput | null} = {}
+): IBlueskyImportMediaPolicyInput | undefined {
+	if (Object.prototype.hasOwnProperty.call(input, 'mediaPolicy')) {
+		return getOptionalBlueskyImportMediaPolicyInput(input);
+	}
+	return getBlueskySubscriptionImportMediaPolicyInput(subscription);
+}
+
+function getBlueskySourceImportRelationPolicyInput(
+	subscription,
+	input: {relationPolicy?: IBlueskyImportRelationPolicyInput | null} = {}
+): IBlueskyImportRelationPolicyInput | undefined {
+	if (Object.prototype.hasOwnProperty.call(input, 'relationPolicy')) {
+		return getOptionalBlueskyImportRelationPolicyInput(input);
+	}
+	return getBlueskySubscriptionImportRelationPolicyInput(subscription);
+}
+
+function getBlueskySubscriptionImportMediaPolicyInput(subscription): IBlueskyImportMediaPolicyInput {
+	return parseJsonObject(subscription?.importMediaPolicyJson);
+}
+
+function getBlueskySubscriptionImportRelationPolicyInput(subscription): IBlueskyImportRelationPolicyInput {
+	return parseJsonObject(subscription?.importRelationPolicyJson);
+}
+
 function parseBlueskyModerationRulesJson(value: string | null | undefined) {
 	if (!value) {
 		return [];
@@ -3318,6 +3716,8 @@ function getBlueskySourceSubscriptionReport(subscription) {
 		importLimit: subscription.importLimit || null,
 		moderationMode: getBlueskySubscriptionModerationMode(subscription),
 		moderationRules: getBlueskySubscriptionModerationRules(subscription),
+		mediaPolicy: getBlueskySubscriptionImportMediaPolicyInput(subscription),
+		relationPolicy: getBlueskySubscriptionImportRelationPolicyInput(subscription),
 		dbChannelId: subscription.dbChannelId || null,
 		lastCursor: subscription.lastCursor || null,
 		lastRefreshRequestedAt: subscription.lastRefreshRequestedAt || null,

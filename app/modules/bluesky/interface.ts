@@ -38,12 +38,26 @@ export interface IBlueskyPublicAuthorFeedImportInput extends IBlueskyPublicAutho
 	force?: boolean;
 	mergeSeconds?: number;
 	moderationPolicy?: IRemoteContentModerationPolicyInput;
+	mediaPolicy?: IBlueskyImportMediaPolicyInput;
+	relationPolicy?: IBlueskyImportRelationPolicyInput;
 }
 
 export interface IBlueskyPublicAuthorFeedPreview {
 	actor: string;
 	cursor: string | null;
 	list: IBlueskyPostProjection[];
+}
+
+export interface IBlueskyImportMediaPolicyInput {
+	images?: 'preserve' | 'ignore' | 'reject' | string;
+	linkPreviews?: 'preserve' | 'ignore' | 'reject' | string;
+	unsupportedEmbeds?: 'preserve' | 'ignore' | 'reject' | string;
+}
+
+export interface IBlueskyImportRelationPolicyInput {
+	replies?: 'preserve' | 'omit' | 'reject' | string;
+	quotes?: 'preserve' | 'omit' | 'reject' | string;
+	reposts?: 'preserve' | 'omit' | 'reject' | string;
 }
 
 export interface IBlueskyMigrationPreviewInput extends IBlueskyPublicAuthorFeedPreviewInput, IBlueskyAccountVerifyInput {
@@ -181,6 +195,16 @@ export interface IBlueskyCrossPostInput extends IBlueskyAccountVerifyInput {
 	langs?: string[];
 	createdAt?: string | Date;
 	force?: boolean | string;
+	mediaPolicy?: {
+		images?: 'upload' | 'link' | 'reject' | string;
+		imageUploadFailure?: 'link' | 'reject' | string;
+		attachments?: 'card' | 'link' | 'reject' | 'ignore' | string;
+		linkPreviews?: 'card' | 'link' | 'reject' | 'ignore' | string;
+	};
+	relationPolicy?: {
+		replies?: 'require' | 'omit' | string;
+		quotes?: 'require' | 'omit' | string;
+	};
 }
 
 export interface IBlueskyCrossPostResult {
@@ -245,6 +269,8 @@ export interface IBlueskySourceSubscriptionInput {
 	importLimit?: number | string | null;
 	moderationMode?: RemoteContentModerationMode | string | null;
 	moderationRules?: IRemoteContentModerationRule[] | any[] | null;
+	mediaPolicy?: IBlueskyImportMediaPolicyInput | null;
+	relationPolicy?: IBlueskyImportRelationPolicyInput | null;
 }
 
 export interface IBlueskySourceSubscriptionUpdateInput {
@@ -256,6 +282,8 @@ export interface IBlueskySourceSubscriptionUpdateInput {
 	importLimit?: number | string | null;
 	moderationMode?: RemoteContentModerationMode | string | null;
 	moderationRules?: IRemoteContentModerationRule[] | any[] | null;
+	mediaPolicy?: IBlueskyImportMediaPolicyInput | null;
+	relationPolicy?: IBlueskyImportRelationPolicyInput | null;
 }
 
 export interface IBlueskySourceSubscriptionFilters {
@@ -275,6 +303,8 @@ export interface IBlueskySourceSubscriptionReport {
 	importLimit?: number | null;
 	moderationMode?: RemoteContentModerationMode;
 	moderationRules?: IRemoteContentModerationRule[];
+	mediaPolicy?: IBlueskyImportMediaPolicyInput;
+	relationPolicy?: IBlueskyImportRelationPolicyInput;
 	dbChannelId?: number | null;
 	lastCursor?: string | null;
 	lastRefreshRequestedAt?: Date | null;
@@ -304,6 +334,8 @@ export interface IBlueskySourceReviewUpdateInput {
 
 export interface IBlueskySourceReviewImportInput {
 	force?: boolean | string;
+	mediaPolicy?: IBlueskyImportMediaPolicyInput;
+	relationPolicy?: IBlueskyImportRelationPolicyInput;
 }
 
 export interface IBlueskySourceReviewReport {
@@ -366,6 +398,8 @@ export interface IBlueskySourceRefreshInput {
 	mergeSeconds?: number | string | null;
 	advancedSettings?: any;
 	moderationPolicy?: IRemoteContentModerationPolicyInput;
+	mediaPolicy?: IBlueskyImportMediaPolicyInput;
+	relationPolicy?: IBlueskyImportRelationPolicyInput;
 }
 
 export interface IBlueskySourceRefreshQueueInput extends IBlueskySourceRefreshInput {

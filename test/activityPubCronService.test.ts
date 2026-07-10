@@ -95,6 +95,36 @@ describe('activityPub cron service', () => {
 		assert.equal(pollOptions.staleMs, 60000);
 	});
 
+	it('passes configured cleanup limit to ownership challenge cleanup', async () => {
+		let cleanupOptions;
+		const cleanupCutoff = new Date('2026-06-01T12:00:00Z');
+		const activityPubModule = {
+			cleanupMigrationOwnershipChallenges: async (options) => {
+				cleanupOptions = options;
+				return {
+					deleted: 2,
+					limit: options.limit,
+					retentionMs: 24 * 60 * 60 * 1000,
+					cutoff: cleanupCutoff
+				};
+			}
+		};
+		const app = getApp({
+			ownershipChallengeCleanupLimit: '8'
+		});
+		const cronService = new ActivityPubDeliveryCronService(app, activityPubModule as any);
+
+		const result = await cronService.cleanupOwnershipChallenges();
+
+		assert.deepEqual(result, {
+			deleted: 2,
+			limit: 8,
+			retentionMs: 24 * 60 * 60 * 1000,
+			cutoff: cleanupCutoff
+		});
+		assert.deepEqual(cleanupOptions, {limit: 8});
+	});
+
 	it('does not start a second source refresh poll while one is running', async () => {
 		let releaseRun;
 		let markStarted;
@@ -126,6 +156,45 @@ describe('activityPub cron service', () => {
 		releaseRun(true);
 		assert.deepEqual(await firstRun, {queued: 1});
 		assert.equal(cronService.sourceRefreshPollInProcess, false);
+		assert.equal(runCalls, 1);
+	});
+
+	it('does not start a second ownership challenge cleanup while one is running', async () => {
+		let releaseRun;
+		let markStarted;
+		let runCalls = 0;
+		const runReleased = new Promise((resolve) => {
+			releaseRun = resolve;
+		});
+		const runStarted = new Promise((resolve) => {
+			markStarted = resolve;
+		});
+		const activityPubModule = {
+			cleanupMigrationOwnershipChallenges: async () => {
+				runCalls += 1;
+				markStarted(true);
+				await runReleased;
+				return {deleted: 1, limit: 3, retentionMs: 60000, cutoff: new Date('2026-06-01T12:00:00Z')};
+			}
+		};
+		const cronService = new ActivityPubDeliveryCronService(getApp({
+			ownershipChallengeCleanupLimit: '3',
+			ownershipChallengeCleanupRetentionMs: '60000'
+		}), activityPubModule as any);
+
+		const firstRun = cronService.cleanupOwnershipChallenges();
+		await runStarted;
+		const skippedRun = await cronService.cleanupOwnershipChallenges();
+
+		assert.equal(skippedRun.deleted, 0);
+		assert.equal(skippedRun.limit, 3);
+		assert.equal(skippedRun.retentionMs, 60000);
+		assert.equal(runCalls, 1);
+		assert.equal(cronService.ownershipChallengeCleanupInProcess, true);
+
+		releaseRun(true);
+		assert.deepEqual(await firstRun, {deleted: 1, limit: 3, retentionMs: 60000, cutoff: new Date('2026-06-01T12:00:00Z')});
+		assert.equal(cronService.ownershipChallengeCleanupInProcess, false);
 		assert.equal(runCalls, 1);
 	});
 });

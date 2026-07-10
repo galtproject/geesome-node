@@ -13,6 +13,7 @@ import trieHelper from "geesome-libs/src/base36Trie.js";
 import {ContentStorageType, ContentView, CorePermissionName} from "../app/modules/database/interface.js";
 import {PostContentAttachmentReason, PostEventAction, PostEventType, PostStatus} from "../app/modules/group/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
+import {RICH_TEXT_MIME_TYPE, createRichTextDocument} from "../app/richText.js";
 import {
 	collectDatabaseDerivedStateIntegrity,
 	repairDatabaseDerivedState
@@ -132,6 +133,32 @@ describe("group", function () {
 		assert.equal(gotPost.contents[0].id, actorContent.id);
 		assert.equal(actorContentRows.length, 1);
 		assert.notEqual(gotPost.contents[0].id, ownerContent.id);
+	});
+
+	it('projects canonical rich-text post contents as body text with validated json', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const testGroup = (await app.ms.group.getAllGroupList(admin.id, 'test').then(r => r.list))[0];
+		const richText = createRichTextDocument([{
+			type: 'paragraph',
+			children: [{text: 'Projected body'}]
+		}]);
+		const content = await app.ms.content.saveData(testUser.id, JSON.stringify(richText), 'projected-body.json', {
+			mimeType: RICH_TEXT_MIME_TYPE,
+			view: ContentView.Contents
+		});
+		const post = await app.ms.group.createPost(testUser.id, {
+			contents: [{id: content.id, view: ContentView.Contents}],
+			groupId: testGroup.id,
+			status: PostStatus.Published
+		});
+		const gotPost = await app.ms.group.getPostPure(post.id);
+		const contentData = await app.ms.group.getPostContentData(gotPost, 'https://node.example/ipfs/');
+
+		assert.equal(contentData.length, 1);
+		assert.equal(contentData[0].type, 'text');
+		assert.equal(contentData[0].mimeType, RICH_TEXT_MIME_TYPE);
+		assert.equal(contentData[0].text, 'Projected body');
+		assert.deepEqual(contentData[0].json, richText);
 	});
 
 	it('requires an actor before creating missing remote content rows', async () => {

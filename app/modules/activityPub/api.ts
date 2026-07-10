@@ -143,6 +143,63 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	});
 
 	/**
+	 * @api {post} /v1/soc-net/activity-pub/migration/ownership-challenge Create ActivityPub migration ownership challenge
+	 * @apiName UserActivityPubMigrationOwnershipChallenge
+	 * @apiGroup UserActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Resolves a public ActivityPub actor and creates a short-lived one-time ownership challenge for claimed social-page migration. The response includes canonical `bodyJson` plus `verificationUrl`; the remote actor owner must sign a `POST` request to that URL with the actor HTTP-signature key and the exact body JSON. The current path is a detached-proof flow: `verificationUrl` is the signed request target, not a public callback endpoint, and the signed request data must be submitted back as `ownershipChallengeProof`. This route is rate-limited by user/actor/request IP, does not create posts, cache objects, follow actors, or consume the challenge.
+	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
+	 * @apiBody {String} [resource] WebFinger resource, for example `acct:alice@example.com`.
+	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
+	 * @apiBody {String="bridgy-bluesky","bluesky"} [bridgeProvider] Bridge provider hint used for bridge handles without a domain.
+	 * @apiBody {String="bluesky-official"} [preset] Convenience preset for the official Bluesky Bridgy account.
+	 * @apiBody {Number} [expiresInMs=900000] Challenge lifetime, capped at one hour.
+	 * @apiSuccess {String} actor Resolved ActivityPub actor id.
+	 * @apiSuccess {String} sourceActorUrl Resolved ActivityPub actor URL.
+	 * @apiSuccess {String} challengeToken Random challenge token used to look up the proof.
+	 * @apiSuccess {String} challengeUrl Public challenge id URL.
+	 * @apiSuccess {String} verificationUrl URL that must be signed by the actor owner.
+	 * @apiSuccess {Date} expiresAt Expiration time.
+	 * @apiSuccess {Object} body Canonical challenge body object.
+	 * @apiSuccess {String} bodyJson Canonical challenge body string that must be signed exactly.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/ownership-challenge', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await activityPubModule.createMigrationOwnershipChallenge(req.user.id, getActivityPubBodyWithRequestIp(req)));
+	});
+
+	/**
+	 * @api {post} /v1/soc-net/activity-pub/migration/ownership-challenge/verify Verify ActivityPub migration ownership challenge
+	 * @apiName UserActivityPubMigrationOwnershipChallengeVerify
+	 * @apiGroup UserActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Verifies a signed ActivityPub migration ownership challenge proof without consuming it. The same proof can then be passed to visible migration import, where the challenge is consumed so it cannot be replayed. Verification is rate-limited by user/actor/token/request IP and fails when the challenge is expired, already consumed, signed for a different URL/body, signed by a key not owned by the challenged actor, or belongs to another GeeSome user.
+	 * @apiBody {Object} ownershipChallengeProof Signed challenge proof.
+	 * @apiBody {String} ownershipChallengeProof.challengeToken Challenge token from the challenge response.
+	 * @apiBody {String="POST"} ownershipChallengeProof.method Signed request method.
+	 * @apiBody {String} ownershipChallengeProof.url Signed request URL; must match the challenge `verificationUrl`.
+	 * @apiBody {Object} ownershipChallengeProof.headers Signed request headers including `Date`, `Host`, `Digest` or `Content-Digest`, and `Signature`.
+	 * @apiBody {String} ownershipChallengeProof.bodyJson Exact challenge body string that was signed.
+	 * @apiSuccess {Boolean} verified Always `true` when verification succeeds.
+	 * @apiSuccess {String="signedChallenge"} method Ownership method.
+	 * @apiSuccess {String} actor Verified ActivityPub actor.
+	 * @apiSuccess {String} challengeToken Challenge token.
+	 * @apiSuccess {Date} verifiedAt Verification time.
+	 * @apiSuccess {Date} expiresAt Challenge expiration time.
+	 * @apiSuccess {String} keyId Actor public key id that verified the signature.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/ownership-challenge/verify', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await activityPubModule.verifyMigrationOwnershipChallenge(req.user.id, getActivityPubBodyWithRequestIp(req)));
+	});
+
+	/**
 	 * @api {post} /v1/soc-net/activity-pub/migration/preview Preview ActivityPub migration
 	 * @apiName UserActivityPubMigrationPreview
 	 * @apiGroup UserActivityPub
@@ -150,7 +207,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 *
-	 * @apiDescription Fetches bounded public ActivityPub actor `featured` and/or `outbox` pages and returns a read-only GeeSome migration preview. The preview classifies public `Create`, direct object, `Announce`, reply, quote, and mention records as local-owned posts or remote context, reports placeholder counts, and lists ActivityPub actor/object placeholders with stable protocol source-identity metadata that a later migration job can reconcile. When `claimed=true`, ownership is verified only when the actor profile contains the provided bounded `ownershipProofToken`; otherwise it remains unverified until a later signed challenge or admin-approved proof exists. This route does not subscribe to the source, follow the actor, create social-import channels, create GeeSome posts, create migration jobs, cache remote objects, or federate ActivityPub requests.
+	 * @apiDescription Fetches bounded public ActivityPub actor `featured` and/or `outbox` pages and returns a read-only GeeSome migration preview. The preview classifies public `Create`, direct object, `Announce`, reply, quote, and mention records as local-owned posts or remote context, reports placeholder counts, and lists ActivityPub actor/object placeholders with stable protocol source-identity metadata that a later migration job can reconcile. When `claimed=true`, ownership is verified when the actor profile contains the provided bounded `ownershipProofToken` or when `ownershipChallengeProof` verifies a short-lived actor-signed challenge; otherwise it remains unverified until a later signed challenge or admin-approved proof exists. This route does not subscribe to the source, follow the actor, create social-import channels, create GeeSome posts, create migration jobs, cache remote objects, consume challenges, or federate ActivityPub requests.
 	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
 	 * @apiBody {String} [resource] WebFinger resource, for example `acct:alice@example.com`.
 	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
@@ -158,6 +215,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiBody {String="bluesky-official"} [preset] Convenience preset for the official Bluesky Bridgy account.
 	 * @apiBody {Boolean} [claimed=false] Whether the caller claims this ActivityPub actor as their own page.
 	 * @apiBody {String} [ownershipProofToken] Optional non-admin proof token. When `claimed=true`, the resolved actor profile must contain this exact token in bounded public fields such as summary, name, URL, aliases, attachment values, or tags.
+	 * @apiBody {Object} [ownershipChallengeProof] Optional signed challenge proof created by `/migration/ownership-challenge`.
 	 * @apiBody {Number} [limit=20] Maximum collection items to inspect, capped at 50.
 	 * @apiBody {Number} [maxPages=1] Maximum ActivityPub collection pages to inspect per selected collection, capped at 25.
 	 * @apiBody {Boolean} [includeFeatured=true] Whether to inspect the actor `featured` collection when present.
@@ -177,7 +235,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiSuccess {String[]} errors Bounded fetch/preview errors encountered while building the preview.
 	 */
 	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/preview', async (req, res) => {
-		return res.send(await activityPubModule.getMigrationPreview(req.user.id, req.body || {}));
+		return res.send(await activityPubModule.getMigrationPreview(req.user.id, getActivityPubBodyWithRequestIp(req)));
 	});
 
 	/**
@@ -188,17 +246,18 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 *
-	 * @apiDescription Resolves the same bounded public ActivityPub actor `featured` and/or `outbox` pages as migration preview, refreshes the remote actor cache, and stores eligible own-authored public objects as ActivityPub remote-object candidates. By default this is a cache-only write job. When `createPosts=true`, the caller must provide a claimed target GeeSome group plus either admin-approved ownership or a matching public profile `ownershipProofToken`; importable candidates are accepted, filtered by the optional moderation policy, and created as visible GeeSome remote posts through the same duplicate-resistant remote-object post path used by the admin review tools. Remote-context records, announces/reblogs, non-public objects, non-reviewable object types, actor-mismatched objects, and moderation-blocked objects are skipped and reported. Use `async=true` to enqueue the same bounded import job in the persistent async-operation queue.
+	 * @apiDescription Resolves the same bounded public ActivityPub actor `featured` and/or `outbox` pages as migration preview, refreshes the remote actor cache, and stores eligible own-authored public objects as ActivityPub remote-object candidates. By default this is a cache-only write job. When `createPosts=true`, the caller must provide a claimed target GeeSome group plus admin-approved ownership, a matching public profile `ownershipProofToken`, or a valid actor-signed `ownershipChallengeProof`; importable candidates are accepted, filtered by the optional moderation policy, and created as visible GeeSome remote posts through the same duplicate-resistant remote-object post path used by the admin review tools. Signed challenges are consumed only by visible import so they cannot be replayed. Remote-context records, announces/reblogs, non-public objects, non-reviewable object types, actor-mismatched objects, and moderation-blocked objects are skipped and reported. Use `async=true` to enqueue the same bounded import job in the persistent async-operation queue.
 	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
 	 * @apiBody {String} [resource] WebFinger resource, for example `acct:alice@example.com`.
 	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
 	 * @apiBody {String="bridgy-bluesky","bluesky"} [bridgeProvider] Bridge provider hint used for bridge handles without a domain.
 	 * @apiBody {String="bluesky-official"} [preset] Convenience preset for the official Bluesky Bridgy account.
 	 * @apiBody {Boolean} [claimed=false] Whether the caller claims this ActivityPub actor as their own page.
-	 * @apiBody {Boolean} [createPosts=false] Create visible GeeSome posts for importable candidates. Requires `groupName`, `claimed=true`, and either `ownershipApproved=true` with admin permission or a matching `ownershipProofToken` in the public actor profile.
+	 * @apiBody {Boolean} [createPosts=false] Create visible GeeSome posts for importable candidates. Requires `groupName`, `claimed=true`, and `ownershipApproved=true` with admin permission, a matching `ownershipProofToken` in the public actor profile, or a valid `ownershipChallengeProof`.
 	 * @apiBody {String} [groupName] Target public GeeSome group name for visible post creation.
 	 * @apiBody {Boolean} [ownershipApproved=false] Admin approval that the caller's claimed ActivityPub ownership has been verified outside this request.
 	 * @apiBody {String} [ownershipProofToken] Optional non-admin proof token. For visible imports without `ownershipApproved=true`, the resolved actor profile must contain this exact token in bounded public fields such as summary, name, URL, aliases, attachment values, or tags.
+	 * @apiBody {Object} [ownershipChallengeProof] Optional actor-signed challenge proof. For visible imports this proof is consumed after verification.
 	 * @apiBody {Boolean} [importRemoteAttachments=false] Back up supported remote attachments before creating visible posts.
 	 * @apiBody {Object} [moderationPolicy] Optional remote-content moderation policy with `mode` and `rules`; non-allow decisions are skipped before visible post creation.
 	 * @apiBody {Number} [limit=20] Maximum collection items to inspect, capped at 50.
@@ -228,7 +287,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiSuccess (Queued async response) {Number} [asyncOperationId] Linked async operation id after queue processing starts.
 	 */
 	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/import', async (req, res) => {
-		const input = req.body || {};
+		const input = getActivityPubBodyWithRequestIp(req);
 		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
 		if (isActivityPubMigrationVisibleAdminApprovedImport(input)) {
 			await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
@@ -761,6 +820,27 @@ function getInboundRequest(req: IApiModulePotInput): IActivityPubInboundRequest 
 		rawBody: req.rawBody,
 		body: req.body
 	};
+}
+
+function getActivityPubBodyWithRequestIp(req: IApiModulePotInput) {
+	const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+		? req.body
+		: {};
+	return {
+		...body,
+		requestIp: getActivityPubRequestIp(req)
+	};
+}
+
+function getActivityPubRequestIp(req: IApiModulePotInput): string {
+	const forwardedFor = req.headers?.['x-forwarded-for'];
+	if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
+		return forwardedFor.split(',')[0].trim();
+	}
+	if (Array.isArray(forwardedFor) && forwardedFor.length > 0) {
+		return String(forwardedFor[0]).split(',')[0].trim();
+	}
+	return req.stream?.ip || req.stream?.socket?.remoteAddress || 'unknown';
 }
 
 function isExpectedActivityPubInboxError(error): error is Error & {code?: number} {

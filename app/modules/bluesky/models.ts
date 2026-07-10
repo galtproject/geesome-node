@@ -46,6 +46,14 @@ export default async function (sequelize: Sequelize) {
 			type: DataTypes.TEXT,
 			allowNull: true
 		},
+		importMediaPolicyJson: {
+			type: DataTypes.TEXT,
+			allowNull: true
+		},
+		importRelationPolicyJson: {
+			type: DataTypes.TEXT,
+			allowNull: true
+		},
 		dbChannelId: {
 			type: DataTypes.INTEGER,
 			allowNull: true

@@ -1,7 +1,8 @@
 import assert from 'assert';
+import {createRichTextDocument} from '../app/richText.js';
 import ssgHelpers from '../app/modules/staticSiteGenerator/helpers.js';
 
-const {getTitleAndDescription, sanitizeStaticSiteHtml} = ssgHelpers;
+const {getPostTitleAndDescription, getTitleAndDescription, sanitizeStaticSiteContents, sanitizeStaticSiteHtml} = ssgHelpers;
 
 describe('staticSiteGenerator helpers', () => {
 	it('sanitizes unsafe post html while preserving safe formatting and links', () => {
@@ -45,5 +46,57 @@ describe('staticSiteGenerator helpers', () => {
 		assert.equal(description.includes('<script'), false);
 		assert.equal(description.includes('javascript:'), false);
 		assert.match(description, /<a[^>]+href="ipns:\/\/example-key\/path"[^>]*>safe ipns<\/a>/);
+	});
+
+	it('renders canonical rich-text contents through the safe static-site html renderer', () => {
+		const richText = createRichTextDocument([{
+			type: 'paragraph',
+			children: [
+				{text: 'Rich '},
+				{text: 'title', marks: [{type: 'strong'}]},
+				{text: ' link', marks: [{type: 'link', href: 'https://example.com/post'}]},
+				{text: ' bad', marks: [{type: 'link', href: 'javascript:alert(1)'} as any]}
+			]
+		}]);
+		const [content] = sanitizeStaticSiteContents([{
+			type: 'text',
+			view: 'contents',
+			text: '<script>alert(1)</script>',
+			json: richText
+		}]);
+
+		assert.equal(content.text.includes('<script'), false);
+		assert.equal(content.text.includes('javascript:'), false);
+		assert.match(content.text, /<strong>title<\/strong>/);
+		assert.match(content.text, /<a[^>]+href="https:\/\/example\.com\/post"[^>]*> link<\/a>/);
+
+		const meta = getPostTitleAndDescription({}, [content], {
+			titleLength: 200,
+			descriptionLength: 200
+		});
+
+		assert.equal(meta.pageTitle, 'Rich title link bad');
+		assert.match(meta.itemTitle, /Rich/);
+		assert.match(meta.itemTitle, /title/);
+		assert.equal(meta.itemTitle.includes('<script'), false);
+		assert.equal(meta.itemDescription.includes('javascript:'), false);
+	});
+
+	it('falls back to sanitizing legacy text html when rich-text json is absent or invalid', () => {
+		const contents = sanitizeStaticSiteContents([
+			{
+				type: 'text',
+				view: 'contents',
+				text: '<p onclick="x()">Legacy <em>html</em></p><script>x()</script>',
+				json: {type: 'bad'}
+			},
+			{
+				type: 'image',
+				text: '<script>x()</script>'
+			}
+		]);
+
+		assert.equal(contents[0].text, '<p>Legacy <em>html</em></p>');
+		assert.equal(contents[1].text, '<script>x()</script>');
 	});
 });

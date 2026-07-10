@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import {ActivityPubObjectReviewState} from '../app/modules/activityPub/interface.js';
 import {activityPubPublicCollection} from '../app/modules/activityPub/helpers.js';
 import {createActivityPubSmokeHarness} from './helpers/activityPubSmokeHarness.js';
+import {getSmokeReportPathEnvDescription, printSmokeReport as writeSmokeReport} from './helpers/smokeReport.js';
 
 const defaultBlueskyHandle = 'bsky.app';
 const defaultBridgeOrigin = 'https://bsky.brid.gy';
@@ -9,6 +10,7 @@ const defaultAtprotoPublicApiOrigin = 'https://public.api.bsky.app';
 const defaultTimeoutMs = 15000;
 const smokeGroupName = 'test-channel';
 const smokeReviewerUserId = 7;
+const smokeReportPathEnvName = 'ACTIVITYPUB_BLUESKY_SMOKE_REPORT_PATH';
 
 async function run(): Promise<void> {
   if (process.argv.includes('-h') || process.argv.includes('--help')) {
@@ -428,7 +430,7 @@ function printSmokeSkip(options, reason: string, extra: any = {}): void {
 }
 
 function printSmokeReport(report): void {
-  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+  writeSmokeReport(report, smokeReportPathEnvName);
 }
 
 function printUsage(): void {
@@ -445,7 +447,8 @@ Environment:
   ACTIVITYPUB_BLUESKY_SMOKE_HANDLE          Bluesky handle, default bsky.app
   ACTIVITYPUB_BLUESKY_SMOKE_BRIDGE_ORIGIN   ActivityPub bridge, default https://bsky.brid.gy
   ACTIVITYPUB_BLUESKY_SMOKE_ATPROTO_ORIGIN  Public ATProto API, default https://public.api.bsky.app
-  ACTIVITYPUB_BLUESKY_SMOKE_TIMEOUT_MS      Fetch timeout, default 15000`);
+  ACTIVITYPUB_BLUESKY_SMOKE_TIMEOUT_MS      Fetch timeout, default 15000
+  ${getSmokeReportPathEnvDescription(smokeReportPathEnvName)}`);
 }
 
 run().catch((e) => {

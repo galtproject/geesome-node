@@ -10,6 +10,8 @@ export type ActivityPubSmokeHarness = Awaited<ReturnType<typeof createActivityPu
 
 type ActivityPubSmokeHarnessOptions = {
   remoteActorDocument: any;
+  preserveRemoteActorDocumentKey?: boolean;
+  activityPubConfig?: Record<string, any>;
 };
 
 export async function createActivityPubSmokeHarness(options: ActivityPubSmokeHarnessOptions) {
@@ -20,8 +22,10 @@ export async function createActivityPubSmokeHarness(options: ActivityPubSmokeHar
     remotePosts: {}
   };
   const remoteActorKey = getSmokeRemoteActorKey(options.remoteActorDocument.id);
-  const remoteActorDocument = getSmokeRemoteActorDocument(options.remoteActorDocument, remoteActorKey);
-  const app = getSmokeApp(calls);
+  const remoteActorDocument = options.preserveRemoteActorDocumentKey
+    ? options.remoteActorDocument
+    : getSmokeRemoteActorDocument(options.remoteActorDocument, remoteActorKey);
+  const app = getSmokeApp(calls, options.activityPubConfig);
 
   return {
     module: await activityPubModule(app as any, {
@@ -37,11 +41,14 @@ export async function createActivityPubSmokeHarness(options: ActivityPubSmokeHar
     remoteActorKey,
     signSharedInboxActivity(activity: any) {
       return getSignedInboxRequest(remoteActorKey, '/ap/shared-inbox', activity);
+    },
+    signMigrationOwnershipChallenge(challenge: any) {
+      return getSignedMigrationOwnershipChallengeProof(remoteActorKey, challenge);
     }
   };
 }
 
-function getSmokeApp(calls) {
+function getSmokeApp(calls, activityPubConfig = {}) {
   const group = getSmokeGroup();
 
   return {
@@ -50,12 +57,14 @@ function getSmokeApp(calls) {
         enabled: true,
         publicUrl: 'https://social.example',
         domain: 'example.com',
-        deliveryWorker: false
+        deliveryWorker: false,
+        ...activityPubConfig
       }
     },
     checkModules(modules) {
       assert.deepEqual(modules, ['api', 'group', 'database', 'content', 'asyncOperation']);
     },
+    checkUserCan: async () => {},
     encryptTextWithAppPass: async (value) => `encrypted:${Buffer.from(value).toString('base64')}`,
     decryptTextWithAppPass: async (value) => Buffer.from(value.replace(/^encrypted:/, ''), 'base64').toString(),
     ms: {
@@ -158,7 +167,8 @@ function getModelsStub() {
     ActivityPubObject: getModelStub(),
     ActivityPubDelivery: getModelStub(),
     ActivityPubObjectReview: getModelStub(),
-    ActivityPubFlag: getModelStub()
+    ActivityPubFlag: getModelStub(),
+    ActivityPubMigrationOwnershipChallenge: getModelStub()
   };
 }
 
@@ -264,8 +274,28 @@ function getModelStub() {
       rows.push(row);
       return row;
     },
-    async destroy() {
+    async update(data, {where} = {where: {}}) {
+      let updated = 0;
+      rows.forEach((row) => {
+        if (!rowMatchesWhere(row, where || {})) {
+          return;
+        }
+        Object.assign(row, data);
+        updated += 1;
+      });
+      return [updated];
+    },
+    async destroy({where} = {where: null}) {
+      if (!where) {
+        const deleted = rows.length;
+        rows.length = 0;
+        return deleted;
+      }
+      const keptRows = rows.filter(row => !rowMatchesWhere(row, where || {}));
+      const deleted = rows.length - keptRows.length;
       rows.length = 0;
+      rows.push(...keptRows);
+      return deleted;
     }
   };
 }
@@ -376,6 +406,23 @@ function getSignedInboxRequest(actorKey, path: string, activity: any) {
     body: activity,
     rawBody: Buffer.from(body),
     now: date
+  };
+}
+
+function getSignedMigrationOwnershipChallengeProof(actorKey, challenge) {
+  const signedRequest = signActivityPubRequestWithKey(actorKey, {
+    method: 'POST',
+    url: challenge.verificationUrl,
+    body: challenge.bodyJson,
+    date: new Date()
+  });
+
+  return {
+    challengeToken: challenge.challengeToken,
+    method: 'POST',
+    url: challenge.verificationUrl,
+    headers: signedRequest.headers,
+    bodyJson: challenge.bodyJson
   };
 }
 

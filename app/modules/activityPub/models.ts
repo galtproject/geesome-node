@@ -281,6 +281,63 @@ export default async function (sequelize: Sequelize) {
 		]
 	} as any);
 
+	const ActivityPubMigrationOwnershipChallenge = sequelize.define('activityPubMigrationOwnershipChallenge', {
+		userId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		remoteActorId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		actorUrl: {
+			type: DataTypes.STRING(500),
+			allowNull: false
+		},
+		challengeToken: {
+			type: DataTypes.STRING(100),
+			allowNull: false
+		},
+		challengeUrl: {
+			type: DataTypes.STRING(700),
+			allowNull: false
+		},
+		verificationUrl: {
+			type: DataTypes.STRING(700),
+			allowNull: false
+		},
+		challengeJson: {
+			type: DataTypes.TEXT,
+			allowNull: false
+		},
+		expiresAt: {
+			type: DataTypes.DATE,
+			allowNull: false
+		},
+		verifiedAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		consumedAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		verifiedPublicKeyId: {
+			type: DataTypes.STRING(500),
+			allowNull: true
+		},
+		lastError: {
+			type: DataTypes.TEXT,
+			allowNull: true
+		}
+	} as any, {
+		indexes: [
+			{name: 'activity_pub_migration_ownership_challenges_token_unique', fields: ['challengeToken'], unique: true},
+			{name: 'activity_pub_migration_ownership_challenges_user_actor_idx', fields: ['userId', 'actorUrl', 'expiresAt']},
+			{name: 'activity_pub_migration_ownership_challenges_remote_actor_idx', fields: ['remoteActorId', 'expiresAt']}
+		]
+	} as any);
+
 	const ActivityPubFlag = sequelize.define('activityPubFlag', {
 		localActorId: {
 			type: DataTypes.INTEGER,
@@ -322,6 +379,7 @@ export default async function (sequelize: Sequelize) {
 		ActivityPubObject: await ActivityPubObject.sync({}),
 		ActivityPubDelivery: await ActivityPubDelivery.sync({}),
 		ActivityPubObjectReview: await ActivityPubObjectReview.sync({}),
+		ActivityPubMigrationOwnershipChallenge: await ActivityPubMigrationOwnershipChallenge.sync({}),
 		ActivityPubFlag: await ActivityPubFlag.sync({}),
 		activityPubDeliveryClaimsSupported: includeDeliveryClaimColumns
 	};

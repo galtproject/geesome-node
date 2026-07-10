@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import {Op} from 'sequelize';
 import {IGeesomeApp} from '../../interface.js';
 import helpers from '../../helpers.js';
@@ -37,6 +38,13 @@ import IGeesomeActivityPubModule, {
 	IActivityPubMigrationImportQueueProcessOptions,
 	IActivityPubMigrationImportQueueProcessResult,
 	IActivityPubMigrationImportResult,
+	IActivityPubMigrationOwnershipChallengeCleanupOptions,
+	IActivityPubMigrationOwnershipChallengeCleanupResult,
+	IActivityPubMigrationOwnershipChallengeInput,
+	IActivityPubMigrationOwnershipChallengeProofInput,
+	IActivityPubMigrationOwnershipChallengeResult,
+	IActivityPubMigrationOwnershipChallengeVerifyInput,
+	IActivityPubMigrationOwnershipChallengeVerifyResult,
 	IActivityPubMigrationRelationReconcileInput,
 	IActivityPubMigrationRelationReconcileResult,
 	IActivityPubMigrationRelationReconcileRow,
@@ -259,6 +267,15 @@ const activityPubMigrationOwnershipProofTokenMaxLength = 512;
 const activityPubMigrationOwnershipProofValueMaxLength = 5000;
 const activityPubMigrationOwnershipProofValueMaxCount = 100;
 const activityPubMigrationOwnershipProofMaxDepth = 4;
+const activityPubMigrationOwnershipChallengeDefaultTtlMs = 15 * 60 * 1000;
+const activityPubMigrationOwnershipChallengeMaxTtlMs = 60 * 60 * 1000;
+const activityPubMigrationOwnershipChallengeTokenBytes = 24;
+const activityPubMigrationOwnershipChallengePurpose = 'activitypub-migration-ownership';
+const activityPubMigrationOwnershipChallengeCleanupRetentionMs = 24 * 60 * 60 * 1000;
+const activityPubMigrationOwnershipChallengeCleanupBatchLimit = 1000;
+const activityPubMigrationOwnershipChallengeCreateRateLimitCount = 20;
+const activityPubMigrationOwnershipChallengeVerifyRateLimitCount = 30;
+const activityPubMigrationOwnershipChallengeRateLimitWindowMs = 10 * 60 * 1000;
 const activityPubBlueskyBridgeHost = 'bsky.brid.gy';
 const activityPubBlueskyOfficialPreset = 'bluesky-official';
 const activityPubBlueskyBridgeProvider = 'bridgy-bluesky';
@@ -268,12 +285,16 @@ const activityPubRemoteAttachmentImportPolicy: IActivityPubRemoteAttachmentImpor
 	canImportRemoteBytes: true,
 	supportedModes: ['provenanceOnly', 'backupOnCreate']
 });
+const activityPubMigrationOwnershipChallengeCreateLimiter = createActivityPubRateLimiter();
+const activityPubMigrationOwnershipChallengeVerifyRequestLimiter = createActivityPubRateLimiter();
+const activityPubMigrationOwnershipChallengeVerifyLimiter = createActivityPubRateLimiter();
 let activityPubRemoteAttachmentBackupQueueInProcess = false;
 
 export default async (app: IGeesomeApp, options: any = {}) => {
 	app.checkModules(['api', 'group', 'database', 'content', 'asyncOperation']);
 	const models = options.models || await (await import('./models.js')).default(app.ms.database.sequelize);
 	const module = getModule(app, models, options);
+	await module.cleanupMigrationOwnershipChallenges();
 	(await import('./api.js')).default(app, module);
 	(await import('./cron.js')).default(app, module);
 	return module;
@@ -398,9 +419,32 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 			return getActivityPubSourceResolveResult(models, input, options);
 		}
 
+		async createMigrationOwnershipChallenge(userId: number, input: IActivityPubMigrationOwnershipChallengeInput = {}): Promise<IActivityPubMigrationOwnershipChallengeResult> {
+			const config = getResolvedActivityPubConfig(app);
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			return createActivityPubMigrationOwnershipChallenge(app, models, config, userId, input, options);
+		}
+
+		async verifyMigrationOwnershipChallenge(userId: number, input: IActivityPubMigrationOwnershipChallengeVerifyInput = {}): Promise<IActivityPubMigrationOwnershipChallengeVerifyResult> {
+			getResolvedActivityPubConfig(app);
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			const result = await verifyActivityPubMigrationOwnershipChallengeProof(app, models, userId, input?.ownershipChallengeProof, options, {
+				requestIp: input?.requestIp,
+				throwOnInvalid: true
+			});
+			if (!result) {
+				throwActivityPubError('activitypub_migration_ownership_challenge_invalid', 403);
+			}
+			return result;
+		}
+
+		async cleanupMigrationOwnershipChallenges(cleanupOptions: IActivityPubMigrationOwnershipChallengeCleanupOptions = {}): Promise<IActivityPubMigrationOwnershipChallengeCleanupResult> {
+			return cleanupActivityPubMigrationOwnershipChallenges(app, models, cleanupOptions);
+		}
+
 		async getMigrationPreview(_userId: number, input: IActivityPubMigrationPreviewInput = {}): Promise<IActivityPubMigrationPreviewResult> {
 			getResolvedActivityPubConfig(app);
-			return getActivityPubMigrationPreview(input, options);
+			return getActivityPubMigrationPreview(app, models, _userId, input, options);
 		}
 
 		async importMigration(userId: number, input: IActivityPubMigrationImportInput = {}): Promise<IActivityPubMigrationImportResult> {
@@ -1228,8 +1272,14 @@ async function getActivityPubSourceResolveResult(models, input: IActivityPubSour
 	return getActivityPubSourceResolveResultFromResolution(resolution);
 }
 
-async function getActivityPubMigrationPreview(input: IActivityPubMigrationPreviewInput, options: IActivityPubModuleOptions): Promise<IActivityPubMigrationPreviewResult> {
-	const context = await getActivityPubMigrationPreviewContext(input, options);
+async function getActivityPubMigrationPreview(
+	app: IGeesomeApp,
+	models,
+	userId: number,
+	input: IActivityPubMigrationPreviewInput,
+	options: IActivityPubModuleOptions
+): Promise<IActivityPubMigrationPreviewResult> {
+	const context = await getActivityPubMigrationPreviewContext(app, models, userId, input, options);
 	return {
 		...context.preview,
 		sourceActorUrl: context.actor,
@@ -1256,8 +1306,8 @@ async function importActivityPubMigration(
 	if (!actorDocument || typeof actorDocument !== 'object' || Array.isArray(actorDocument)) {
 		throwActivityPubError('activitypub_migration_actor_document_invalid', 401);
 	}
-	const visibleContext = await getActivityPubMigrationVisibleImportContext(app, models, config, input, actorDocument);
-	const context = await getActivityPubMigrationPreviewContext(input, options, {
+	const visibleContext = await getActivityPubMigrationVisibleImportContext(app, models, config, userId, input, actorDocument, resolution.sourceActorUrl, options);
+	const context = await getActivityPubMigrationPreviewContext(app, models, userId, input, options, {
 		actorUrl: resolution.sourceActorUrl,
 		sourceResource: resolution.sourceResource,
 		actorDocument
@@ -1325,13 +1375,20 @@ async function getActivityPubMigrationVisibleImportContext(
 	app: IGeesomeApp,
 	models,
 	config: IResolvedActivityPubConfig,
+	userId: number,
 	input: IActivityPubMigrationImportInput,
-	actorDocument
+	actorDocument,
+	expectedActor: string,
+	options: IActivityPubModuleOptions
 ): Promise<IActivityPubMigrationVisibleImportContext | null> {
 	if (!isActivityPubMigrationVisibleImport(input)) {
 		return null;
 	}
-	const ownershipMethod = getActivityPubMigrationVisibleImportOwnershipMethod(input, actorDocument);
+	const ownershipMethod = await getActivityPubMigrationVisibleImportOwnershipMethod(app, models, input, actorDocument, options, {
+		userId,
+		consume: true,
+		actor: expectedActor
+	});
 	const group = await getFederatableGroup(app, getActivityPubMigrationVisibleImportGroupName(input));
 	const actorRecord = await getOrCreateGroupActorRecord(app, models, config, group);
 	return {
@@ -1392,6 +1449,9 @@ async function createActivityPubMigrationVisiblePost(
 }
 
 async function getActivityPubMigrationPreviewContext(
+	app: IGeesomeApp,
+	models,
+	userId: number,
 	input: IActivityPubMigrationPreviewInput,
 	options: IActivityPubModuleOptions,
 	resolvedInput: {actorUrl?: string; sourceResource?: string; actorDocument?: any} = {},
@@ -1403,7 +1463,7 @@ async function getActivityPubMigrationPreviewContext(
 	const actorDocument = resolvedInput.actorDocument || await getActivityPubMigrationPreviewActorDocument(lookup.actorUrl, options);
 	const actor = getActivityPubMigrationPreviewActorUrl(lookup.actorUrl, actorDocument);
 	const items = await getActivityPubMigrationPreviewItems(actorDocument, input, options);
-	const ownershipProof = getActivityPubMigrationOwnershipProof(input, actorDocument);
+	const ownershipProof = await getActivityPubMigrationOwnershipProof(app, models, userId, input, actorDocument, options, actor);
 	return {
 		lookup,
 		actorDocument,
@@ -1995,6 +2055,517 @@ function getOptionalPositiveActivityPubInteger(value: any): number | null {
 	return Math.floor(id);
 }
 
+async function createActivityPubMigrationOwnershipChallenge(
+	app: IGeesomeApp,
+	models,
+	config: IResolvedActivityPubConfig,
+	userId: number,
+	input: IActivityPubMigrationOwnershipChallengeInput,
+	options: IActivityPubModuleOptions
+): Promise<IActivityPubMigrationOwnershipChallengeResult> {
+	const resolution = await getActivityPubSourceResolution(models, input, options);
+	assertActivityPubMigrationOwnershipChallengeCreateRateLimit(app, userId, resolution.sourceActorUrl, input?.requestIp);
+	const now = new Date();
+	const expiresAt = new Date(now.getTime() + getActivityPubMigrationOwnershipChallengeTtlMs(input));
+	const challengeToken = createActivityPubMigrationOwnershipChallengeToken();
+	const challengeUrl = `${config.publicUrl}/ap/migration/ownership-challenges/${challengeToken}`;
+	const verificationUrl = `${challengeUrl}/verify`;
+	const body = buildActivityPubMigrationOwnershipChallengeBody({
+		actor: resolution.sourceActorUrl,
+		challengeToken,
+		challengeUrl,
+		verificationUrl,
+		expiresAt,
+		publicUrl: config.publicUrl
+	});
+	const bodyJson = JSON.stringify(body);
+	const challenge = await models.ActivityPubMigrationOwnershipChallenge.create({
+		userId,
+		remoteActorId: resolution.remoteActorRecord.id,
+		actorUrl: resolution.sourceActorUrl,
+		challengeToken,
+		challengeUrl,
+		verificationUrl,
+		challengeJson: bodyJson,
+		expiresAt
+	});
+	return getActivityPubMigrationOwnershipChallengeResult(challenge, resolution, body);
+}
+
+async function cleanupActivityPubMigrationOwnershipChallenges(
+	app: IGeesomeApp,
+	models,
+	options: IActivityPubMigrationOwnershipChallengeCleanupOptions = {}
+): Promise<IActivityPubMigrationOwnershipChallengeCleanupResult> {
+	const retentionMs = getActivityPubMigrationOwnershipChallengeCleanupRetentionMs(app, options);
+	const limit = getActivityPubMigrationOwnershipChallengeCleanupLimit(app, options);
+	const cutoff = getActivityPubMigrationOwnershipChallengeCleanupCutoff(retentionMs, options.now);
+	const oldChallenges = await models.ActivityPubMigrationOwnershipChallenge.findAll({
+		attributes: ['id'],
+		where: {
+			[Op.or]: [
+				{expiresAt: {[Op.lt]: cutoff}},
+				{consumedAt: {[Op.lt]: cutoff}}
+			]
+		},
+		order: [['expiresAt', 'ASC'], ['id', 'ASC']],
+		limit
+	});
+	const ids = oldChallenges.map(challenge => challenge.id);
+	const deleted = ids.length
+		? await models.ActivityPubMigrationOwnershipChallenge.destroy({where: {id: {[Op.in]: ids}}})
+		: 0;
+	return {
+		deleted,
+		limit,
+		retentionMs,
+		cutoff
+	};
+}
+
+async function verifyActivityPubMigrationOwnershipChallengeProof(
+	app: IGeesomeApp,
+	models,
+	userId: number,
+	input: IActivityPubMigrationOwnershipChallengeProofInput | undefined,
+	options: IActivityPubModuleOptions,
+	verifyOptions: {actor?: string | null; consume?: boolean; requestIp?: string; throwOnInvalid?: boolean} = {}
+): Promise<IActivityPubMigrationOwnershipChallengeVerifyResult | null> {
+	try {
+		return await verifyActivityPubMigrationOwnershipChallengeProofUnsafe(app, models, userId, input, options, verifyOptions);
+	} catch (e) {
+		if (verifyOptions.throwOnInvalid) {
+			throw e;
+		}
+		return null;
+	}
+}
+
+async function verifyActivityPubMigrationOwnershipChallengeProofUnsafe(
+	app: IGeesomeApp,
+	models,
+	userId: number,
+	input: IActivityPubMigrationOwnershipChallengeProofInput | undefined,
+	options: IActivityPubModuleOptions,
+	verifyOptions: {actor?: string | null; consume?: boolean; requestIp?: string} = {}
+): Promise<IActivityPubMigrationOwnershipChallengeVerifyResult> {
+	const challengeToken = getActivityPubMigrationOwnershipChallengeProofToken(input);
+	assertActivityPubMigrationOwnershipChallengeVerifyRequestRateLimit(app, userId, challengeToken, verifyOptions.requestIp);
+	const challenge = await getActivityPubMigrationOwnershipChallengeRecord(models, userId, challengeToken);
+	assertActivityPubMigrationOwnershipChallengeVerifyRateLimit(app, userId, challenge, challengeToken, verifyOptions.requestIp);
+	assertActivityPubMigrationOwnershipChallengeUsable(challenge);
+	assertActivityPubMigrationOwnershipChallengeActor(challenge, verifyOptions.actor);
+	const bodyJson = getActivityPubMigrationOwnershipChallengeProofBodyJson(input);
+	if (bodyJson !== challenge.challengeJson) {
+		throwActivityPubError('activitypub_migration_ownership_challenge_body_mismatch', 403);
+	}
+	const proofUrl = getActivityPubMigrationOwnershipChallengeProofUrl(input, challenge);
+	const signatureInfo = getActivityPubRequestSignatureInfo({
+		method: getActivityPubMigrationOwnershipChallengeProofMethod(input),
+		url: proofUrl,
+		headers: getActivityPubMigrationOwnershipChallengeProofHeaders(input),
+		body: bodyJson
+	});
+	const remoteActorKey = await getActivityPubMigrationOwnershipChallengeRemoteActorKey(models, {
+		keyId: signatureInfo.keyId,
+		actor: challenge.actorUrl
+	}, options);
+	if (!remoteActorKey) {
+		throwActivityPubError('activitypub_migration_ownership_challenge_key_not_found', 403);
+	}
+	const verified = verifyActivityPubRequestWithKey(remoteActorKey, {
+		method: getActivityPubMigrationOwnershipChallengeProofMethod(input),
+		url: proofUrl,
+		headers: getActivityPubMigrationOwnershipChallengeProofHeaders(input),
+		body: bodyJson,
+		requiredSignedHeaders: ['(request-target)', 'host', 'date']
+	});
+	const now = new Date();
+	if (verifyOptions.consume) {
+		await consumeActivityPubMigrationOwnershipChallenge(models, challenge, now, verified.keyId);
+	} else {
+		await challenge.update({
+			verifiedAt: now,
+			verifiedPublicKeyId: verified.keyId,
+			lastError: null
+		});
+	}
+	return {
+		verified: true,
+		method: 'signedChallenge',
+		actor: challenge.actorUrl,
+		challengeToken: challenge.challengeToken,
+		verifiedAt: now,
+		expiresAt: new Date(challenge.expiresAt),
+		keyId: verified.keyId
+	};
+}
+
+function assertActivityPubMigrationOwnershipChallengeCreateRateLimit(
+	app: IGeesomeApp,
+	userId: number,
+	actorUrl: string,
+	requestIp?: string
+): void {
+	activityPubMigrationOwnershipChallengeCreateLimiter.recordOrThrow(
+		getActivityPubMigrationOwnershipChallengeRateLimitKeys('create', userId, actorUrl, requestIp),
+		getActivityPubMigrationOwnershipChallengeCreateRateLimitOptions(app)
+	);
+}
+
+function assertActivityPubMigrationOwnershipChallengeVerifyRateLimit(
+	app: IGeesomeApp,
+	userId: number,
+	challenge,
+	challengeToken: string,
+	requestIp?: string
+): void {
+	activityPubMigrationOwnershipChallengeVerifyLimiter.recordOrThrow(
+		getActivityPubMigrationOwnershipChallengeRateLimitKeys('verify', userId, challenge.actorUrl, requestIp, challengeToken),
+		getActivityPubMigrationOwnershipChallengeVerifyRateLimitOptions(app)
+	);
+}
+
+function assertActivityPubMigrationOwnershipChallengeVerifyRequestRateLimit(
+	app: IGeesomeApp,
+	userId: number,
+	challengeToken: string,
+	requestIp?: string
+): void {
+	activityPubMigrationOwnershipChallengeVerifyRequestLimiter.recordOrThrow(
+		getActivityPubMigrationOwnershipChallengeVerifyRequestRateLimitKeys(userId, challengeToken, requestIp),
+		getActivityPubMigrationOwnershipChallengeVerifyRateLimitOptions(app)
+	);
+}
+
+async function consumeActivityPubMigrationOwnershipChallenge(models, challenge, now: Date, verifiedPublicKeyId: string): Promise<void> {
+	const updateData = {
+		consumedAt: now,
+		verifiedAt: now,
+		verifiedPublicKeyId,
+		lastError: null
+	};
+	const result = await models.ActivityPubMigrationOwnershipChallenge.update(updateData, {
+		where: {
+			id: challenge.id,
+			consumedAt: null
+		}
+	});
+	const updatedCount = Array.isArray(result) ? result[0] : result;
+	if (!updatedCount) {
+		throwActivityPubError('activitypub_migration_ownership_challenge_already_used', 403);
+	}
+	Object.assign(challenge, updateData);
+}
+
+function getActivityPubMigrationOwnershipChallengeResult(challenge, resolution, body): IActivityPubMigrationOwnershipChallengeResult {
+	return {
+		id: challenge.id,
+		actor: challenge.actorUrl,
+		sourceActorUrl: resolution.sourceActorUrl,
+		sourceResource: resolution.sourceResource,
+		bridgeProvider: resolution.bridgeProvider,
+		challengeToken: challenge.challengeToken,
+		challengeUrl: challenge.challengeUrl,
+		verificationUrl: challenge.verificationUrl,
+		expiresAt: new Date(challenge.expiresAt),
+		body,
+		bodyJson: challenge.challengeJson
+	};
+}
+
+function buildActivityPubMigrationOwnershipChallengeBody(input: {
+	actor: string;
+	challengeToken: string;
+	challengeUrl: string;
+	verificationUrl: string;
+	expiresAt: Date;
+	publicUrl: string;
+}) {
+	return {
+		'@context': [
+			'https://www.w3.org/ns/activitystreams',
+			{
+				geesome: 'https://geesome.network/ns#'
+			}
+		],
+		id: input.challengeUrl,
+		type: 'Activity',
+		actor: input.actor,
+		object: input.publicUrl,
+		target: input.verificationUrl,
+		summary: 'GeeSome ActivityPub migration ownership challenge',
+		geesomePurpose: activityPubMigrationOwnershipChallengePurpose,
+		geesomeChallengeToken: input.challengeToken,
+		expires: input.expiresAt.toISOString()
+	};
+}
+
+function createActivityPubMigrationOwnershipChallengeToken(): string {
+	return crypto.randomBytes(activityPubMigrationOwnershipChallengeTokenBytes).toString('base64url');
+}
+
+function getActivityPubMigrationOwnershipChallengeTtlMs(input: IActivityPubMigrationOwnershipChallengeInput): number {
+	return Math.min(
+		helpers.parsePositiveInteger(input?.expiresInMs, activityPubMigrationOwnershipChallengeDefaultTtlMs),
+		activityPubMigrationOwnershipChallengeMaxTtlMs
+	);
+}
+
+async function getActivityPubMigrationOwnershipChallengeRecord(
+	models,
+	userId: number,
+	challengeToken: string
+) {
+	const challenge = await models.ActivityPubMigrationOwnershipChallenge.findOne({
+		where: {
+			userId,
+			challengeToken
+		}
+	});
+	if (!challenge) {
+		throwActivityPubError('activitypub_migration_ownership_challenge_not_found', 404);
+	}
+	return challenge;
+}
+
+function getActivityPubMigrationOwnershipChallengeProofToken(input: IActivityPubMigrationOwnershipChallengeProofInput | undefined): string {
+	const challengeToken = getOptionalBoundedString(input?.challengeToken, 100);
+	if (!challengeToken) {
+		throwActivityPubError('activitypub_migration_ownership_challenge_token_required', 400);
+	}
+	if (!/^[A-Za-z0-9_-]{16,100}$/.test(challengeToken)) {
+		throwActivityPubError('activitypub_migration_ownership_challenge_token_invalid', 400);
+	}
+	return challengeToken;
+}
+
+function assertActivityPubMigrationOwnershipChallengeUsable(challenge): void {
+	if (challenge.consumedAt) {
+		throwActivityPubError('activitypub_migration_ownership_challenge_already_used', 403);
+	}
+	if (new Date(challenge.expiresAt).getTime() <= Date.now()) {
+		throwActivityPubError('activitypub_migration_ownership_challenge_expired', 403);
+	}
+}
+
+function assertActivityPubMigrationOwnershipChallengeActor(challenge, actor?: string | null): void {
+	if (!actor || actor === challenge.actorUrl) {
+		return;
+	}
+	throwActivityPubError('activitypub_migration_ownership_challenge_actor_mismatch', 403);
+}
+
+function getActivityPubMigrationOwnershipChallengeProofBodyJson(input: IActivityPubMigrationOwnershipChallengeProofInput | undefined): string {
+	if (typeof input?.bodyJson === 'string') {
+		return input.bodyJson;
+	}
+	if (typeof input?.body === 'string') {
+		return input.body;
+	}
+	if (input?.body && typeof input.body === 'object' && !Array.isArray(input.body)) {
+		return JSON.stringify(input.body);
+	}
+	throwActivityPubError('activitypub_migration_ownership_challenge_body_required', 400);
+}
+
+function getActivityPubMigrationOwnershipChallengeProofMethod(input: IActivityPubMigrationOwnershipChallengeProofInput | undefined): string {
+	const method = getOptionalBoundedString(input?.method, 20) || 'POST';
+	if (method.toUpperCase() !== 'POST') {
+		throwActivityPubError('activitypub_migration_ownership_challenge_method_invalid', 400);
+	}
+	return method.toUpperCase();
+}
+
+function getActivityPubMigrationOwnershipChallengeProofUrl(input: IActivityPubMigrationOwnershipChallengeProofInput | undefined, challenge): string {
+	const url = getOptionalBoundedString(input?.url, 700);
+	if (!url) {
+		throwActivityPubError('activitypub_migration_ownership_challenge_url_required', 400);
+	}
+	if (url !== challenge.verificationUrl) {
+		throwActivityPubError('activitypub_migration_ownership_challenge_url_mismatch', 403);
+	}
+	return url;
+}
+
+function getActivityPubMigrationOwnershipChallengeProofHeaders(input: IActivityPubMigrationOwnershipChallengeProofInput | undefined): Record<string, string | number | string[] | undefined> {
+	if (!input?.headers || typeof input.headers !== 'object' || Array.isArray(input.headers)) {
+		throwActivityPubError('activitypub_migration_ownership_challenge_headers_required', 400);
+	}
+	return input.headers;
+}
+
+async function getActivityPubMigrationOwnershipChallengeRemoteActorKey(
+	models,
+	input: {keyId: string; actor: string},
+	options: IActivityPubModuleOptions
+) {
+	if (options.resolveRemoteActorKey) {
+		return options.resolveRemoteActorKey(input);
+	}
+	return getActivityPubRemoteActorKey(models, input, options);
+}
+
+function getActivityPubMigrationOwnershipChallengeCleanupRetentionMs(
+	app: IGeesomeApp,
+	options: IActivityPubMigrationOwnershipChallengeCleanupOptions
+): number {
+	return Math.max(
+		0,
+		getActivityPubNonNegativeInteger(
+			options.retentionMs ?? app.config.activityPubConfig?.ownershipChallengeCleanupRetentionMs,
+			activityPubMigrationOwnershipChallengeCleanupRetentionMs
+		)
+	);
+}
+
+function getActivityPubMigrationOwnershipChallengeCleanupLimit(
+	app: IGeesomeApp,
+	options: IActivityPubMigrationOwnershipChallengeCleanupOptions
+): number {
+	return helpers.parsePositiveInteger(
+		options.limit ?? app.config.activityPubConfig?.ownershipChallengeCleanupLimit,
+		activityPubMigrationOwnershipChallengeCleanupBatchLimit
+	);
+}
+
+function getActivityPubMigrationOwnershipChallengeCleanupCutoff(retentionMs: number, now?: Date | string): Date {
+	const nowDate = getActivityPubDateOrNow(now);
+	return new Date(nowDate.getTime() - retentionMs);
+}
+
+function getActivityPubMigrationOwnershipChallengeCreateRateLimitOptions(app: IGeesomeApp): {limit: number; windowMs: number} {
+	return {
+		limit: getActivityPubNonNegativeInteger(
+			app.config.activityPubConfig?.ownershipChallengeCreateRateLimitCount,
+			activityPubMigrationOwnershipChallengeCreateRateLimitCount
+		),
+		windowMs: helpers.parsePositiveInteger(
+			app.config.activityPubConfig?.ownershipChallengeCreateRateLimitWindowMs,
+			activityPubMigrationOwnershipChallengeRateLimitWindowMs
+		)
+	};
+}
+
+function getActivityPubMigrationOwnershipChallengeVerifyRateLimitOptions(app: IGeesomeApp): {limit: number; windowMs: number} {
+	return {
+		limit: getActivityPubNonNegativeInteger(
+			app.config.activityPubConfig?.ownershipChallengeVerifyRateLimitCount,
+			activityPubMigrationOwnershipChallengeVerifyRateLimitCount
+		),
+		windowMs: helpers.parsePositiveInteger(
+			app.config.activityPubConfig?.ownershipChallengeVerifyRateLimitWindowMs,
+			activityPubMigrationOwnershipChallengeRateLimitWindowMs
+		)
+	};
+}
+
+function getActivityPubMigrationOwnershipChallengeRateLimitKeys(
+	action: string,
+	userId: number,
+	actorUrl: string,
+	requestIp?: string,
+	challengeToken?: string
+): string[] {
+	const keys = [
+		`activitypub:${action}:user:${userId}`,
+		`activitypub:${action}:user:${userId}:actor:${actorUrl}`
+	];
+	const normalizedRequestIp = getOptionalBoundedString(requestIp, 120);
+	if (normalizedRequestIp) {
+		keys.push(`activitypub:${action}:ip:${normalizedRequestIp}`);
+		keys.push(`activitypub:${action}:ip:${normalizedRequestIp}:actor:${actorUrl}`);
+	}
+	if (challengeToken) {
+		keys.push(`activitypub:${action}:user:${userId}:token:${challengeToken}`);
+	}
+	return keys;
+}
+
+function getActivityPubMigrationOwnershipChallengeVerifyRequestRateLimitKeys(
+	userId: number,
+	challengeToken: string,
+	requestIp?: string
+): string[] {
+	const keys = [
+		`activitypub:verify-request:user:${userId}`,
+		`activitypub:verify-request:user:${userId}:token:${challengeToken}`
+	];
+	const normalizedRequestIp = getOptionalBoundedString(requestIp, 120);
+	if (normalizedRequestIp) {
+		keys.push(`activitypub:verify-request:ip:${normalizedRequestIp}`);
+		keys.push(`activitypub:verify-request:ip:${normalizedRequestIp}:token:${challengeToken}`);
+	}
+	return keys;
+}
+
+function createActivityPubRateLimiter() {
+	const attemptsByKey = new Map<string, number[]>();
+	let attemptCount = 0;
+
+	function prune(key: string, now: number, windowMs: number): number[] {
+		const attempts = attemptsByKey.get(key) || [];
+		const freshAttempts = attempts.filter((timestamp) => now - timestamp < windowMs);
+		if (freshAttempts.length) {
+			attemptsByKey.set(key, freshAttempts);
+		} else {
+			attemptsByKey.delete(key);
+		}
+		return freshAttempts;
+	}
+
+	return {
+		recordOrThrow(keys: string[], options: {limit: number; windowMs: number}) {
+			if (options.limit <= 0) {
+				return;
+			}
+			const now = Date.now();
+			attemptCount += 1;
+			if (attemptCount % 100 === 0) {
+				pruneActivityPubRateLimiterMap(attemptsByKey, now, options.windowMs);
+			}
+			for (const key of keys) {
+				if (prune(key, now, options.windowMs).length >= options.limit) {
+					throwActivityPubError('activitypub_migration_ownership_challenge_rate_limited', 429);
+				}
+			}
+			for (const key of keys) {
+				const attempts = prune(key, now, options.windowMs);
+				attempts.push(now);
+				attemptsByKey.set(key, attempts);
+			}
+		}
+	};
+}
+
+function pruneActivityPubRateLimiterMap(attemptsByKey: Map<string, number[]>, now: number, windowMs: number): void {
+	for (const key of attemptsByKey.keys()) {
+		const attempts = attemptsByKey.get(key) || [];
+		const freshAttempts = attempts.filter((timestamp) => now - timestamp < windowMs);
+		if (freshAttempts.length) {
+			attemptsByKey.set(key, freshAttempts);
+		} else {
+			attemptsByKey.delete(key);
+		}
+	}
+}
+
+function getActivityPubNonNegativeInteger(value, fallback: number): number {
+	const parsed = Number.parseInt(value as any, 10);
+	if (!Number.isFinite(parsed) || parsed < 0) {
+		return fallback;
+	}
+	return parsed;
+}
+
+function getActivityPubDateOrNow(value?: Date | string): Date {
+	const date = new Date(value || Date.now());
+	if (!Number.isFinite(date.getTime())) {
+		return new Date();
+	}
+	return date;
+}
+
 function isActivityPubMigrationVisibleImport(input: IActivityPubMigrationImportInput | IActivityPubMigrationImportQueueInput): boolean {
 	return helpers.parseBoolean(input?.createPosts, false);
 }
@@ -2010,6 +2581,9 @@ function assertActivityPubMigrationVisibleImportCanStart(input: IActivityPubMigr
 	if (getActivityPubMigrationOwnershipProofToken(input)) {
 		return;
 	}
+	if (hasActivityPubMigrationOwnershipChallengeProof(input)) {
+		return;
+	}
 	if (input?.ownershipProofToken !== undefined) {
 		throwActivityPubError('activitypub_migration_ownership_proof_token_invalid', 400);
 	}
@@ -2020,10 +2594,14 @@ function isActivityPubMigrationVisibleImportAdminApproved(input: IActivityPubMig
 	return helpers.parseBoolean(input?.ownershipApproved, false);
 }
 
-function getActivityPubMigrationVisibleImportOwnershipMethod(
+async function getActivityPubMigrationVisibleImportOwnershipMethod(
+	app: IGeesomeApp,
+	models,
 	input: IActivityPubMigrationImportInput | IActivityPubMigrationImportQueueInput,
-	actorDocument
-): Exclude<ActivityPubMigrationOwnershipMethod, null> {
+	actorDocument,
+	options: IActivityPubModuleOptions,
+	verifyOptions: {userId: number; consume: boolean; actor: string}
+): Promise<Exclude<ActivityPubMigrationOwnershipMethod, null>> {
 	assertActivityPubMigrationVisibleImportCanStart(input);
 	if (isActivityPubMigrationVisibleImportAdminApproved(input)) {
 		return 'admin';
@@ -2031,17 +2609,46 @@ function getActivityPubMigrationVisibleImportOwnershipMethod(
 	if (isActivityPubMigrationOwnershipProofVerified(input, actorDocument)) {
 		return 'profileToken';
 	}
+	if (hasActivityPubMigrationOwnershipChallengeProof(input)) {
+		await verifyActivityPubMigrationOwnershipChallengeProof(app, models, verifyOptions.userId, input.ownershipChallengeProof, options, {
+			actor: getActivityPubMigrationPreviewActorUrl(verifyOptions.actor, actorDocument),
+			consume: verifyOptions.consume,
+			requestIp: input.requestIp,
+			throwOnInvalid: true
+		});
+		return 'signedChallenge';
+	}
 	throwActivityPubError('activitypub_migration_visible_import_ownership_required', 403);
 }
 
-function getActivityPubMigrationOwnershipProof(
+async function getActivityPubMigrationOwnershipProof(
+	app: IGeesomeApp,
+	models,
+	userId: number,
 	input: IActivityPubMigrationPreviewInput,
-	actorDocument
-): {verified: boolean; method: ActivityPubMigrationOwnershipMethod} {
+	actorDocument,
+	options: IActivityPubModuleOptions,
+	expectedActor: string
+): Promise<{verified: boolean; method: ActivityPubMigrationOwnershipMethod}> {
 	if (isActivityPubMigrationOwnershipProofVerified(input, actorDocument)) {
 		return {verified: true, method: 'profileToken'};
 	}
+	if (hasActivityPubMigrationOwnershipChallengeProof(input)) {
+		const challengeProof = await verifyActivityPubMigrationOwnershipChallengeProof(app, models, userId, input.ownershipChallengeProof, options, {
+			actor: getActivityPubMigrationPreviewActorUrl(expectedActor, actorDocument),
+			consume: false,
+			requestIp: input.requestIp,
+			throwOnInvalid: false
+		});
+		if (challengeProof?.verified) {
+			return {verified: true, method: 'signedChallenge'};
+		}
+	}
 	return {verified: false, method: null};
+}
+
+function hasActivityPubMigrationOwnershipChallengeProof(input: IActivityPubMigrationPreviewInput | IActivityPubMigrationImportQueueInput): boolean {
+	return input?.ownershipChallengeProof !== undefined;
 }
 
 function isActivityPubMigrationOwnershipProofVerified(input: IActivityPubMigrationPreviewInput, actorDocument): boolean {
@@ -3289,6 +3896,10 @@ function getActivityPubMigrationImportJobImportInput(input: IActivityPubMigratio
 	if (ownershipProofToken) {
 		importInput.ownershipProofToken = ownershipProofToken;
 	}
+	const ownershipChallengeProof = getActivityPubMigrationOwnershipChallengeProofJobInput(input);
+	if (ownershipChallengeProof) {
+		importInput.ownershipChallengeProof = ownershipChallengeProof;
+	}
 	if (input?.importRemoteAttachments !== undefined) {
 		importInput.importRemoteAttachments = helpers.parseBoolean(input.importRemoteAttachments, false);
 	}
@@ -3320,6 +3931,37 @@ function getActivityPubMigrationImportJobModerationPolicy(input: IActivityPubMig
 		jobPolicy.rules = policy.rules;
 	}
 	return jobPolicy;
+}
+
+function getActivityPubMigrationOwnershipChallengeProofJobInput(input: IActivityPubMigrationImportQueueInput): IActivityPubMigrationOwnershipChallengeProofInput | null {
+	if (!input?.ownershipChallengeProof) {
+		return null;
+	}
+	return {
+		challengeToken: getActivityPubMigrationOwnershipChallengeProofToken(input.ownershipChallengeProof),
+		method: getActivityPubMigrationOwnershipChallengeProofMethod(input.ownershipChallengeProof),
+		url: getOptionalBoundedString(input.ownershipChallengeProof.url, 700),
+		headers: getActivityPubMigrationOwnershipChallengeProofHeadersJobInput(input.ownershipChallengeProof.headers),
+		bodyJson: getActivityPubMigrationOwnershipChallengeProofBodyJson(input.ownershipChallengeProof)
+	};
+}
+
+function getActivityPubMigrationOwnershipChallengeProofHeadersJobInput(headers): Record<string, string> {
+	if (!headers || typeof headers !== 'object' || Array.isArray(headers)) {
+		throwActivityPubError('activitypub_migration_ownership_challenge_headers_required', 400);
+	}
+	const result = {};
+	for (const name of Object.keys(headers)) {
+		const boundedName = getOptionalBoundedString(name, 100);
+		const value = headers[name];
+		if (!boundedName || value === undefined) {
+			continue;
+		}
+		result[boundedName] = Array.isArray(value)
+			? value.map(item => String(item).slice(0, 2000)).join(', ')
+			: String(value).slice(0, 4000);
+	}
+	return result;
 }
 
 function parseActivityPubSourceRefreshJob(inputJson: string): IActivityPubSourceRefreshJob {

@@ -146,6 +146,82 @@ describe("staticSiteGenerator", function () {
 		assert.equal(await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [directoryStorageId]), true);
 	});
 
+	it('should list recently refreshed static sites first by default', async () => {
+		const StaticSite = app.ms.database.sequelize.model('staticSite') as any;
+		const refreshedSite = await (staticSiteGenerator as any).createDbStaticSite({
+			userId: testUser.id,
+			entityType: 'content-list',
+			entityId: 'refreshed-list',
+			name: 'refreshed_site',
+			title: 'Refreshed site',
+			storageId: 'refreshed-storage'
+		});
+		const newerCreatedSite = await (staticSiteGenerator as any).createDbStaticSite({
+			userId: testUser.id,
+			entityType: 'content-list',
+			entityId: 'newer-created-list',
+			name: 'newer_created_site',
+			title: 'Newer created site',
+			storageId: 'newer-created-storage'
+		});
+
+		await StaticSite.update({
+			createdAt: new Date('2026-07-01T10:00:00.000Z'),
+			updatedAt: new Date('2026-07-08T10:00:00.000Z')
+		}, {where: {id: refreshedSite.id}, silent: true});
+		await StaticSite.update({
+			createdAt: new Date('2026-07-07T10:00:00.000Z'),
+			updatedAt: new Date('2026-07-07T10:00:00.000Z')
+		}, {where: {id: newerCreatedSite.id}, silent: true});
+
+		const response = await staticSiteGenerator.getStaticSiteResponse(testUser.id, 'content-list', {limit: 10});
+		assert.deepEqual(response.list.map(site => site.storageId), [
+			'refreshed-storage',
+			'newer-created-storage'
+		]);
+
+		(app as any).msSupportHookList.isStorageIdAllowed = [];
+		assert.equal(await app.callHookCheckAllowed('content', 'isStorageIdAllowed', ['refreshed-storage']), true);
+	});
+
+	it('should make static site search indexing opt-in', async () => {
+		await (staticSiteGenerator as any).createDbStaticSite({
+			userId: testUser.id,
+			entityType: 'content-list',
+			entityId: 'private-list',
+			name: 'private_site',
+			title: 'Private site',
+			storageId: 'private-storage'
+		});
+		await (staticSiteGenerator as any).createDbStaticSite({
+			userId: testUser.id,
+			entityType: 'content-list',
+			entityId: 'string-true-list',
+			name: 'string_true_site',
+			title: 'String true site',
+			storageId: 'string-true-storage',
+			options: JSON.stringify({allowSearchIndexing: 'true'})
+		});
+		await (staticSiteGenerator as any).createDbStaticSite({
+			userId: testUser.id,
+			entityType: 'content-list',
+			entityId: 'public-list',
+			name: 'public_site',
+			title: 'Public site',
+			storageId: 'public-storage',
+			options: JSON.stringify({allowSearchIndexing: true})
+		});
+
+		assert.deepEqual(await staticSiteGenerator.getStorageResponseHeaders('private-storage'), {
+			'X-Robots-Tag': 'noindex, nofollow'
+		});
+		assert.deepEqual(await staticSiteGenerator.getStorageResponseHeaders('string-true-storage'), {
+			'X-Robots-Tag': 'noindex, nofollow'
+		});
+		assert.deepEqual(await staticSiteGenerator.getStorageResponseHeaders('public-storage'), {});
+		assert.deepEqual(await staticSiteGenerator.getStorageResponseHeaders('missing-storage'), {});
+	});
+
 	it('should use group avatar as generated site favicon', async () => {
 		const pngImagePath = await resourcesHelper.prepare('input-image.png');
 		const avatarContent = await app.ms.content.saveData(testUser.id, fs.createReadStream(pngImagePath), 'input-image.png', {
@@ -251,10 +327,37 @@ describe("staticSiteGenerator", function () {
 		assert.equal(storedOptions.post.titleLength, 5);
 		assert.equal(storedOptions.post.descriptionLength, 400);
 		assert.equal(storedOptions.postList.postsPerPage, 1);
+		assert.equal(storedOptions.allowSearchIndexing, false);
 		assert.equal(storedOptions.stylesCss, stylesCss);
 
+		const indexHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/index.html`).then(b => b.toString('utf8'));
+		assert.equal(indexHtmlContent.includes('<meta name="robots" content="noindex, nofollow"/>'), true);
 		const styleCssContent = await app.ms.storage.getFileData(`${directoryStorageId}/style.css`).then(b => b.toString('utf8'));
 		assert.equal(styleCssContent.includes('.static-site-settings-marker'), true);
+	});
+
+	it('should omit robots meta when static site search indexing is explicitly allowed', async () => {
+		const directoryStorageId = await staticSiteGenerator.generateGroupSite(testUser.id, {entityType: 'group', entityId: testGroup.id}, {
+			baseStorageUri: 'http://localhost:2052/ipfs/',
+			allowSearchIndexing: true,
+			postList: {
+				postsPerPage: 5,
+			},
+			site: {
+				title: 'PublicSite',
+				name: 'public_site',
+				description: 'Public About',
+				username: 'myusername',
+				base: '/'
+			}
+		});
+
+		const indexHtmlContent = await app.ms.storage.getFileData(`${directoryStorageId}/index.html`).then(b => b.toString('utf8'));
+		const staticSiteInfo = await staticSiteGenerator.getStaticSiteInfo(testUser.id, {entityType: 'group', entityId: testGroup.id});
+		const storedOptions = JSON.parse(staticSiteInfo.options);
+		assert.equal(indexHtmlContent.includes('name="robots"'), false);
+		assert.equal(storedOptions.allowSearchIndexing, true);
+		assert.deepEqual(await staticSiteGenerator.getStorageResponseHeaders(directoryStorageId), {});
 	});
 
 	it('should sanitize generated post html before render', async () => {
