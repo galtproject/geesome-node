@@ -366,7 +366,7 @@ Current state:
 
 - The backend and frontend expose source feeds, account connection, cross-posting, review/import, migration, reconciliation, and rich media/relation policy controls.
 - Several screens expose powerful policy and troubleshooting inputs that are useful for edge cases but can distract from the common path.
-- Status: planned. This should become the next user-facing UI polish pass before treating the ActivityPub/Bluesky phase as complete.
+- Status: in progress. The social migration screen now keeps source, target, preview, import actions, progress, and results in the primary flow; source tuning, ownership proof, media/relation policy, moderation filters, and relation repair are grouped behind task-named disclosures. Unverified ownership remains a visible blocker with a direct repair action. Remaining UI slices are ActivityPub/Bluesky source readers, account connection diagnostics, and cross-post policy controls.
 
 Implementation context:
 
