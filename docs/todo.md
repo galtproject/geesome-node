@@ -22,6 +22,8 @@ Corrections and added requirements:
 - Add database scalability review for the possibility of storing hundreds of thousands of posts and their content records in groups. Status: tracked in [#880](https://github.com/galtproject/geesome-node/issues/880) and added as a dedicated review slice.
 - Add a global UI menu item and screen for storage-space analysis: show which file catalogs and groups use how much space, then let operators drill into largest files, file types, duplicate/shared storage IDs, cleanup candidates, and a separate future IPFS popularity/availability tab for content with many peers/providers or other retrievable network signals. Status: added as a dedicated planning slice; first `geesome-node` aggregate helpers live in a dedicated `storageSpace` module with AdminRead API routes, cached snapshot routes/table/history, snapshot-growth deltas, staged queued async refresh path, active-content file-catalog root/folder drilldown, group-post drilldown, generated/static output source accounting, duplicate/shared storage-id drilldown, pinned-object/remote-pin drilldown, preview/thumbnail overhead drilldown, cleanup-blocker drilldown, bounded runtime storage-stat inspection/reconciliation for unknown generated refs, bounded recursive generated-output DAG child inspection/reconciliation, durable preview/generated-output child-ref delete-safety blockers, queued original/preview storage-object physical removal with final safety recheck, configurable storage-removal retention delay/worker, operator-visible storage-removal history, deterministic availability signals from DB-visible refs/local pins/remote pin rows/stored peer counts, bounded on-demand IPFS provider/stat inspection, persisted/async availability-network sample history and per-storage summary with old-sample retention cleanup and an opt-in production sampling worker, the `geesome-ui` global screen and availability/sample-history tab, and a read-only restored-database `database:storage-space-report` command that includes active-content totals, availability signals, and cached network sample summaries. This closes the storage analyzer implementation phase for now; remaining work is production rollout tuning after observing real DHT/provider lookup cost.
 - ActivityPub actor-signed ownership challenges are backend-foundation complete for claimed visible migration, but follow-up planning should keep the real-world operability findings explicit: detached-proof versus public callback semantics, expired/consumed challenge cleanup, creation/verification abuse limits, UI/operator guidance for hosted accounts that cannot sign arbitrary requests, and live compatibility checks against real ActivityPub tooling. Status: added as a dedicated ownership-challenge operability slice.
+- The Pinata/pinning MVP is complete, but production-scale operability is a separate follow-up: deduplicate still-pending automatic jobs, make account-policy cache freshness safe across processes, clarify group credential ownership, define account limits explicitly, and reconcile local pin claims with remote provider state before offering automatic unpin or cleanup actions. Status: added as a deterministic post-MVP section without reopening the shipped MVP.
+- A full Docker run on 2026-07-14 passed with 431 tests but emitted repeated PostgreSQL `too many clients already` errors from a background auto-action worker late in the suite. Do not hide this by increasing PostgreSQL limits first; inventory Sequelize pools and worker/timer lifecycle, add bounded diagnostics, and prove clean teardown/concurrency budgets. Status: added as the first recommended reliability slice.
 
 Last issue snapshot: 2026-05-03 from `galtproject/geesome-node` open GitHub issues and PRs.
 
@@ -70,6 +72,13 @@ Issue clusters still represented by the old README TODO:
 - Large protocol/integration epics: [#115](https://github.com/galtproject/geesome-node/issues/115), [#619](https://github.com/galtproject/geesome-node/issues/619), [#617](https://github.com/galtproject/geesome-node/issues/617), [#7](https://github.com/galtproject/geesome-node/issues/7), [#6](https://github.com/galtproject/geesome-node/issues/6).
 
 ## Fast Delivery Plan
+
+### Recommended Next Order
+
+1. Fix or conclusively isolate the database connection/worker lifecycle warning in one focused reliability PR. It is a cross-cutting production risk and the current evidence is strong enough to investigate, but not strong enough to assume the database limit itself is wrong.
+2. Close the remaining ActivityPub/Bluesky release gates: run public staging inbox/outbox exchange, credentialed Bluesky write lifecycle, and external signed-ownership proof; then address only the operability gaps those runs expose. Do not reopen the completed backend, simplified UI, cross-post policy, or migration-reconciliation foundations without new evidence.
+3. Complete the pinning operability section before enabling automatic pinning on multi-process nodes or groups with high post volume. The shipped MVP remains usable while this follow-up is developed.
+4. Continue canonical rich-text native-storage work after the federation live-smoke gates, so new adapters and identity producers build on one stable, non-HTML-trusting content model.
 
 ### 1. Node 22 Runtime Baseline
 
@@ -184,6 +193,28 @@ Verification:
 - Existing API/gateway tests remain green with profiling disabled.
 <!-- /todo-section -->
 
+<!-- todo-section: database-connection-worker-lifecycle -->
+#### Runtime Reliability: Database Connection And Worker Lifecycle
+
+Status: planned from a real full-suite signal. The 2026-07-14 Docker run completed with `431 passing, 11 pending`, but late Telegram-import tests coincided with repeated `SequelizeConnectionError: sorry, too many clients already` errors from the auto-action worker. The tests still passed, so the immediate task is attribution and lifecycle correction rather than a speculative pool-size increase.
+
+Goal: give all long-lived workers and module-owned Sequelize instances an explicit connection budget and deterministic shutdown path, then prove normal test and application lifecycles do not exhaust PostgreSQL clients.
+
+Scope:
+
+- Inventory every Sequelize instance and pool configuration, including module-local databases, migration/check scripts, tests, and app-level database ownership. Record which component opens and closes each pool.
+- Inventory interval/cron workers for auto actions, async operations, ActivityPub delivery/source refresh, storage-space sampling/removal, derived-state processing, and social imports. Make start/stop idempotent and ensure test/app shutdown awaits worker cancellation before closing databases.
+- Reproduce the warning with a focused repeated-start/stop or late-suite harness. Measure active/idle/waiting PostgreSQL clients and Sequelize pool use under an opt-in diagnostic flag; do not add per-query logging or unconditional object/array serialization.
+- Define one documented total connection budget for a default node and bounded per-worker concurrency. Prefer shared module services or smaller pools where ownership allows it; do not solve leaked clients by only increasing `max_connections`.
+- Keep expected shutdown and transient worker errors quiet by default while preserving actionable opt-in diagnostics and final worker failure state.
+
+Verification:
+
+- A focused lifecycle test starts/stops the app and affected workers repeatedly without increasing active PostgreSQL connections.
+- `npm run test:docker:cold` finishes without `too many clients already`, open-handle hangs, or worker activity after teardown.
+- Run the exact late-suite Telegram/auto-action combination repeatedly to distinguish a test leak from production worker pressure.
+<!-- /todo-section -->
+
 <!-- todo-section: pinata-and-pinning-mvp -->
 ### 4. Pinata And Pinning MVP
 
@@ -212,6 +243,32 @@ Verification:
 - `test/autoActions.test.ts`
 - `yarn test`
 - `geesome-ui`: `npm run test:e2e:screens` and `npm run build` under Node 18
+<!-- /todo-section -->
+
+<!-- todo-section: pinning-operability-and-reconciliation -->
+#### Pinning: Operability And Reconciliation
+
+Status: post-MVP backlog. Manual pinning, user automatic pinning, explicit group-post target policy, account UI, and group settings UI are shipped. The items below improve correctness under retries, multiple node processes, remote provider drift, and larger account/post volume; they are not blockers for the completed single-node MVP.
+
+Goal: make automatic pinning observably idempotent and make the per-account pin ledger the trustworthy source for remote pin state without silently changing or deleting remote pins.
+
+Scope:
+
+- Deduplicate pending automatic jobs by stable identity such as `(pinAccountId, storageId, operation)` before execution. The current ledger skips completed pins, but repeated manifest hooks can still enqueue duplicates while the first job is pending.
+- Replace indefinitely stale process-local account-policy caches with a bounded TTL/version strategy or a cheap database-backed lookup. Account changes in one process must become visible to workers in another process without restart.
+- Decide and document group-account ownership: distinguish credential creator/owner from group scope, then keep user account lists from ambiguously mixing direct user accounts with group-scoped credentials. Preserve execution-time group permission checks.
+- Replace the silent first-100 group account scan with an explicit product limit, validation rule, or complete bounded traversal. A configured account must not be ignored merely because its sort position falls outside an implementation cap.
+- Treat `PinStorageObject` per-account rows as canonical remote-pin claims. Keep `Content.isPinned` or `StorageObject.isPinned` only as a derived aggregate, because one storage ID can be pinned by multiple accounts/providers and remote state can drift.
+- Add bounded provider-status reconciliation with last-check time, remote status/error, retry/backoff, and operator-visible stale/failed state. Automatic unpin, account deletion cleanup, and physical storage deletion must remain explicit separate policies and fail closed.
+- Add a credential test/health action in the account UI that does not expose secrets, plus last successful check/error summaries suitable for operators.
+
+Verification:
+
+- Concurrency tests call the same post-manifest hook repeatedly before the worker runs and assert one pending job per account/storage operation.
+- Multi-instance or cache-version tests prove create/update/delete policy changes become visible without process restart.
+- Provider tests use an injected fake Pinata client for pinned, missing, failed, rate-limited, and recovered states; CI must not depend on live Pinata.
+- Ownership tests cover creator removal, group admin changes, same `storageId` across users, and exact post-attachment authorization.
+- If schema changes become release-bound, add the production migration and migration-integrity checks at release preparation; while changes remain unreleased on `dev`, keep model-sync-only tables aligned with the repo migration rules.
 <!-- /todo-section -->
 
 ### 5. API Key Permissions And Expiration

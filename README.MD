@@ -288,7 +288,7 @@ geesomeClient.init().then(async () => {
 - Auto-backup social networks channels(Telegram)
 
 ## TODO:
-- Stabilize content serving, upload limits, client-disconnect stream cleanup, and high-CPU paths reported in open operational issues. Opt-in runtime diagnostics now correlate process CPU/event-loop pressure with bounded API/gateway request counters for the next production incident.
+- Stabilize content serving, upload limits, client-disconnect stream cleanup, high-CPU paths, and background-worker database connection pressure reported in operational/test evidence. Opt-in runtime diagnostics now correlate process CPU/event-loop pressure with bounded API/gateway request counters; the next reliability slice must also verify worker shutdown and Sequelize pool budgets.
 - API key permissions and expiration are enforced; keep extending scoped service-token tests as new integrations land.
 - Run a focused security review of API authorization and encryption boundaries before expanding integrations and production E2EE.
 - Keep shared package versions aligned across `geesome-node`, `geesome-libs`, and `geesome-ui`, while treating Vue/ethers/mime major-line differences as separate migrations.
