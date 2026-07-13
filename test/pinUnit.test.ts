@@ -1,5 +1,6 @@
 import assert from "assert";
 import axios from "axios";
+import {Op} from "sequelize";
 import {getModule as getPinModule} from "../app/modules/pin/index.js";
 import {IGeesomeApp} from "../app/interface.js";
 
@@ -9,7 +10,8 @@ function createPinModule(
 	editableGroupIds: number[] = [1],
 	markedStorageObjects: any[] = [],
 	pinnedStorageObjects: any[] = [],
-	autoActions: any[] = []
+	autoActions: any[] = [],
+	postsById: Record<number, any> = {}
 ) {
 	return getPinModule({
 		encryptTextWithAppPass: async (text) => `encrypted:${text}`,
@@ -50,7 +52,8 @@ function createPinModule(
 				}
 			},
 			group: {
-				canEditGroup: async (userId, groupId) => editableGroupIds.includes(Number(groupId))
+				canEditGroup: async (userId, groupId) => editableGroupIds.includes(Number(groupId)),
+				getPostPure: async (postId) => postsById[postId] || null
 			}
 		}
 	} as unknown as IGeesomeApp, {
@@ -105,6 +108,11 @@ function createPinModule(
 			}
 		},
 		PinStorageObject: {
+			findAll: async ({where}) => pinnedStorageObjects.filter((item) => {
+				const accountIds = where.pinAccountId[Op.in];
+				const storageIds = where.storageId[Op.in];
+				return accountIds.includes(item.pinAccountId) && storageIds.includes(item.storageId);
+			}),
 			findOrCreate: async ({where, defaults}) => {
 				const existing = pinnedStorageObjects.find((item) => {
 					return Object.keys(where).every((key) => item[key] === where[key]);
@@ -317,6 +325,126 @@ describe("pin negative paths", function () {
 		assert.equal(autoActions[0].totalExecuteAttempts, 10);
 		assert.equal(autoActions[0].currentExecuteAttempts, 10);
 		assert(autoActions[0].executeOn instanceof Date);
+	});
+
+	it("requires an explicit target policy for group automatic pinning", async () => {
+		const pins = createPinModule([], {}, [10]);
+
+		await assert.rejects(
+			() => pins.createAccount(1, {
+				name: "ambiguous-group-auto-pin",
+				service: "pinata",
+				groupId: 10,
+				options: {autoPin: {enabled: true}}
+			}),
+			(error: Error) => error.message === "group_auto_pin_policy_invalid"
+		);
+
+		const account = await pins.createAccount(1, {
+			name: "group-auto-pin",
+			service: "pinata",
+			groupId: 10,
+			options: {
+				autoPin: {
+					enabled: true,
+					scope: "group-post",
+					targets: ["post-manifest", "contents"]
+				}
+			}
+		});
+
+		assert.equal(account.groupId, 10);
+		await assert.rejects(
+			() => pins.updateAccount(1, account.id, {groupId: 11}),
+			(error: Error) => error.message === "not_permitted"
+		);
+	});
+
+	it("queues group post targets under the account owner and skips pinned targets", async () => {
+		const autoActions = [];
+		const pinnedStorageObjects = [{pinAccountId: 7, storageId: "already-pinned"}];
+		const post = {
+			id: 55,
+			groupId: 10,
+			userId: 2,
+			status: "published",
+			isDeleted: false,
+			isRemote: false,
+			manifestStorageId: "post-manifest",
+			group: {id: 10, isPublic: true, isRemote: false, isEncrypted: false},
+			contents: [
+				{id: 101, userId: 2, storageId: "other-user-content"},
+				{id: 102, userId: 2, storageId: "already-pinned"}
+			]
+		};
+		const pins: any = createPinModule([{
+			id: 7,
+			userId: 1,
+			groupId: 10,
+			name: "group-auto-pin",
+			service: "pinata",
+			options: JSON.stringify({
+				autoPin: {
+					enabled: true,
+					scope: "group-post",
+					targets: ["post-manifest", "contents"],
+					attempts: 4
+				}
+			})
+		}], {}, [10], [], pinnedStorageObjects, autoActions, {55: post});
+
+		await pins.afterPostManifestUpdate(2, 55);
+
+		assert.equal(autoActions.length, 2);
+		assert(autoActions.every(action => action.userId === 1));
+		assert(autoActions.every(action => action.funcName === "pinByGroupAccount"));
+		assert.deepEqual(autoActions.map(action => JSON.parse(action.funcArgs)[2]), [
+			"post-manifest",
+			"other-user-content"
+		]);
+		assert(autoActions.every(action => action.totalExecuteAttempts === 4));
+
+		post.group.isPublic = false;
+		await pins.afterPostManifestUpdate(2, 55);
+		post.group.isPublic = true;
+		post.isRemote = true;
+		await pins.afterPostManifestUpdate(2, 55);
+		assert.equal(autoActions.length, 2);
+	});
+
+	it("pins another user's content only through an eligible group post", async () => {
+		let pinataRequest;
+		axios.post = async (url, body) => {
+			pinataRequest = {url, body};
+			return {data: {IpfsHash: body.hashToPin}};
+		};
+		const content: any = {id: 101, userId: 2, storageId: "other-user-content", name: "shared.jpg"};
+		const post = {
+			id: 55,
+			groupId: 10,
+			status: "published",
+			isDeleted: false,
+			isRemote: false,
+			group: {id: 10, isPublic: true, isRemote: false, isEncrypted: false},
+			contents: [content]
+		};
+		const pins = createPinModule([{
+			id: 7,
+			userId: 1,
+			groupId: 10,
+			name: "group-pinata",
+			service: "pinata"
+		}], {"other-user-content": content}, [10], [], [], [], {55: post});
+
+		await pins.pinByGroupAccount(1, 10, "group-pinata", "other-user-content", {postId: 55});
+
+		assert.equal(pinataRequest.body.hashToPin, "other-user-content");
+		assert.equal(content.isPinned, true);
+		post.group.isPublic = false;
+		await assert.rejects(
+			() => pins.pinByGroupAccount(1, 10, "group-pinata", "other-user-content", {postId: 55}),
+			(error: Error) => error.message === "group_post_pin_not_permitted"
+		);
 	});
 
 	it("stores structured pin account options as JSON", async () => {
