@@ -184,9 +184,10 @@ Verification:
 - Existing API/gateway tests remain green with profiling disabled.
 <!-- /todo-section -->
 
+<!-- todo-section: pinata-and-pinning-mvp -->
 ### 4. Pinata And Pinning MVP
 
-Status: in progress. [#854](https://github.com/galtproject/geesome-node/issues/854) hardens direct pin negative paths with explicit missing-account, unknown-service, and missing-content errors before remote pinning is attempted. [#856](https://github.com/galtproject/geesome-node/issues/856) keeps pin account secret updates encrypted and returns an explicit missing-account error for update calls. [#858](https://github.com/galtproject/geesome-node/issues/858) forwards caller pin options into Pinata metadata and normalizes remote Pinata failures to `pinata_pin_failed`. [#868](https://github.com/galtproject/geesome-node/issues/868) documents the account and direct pin API flows, examples, forwarded Pinata keyvalues, and common pin errors. [#872](https://github.com/galtproject/geesome-node/issues/872) enforces group edit permission before creating/deleting group-owned pin accounts and keeps pin secrets write-only in API responses. The same node PR consumes `geesome-ui` [#5](https://github.com/galtproject/geesome-ui/issues/5), [#7](https://github.com/galtproject/geesome-ui/issues/7), and [#6](https://github.com/galtproject/geesome-ui/pull/6) at commit `4c24162` so the profile UI can configure pin accounts, delete them, upload a file, pin its `storageId` through the user-owned account endpoint, and carry first-pass e2e/screenshot coverage plus repo-local e2e/screenshot review instructions.
+Status: in progress. [#854](https://github.com/galtproject/geesome-node/issues/854) hardens direct pin negative paths with explicit missing-account, unknown-service, and missing-content errors before remote pinning is attempted. [#856](https://github.com/galtproject/geesome-node/issues/856) keeps pin account secret updates encrypted and returns an explicit missing-account error for update calls. [#858](https://github.com/galtproject/geesome-node/issues/858) forwards caller pin options into Pinata metadata and normalizes remote Pinata failures to `pinata_pin_failed`. [#868](https://github.com/galtproject/geesome-node/issues/868) documents the account and direct pin API flows, examples, forwarded Pinata keyvalues, and common pin errors. [#872](https://github.com/galtproject/geesome-node/issues/872) enforces group edit permission before creating/deleting group-owned pin accounts and keeps pin secrets write-only in API responses. The same node PR consumes `geesome-ui` [#5](https://github.com/galtproject/geesome-ui/issues/5), [#7](https://github.com/galtproject/geesome-ui/issues/7), and [#6](https://github.com/galtproject/geesome-ui/pull/6) at commit `4c24162` so the profile UI can configure pin accounts, delete them, upload a file, pin its `storageId` through the user-owned account endpoint, and carry first-pass e2e/screenshot coverage plus repo-local e2e/screenshot review instructions. User-owned accounts can now opt into automatic pinning through structured account options; each new-content hook creates a bounded one-shot `autoActions` job, and successful one-shot actions are deactivated instead of being selected again every minute.
 
 Goal: turn "Pin to services like pinata from UI" into a shippable backend/API slice first.
 
@@ -195,7 +196,8 @@ Scope:
 - Audit `pin` module behavior for encrypted account storage, account ownership, group account permissions, and Pinata request error handling. Group-owned account creation/deletion now checks edit permission, and API responses no longer echo pin secrets; keep the same boundary in the future UI.
 - Add API docs/examples for account creation, listing, and pin-by-user/group calls.
 - Add negative-path tests for missing account, unknown service, remote Pinata error, and group permission denial.
-- Wire auto/manual pin behavior through existing `autoActions` only after the direct pin path is tested.
+- Add the profile-UI toggle and attempt/metadata controls for user-account automatic pinning.
+- Define a separate group/post policy before enabling group-account automatic pinning; raw uploads do not yet identify which group should own the remote pin.
 
 Likely modules:
 
@@ -209,6 +211,7 @@ Verification:
 - `test/pin.test.ts`
 - `test/autoActions.test.ts`
 - `yarn test`
+<!-- /todo-section -->
 
 ### 5. API Key Permissions And Expiration
 

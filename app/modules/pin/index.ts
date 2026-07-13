@@ -1,6 +1,6 @@
 import axios from "axios";
 import pIteration from 'p-iteration';
-import IGeesomePinModule, {IPinAccount} from "./interface.js";
+import IGeesomePinModule, {IPinAccount, IPinAccountOptions} from "./interface.js";
 import {IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from "../../helpers.js";
@@ -29,15 +29,19 @@ export default async (app: IGeesomeApp) => {
 }
 
 export function getModule(app: IGeesomeApp, models) {
+	const autoPinAccountsByUser = new Map<number, IPinAccount[]>();
+
 	class PinModule implements IGeesomePinModule {
 		async createAccount(userId: number, account: IPinAccount): Promise<IPinAccount> {
 			if (account.groupId && !(await app.ms.group.canEditGroup(userId, account.groupId))) {
 				throw new Error("not_permitted");
 			}
-			return models.PinAccount.create({
-				...await this.encryptPinAccountIfNecessary(account),
+			const createdAccount = await models.PinAccount.create({
+				...await this.encryptPinAccountIfNecessary(preparePinAccountForStorage(account)),
 				userId
-			})
+			});
+			autoPinAccountsByUser.delete(userId);
+			return createdAccount;
 		}
 
 		async updateAccount(userId: number, id: number, updateData: IPinAccount): Promise<IPinAccount> {
@@ -46,9 +50,14 @@ export function getModule(app: IGeesomeApp, models) {
 				throw new Error("pin_account_not_found");
 			}
 			await this.checkCanManageAccount(userId, account);
-			return models.PinAccount.update(await this.encryptPinAccountIfNecessary(updateData), {where: {id}})
+			const updatedAccount = await models.PinAccount.update(
+				await this.encryptPinAccountIfNecessary(preparePinAccountForStorage(updateData)),
+				{where: {id}}
+			)
 				.then(() => models.PinAccount.findOne({where: {id}}))
 				.then(acc => this.decryptPinAccountIfNecessary(acc));
+			autoPinAccountsByUser.delete(account.userId);
+			return updatedAccount;
 		}
 
 		async deleteAccount(userId: number, id: number): Promise<{success: boolean}> {
@@ -58,6 +67,7 @@ export function getModule(app: IGeesomeApp, models) {
 			}
 			await this.checkCanManageAccount(userId, account);
 			await models.PinAccount.destroy({where: {id}});
+			autoPinAccountsByUser.delete(account.userId);
 			return {success: true};
 		}
 
@@ -169,7 +179,7 @@ export function getModule(app: IGeesomeApp, models) {
 				await app.ms.database.markStorageObjectPinnedByContent(content);
 				await this.recordPinnedStorageObject(storageId, account, content, result);
 			}
-			return result;
+			return result?.data ?? result;
 		}
 
 		async recordPinnedStorageObject(storageId: string, account: IPinAccount, content?, result?) {
@@ -194,6 +204,29 @@ export function getModule(app: IGeesomeApp, models) {
 			return pinStorageObject;
 		}
 
+		async afterContentAdding(userId, content) {
+			const autoActions = app.ms['autoActions'];
+			if (!autoActions || typeof autoActions.addAutoAction !== 'function') {
+				return [];
+			}
+			const autoPinAccounts = await this.getUserAutoPinAccounts(userId);
+			return pIteration.mapSeries(autoPinAccounts, (account) => {
+				return autoActions.addAutoAction(userId, getAutoPinAction(account, content));
+			});
+		}
+
+		async getUserAutoPinAccounts(userId) {
+			if (autoPinAccountsByUser.has(userId)) {
+				return autoPinAccountsByUser.get(userId);
+			}
+			const accounts = await this.getUserAccountsList(userId, {limit: 100});
+			const autoPinAccounts = accounts
+				.filter(isUserAutoPinAccount)
+				.map(getAutoPinAccountPolicy);
+			autoPinAccountsByUser.set(userId, autoPinAccounts);
+			return autoPinAccounts;
+		}
+
 		async encryptPinAccountIfNecessary(pinAccount: IPinAccount) {
 			if (pinAccount.isEncrypted && pinAccount.secretApiKey) {
 				pinAccount.secretApiKeyEncrypted = await app.encryptTextWithAppPass(pinAccount.secretApiKey);
@@ -213,6 +246,7 @@ export function getModule(app: IGeesomeApp, models) {
 		}
 
 		async flushDatabase() {
+			autoPinAccountsByUser.clear();
 			await pIteration.forEachSeries(['PinStorageObject', 'PinAccount'], (modelName) => {
 				return models[modelName].destroy({where: {}});
 			});
@@ -282,4 +316,79 @@ function stringifyPinResult(result) {
 	} catch (e) {
 		return JSON.stringify({error: 'pin_result_unserializable'});
 	}
+}
+
+function preparePinAccountForStorage(account: IPinAccount): IPinAccount {
+	if (!account || typeof account.options !== 'object') {
+		return account;
+	}
+	return {
+		...account,
+		options: JSON.stringify(account.options)
+	};
+}
+
+function isUserAutoPinAccount(account: IPinAccount) {
+	if (account.groupId) {
+		return false;
+	}
+	return getPinAccountOptions(account).autoPin?.enabled === true;
+}
+
+function getAutoPinAction(account: IPinAccount, content) {
+	const autoPinOptions = getPinAccountOptions(account).autoPin || {};
+	const attempts = getAutoPinAttempts(autoPinOptions.attempts);
+	return {
+		moduleName: 'pin',
+		funcName: 'pinByUserAccount',
+		funcArgs: JSON.stringify([
+			account.name,
+			content.storageId,
+			{...getAutoPinMetadata(autoPinOptions.metadata), source: 'auto-pin'}
+		]),
+		isActive: true,
+		executePeriod: 0,
+		totalExecuteAttempts: attempts,
+		currentExecuteAttempts: attempts,
+		executeOn: new Date()
+	};
+}
+
+function getAutoPinAccountPolicy(account: IPinAccount): IPinAccount {
+	return {
+		name: account.name,
+		options: getPinAccountOptions(account)
+	};
+}
+
+function getPinAccountOptions(account: IPinAccount): IPinAccountOptions {
+	if (!account?.options) {
+		return {};
+	}
+	if (typeof account.options === 'object') {
+		return account.options;
+	}
+	try {
+		const options = JSON.parse(account.options);
+		return options && typeof options === 'object' ? options : {};
+	} catch (e) {
+		return {};
+	}
+}
+
+function getAutoPinAttempts(value) {
+	const attempts = Number.parseInt(value, 10);
+	if (!Number.isFinite(attempts)) {
+		return 3;
+	}
+	return Math.min(Math.max(attempts, 1), 10);
+}
+
+function getAutoPinMetadata(metadata) {
+	if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+		return {};
+	}
+	return Object.fromEntries(Object.entries(metadata).filter(([, value]) => {
+		return ['string', 'number', 'boolean'].includes(typeof value);
+	}));
 }

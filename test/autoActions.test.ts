@@ -344,4 +344,37 @@ describe("autoActions", function () {
 		assert.deepEqual(JSON.parse(logs[0].response), longResponse);
 		assert.equal(JSON.parse(logs[1].error), 'x'.repeat(400));
 	});
+
+	it('deactivates successful one-shot actions and keeps recurring actions active', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const oneShot = await autoActions.addAutoAction(testUser.id, {
+			moduleName: 'content',
+			funcName: 'saveDataAndGetStorageId',
+			funcArgs: '[]',
+			isActive: true,
+			totalExecuteAttempts: 3,
+			currentExecuteAttempts: 3,
+			executePeriod: 0,
+			executeOn: new Date()
+		});
+		const recurring = await autoActions.addAutoAction(testUser.id, {
+			moduleName: 'content',
+			funcName: 'saveDataAndGetStorageId',
+			funcArgs: '[]',
+			isActive: true,
+			totalExecuteAttempts: 3,
+			currentExecuteAttempts: 3,
+			executePeriod: 60,
+			executeOn: new Date()
+		});
+
+		await autoActions.handleAutoActionSuccessfulExecution(testUser.id, oneShot.id, {ok: true});
+		await autoActions.handleAutoActionSuccessfulExecution(testUser.id, recurring.id, {ok: true});
+
+		const storedOneShot = await (autoActions as any).getAutoAction(oneShot.id);
+		const storedRecurring = await (autoActions as any).getAutoAction(recurring.id);
+		assert.equal(storedOneShot.isActive, false);
+		assert.equal(storedRecurring.isActive, true);
+		assert(storedRecurring.executeOn.getTime() > recurring.executeOn.getTime());
+	});
 });

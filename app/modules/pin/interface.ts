@@ -33,7 +33,15 @@ export interface IPinAccount {
 	isEncrypted?: boolean;
 	secretApiKeyEncrypted?: string;
 	secretApiKey?: string;
-	options?: string;
+	options?: string | IPinAccountOptions;
+}
+
+export interface IPinAccountOptions {
+	autoPin?: {
+		enabled?: boolean;
+		attempts?: number;
+		metadata?: Record<string, string | number | boolean>;
+	};
 }
 
 export interface IPinStorageObject {
