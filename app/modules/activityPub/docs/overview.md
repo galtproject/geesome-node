@@ -36,4 +36,5 @@ The `activityPub` module exposes GeeSome public groups/posts as ActivityPub acto
 
 - [ActivityPub/Fediverse research](./activitypub-research.md)
 - [ActivityPub and Bluesky user flows](./activitypub-user-flows.md)
+- [Live ActivityPub and Bluesky interoperability](./live-interoperability.md)
 - [Rich-text content format](../../../../docs/rich-text-content-format.md)

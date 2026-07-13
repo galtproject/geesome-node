@@ -300,11 +300,14 @@ The UI should make these states explicit:
 - Credentialed Bluesky account ownership, first-pass text/facet/media/link/reply/quote cross-post idempotency, publish-time frontend policy controls, stored cross-post update, and stored cross-post deletion are covered.
 - Simple remote social-page migration can import a user's public Bluesky or ActivityPub presence into a GeeSome personal group, preserve replies/reposts/quotes, create remote placeholders for referenced groups/accounts, and reconcile those placeholders when they later migrate. Native Bluesky imported-post reply/quote reconciliation is covered for already-imported group posts by `groupId` or `groupName`, and ActivityPub imported-post reply/quote reconciliation is covered for already-created visible remote posts. ActivityPub now supports admin-approved ownership, first-pass public profile-token proof, and stronger short-lived actor-signed challenges for claimed visible imports. The first social migration wizard and e2e path now cover frontend relation/media policy controls plus explicit reconciliation action/status UI.
 - UI and e2e tests cover admin review, ActivityPub source feed, native Bluesky source feed, and safe rendering.
-- Live smoke scripts cover deterministic local checks, optional live Fediverse actor checks, optional ActivityPub ownership-challenge proof checks, bridge-backed Bluesky checks, native ATProto public reads, and optional credentialed native Bluesky account/write lifecycle checks. Each smoke can persist its secret-free JSON report with a script-specific `*_SMOKE_REPORT_PATH` env var or the shared `GEESOME_SMOKE_REPORT_PATH`; deeper Fedify/ActivityPub.Academy conformance tooling and disposable-server runs remain follow-up.
+- Live smoke scripts cover deterministic local checks, optional live Fediverse actor checks, optional ActivityPub ownership-challenge proof checks, bridge-backed Bluesky checks, native ATProto public reads, and optional credentialed native Bluesky account/write lifecycle checks. Each smoke can persist its secret-free JSON report with a script-specific `*_SMOKE_REPORT_PATH` env var or the shared `GEESOME_SMOKE_REPORT_PATH`. Public Mastodon, Bridgy Fed, native ATProto, and independent Fedify CLI read evidence is recorded in [live-interoperability.md](./live-interoperability.md); credentialed writes and public staging-node delivery remain operator release gates.
 
-## Remaining Plan
+## Operational Follow-Up
 
-1. Simplify the ActivityPub/Bluesky UI around the main user jobs first: source subscribe/read, account connect/verify, cross-post, migration preview/start, and visible status/errors.
-2. Move flexible policy, migration repair, ownership proof, source refresh, and operator diagnostics into task-named expandable groups so edge-case controls stay available without overwhelming default screens.
-3. Run and record live interop evidence against real Fediverse/Bridgy/native ATProto targets, including skipped capabilities, credentialed Bluesky checks when credentials are available, and ActivityPub ownership proof compatibility where a signer/tool exists.
-4. Feed live interop findings back into docs or focused follow-up issues only when they reveal product or protocol gaps; keep Fedify/ActivityPub.Academy work as a targeted conformance spike, not a broad rewrite by default.
+1. Run credentialed Bluesky write evidence with a disposable test account before a
+   release that enables native cross-posting in production.
+2. Run the public staging-node federation checklist with an external actor/signer
+   before a release that enables inbound or outbound ActivityPub in production.
+3. Feed failures back into focused implementation issues. Keep Fedify or
+   ActivityPub.Academy work as a targeted compatibility tool, not a broad module
+   rewrite by default.

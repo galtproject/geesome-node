@@ -7,7 +7,7 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 ## Documented Modules
 
 - `accountStorage`: [overview](../app/modules/accountStorage/docs/overview.md)
-- `activityPub`: [overview](../app/modules/activityPub/docs/overview.md), [research](../app/modules/activityPub/docs/activitypub-research.md), [flows](../app/modules/activityPub/docs/activitypub-user-flows.md)
+- `activityPub`: [overview](../app/modules/activityPub/docs/overview.md), [research](../app/modules/activityPub/docs/activitypub-research.md), [flows](../app/modules/activityPub/docs/activitypub-user-flows.md), [live interop](../app/modules/activityPub/docs/live-interoperability.md)
 - `api`: [overview](../app/modules/api/docs/overview.md)
 - `asyncOperation`: [overview](../app/modules/asyncOperation/docs/overview.md)
 - `autoActions`: [overview](../app/modules/autoActions/docs/overview.md)
@@ -43,7 +43,7 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 | Module | Purpose | Docs |
 | --- | --- | --- |
 | `accountStorage` | Stores local static-id peer keys and remote public-key records used by user, group, and manifest identity flows. | [Overview](../app/modules/accountStorage/docs/overview.md) |
-| `activityPub` | Federates public GeeSome groups/posts and reads remote ActivityPub source feeds. | [Overview](../app/modules/activityPub/docs/overview.md), [research](../app/modules/activityPub/docs/activitypub-research.md), [flows](../app/modules/activityPub/docs/activitypub-user-flows.md) |
+| `activityPub` | Federates public GeeSome groups/posts and reads remote ActivityPub source feeds. | [Overview](../app/modules/activityPub/docs/overview.md), [research](../app/modules/activityPub/docs/activitypub-research.md), [flows](../app/modules/activityPub/docs/activitypub-user-flows.md), [live interop](../app/modules/activityPub/docs/live-interoperability.md) |
 | `api` | Runs the Express HTTP server, route registration/auth wrappers, discovery/OpenAPI/apiDoc serving, and core setup/auth/user/admin/storage helper routes. | [Overview](../app/modules/api/docs/overview.md) |
 | `asyncOperation` | Tracks long-running user operations and processes queued background work. | [Overview](../app/modules/asyncOperation/docs/overview.md) |
 | `autoActions` | Stores and claims scheduled module function calls. | [Overview](../app/modules/autoActions/docs/overview.md) |
