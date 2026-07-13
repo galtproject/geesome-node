@@ -268,7 +268,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async handleAutoActionSuccessfulExecution(_userId, _actionId, _response, _rootActionId?) {
-			let {totalExecuteAttempts, userId} = await models.AutoAction.findOne({where: {id: _actionId}});
+			let {totalExecuteAttempts, executePeriod, userId} = await models.AutoAction.findOne({where: {id: _actionId}});
 			if (_userId !== userId) {
 				throw new Error("userId_dont_match");
 			}
@@ -280,7 +280,8 @@ function getModule(app: IGeesomeApp, models) {
 				response: JSON.stringify(_response)
 			});
 			return this.updateAutoActionExecuteOn(userId, _actionId, {
-				currentExecuteAttempts: totalExecuteAttempts
+				currentExecuteAttempts: totalExecuteAttempts,
+				isActive: Boolean(executePeriod)
 			})
 		}
 

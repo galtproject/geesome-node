@@ -8,8 +8,11 @@
  */
 
 import assert from "assert";
+import axios from "axios";
 import {CorePermissionName} from "../app/modules/database/interface.js";
 import IGeesomePinModule from "../app/modules/pin/interface.js";
+import IGeesomeAutoActionsModule from "../app/modules/autoActions/interface.js";
+import CronService from "../app/modules/autoActions/cronService.js";
 import {IGeesomeApp} from "../app/interface.js";
 
 function isUniqueConstraintError(error: Error) {
@@ -191,5 +194,42 @@ describe("pin", function () {
 			}),
 			isUniqueConstraintError
 		);
+	});
+
+	it('queues and executes opted-in automatic pins once', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const autoActions = app.ms['autoActions'] as IGeesomeAutoActionsModule;
+		const originalAxiosPost = axios.post;
+		axios.post = async (url, body) => ({data: {IpfsHash: body.hashToPin}}) as any;
+
+		try {
+			await pins.createAccount(testUser.id, {
+				name: 'automatic-pinata',
+				service: 'pinata',
+				apiKey: '111',
+				secretApiKey: '222',
+				options: {autoPin: {enabled: true, attempts: 2}}
+			});
+
+			const content = await app.ms.content.saveData(testUser.id, 'automatic pin', 'automatic-pin.txt');
+			const queued = await autoActions.getUserActions(testUser.id, {
+				moduleName: 'pin',
+				funcName: 'pinByUserAccount'
+			});
+			assert.equal(queued.total, 1);
+			assert.equal(queued.list[0].isActive, true);
+
+			await new CronService(app, autoActions).getActionsAndAddToQueueAndRun();
+
+			const completed = await autoActions.getUserActions(testUser.id, {
+				moduleName: 'pin',
+				funcName: 'pinByUserAccount'
+			});
+			const pinnedContent = await app.ms.content.getContentByStorageAndUserId(content.storageId, testUser.id);
+			assert.equal(completed.list[0].isActive, false);
+			assert.equal(pinnedContent.isPinned, true);
+		} finally {
+			axios.post = originalAxiosPost;
+		}
 	});
 });

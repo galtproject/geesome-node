@@ -8,12 +8,20 @@ function createPinModule(
 	contentByStorageId: Record<string, any> = {},
 	editableGroupIds: number[] = [1],
 	markedStorageObjects: any[] = [],
-	pinnedStorageObjects: any[] = []
+	pinnedStorageObjects: any[] = [],
+	autoActions: any[] = []
 ) {
 	return getPinModule({
 		encryptTextWithAppPass: async (text) => `encrypted:${text}`,
 		decryptTextWithAppPass: async (text) => text.replace(/^encrypted:/, ""),
 		ms: {
+			autoActions: {
+				addAutoAction: async (userId, action) => {
+					const created = {id: autoActions.length + 1, userId, ...action};
+					autoActions.push(created);
+					return created;
+				}
+			},
 			content: {
 				getContentByStorageAndUserId: async (storageId, userId) => {
 					const content = contentByStorageId[storageId];
@@ -258,7 +266,7 @@ describe("pin negative paths", function () {
 			{"storage-id": {id: 10, userId: 1, name: "content-name"}}
 		);
 
-		await pins.pinByUserAccount(1, "pinata", "storage-id", {source: "auto-action"});
+		const response = await pins.pinByUserAccount(1, "pinata", "storage-id", {source: "auto-action"});
 
 		assert.deepEqual(pinataRequest.body, {
 			hostNodes: ["node-address"],
@@ -270,6 +278,77 @@ describe("pin negative paths", function () {
 		});
 		assert.equal(pinataRequest.config.headers.pinata_api_key, "pinata-key");
 		assert.equal(pinataRequest.config.headers.pinata_secret_api_key, "pinata-secret");
+		assert.deepEqual(response, {ok: true});
+	});
+
+	it("queues one-shot auto pin actions only for opted-in user accounts", async () => {
+		const autoActions = [];
+		const pins: any = createPinModule([
+			{
+				userId: 1,
+				name: "automatic",
+				service: "pinata",
+				options: JSON.stringify({
+					autoPin: {enabled: true, attempts: 20, metadata: {collection: "uploads"}}
+				})
+			},
+			{userId: 1, name: "manual", service: "pinata"},
+			{
+				userId: 1,
+				groupId: 10,
+				name: "group-automatic",
+				service: "pinata",
+				options: {autoPin: {enabled: true}}
+			}
+		], {}, [10], [], [], autoActions);
+
+		await pins.afterContentAdding(1, {storageId: "storage-id"});
+
+		assert.equal(autoActions.length, 1);
+		assert.equal(autoActions[0].moduleName, "pin");
+		assert.equal(autoActions[0].funcName, "pinByUserAccount");
+		assert.deepEqual(JSON.parse(autoActions[0].funcArgs), [
+			"automatic",
+			"storage-id",
+			{source: "auto-pin", collection: "uploads"}
+		]);
+		assert.equal(autoActions[0].isActive, true);
+		assert.equal(autoActions[0].executePeriod, 0);
+		assert.equal(autoActions[0].totalExecuteAttempts, 10);
+		assert.equal(autoActions[0].currentExecuteAttempts, 10);
+		assert(autoActions[0].executeOn instanceof Date);
+	});
+
+	it("stores structured pin account options as JSON", async () => {
+		const accounts = [];
+		const pins = createPinModule(accounts);
+
+		await pins.createAccount(1, {
+			name: "automatic",
+			service: "pinata",
+			options: {autoPin: {enabled: true}}
+		});
+
+		assert.equal(accounts[0].options, JSON.stringify({autoPin: {enabled: true}}));
+	});
+
+	it("invalidates cached auto pin policy when an account is updated", async () => {
+		const accounts: any[] = [{
+			id: 1,
+			userId: 1,
+			name: "automatic",
+			service: "pinata",
+			options: JSON.stringify({autoPin: {enabled: false}})
+		}];
+		const autoActions = [];
+		const pins: any = createPinModule(accounts, {}, [1], [], [], autoActions);
+
+		await pins.afterContentAdding(1, {storageId: "first-storage"});
+		await pins.updateAccount(1, 1, {options: {autoPin: {enabled: true}}});
+		await pins.afterContentAdding(1, {storageId: "second-storage"});
+
+		assert.equal(autoActions.length, 1);
+		assert.equal(JSON.parse(autoActions[0].funcArgs)[1], "second-storage");
 	});
 
 	it("marks content and storage object pinned after a successful remote pin", async () => {

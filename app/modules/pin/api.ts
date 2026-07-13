@@ -8,6 +8,7 @@ function sanitizePinAccount(account) {
     const plainAccount = account.toJSON ? account.toJSON() : {...account};
     delete plainAccount.secretApiKey;
     delete plainAccount.secretApiKeyEncrypted;
+    plainAccount.options = parsePinAccountOptions(plainAccount.options);
     return plainAccount;
 }
 
@@ -47,12 +48,23 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      *
      * @apiInterface (./interface.ts) {IPinAccount} apiBody
      * @apiInterface (./interface.ts) {IPinAccount} apiSuccess
+     * @apiBody {Object} [options] Pin account behavior options.
+     * @apiBody {Object} [options.autoPin] Automatic pin settings for newly saved content. This is supported only for user-owned accounts; group account automation requires explicit group/post policy.
+     * @apiBody {Boolean} [options.autoPin.enabled=false] Enqueue a one-shot pin action whenever the account owner saves new content.
+     * @apiBody {Number{1-10}} [options.autoPin.attempts=3] Maximum worker attempts for each automatic pin.
+     * @apiBody {Object} [options.autoPin.metadata] Flat Pinata metadata keyvalues added to automatic requests.
      *
      * @apiExample {curl} Example usage
      *   curl -X POST http://localhost:2052/v1/user/pin/create-account \
      *     -H "Authorization: Bearer geesome-api-key" \
      *     -H "Content-Type: application/json" \
      *     -d '{"name":"pinata","service":"pinata","apiKey":"pinata-key","secretApiKey":"pinata-secret"}'
+     *
+     * @apiExample {curl} Create an automatic Pinata account
+     *   curl -X POST http://localhost:2052/v1/user/pin/create-account \
+     *     -H "Authorization: Bearer geesome-api-key" \
+     *     -H "Content-Type: application/json" \
+     *     -d '{"name":"automatic-pinata","service":"pinata","apiKey":"pinata-key","secretApiKey":"pinata-secret","isEncrypted":true,"options":{"autoPin":{"enabled":true,"attempts":3,"metadata":{"collection":"uploads"}}}}'
      *
      * @apiExample {curl} Create a group Pinata account with encrypted secret
      *   curl -X POST http://localhost:2052/v1/user/pin/create-account \
@@ -78,6 +90,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @apiParam {Number} id Pin account id.
      * @apiInterface (./interface.ts) {IPinAccount} apiBody
      * @apiInterface (./interface.ts) {IPinAccount} apiSuccess
+     * @apiBody {Object} [options] Replaces pin account behavior options. Set `options.autoPin.enabled` for automatic pinning on a user-owned account.
      *
      * @apiExample {curl} Rotate a Pinata secret
      *   curl -X POST http://localhost:2052/v1/user/pin/update-account/15 \
@@ -210,4 +223,19 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
     app.ms.api.onAuthorizedPost('user/pin/account/:accountName/pin-content/:storageId/by-group/:groupId', async (req, res) => {
         res.send(await pinModule.pinByGroupAccount(req.user.id, req.params.groupId, req.params.accountName, req.params.storageId, req.body));
     });
+}
+
+function parsePinAccountOptions(options) {
+    if (!options) {
+        return {};
+    }
+    if (typeof options === 'object') {
+        return options;
+    }
+    try {
+        const parsedOptions = JSON.parse(options);
+        return parsedOptions && typeof parsedOptions === 'object' ? parsedOptions : {};
+    } catch (e) {
+        return {};
+    }
 }

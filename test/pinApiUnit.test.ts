@@ -50,7 +50,8 @@ describe("pin api", function () {
 			apiKey: "pinata-key",
 			secretApiKey: "pinata-secret",
 			secretApiKeyEncrypted: "encrypted-pinata-secret",
-			isEncrypted: true
+			isEncrypted: true,
+			options: JSON.stringify({autoPin: {enabled: true}})
 		};
 		const {call} = createPinApiHarness({
 			createAccount: async () => ({...secretAccount}),
@@ -70,6 +71,7 @@ describe("pin api", function () {
 		assert.equal(created.secretApiKey, undefined);
 		assert.equal(created.secretApiKeyEncrypted, undefined);
 		assert.equal(created.apiKey, "pinata-key");
+		assert.deepEqual(created.options, {autoPin: {enabled: true}});
 
 		const updated = await call("POST", "user/pin/update-account/:id", {params: {id: 1}});
 		assert.equal(updated.secretApiKey, undefined);
@@ -81,6 +83,7 @@ describe("pin api", function () {
 		});
 		assert.equal(userAccounts.list[0].secretApiKey, undefined);
 		assert.equal(userAccounts.list[0].secretApiKeyEncrypted, undefined);
+		assert.deepEqual(userAccounts.list[0].options, {autoPin: {enabled: true}});
 		assert.deepEqual(userAccountListParams, {limit: "7", sortBy: "name"});
 
 		const groupAccounts = await call("GET", "user/pin/group-accounts/:groupId", {
