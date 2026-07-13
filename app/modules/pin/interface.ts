@@ -41,6 +41,8 @@ export interface IPinAccountOptions {
 		enabled?: boolean;
 		attempts?: number;
 		metadata?: Record<string, string | number | boolean>;
+		scope?: 'user-content' | 'group-post';
+		targets?: Array<'post-manifest' | 'contents'>;
 	};
 }
 

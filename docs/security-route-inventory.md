@@ -193,7 +193,7 @@ Interpretation notes:
 | invite | POST | `/v1/invite/join/:code` | public | - | authentication flow; public entrypoint | `app/modules/invite/api.ts` |
 | invite | GET | `/v1/invite/status/:code` | public | - | authentication flow; public entrypoint | `app/modules/invite/api.ts` |
 | pin | POST | `/v1/user/pin/account/:accountName/pin-content/:storageId/by-group/:groupId` | authorized | - | content/storage boundary; external service secret boundary; token only; module/user ownership checks expected | `app/modules/pin/api.ts` |
-| pin | POST | `/v1/user/pin/account/:accountName/pin-content/:storageId/by-user` | authorized | - | content/storage boundary; external service secret boundary; token only; module/user ownership checks expected | `app/modules/pin/api.ts` |
+| pin | POST | `/v1/user/pin/account/:accountName/pin-content/:storageId/by-user` | authorized | - | content/storage boundary; encryption/key boundary; external service secret boundary; token only; module/user ownership checks expected | `app/modules/pin/api.ts` |
 | pin | POST | `/v1/user/pin/create-account` | authorized | - | encryption/key boundary; external service secret boundary; token only; module/user ownership checks expected | `app/modules/pin/api.ts` |
 | pin | POST | `/v1/user/pin/delete-account/:id` | authorized | - | external service secret boundary; token only; module/user ownership checks expected | `app/modules/pin/api.ts` |
 | pin | GET | `/v1/user/pin/group-accounts/:groupId` | authorized | - | external service secret boundary; token only; module/user ownership checks expected | `app/modules/pin/api.ts` |

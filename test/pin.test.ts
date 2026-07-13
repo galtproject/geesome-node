@@ -9,14 +9,26 @@
 
 import assert from "assert";
 import axios from "axios";
-import {CorePermissionName} from "../app/modules/database/interface.js";
+import {ContentView, CorePermissionName} from "../app/modules/database/interface.js";
 import IGeesomePinModule from "../app/modules/pin/interface.js";
 import IGeesomeAutoActionsModule from "../app/modules/autoActions/interface.js";
 import CronService from "../app/modules/autoActions/cronService.js";
 import {IGeesomeApp} from "../app/interface.js";
+import {PostStatus} from "../app/modules/group/interface.js";
 
 function isUniqueConstraintError(error: Error) {
 	return error.name === 'SequelizeUniqueConstraintError';
+}
+
+async function waitForCondition(condition, timeoutMs = 5000) {
+	const startedAt = Date.now();
+	while (Date.now() - startedAt < timeoutMs) {
+		if (await condition()) {
+			return;
+		}
+		await new Promise(resolve => setTimeout(resolve, 50));
+	}
+	throw new Error('condition_timeout');
 }
 
 describe("pin", function () {
@@ -227,6 +239,76 @@ describe("pin", function () {
 			});
 			const pinnedContent = await app.ms.content.getContentByStorageAndUserId(content.storageId, testUser.id);
 			assert.equal(completed.list[0].isActive, false);
+			assert.equal(pinnedContent.isPinned, true);
+		} finally {
+			axios.post = originalAxiosPost;
+		}
+	});
+
+	it('queues published group post targets for the group account owner', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const postAuthor = await app.registerUser({
+			email: 'group-post-author@user.com',
+			name: 'group-post-author',
+			password: 'group-post-author',
+			permissions: [CorePermissionName.UserAll]
+		});
+		const group = await app.ms.group.createGroup(testUser.id, {
+			name: 'automatic-pin-group',
+			title: 'Automatic pin group',
+			isPublic: true,
+			isOpen: true
+		});
+		await app.ms.group.addAdminToGroup(testUser.id, group.id, postAuthor.id);
+		await pins.createAccount(testUser.id, {
+			name: 'group-automatic-pinata',
+			service: 'pinata',
+			groupId: group.id,
+			apiKey: '111',
+			secretApiKey: '222',
+			options: {
+				autoPin: {
+					enabled: true,
+					scope: 'group-post',
+					targets: ['post-manifest', 'contents'],
+					attempts: 2
+				}
+			}
+		});
+
+		const content = await app.ms.content.saveData(postAuthor.id, 'group automatic pin', 'group-auto-pin.txt');
+		const post = await app.ms.group.createPost(postAuthor.id, {
+			groupId: group.id,
+			status: PostStatus.Published,
+			contents: [{id: content.id, view: ContentView.Attachment}]
+		});
+		const autoActions = app.ms['autoActions'] as IGeesomeAutoActionsModule;
+		await waitForCondition(async () => {
+			const actions = await autoActions.getUserActions(testUser.id, {
+				moduleName: 'pin',
+				funcName: 'pinByGroupAccount'
+			});
+			return actions.total === 2;
+		});
+
+		const queued = await autoActions.getUserActions(testUser.id, {
+			moduleName: 'pin',
+			funcName: 'pinByGroupAccount'
+		});
+		const storageIds = queued.list.map(action => JSON.parse(action.funcArgs)[2]).sort();
+		const storedPost = await app.ms.group.getPostPure(post.id);
+		assert.deepEqual(storageIds, [content.storageId, storedPost.manifestStorageId].sort());
+
+		const originalAxiosPost = axios.post;
+		axios.post = async (url, body) => ({data: {IpfsHash: body.hashToPin}}) as any;
+		try {
+			await new CronService(app, autoActions).getActionsAndAddToQueueAndRun();
+			const completed = await autoActions.getUserActions(testUser.id, {
+				moduleName: 'pin',
+				funcName: 'pinByGroupAccount'
+			});
+			const pinnedContent = await app.ms.content.getContentByStorageAndUserId(content.storageId, postAuthor.id);
+			assert(completed.list.every(action => action.isActive === false));
 			assert.equal(pinnedContent.isPinned, true);
 		} finally {
 			axios.post = originalAxiosPost;
