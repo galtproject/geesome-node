@@ -123,7 +123,7 @@ Verification:
 
 ### 3. Content Serving Stabilization
 
-Status: in progress. [#733](https://github.com/galtproject/geesome-node/issues/733) now has a focused API HEAD regression so content-data/file-catalog storage handlers can set their own `Content-Length` and content headers instead of being swallowed by the generic HEAD fallback. [#846](https://github.com/galtproject/geesome-node/issues/846) extends the same header behavior to gateway HEAD requests so published folder/IPFS-style paths can return storage headers. [#848](https://github.com/galtproject/geesome-node/issues/848) hardens byte-range handling so malformed or unsatisfiable ranges return `416` before storage streams are opened. [#850](https://github.com/galtproject/geesome-node/issues/850) returns `404` when an allowed content path is missing from storage instead of dereferencing a missing stat. [#852](https://github.com/galtproject/geesome-node/issues/852) closes response streams when storage streams fail after headers are written. The client-disconnect slice now destroys the upstream storage stream when the response closes and keeps range-stream byte counting behind the debug namespace. HEAD requests now reuse the GET metadata/path decision path for missing and forbidden storage ids, so they return `404`/`423` instead of empty `200` responses. Ranged GET requests now follow the same missing/forbidden storage decisions before parsing byte ranges or opening streams, and image/directory range requests now return `206` partial streams instead of falling back to full `200` sends while preserving metadata-derived content type after directory index path rewrites. Non-range GET now also streams content when storage stats provide size but no CID, using the already resolved path metadata for headers. Post-header storage stream errors and expected over-limit content-save failures now clean up without unconditional stderr noise, and HTTP access logs are opt-in through `GEESOME_ACCESS_LOGS=1` instead of default morgan output. The content-save performance check now has discoverable `check:performance:*` aliases, bounded env-configurable payload defaults, and calls the current `saveData(userId, data, name, options)` contract so #750 CPU checks can be repeated intentionally.
+Status: in progress. [#733](https://github.com/galtproject/geesome-node/issues/733) now has a focused API HEAD regression so content-data/file-catalog storage handlers can set their own `Content-Length` and content headers instead of being swallowed by the generic HEAD fallback. [#846](https://github.com/galtproject/geesome-node/issues/846) extends the same header behavior to gateway HEAD requests so published folder/IPFS-style paths can return storage headers. [#848](https://github.com/galtproject/geesome-node/issues/848) hardens byte-range handling so malformed or unsatisfiable ranges return `416` before storage streams are opened. [#850](https://github.com/galtproject/geesome-node/issues/850) returns `404` when an allowed content path is missing from storage instead of dereferencing a missing stat. [#852](https://github.com/galtproject/geesome-node/issues/852) closes response streams when storage streams fail after headers are written. The client-disconnect slice now destroys the upstream storage stream when the response closes and keeps range-stream byte counting behind the debug namespace. HEAD requests now reuse the GET metadata/path decision path for missing and forbidden storage ids, so they return `404`/`423` instead of empty `200` responses. Ranged GET requests now follow the same missing/forbidden storage decisions before parsing byte ranges or opening streams, and image/directory range requests now return `206` partial streams instead of falling back to full `200` sends while preserving metadata-derived content type after directory index path rewrites. Non-range GET now also streams content when storage stats provide size but no CID, using the already resolved path metadata for headers. Post-header storage stream errors and expected over-limit content-save failures now clean up without unconditional stderr noise, and HTTP access logs are opt-in through `GEESOME_ACCESS_LOGS=1` instead of default morgan output. The content-save performance check now has discoverable `check:performance:*` aliases, bounded env-configurable payload defaults, and calls the current `saveData(userId, data, name, options)` contract so #750 CPU checks can be repeated intentionally. The existing opt-in memory profiler now also records process CPU, event-loop utilization/delay, system load, and bounded API/gateway request interval counters so the next #750 incident can distinguish GeeSome JavaScript pressure, native/external service pressure, and request spikes without enabling high-volume access logs.
 
 Goal: fix the highest user-visible backend bugs before feature work.
 
@@ -148,6 +148,41 @@ Verification:
 - `test/storage.test.ts`
 - `test/app.test.ts`
 - `yarn test`
+
+<!-- todo-section: content-serving-cpu-attribution -->
+#### Content Serving: CPU Attribution
+
+Goal: turn [#750](https://github.com/galtproject/geesome-node/issues/750) from a
+system-saturation screenshot into a reproducible GeeSome, IPFS, proxy, request, or
+background-job profile before changing runtime behavior.
+
+Current state:
+
+- Opt-in runtime snapshots correlate process CPU, event-loop utilization/delay,
+  memory, system load, and bounded API/gateway request interval counters.
+- The profiler records no paths, query values, headers, bodies, user IDs, or
+  response payloads. Event-loop and request tracking remain disabled unless
+  `GEESOME_RUNTIME_PROFILE=1`, a runtime log file, or the exact
+  `DEBUG=geesome:runtime` namespace is configured; broad debug wildcards retain
+  only the legacy memory profiler behavior.
+- The operator workflow is documented in
+  [runtime-performance-diagnostics.md](./runtime-performance-diagnostics.md).
+
+Next incident work:
+
+- Capture profiler output alongside `pidstat`/`top`, nginx request metrics, Kubo
+  stats, and PostgreSQL activity during the same incident window.
+- If GeeSome CPU and event-loop utilization are high, capture a bounded Node CPU
+  profile and add a focused route/job benchmark for the hottest stack.
+- If system load is high while GeeSome CPU is low, investigate Kubo, nginx,
+  PostgreSQL, media conversion, or storage I/O before changing application loops.
+
+Verification:
+
+- Focused runtime-profiler unit tests cover completed and aborted request counts,
+  interval reset behavior, and numeric CPU/event-loop fields.
+- Existing API/gateway tests remain green with profiling disabled.
+<!-- /todo-section -->
 
 ### 4. Pinata And Pinning MVP
 

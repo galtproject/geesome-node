@@ -5,6 +5,7 @@ import bearerToken from 'express-bearer-token';
 import IGeesomeGatewayModule from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import appHelpers from "../../helpers.js";
+import {trackRuntimeHttpRequest} from '../../memoryProfiler.js';
 import gatewayHelpers from "./helpers.js";
 
 export default async (app: IGeesomeApp, options: {registerApi?: boolean, port?: number | string} = {}) => {
@@ -27,6 +28,10 @@ async function getModule(app: IGeesomeApp, port) {
 	if (appHelpers.isAccessLogEnabled()) {
 		service.use(morgan('combined'));
 	}
+	service.use((req, res, next) => {
+		trackRuntimeHttpRequest('gateway', req, res);
+		next();
+	});
 
 	service.use(async (req, res, next) => {
 		setHeaders(res);
