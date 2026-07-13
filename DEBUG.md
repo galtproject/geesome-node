@@ -21,6 +21,7 @@ GeeSome Node keeps logs quiet by default. Enable extra output with the variables
 | `geesome*` | All node module traces (deployment default) |
 | `geesome:app` | App lifecycle / module startup only |
 | `geesome:memory` | Memory profiler snapshots (see below) |
+| `geesome:runtime` | Opt-in CPU, event-loop, memory, and bounded request snapshots |
 | `geesome:database:sql` | SQL query traces (pair with `GEESOME_LOG_SQL=1`) |
 
 ## Log flags
@@ -49,3 +50,14 @@ Each line looks like:
 `rssMb` is the process resident memory — the number to size RAM by; `systemFreeMb` shows host headroom. The JSONL file can be handed to an agent to analyze and propose hardware requirements.
 
 Besides the periodic snapshots, the node also emits **labeled** snapshots around video transcoding (`"label":"video:transcode:before"` / `"video:transcode:after"`). ffmpeg runs as a child process, so its cost shows up as a drop in `systemFreeMb` (and a bump in `externalMb` for native buffers) between the two labels rather than in `rssMb`.
+
+## Runtime profiling (for CPU incidents)
+
+Set `GEESOME_RUNTIME_PROFILE=1` or `GEESOME_RUNTIME_LOG_FILE` to add process CPU,
+event-loop utilization/delay, system load, and bounded API/gateway request counters
+to periodic snapshots. The exact `DEBUG=geesome:runtime` namespace also enables
+runtime profiling. A broad `DEBUG=geesome*` does not enable the event-loop monitor
+or request tracking, so existing deployments keep their legacy memory-only cost.
+
+See [Runtime performance diagnostics](./docs/runtime-performance-diagnostics.md)
+for fields, privacy boundaries, and incident interpretation.

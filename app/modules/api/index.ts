@@ -5,6 +5,7 @@ import bodyParser from 'body-parser';
 import bearerToken from 'express-bearer-token';
 import {IGeesomeApp} from "../../interface.js";
 import helpers from "../../helpers.js";
+import {trackRuntimeHttpRequest} from '../../memoryProfiler.js';
 import {buildOpenApiFromApiDoc, getApiDocData} from "../../apiDocSpec.js";
 import {IUser} from "../database/interface.js";
 import IGeesomeApiModule, {
@@ -47,6 +48,10 @@ async function getModule(app: IGeesomeApp, version, port) {
 	if (helpers.isAccessLogEnabled()) {
 		service.use(morgan('combined'));
 	}
+	service.use((req, res, next) => {
+		trackRuntimeHttpRequest('api', req, res);
+		next();
+	});
 
 	service.use(async (req, res, next) => {
 		setHeaders(res);

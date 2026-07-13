@@ -36,6 +36,7 @@ can be used for the generated API page, this portal, and module docs.
 ## Focused References
 
 - [Debugging and logs](../DEBUG.md)
+- [Runtime performance diagnostics](./runtime-performance-diagnostics.md)
 - [Code style](./code-style.md)
 - [Security review](./security-review.md)
 - [Security route inventory](./security-route-inventory.md)
