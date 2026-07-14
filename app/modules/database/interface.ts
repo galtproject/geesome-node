@@ -16,6 +16,8 @@ export interface IGeesomeDatabaseModule {
 
   getSessionStore(): any;
 
+  stop(): Promise<void>;
+
   flushDatabase(): Promise<void>;
 
   addApiKey(apiKey): Promise<IUserApiKey>;

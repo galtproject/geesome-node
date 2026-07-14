@@ -1,4 +1,6 @@
 export default interface IGeesomeAutoActionsModule {
+	stop(): Promise<void>;
+
 	addSerialAutoActions(userId: number, autoActions: IAutoAction[]): Promise<IAutoAction[]>;
 
 	addAutoAction(userId: number, autoAction: IAutoAction): Promise<IAutoAction>;

@@ -111,6 +111,16 @@ describe("app", function () {
 		// assert.notEqual(contentObj.storageAccountId, null);
 	});
 
+	it('closes the database pool once during repeated shutdown', async () => {
+		await app.stop();
+		await app.stop();
+
+		await assert.rejects(
+			() => app.ms.database.sequelize.authenticate(),
+			/closed/i
+		);
+	});
+
 	it('keeps one user limit row per user and name', async () => {
 		const adminUser = (await app.ms.database.getAllUserList('admin'))[0];
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];

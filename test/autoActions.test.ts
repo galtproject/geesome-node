@@ -48,7 +48,6 @@ describe("autoActions", function () {
 
 	afterEach(async () => {
 		await app.stop();
-		await app.flushDatabase();
 	});
 
 	it('autoActions should be executed successfully', async () => {
