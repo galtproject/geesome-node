@@ -1,6 +1,8 @@
 import debug from 'debug';
 import {Op} from 'sequelize';
 import {IGeesomeApp} from "../../interface.js";
+import {startIntervalWorker} from '../../backgroundWorker.js';
+import type {IBackgroundWorker} from '../../backgroundWorker.js';
 import helpers from "../../helpers.js";
 import {IListParams, IListParamsOptions} from "../database/interface.js";
 import IGeesomeStorageSpaceModule, {
@@ -125,8 +127,6 @@ const storageSpaceStorageRemovalQueueInitialPercent = 5;
 const storageSpaceStorageRemovalDelayMs = parseNonNegativeInteger(process.env.STORAGE_SPACE_STORAGE_REMOVAL_DELAY_MS, 0);
 const storageSpaceStorageRemovalWorkerIntervalMs = parsePositiveInteger(process.env.STORAGE_SPACE_STORAGE_REMOVAL_WORKER_INTERVAL_MS, 60000);
 const storageSpaceStorageRemovalWorkerBatchLimit = parsePositiveInteger(process.env.STORAGE_SPACE_STORAGE_REMOVAL_WORKER_BATCH_LIMIT, 5);
-let storageObjectRemovalQueueWorkerTimer = null;
-let storageSpaceAvailabilitySampleWorkerTimer = null;
 
 export default async function (app: IGeesomeApp) {
   app.checkModules(['database', 'api', 'asyncOperation', 'group', 'fileCatalog', 'staticSiteGenerator', 'storage']);
@@ -139,6 +139,9 @@ export default async function (app: IGeesomeApp) {
 
 class StorageSpaceModule implements IGeesomeStorageSpaceModule {
   app: IGeesomeApp;
+  stopped = false;
+  storageObjectRemovalQueueWorker: IBackgroundWorker | null = null;
+  storageSpaceAvailabilitySampleWorker: IBackgroundWorker | null = null;
 
   constructor(app: IGeesomeApp) {
     this.app = app;
@@ -283,6 +286,9 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
   }
 
   startStorageSpaceAvailabilityNetworkSampleRefreshQueueProcessing(options: any = {}) {
+    if (this.stopped) {
+      return;
+    }
     const limit = parsePositiveInteger(options.limit, storageSpaceAvailabilitySampleQueueKickBatchLimit);
     void this.processStorageSpaceAvailabilityNetworkSampleRefreshQueue({limit}).catch((e) => {
       log('processStorageSpaceAvailabilityNetworkSampleRefreshQueue error', e);
@@ -290,48 +296,45 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
   }
 
   startStorageSpaceAvailabilityNetworkSampleRefreshWorker() {
-    if (!shouldRunStorageSpaceAvailabilitySampleWorker()) {
+    if (this.stopped || !shouldRunStorageSpaceAvailabilitySampleWorker()) {
       return;
     }
-    if (storageSpaceAvailabilitySampleWorkerTimer) {
+    if (this.storageSpaceAvailabilitySampleWorker) {
       return;
     }
 
-    this.kickStorageSpaceAvailabilityNetworkSampleRefreshWorker();
-    storageSpaceAvailabilitySampleWorkerTimer = setInterval(() => {
-      this.kickStorageSpaceAvailabilityNetworkSampleRefreshWorker();
-    }, storageSpaceAvailabilitySampleWorkerIntervalMs);
-
-    const timer: any = storageSpaceAvailabilitySampleWorkerTimer;
-    if (timer.unref) {
-      timer.unref();
-    }
+    this.storageSpaceAvailabilitySampleWorker = startIntervalWorker(
+      () => this.runStorageSpaceAvailabilityNetworkSampleRefreshWorker(),
+      {
+        intervalMs: storageSpaceAvailabilitySampleWorkerIntervalMs,
+        runImmediately: true,
+        onError: e => log('kickStorageSpaceAvailabilityNetworkSampleRefreshWorker error', e),
+      }
+    );
   }
 
-  kickStorageSpaceAvailabilityNetworkSampleRefreshWorker() {
-    void this.queueStorageSpaceAvailabilityNetworkSampleRefresh(
+  async runStorageSpaceAvailabilityNetworkSampleRefreshWorker() {
+    await this.queueStorageSpaceAvailabilityNetworkSampleRefresh(
       null,
       null,
       getStorageSpaceAvailabilitySampleWorkerListParams(),
       {process: false, queueSource: 'worker'}
-    ).then(() => {
-      this.startStorageSpaceAvailabilityNetworkSampleRefreshQueueProcessing({
-        limit: storageSpaceAvailabilitySampleWorkerBatchLimit,
-      });
-    }).catch((e) => {
-      log('kickStorageSpaceAvailabilityNetworkSampleRefreshWorker error', e);
+    );
+    await this.processStorageSpaceAvailabilityNetworkSampleRefreshQueue({
+      limit: storageSpaceAvailabilitySampleWorkerBatchLimit,
     });
   }
 
-  stopStorageSpaceAvailabilityNetworkSampleRefreshWorker() {
-    if (!storageSpaceAvailabilitySampleWorkerTimer) {
-      return;
-    }
-    clearInterval(storageSpaceAvailabilitySampleWorkerTimer);
-    storageSpaceAvailabilitySampleWorkerTimer = null;
+  async stopStorageSpaceAvailabilityNetworkSampleRefreshWorker() {
+    const worker = this.storageSpaceAvailabilitySampleWorker;
+    this.storageSpaceAvailabilitySampleWorker = null;
+    await worker?.stop();
   }
 
   async processStorageSpaceAvailabilityNetworkSampleRefreshQueue(options: any = {}) {
+    if (this.stopped) {
+      return {processed: 0};
+    }
     const limit = parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
     return this.app.ms.asyncOperation.processModuleOperationQueue(storageSpaceAvailabilitySampleQueueModuleName, {
       limit,
@@ -483,6 +486,9 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
   }
 
   startStorageSpaceSnapshotRefreshQueueProcessing(options: any = {}) {
+    if (this.stopped) {
+      return;
+    }
     const limit = parsePositiveInteger(options.limit, storageSpaceSnapshotQueueKickBatchLimit);
     void this.processStorageSpaceSnapshotRefreshQueue({limit}).catch((e) => {
       log('processStorageSpaceSnapshotRefreshQueue error', e);
@@ -490,6 +496,9 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
   }
 
   async processStorageSpaceSnapshotRefreshQueue(options: any = {}) {
+    if (this.stopped) {
+      return {processed: 0};
+    }
     const limit = parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
     return this.app.ms.asyncOperation.processModuleOperationQueue(storageSpaceSnapshotQueueModuleName, {
       limit,
@@ -523,6 +532,9 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
   }
 
   startStorageObjectRemovalQueueProcessing(options: any = {}) {
+    if (this.stopped) {
+      return;
+    }
     const limit = parsePositiveInteger(options.limit, storageSpaceStorageRemovalQueueKickBatchLimit);
     void this.processStorageObjectRemovalQueue({...options, limit}).catch((e) => {
       log('processStorageObjectRemovalQueue error', e);
@@ -530,6 +542,9 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
   }
 
   async processStorageObjectRemovalQueue(options: any = {}) {
+    if (this.stopped) {
+      return {processed: 0};
+    }
     const limit = parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
     let processed = 0;
 
@@ -597,35 +612,35 @@ class StorageSpaceModule implements IGeesomeStorageSpaceModule {
   }
 
   startStorageObjectRemovalQueueWorker() {
-    if (!shouldRunStorageObjectRemovalQueueWorker()) {
+    if (this.stopped || !shouldRunStorageObjectRemovalQueueWorker()) {
       return;
     }
-    if (storageObjectRemovalQueueWorkerTimer) {
+    if (this.storageObjectRemovalQueueWorker) {
       return;
     }
 
-    this.startStorageObjectRemovalQueueProcessing({limit: storageSpaceStorageRemovalWorkerBatchLimit});
-    storageObjectRemovalQueueWorkerTimer = setInterval(() => {
-      this.startStorageObjectRemovalQueueProcessing({limit: storageSpaceStorageRemovalWorkerBatchLimit});
-    }, storageSpaceStorageRemovalWorkerIntervalMs);
-
-    const timer: any = storageObjectRemovalQueueWorkerTimer;
-    if (timer.unref) {
-      timer.unref();
-    }
+    this.storageObjectRemovalQueueWorker = startIntervalWorker(
+      () => this.processStorageObjectRemovalQueue({limit: storageSpaceStorageRemovalWorkerBatchLimit}),
+      {
+        intervalMs: storageSpaceStorageRemovalWorkerIntervalMs,
+        runImmediately: true,
+        onError: e => log('processStorageObjectRemovalQueue error', e),
+      }
+    );
   }
 
-  stopStorageObjectRemovalQueueWorker() {
-    if (!storageObjectRemovalQueueWorkerTimer) {
-      return;
-    }
-    clearInterval(storageObjectRemovalQueueWorkerTimer);
-    storageObjectRemovalQueueWorkerTimer = null;
+  async stopStorageObjectRemovalQueueWorker() {
+    const worker = this.storageObjectRemovalQueueWorker;
+    this.storageObjectRemovalQueueWorker = null;
+    await worker?.stop();
   }
 
-  stop() {
-    this.stopStorageSpaceAvailabilityNetworkSampleRefreshWorker();
-    this.stopStorageObjectRemovalQueueWorker();
+  async stop() {
+    this.stopped = true;
+    await Promise.all([
+      this.stopStorageSpaceAvailabilityNetworkSampleRefreshWorker(),
+      this.stopStorageObjectRemovalQueueWorker(),
+    ]);
   }
 
   async getStorageObjectRemovalHistory(listParams: any = {}) {

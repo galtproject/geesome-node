@@ -7,6 +7,8 @@ import type {
 } from "../database/interface.js";
 
 export default interface IGeesomeStorageSpaceModule {
+  stop(): Promise<void>;
+
   getStorageSpaceOverview(): Promise<IStorageSpaceOverview>;
 
   getStorageSpaceTypeBreakdown(listParams?: IListParams): Promise<IStorageSpaceTypeBreakdownRow[]>;
@@ -45,7 +47,7 @@ export default interface IGeesomeStorageSpaceModule {
 
   startStorageSpaceAvailabilityNetworkSampleRefreshWorker(): void;
 
-  stopStorageSpaceAvailabilityNetworkSampleRefreshWorker(): void;
+  stopStorageSpaceAvailabilityNetworkSampleRefreshWorker(): Promise<void>;
 
   processStorageSpaceAvailabilityNetworkSampleRefreshQueue(options?: any): Promise<{processed: number}>;
 

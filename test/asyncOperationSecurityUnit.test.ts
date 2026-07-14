@@ -238,6 +238,71 @@ describe("async operation ownership controls", function () {
 		assert.equal(operations[0].output, "{\"refreshed\":3}");
 	});
 
+	it("drains active module queue processing and rejects new work after stop", async () => {
+		const queues = [
+			{id: 1, userId: 1, module: "storage-space-snapshot", inputJson: "{}", isWaiting: true, createdAt: new Date()},
+		];
+		const asyncOperations = createAsyncOperationModule({queues});
+		const runStarted = createDeferred();
+		const runReleased = createDeferred();
+		const processPromise = asyncOperations.processModuleOperationQueue("storage-space-snapshot", {
+			getAsyncOperationData: () => ({name: "snapshot", channel: "snapshot"}),
+			run: async () => {
+				runStarted.resolve();
+				await runReleased.promise;
+				return {ok: true};
+			},
+		});
+
+		await runStarted.promise;
+		let stopResolved = false;
+		const stopPromise = asyncOperations.stop().then(() => {
+			stopResolved = true;
+		});
+		await new Promise(resolve => setImmediate(resolve));
+		assert.equal(stopResolved, false);
+		assert.deepEqual(
+			await asyncOperations.processModuleOperationQueue("other-module", {
+				getAsyncOperationData: () => ({name: "other", channel: "other"}),
+				run: async () => ({ok: true}),
+			}),
+			{processed: 0}
+		);
+
+		runReleased.resolve();
+		assert.deepEqual(await processPromise, {processed: 1});
+		await stopPromise;
+		assert.equal(stopResolved, true);
+	});
+
+	it("keeps module queue processing locks local to each app instance", async () => {
+		const firstStarted = createDeferred();
+		const secondStarted = createDeferred();
+		const runsReleased = createDeferred();
+		const firstModule = createAsyncOperationModule({
+			queues: [{id: 1, userId: 1, module: "shared-module", inputJson: "{}", isWaiting: true, createdAt: new Date()}],
+		});
+		const secondModule = createAsyncOperationModule({
+			queues: [{id: 1, userId: 2, module: "shared-module", inputJson: "{}", isWaiting: true, createdAt: new Date()}],
+		});
+		const getOptions = (started) => ({
+			getAsyncOperationData: () => ({name: "shared", channel: "shared"}),
+			run: async () => {
+				started.resolve();
+				await runsReleased.promise;
+				return {ok: true};
+			},
+		});
+
+		const firstProcess = firstModule.processModuleOperationQueue("shared-module", getOptions(firstStarted));
+		const secondProcess = secondModule.processModuleOperationQueue("shared-module", getOptions(secondStarted));
+		await Promise.all([firstStarted.promise, secondStarted.promise]);
+		runsReleased.resolve();
+
+		assert.deepEqual(await firstProcess, {processed: 1});
+		assert.deepEqual(await secondProcess, {processed: 1});
+	});
+
 	it("keeps async operation wrapper diagnostics out of stderr", async () => {
 		const operations = [];
 		const asyncOperations = createAsyncOperationModule({
@@ -356,4 +421,12 @@ async function captureConsoleErrors(callback) {
 
 async function flushAsyncHandlers() {
 	await new Promise((resolve) => setImmediate(resolve));
+}
+
+function createDeferred() {
+	let resolve;
+	const promise = new Promise(resolvePromise => {
+		resolve = resolvePromise;
+	});
+	return {promise, resolve};
 }

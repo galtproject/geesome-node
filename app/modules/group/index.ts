@@ -18,6 +18,8 @@ import IGeesomeGroupModule, {
 } from "./interface.js";
 import {buildPostLifecycleEvent, buildSourceImportPostEvent, getPostEventState} from './postEventHelpers.js';
 import {IGeesomeApp} from "../../interface.js";
+import {startIntervalWorker} from '../../backgroundWorker.js';
+import type {IBackgroundWorker} from '../../backgroundWorker.js';
 import helpers from '../../helpers.js';
 import {
 	ContentView,
@@ -221,8 +223,9 @@ export default async (app: IGeesomeApp) => {
 
 function getModule(app: IGeesomeApp, models) {
 	const {communicator} = app.ms;
-	let derivedStateQueueInProcess = false;
-	let derivedStateQueueWorkerTimer = null;
+	let derivedStateQueueProcessPromise: Promise<any> | null = null;
+	let derivedStateQueueWorker: IBackgroundWorker | null = null;
+	let stopped = false;
 
 	async function createActorContentFromGroupObject(userId, contentObject) {
 		if (!contentObject) {
@@ -560,6 +563,9 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		startDerivedStateQueueProcessing(options: any = {}) {
+			if (stopped) {
+				return;
+			}
 			const limit = helpers.parsePositiveInteger(options.limit, groupDerivedStateKickBatchLimit);
 			void this.processDerivedStateQueue({limit}).catch((e) => {
 				log('processDerivedStateQueue error', e);
@@ -567,34 +573,33 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		startDerivedStateQueueWorker() {
-			if (!shouldRunDerivedStateWorker()) {
+			if (stopped || !shouldRunDerivedStateWorker()) {
 				return;
 			}
-			if (derivedStateQueueWorkerTimer) {
+			if (derivedStateQueueWorker) {
 				return;
 			}
 
-			this.startDerivedStateQueueProcessing({limit: groupDerivedStateWorkerBatchLimit});
-			derivedStateQueueWorkerTimer = setInterval(() => {
-				this.startDerivedStateQueueProcessing({limit: groupDerivedStateWorkerBatchLimit});
-			}, groupDerivedStateWorkerIntervalMs);
-
-			const timer: any = derivedStateQueueWorkerTimer;
-			if (timer.unref) {
-				timer.unref();
-			}
+			derivedStateQueueWorker = startIntervalWorker(
+				() => this.processDerivedStateQueue({limit: groupDerivedStateWorkerBatchLimit}),
+				{
+					intervalMs: groupDerivedStateWorkerIntervalMs,
+					runImmediately: true,
+					onError: e => log('processDerivedStateQueue error', e)
+				}
+			);
 		}
 
-		stopDerivedStateQueueWorker() {
-			if (!derivedStateQueueWorkerTimer) {
-				return;
-			}
-			clearInterval(derivedStateQueueWorkerTimer);
-			derivedStateQueueWorkerTimer = null;
+		async stopDerivedStateQueueWorker() {
+			const worker = derivedStateQueueWorker;
+			derivedStateQueueWorker = null;
+			await worker?.stop();
 		}
 
-		stop() {
-			this.stopDerivedStateQueueWorker();
+		async stop() {
+			stopped = true;
+			await this.stopDerivedStateQueueWorker();
+			await derivedStateQueueProcessPromise;
 		}
 
 		async applyPostManifestUpdate(userId, post, group = null, options: any = {}) {
@@ -619,29 +624,31 @@ function getModule(app: IGeesomeApp, models) {
 			return this.queueGroupManifestUpdate(userId, groupId, options);
 		}
 
-		async processDerivedStateQueue(options: any = {}) {
-			if (derivedStateQueueInProcess) {
-				return {processed: 0};
+		processDerivedStateQueue(options: any = {}) {
+			if (stopped || derivedStateQueueProcessPromise) {
+				return Promise.resolve({processed: 0});
 			}
 
-			derivedStateQueueInProcess = true;
+			derivedStateQueueProcessPromise = this.runDerivedStateQueue(options);
+			return derivedStateQueueProcessPromise.finally(() => {
+				derivedStateQueueProcessPromise = null;
+			});
+		}
+
+		async runDerivedStateQueue(options: any = {}) {
 			let processed = 0;
 			const limit = helpers.parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
 
-			try {
-				while (processed < limit) {
-					const waitingQueue = await this.prepareNextDerivedStateQueue();
-					if (!waitingQueue) {
-						return {processed};
-					}
-
-					await this.processDerivedStateQueueItem(waitingQueue);
-					processed += 1;
+			while (processed < limit) {
+				const waitingQueue = await this.prepareNextDerivedStateQueue();
+				if (!waitingQueue) {
+					return {processed};
 				}
-				return {processed};
-			} finally {
-				derivedStateQueueInProcess = false;
+
+				await this.processDerivedStateQueueItem(waitingQueue);
+				processed += 1;
 			}
+			return {processed};
 		}
 
 		async prepareNextDerivedStateQueue() {
