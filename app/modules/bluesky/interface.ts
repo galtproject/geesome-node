@@ -9,6 +9,7 @@ import type {
 	IRemoteContentModerationSummary,
 	RemoteContentModerationMode
 } from '../remoteContentModeration/helpers.js';
+import type {IBackgroundWorker} from '../../backgroundWorker.js';
 
 export enum BlueskySourceSubscriptionStatus {
 	Active = 'active',
@@ -474,6 +475,10 @@ export interface IBlueskySourceSyncResult {
 }
 
 export default interface IGeesomeBlueskyModule {
+	setCronWorker(cronWorker: IBackgroundWorker | null): void;
+
+	stop(): Promise<void>;
+
 	getPublicAuthorFeedPreview(input?: IBlueskyPublicAuthorFeedPreviewInput): Promise<IBlueskyPublicAuthorFeedPreview>;
 	getMigrationPreview(userId: number, input?: IBlueskyMigrationPreviewInput): Promise<IBlueskyMigrationPreviewResult>;
 	importMigration(userId: number, userApiKeyId: number | null, input?: IBlueskyMigrationImportInput): Promise<IBlueskyMigrationImportResult>;

@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import ActivityPubDeliveryCronService from '../app/modules/activityPub/cronService.js';
+import startActivityPubCron from '../app/modules/activityPub/cron.js';
 
 describe('activityPub cron service', () => {
 	it('does not start a second delivery batch while one is running', async () => {
@@ -197,6 +198,46 @@ describe('activityPub cron service', () => {
 		assert.equal(cronService.ownershipChallengeCleanupInProcess, false);
 		assert.equal(runCalls, 1);
 	});
+
+	it('stops federation intervals and drains an active delivery', async () => {
+		let releaseRun;
+		let markStarted;
+		const runReleased = new Promise(resolve => {
+			releaseRun = resolve;
+		});
+		const runStarted = new Promise(resolve => {
+			markStarted = resolve;
+		});
+		const activityPubModule = {
+			async processDeliveryQueue() {
+				markStarted(true);
+				await runReleased;
+				return {processed: 1, delivered: 1, failed: 0};
+			},
+			async cleanupMigrationOwnershipChallenges() {
+				return {deleted: 0, limit: 1, retentionMs: 1, cutoff: new Date()};
+			}
+		};
+		const worker = startActivityPubCron(getApp({
+			enabled: true,
+			deliveryWorker: true,
+			deliveryWorkerIntervalMs: 1,
+			ownershipChallengeCleanupIntervalMs: 1
+		}), activityPubModule as any);
+		assert(worker);
+
+		await runStarted;
+		let stopResolved = false;
+		const stopPromise = worker.stop().then(() => {
+			stopResolved = true;
+		});
+		await wait(5);
+		assert.equal(stopResolved, false);
+
+		releaseRun(true);
+		await stopPromise;
+		assert.equal(stopResolved, true);
+	});
 });
 
 function getApp(activityPubConfig: any = {}) {
@@ -205,4 +246,8 @@ function getApp(activityPubConfig: any = {}) {
 			activityPubConfig
 		}
 	} as any;
+}
+
+function wait(timeoutMs: number): Promise<void> {
+	return new Promise(resolve => setTimeout(resolve, timeoutMs));
 }

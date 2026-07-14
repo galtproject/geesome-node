@@ -1,4 +1,6 @@
 import {IGeesomeApp} from '../../interface.js';
+import {createIntervalWorkerGroup} from '../../backgroundWorker.js';
+import type {IBackgroundWorker} from '../../backgroundWorker.js';
 import {isActivityPubEnabled} from './helpers.js';
 import IGeesomeActivityPubModule from './interface.js';
 import ActivityPubDeliveryCronService from './cronService.js';
@@ -8,7 +10,7 @@ const defaultActivityPubSourceRefreshWorkerIntervalMs = 60 * 1000;
 const defaultActivityPubSourceRefreshPollerIntervalMs = 5 * 60 * 1000;
 const defaultActivityPubOwnershipChallengeCleanupIntervalMs = 60 * 60 * 1000;
 
-export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) => {
+export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule): IBackgroundWorker | null => {
 	const deliveryWorkerEnabled = isActivityPubDeliveryWorkerEnabled(app);
 	const sourceRefreshWorkerEnabled = isActivityPubSourceRefreshWorkerEnabled(app);
 	const sourceRefreshPollerEnabled = isActivityPubSourceRefreshPollerEnabled(app);
@@ -17,33 +19,47 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	}
 
 	const cronService = new ActivityPubDeliveryCronService(app, activityPubModule);
+	const workerGroup = createIntervalWorkerGroup();
 	if (deliveryWorkerEnabled) {
-		const timer = setInterval(async () => {
-			await cronService.processDeliveryQueue().catch((e) => console.error('processActivityPubDeliveryQueue error', e));
-		}, getActivityPubDeliveryWorkerIntervalMs(app));
-		timer.unref?.();
+		workerGroup.add(
+			() => cronService.processDeliveryQueue(),
+			{
+				intervalMs: getActivityPubDeliveryWorkerIntervalMs(app),
+				onError: e => console.error('processActivityPubDeliveryQueue error', e)
+			}
+		);
 	}
 	if (sourceRefreshWorkerEnabled && !sourceRefreshPollerEnabled) {
-		const timer = setInterval(async () => {
-			await cronService.processSourceRefreshQueue().catch((e) => console.error('processActivityPubSourceRefreshQueue error', e));
-		}, getActivityPubSourceRefreshWorkerIntervalMs(app));
-		timer.unref?.();
+		workerGroup.add(
+			() => cronService.processSourceRefreshQueue(),
+			{
+				intervalMs: getActivityPubSourceRefreshWorkerIntervalMs(app),
+				onError: e => console.error('processActivityPubSourceRefreshQueue error', e)
+			}
+		);
 	}
 	if (sourceRefreshPollerEnabled) {
-		const timer = setInterval(async () => {
-			await cronService.queueDueSourceRefreshes().catch((e) => console.error('queueDueActivityPubSourceRefreshes error', e));
+		workerGroup.add(async () => {
+			await cronService.queueDueSourceRefreshes()
+				.catch(e => console.error('queueDueActivityPubSourceRefreshes error', e));
 			if (sourceRefreshWorkerEnabled) {
-				await cronService.processSourceRefreshQueue().catch((e) => console.error('processActivityPubSourceRefreshQueue error', e));
+				await cronService.processSourceRefreshQueue()
+					.catch(e => console.error('processActivityPubSourceRefreshQueue error', e));
 			}
-		}, getActivityPubSourceRefreshPollerIntervalMs(app));
-		timer.unref?.();
+		}, {
+			intervalMs: getActivityPubSourceRefreshPollerIntervalMs(app),
+			onError: e => console.error('activityPubSourceRefreshPoller error', e)
+		});
 	}
-	const cleanupTimer = setInterval(async () => {
-		await cronService.cleanupOwnershipChallenges().catch((e) => console.error('cleanupActivityPubOwnershipChallenges error', e));
-	}, getActivityPubOwnershipChallengeCleanupIntervalMs(app));
-	cleanupTimer.unref?.();
+	workerGroup.add(
+		() => cronService.cleanupOwnershipChallenges(),
+		{
+			intervalMs: getActivityPubOwnershipChallengeCleanupIntervalMs(app),
+			onError: e => console.error('cleanupActivityPubOwnershipChallenges error', e)
+		}
+	);
 
-	return cronService;
+	return workerGroup;
 }
 
 function isActivityPubDeliveryWorkerEnabled(app: IGeesomeApp): boolean {
