@@ -114,6 +114,8 @@ function getModule(config, appPass) {
 
     apiKeyContext = new AsyncLocalStorage<any>();
 
+    stopPromise: Promise<void> | null = null;
+
     ms: {
       database: IGeesomeDatabaseModule,
       content: IGeesomeContentModule,
@@ -702,7 +704,14 @@ function getModule(config, appPass) {
     }
 
     async stop() {
-      await pIteration.forEachSeries(this.config.modules, async (moduleName: string) => {
+      if (!this.stopPromise) {
+        this.stopPromise = this.stopModules();
+      }
+      return this.stopPromise;
+    }
+
+    async stopModules() {
+      await pIteration.forEachSeries(reverse(clone(this.config.modules)), async (moduleName: string) => {
         if (this.ms[moduleName] && this.ms[moduleName].stop) {
           log(`Stop ${moduleName} module...`);
           try {

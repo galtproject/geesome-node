@@ -133,6 +133,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   sequelize: any;
   models: any;
   config: any;
+  stopPromise: Promise<void> | null = null;
 
   constructor(_app, _sequelize, _models, _config) {
     this.app = _app;
@@ -208,6 +209,13 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     return new SessionStore({
       db: this.sequelize,
     });
+  }
+
+  async stop() {
+    if (!this.stopPromise) {
+      this.stopPromise = this.sequelize.close();
+    }
+    return this.stopPromise;
   }
 
   async flushDatabase() {

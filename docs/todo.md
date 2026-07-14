@@ -196,7 +196,7 @@ Verification:
 <!-- todo-section: database-connection-worker-lifecycle -->
 #### Runtime Reliability: Database Connection And Worker Lifecycle
 
-Status: planned from a real full-suite signal. The 2026-07-14 Docker run completed with `431 passing, 11 pending`, but late Telegram-import tests coincided with repeated `SequelizeConnectionError: sorry, too many clients already` errors from the auto-action worker. The tests still passed, so the immediate task is attribution and lifecycle correction rather than a speculative pool-size increase.
+Status: first lifecycle correction implemented from a real full-suite signal. The original 2026-07-14 Docker run completed with `431 passing, 11 pending`, but late Telegram-import tests coincided with repeated `SequelizeConnectionError: sorry, too many clients already` errors from the auto-action worker. Attribution found that every test app opened the shared Sequelize pool but `app.stop()` never closed it, while the always-on auto-action interval was not owned or drained by its module. App shutdown now runs once in reverse startup order, the database closes its pool last, and the auto-action module clears its interval and awaits an in-flight run. A full Docker rerun completed with `433 passing, 11 pending` and no PostgreSQL client-exhaustion errors. Remaining work is the opt-in ActivityPub/Bluesky timer lifecycle, fire-and-forget worker drains, and bounded connection-budget diagnostics rather than a speculative pool-size increase.
 
 Goal: give all long-lived workers and module-owned Sequelize instances an explicit connection budget and deterministic shutdown path, then prove normal test and application lifecycles do not exhaust PostgreSQL clients.
 

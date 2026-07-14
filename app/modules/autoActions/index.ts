@@ -7,6 +7,7 @@ import IGeesomeAutoActionsModule, {IAutoAction, IAutoActionClaimOptions} from ".
 import {IGeesomeApp} from "../../interface.js";
 import {IListParamsOptions} from "../database/interface.js";
 import helpers from "../../helpers.js";
+import type {IAutoActionsCronWorker} from "./cron.js";
 const {some, orderBy, reverse} = _;
 const log = debug('geesome:app:autoActions');
 const autoActionExecuteBatchLimit = 100;
@@ -71,7 +72,7 @@ export default async (app: IGeesomeApp) => {
 	const models = await (await import("./models.js")).default(app.ms.database.sequelize);
 	const module = await getModule(app, models);
 	(await import('./api.js')).default(app, module);
-	(await import('./cron.js')).default(app, module);
+	module.setCronWorker((await import('./cron.js')).default(app, module));
 	return module;
 }
 
@@ -79,6 +80,18 @@ function getModule(app: IGeesomeApp, models) {
 	const executionClaimsSupported = models.autoActionExecutionClaimsSupported === true;
 
 	class AutoActionsModule implements IGeesomeAutoActionsModule {
+		cronWorker: IAutoActionsCronWorker | null = null;
+
+		setCronWorker(cronWorker: IAutoActionsCronWorker) {
+			this.cronWorker = cronWorker;
+		}
+
+		async stop() {
+			const cronWorker = this.cronWorker;
+			this.cronWorker = null;
+			await cronWorker?.stop();
+		}
+
 		async addAutoAction(userId, autoAction) {
 			const nextActions = await this.getNextActionsToStore(userId, autoAction.nextActions);
 
