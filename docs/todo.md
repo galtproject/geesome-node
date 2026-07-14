@@ -200,6 +200,16 @@ Status: lifecycle correction in progress from a real full-suite signal. The orig
 
 Goal: give all long-lived workers and module-owned Sequelize instances an explicit connection budget and deterministic shutdown path, then prove normal test and application lifecycles do not exhaust PostgreSQL clients.
 
+Findings to preserve:
+
+- The normal app has one shared Sequelize instance used by the database and model-owning feature modules, but its default pool maximum is `20` connections per process. The deployment budget is therefore multiplicative: `DATABASE_POOL_MAX * node process count + concurrent migration/check/admin pools` must stay below PostgreSQL `max_connections` with an explicit operational reserve.
+- Database check/rehearsal commands create short-lived Sequelize instances. Keep ownership local and closure in `finally`; do not route recurring runtime work through those scripts or leave a diagnostic connection open after failure.
+- Group derived-state and storage-space/removal worker timers and in-process flags currently live at module scope. Multiple app instances in one process can therefore share lifecycle state accidentally, and clearing a timer does not await an already-started `void`/promise-chain kick.
+- User/API-triggered durable work already belongs in `asyncOperation`. Interval workers should discover or advance bounded persisted work, not become a second in-memory queue whose jobs disappear on restart.
+- `index.ts` does not yet route `SIGTERM`/`SIGINT` through `app.stop()`. Correct module stop methods alone do not provide graceful Docker/systemd shutdown until process signals stop accepting new work, drain servers/workers, close storage/communication resources, and close Sequelize last.
+- API/gateway server stop methods and the global memory profiler need explicit lifecycle verification. Repeated app construction must not accumulate listeners/timers, and server shutdown must be awaitable rather than merely requesting `server.close()`.
+- Waiting forever is also unsafe. Long remote calls should retain their request timeouts or cooperative abort support, while app shutdown should have an operator-visible deadline that does not interrupt an active database transaction silently.
+
 Scope:
 
 - Inventory every Sequelize instance and pool configuration, including module-local databases, migration/check scripts, tests, and app-level database ownership. Record which component opens and closes each pool.
@@ -208,11 +218,23 @@ Scope:
 - Define one documented total connection budget for a default node and bounded per-worker concurrency. Prefer shared module services or smaller pools where ownership allows it; do not solve leaked clients by only increasing `max_connections`.
 - Keep expected shutdown and transient worker errors quiet by default while preserving actionable opt-in diagnostics and final worker failure state.
 
+Recommended remaining slices:
+
+1. Move group derived-state and storage-space/removal timer, stopped, and in-flight state onto each module instance. Reuse the shared background-worker primitive, track immediate kicks as well as interval ticks, reject new process-local starts after shutdown begins, and await active queue processors before database closure.
+2. Add process-level graceful shutdown for `SIGTERM` and `SIGINT`: stop accepting HTTP/gateway work, invoke idempotent `app.stop()`, enforce a configurable deadline, and exit with a meaningful status. Keep signal registration out of reusable module factories so tests and embedded callers do not accumulate handlers.
+3. Make API/gateway/storage/communicator/memory-profiler shutdown ownership explicit and awaitable. Add a repeated app start/stop test that checks active handles/listeners and proves no callback reaches Sequelize after database closure.
+4. Add opt-in, bounded connection diagnostics without per-query logging: configured pool limits; Sequelize pool size/available/borrowed/waiting counts when supported; and an aggregate `pg_stat_activity` snapshot grouped by application/state. Build payloads lazily and never serialize model rows or arrays unless the debug namespace is enabled.
+5. Document the production connection formula and reserve. Add startup validation/warning for clearly impossible pool/process/PostgreSQL budgets, but do not query or log database state on every request and do not automatically raise `max_connections`.
+6. Classify fatal bootstrap failures. If initialization fails after opening the database or starting a server/worker, stop already-started modules in reverse order before rejecting; do not silently leave a partially initialized process holding resources.
+
 Verification:
 
 - A focused lifecycle test starts/stops the app and affected workers repeatedly without increasing active PostgreSQL connections.
 - `npm run test:docker:cold` finishes without `too many clients already`, open-handle hangs, or worker activity after teardown.
 - Run the exact late-suite Telegram/auto-action combination repeatedly to distinguish a test leak from production worker pressure.
+- Enable each recurring worker with short test intervals, stop during an active callback, and prove shutdown waits without allowing a subsequent tick.
+- Record PostgreSQL connection count before repeated app start/stop cycles and assert it returns to baseline after every cycle.
+- Send `SIGTERM` to a disposable Docker node with active HTTP and worker work, then prove bounded clean exit, no new accepted work, and no post-close database query.
 <!-- /todo-section -->
 
 <!-- todo-section: pinata-and-pinning-mvp -->
