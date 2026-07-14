@@ -2,6 +2,7 @@ import type {IGroup, IPost} from '../group/interface.js';
 import type {IContentData, IListParams} from '../database/interface.js';
 import type {IUserOperationQueue} from '../asyncOperation/interface.js';
 import type {RichTextDocument} from '../../richText.js';
+import type {IBackgroundWorker} from '../../backgroundWorker.js';
 import type {IActivityPubMigrationPreview} from './migration.js';
 import type {IRemoteContentModerationPolicyInput, IRemoteContentModerationSummary} from '../remoteContentModeration/helpers.js';
 
@@ -860,6 +861,10 @@ export type IActivityPubFollowersCollection = Record<string, any>;
 export type IActivityPubFollowingCollection = Record<string, any>;
 
 export default interface IGeesomeActivityPubModule {
+	setCronWorker(cronWorker: IBackgroundWorker | null): void;
+
+	stop(): Promise<void>;
+
 	isEnabled(): boolean;
 
 	getWebFingerResponse(resource: string): Promise<IActivityPubWebFingerResponse>;

@@ -1,5 +1,6 @@
 import {Buffer} from 'node:buffer';
 import {IGeesomeApp} from '../../interface.js';
+import type {IBackgroundWorker} from '../../backgroundWorker.js';
 import {Op} from 'sequelize';
 import helpers from '../../helpers.js';
 import {ContentView, CorePermissionName, IContentData, IListParams, IListParamsOptions} from '../database/interface.js';
@@ -183,7 +184,7 @@ export default async (app: IGeesomeApp) => {
 	const models = await (await import('./models.js')).default(app.ms.database.sequelize);
 	const module = getModule(app, {models});
 	await (await import('./api.js')).default(app, module);
-	(await import('./cron.js')).default(app, module);
+	module.setCronWorker((await import('./cron.js')).default(app, module));
 	return module;
 }
 
@@ -192,6 +193,18 @@ export function getModule(app: IGeesomeApp, options: any = {}): IGeesomeBlueskyM
 	const models = options.models || null;
 
 	class BlueskyModule implements IGeesomeBlueskyModule {
+		cronWorker: IBackgroundWorker | null = null;
+
+		setCronWorker(cronWorker: IBackgroundWorker | null) {
+			this.cronWorker = cronWorker;
+		}
+
+		async stop() {
+			const cronWorker = this.cronWorker;
+			this.cronWorker = null;
+			await cronWorker?.stop();
+		}
+
 		async getPublicAuthorFeedPreview(input: IBlueskyPublicAuthorFeedPreviewInput = {}) {
 			const actor = getRequiredBlueskyActor(input);
 			const feedResponse = await fetchBlueskyAuthorFeed({

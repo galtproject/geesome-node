@@ -7,7 +7,7 @@ import IGeesomeAutoActionsModule, {IAutoAction, IAutoActionClaimOptions} from ".
 import {IGeesomeApp} from "../../interface.js";
 import {IListParamsOptions} from "../database/interface.js";
 import helpers from "../../helpers.js";
-import type {IAutoActionsCronWorker} from "./cron.js";
+import type {IBackgroundWorker} from "../../backgroundWorker.js";
 const {some, orderBy, reverse} = _;
 const log = debug('geesome:app:autoActions');
 const autoActionExecuteBatchLimit = 100;
@@ -80,9 +80,9 @@ function getModule(app: IGeesomeApp, models) {
 	const executionClaimsSupported = models.autoActionExecutionClaimsSupported === true;
 
 	class AutoActionsModule implements IGeesomeAutoActionsModule {
-		cronWorker: IAutoActionsCronWorker | null = null;
+		cronWorker: IBackgroundWorker | null = null;
 
-		setCronWorker(cronWorker: IAutoActionsCronWorker) {
+		setCronWorker(cronWorker: IBackgroundWorker) {
 			this.cronWorker = cronWorker;
 		}
 

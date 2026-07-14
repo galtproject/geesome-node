@@ -1,11 +1,13 @@
 import {IGeesomeApp} from '../../interface.js';
+import {createIntervalWorkerGroup} from '../../backgroundWorker.js';
+import type {IBackgroundWorker} from '../../backgroundWorker.js';
 import IGeesomeBlueskyModule from './interface.js';
 import BlueskyCronService from './cronService.js';
 
 const defaultBlueskySourceRefreshWorkerIntervalMs = 60 * 1000;
 const defaultBlueskySourceRefreshPollerIntervalMs = 5 * 60 * 1000;
 
-export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
+export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule): IBackgroundWorker | null => {
 	const sourceRefreshWorkerEnabled = isBlueskySourceRefreshWorkerEnabled(app);
 	const sourceRefreshPollerEnabled = isBlueskySourceRefreshPollerEnabled(app);
 	if (!sourceRefreshWorkerEnabled && !sourceRefreshPollerEnabled) {
@@ -13,23 +15,31 @@ export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
 	}
 
 	const cronService = new BlueskyCronService(app, blueskyModule);
+	const workerGroup = createIntervalWorkerGroup();
 	if (sourceRefreshWorkerEnabled && !sourceRefreshPollerEnabled) {
-		const timer = setInterval(async () => {
-			await cronService.processSourceRefreshQueue().catch((e) => console.error('processBlueskySourceRefreshQueue error', e));
-		}, getBlueskySourceRefreshWorkerIntervalMs(app));
-		timer.unref?.();
+		workerGroup.add(
+			() => cronService.processSourceRefreshQueue(),
+			{
+				intervalMs: getBlueskySourceRefreshWorkerIntervalMs(app),
+				onError: e => console.error('processBlueskySourceRefreshQueue error', e)
+			}
+		);
 	}
 	if (sourceRefreshPollerEnabled) {
-		const timer = setInterval(async () => {
-			await cronService.queueDueSourceRefreshes().catch((e) => console.error('queueDueBlueskySourceRefreshes error', e));
+		workerGroup.add(async () => {
+			await cronService.queueDueSourceRefreshes()
+				.catch(e => console.error('queueDueBlueskySourceRefreshes error', e));
 			if (sourceRefreshWorkerEnabled) {
-				await cronService.processSourceRefreshQueue().catch((e) => console.error('processBlueskySourceRefreshQueue error', e));
+				await cronService.processSourceRefreshQueue()
+					.catch(e => console.error('processBlueskySourceRefreshQueue error', e));
 			}
-		}, getBlueskySourceRefreshPollerIntervalMs(app));
-		timer.unref?.();
+		}, {
+			intervalMs: getBlueskySourceRefreshPollerIntervalMs(app),
+			onError: e => console.error('blueskySourceRefreshPoller error', e)
+		});
 	}
 
-	return cronService;
+	return workerGroup;
 }
 
 function isBlueskySourceRefreshWorkerEnabled(app: IGeesomeApp): boolean {

@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import {Op} from 'sequelize';
 import {IGeesomeApp} from '../../interface.js';
 import helpers from '../../helpers.js';
+import type {IBackgroundWorker} from '../../backgroundWorker.js';
 import {htmlToText, sanitizeAbsoluteHref, sanitizeHtml} from '../../htmlSafety.js';
 import {RICH_TEXT_MIME_TYPE, htmlToRichText} from '../../richText.js';
 import {ContentView, CorePermissionName} from '../database/interface.js';
@@ -296,7 +297,7 @@ export default async (app: IGeesomeApp, options: any = {}) => {
 	const module = getModule(app, models, options);
 	await module.cleanupMigrationOwnershipChallenges();
 	(await import('./api.js')).default(app, module);
-	(await import('./cron.js')).default(app, module);
+	module.setCronWorker((await import('./cron.js')).default(app, module));
 	return module;
 }
 
@@ -304,6 +305,18 @@ function getModule(app: IGeesomeApp, models, options: IActivityPubModuleOptions)
 	const resolveRemoteActorKey = options.resolveRemoteActorKey || ((input) => getActivityPubRemoteActorKey(models, input, options));
 
 	class ActivityPubModule implements IGeesomeActivityPubModule {
+		cronWorker: IBackgroundWorker | null = null;
+
+		setCronWorker(cronWorker: IBackgroundWorker | null) {
+			this.cronWorker = cronWorker;
+		}
+
+		async stop() {
+			const cronWorker = this.cronWorker;
+			this.cronWorker = null;
+			await cronWorker?.stop();
+		}
+
 		isEnabled(): boolean {
 			return isActivityPubEnabled(app.config.activityPubConfig);
 		}
