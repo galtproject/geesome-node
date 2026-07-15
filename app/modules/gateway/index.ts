@@ -8,14 +8,19 @@ import appHelpers from "../../helpers.js";
 import {trackRuntimeHttpRequest} from '../../memoryProfiler.js';
 import {closeHttpServer} from '../../httpServer.js';
 import gatewayHelpers from "./helpers.js";
+import {cleanupAndRethrow} from '../../resourceCleanup.js';
 
 export default async (app: IGeesomeApp, options: {registerApi?: boolean, port?: number | string} = {}) => {
 	app.checkModules(['api']);
 	const module = await getModule(app, options.port || process.env.GATEWAY_PORT || 2082);
-	if (options.registerApi !== false) {
-		(await import('./api.js')).default(app, module);
+	try {
+		if (options.registerApi !== false) {
+			(await import('./api.js')).default(app, module);
+		}
+		return module;
+	} catch (error) {
+		return cleanupAndRethrow(error, 'gateway_bootstrap', () => module.stop());
 	}
-	return module;
 }
 
 async function getModule(app: IGeesomeApp, port) {
