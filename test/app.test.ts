@@ -158,6 +158,15 @@ describe("app", function () {
 		]);
 	});
 
+	it('caches a valid startup database connection budget', () => {
+		const budget = app.ms.database.getConnectionBudget();
+
+		assert.equal(budget.isPossible, true);
+		assert.equal(budget.poolMax > 0, true);
+		assert.equal(budget.serverMaxConnections > 0, true);
+		assert.equal(budget.plannedConnections <= budget.usableConnections, true);
+	});
+
 	it('keeps one user limit row per user and name', async () => {
 		const adminUser = (await app.ms.database.getAllUserList('admin'))[0];
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];

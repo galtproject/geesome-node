@@ -80,3 +80,31 @@ distinguish multiple GeeSome process roles; the default is `geesome-node`.
 The sampler does not record SQL text, query values, table rows, request data,
 users, client addresses, or process IDs. It owns one non-overlapping interval,
 and app shutdown drains an active sample before closing the Sequelize pool.
+
+## Planning The Connection Budget
+
+Every GeeSome process has its own Sequelize pool. All processes and auxiliary
+tools that share one PostgreSQL server must fit this deployment formula:
+
+```text
+DATABASE_POOL_MAX * DATABASE_PROCESS_COUNT + DATABASE_AUXILIARY_CONNECTIONS
+  <= PostgreSQL max_connections - DATABASE_CONNECTION_RESERVE
+```
+
+`DATABASE_PROCESS_COUNT` defaults to `1` and must include every GeeSome process
+or replica sharing that PostgreSQL server. `DATABASE_AUXILIARY_CONNECTIONS`
+defaults to `5` for concurrent migration, integrity-check, administration, and
+other short-lived clients. Increase it when external applications also use the
+server. `DATABASE_CONNECTION_RESERVE` defaults to `10`, preserving capacity for
+recovery and operator access.
+
+For example, the default pool of `20` with one process plans `25` connections.
+With PostgreSQL `max_connections=100`, a reserve of `10` leaves `90` usable
+connections. Four processes plan `85` and fit; five plan `105` and do not.
+
+At startup, GeeSome reads PostgreSQL `max_connections` once and caches the
+calculated budget. An impossible budget emits one scalar warning such as
+`database_connection_budget_exceeded planned=105 usable=90 ...`. The check does
+not run per request, block startup, resize the Sequelize pool, or change the
+PostgreSQL setting. Set `DATABASE_CONNECTION_BUDGET_CHECK=0` only when the
+server setting cannot be read or the deployment is validated externally.
