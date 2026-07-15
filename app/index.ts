@@ -45,6 +45,7 @@ import appEvents from './events.js';
 import helpers from './helpers.js';
 import config from './config.js';
 import {startMemoryProfiler} from './memoryProfiler.js';
+import type {MemoryProfilerHandle} from './memoryProfiler.js';
 const {pick, merge, isUndefined, startsWith, reverse, clone, extend, isString} = _;
 const log = debug('geesome:app');
 const apiKeyListParams: IListParamsOptions = {
@@ -93,7 +94,7 @@ export default async (extendConfig) => {
     app.frontendStorageId = directory.id;
   }
 
-  startMemoryProfiler();
+  app.memoryProfilerHandle = startMemoryProfiler();
 
   return app;
 };
@@ -115,6 +116,8 @@ function getModule(config, appPass) {
     apiKeyContext = new AsyncLocalStorage<any>();
 
     stopPromise: Promise<void> | null = null;
+
+    memoryProfilerHandle: MemoryProfilerHandle | null = null;
 
     ms: {
       database: IGeesomeDatabaseModule,
@@ -712,6 +715,9 @@ function getModule(config, appPass) {
 
     async stopModules() {
       await pIteration.forEachSeries(getModuleStopOrder(this.config.modules), async (moduleName: string) => {
+        if (moduleName === 'database') {
+          await this.memoryProfilerHandle?.stop();
+        }
         if (this.ms[moduleName] && this.ms[moduleName].stop) {
           log(`Stop ${moduleName} module...`);
           try {
@@ -721,6 +727,7 @@ function getModule(config, appPass) {
           }
         }
       });
+      await this.memoryProfilerHandle?.stop();
     }
 
     async flushDatabase() {
@@ -748,7 +755,11 @@ function getModule(config, appPass) {
 export function getModuleStopOrder(moduleNames: string[]): string[] {
   const reversedModuleNames = reverse(clone(moduleNames));
   const ingressModuleNames = ['gateway', 'api'];
+  const databaseModuleName = 'database';
   return ingressModuleNames
     .filter(moduleName => reversedModuleNames.includes(moduleName))
-    .concat(reversedModuleNames.filter(moduleName => !ingressModuleNames.includes(moduleName)));
+    .concat(reversedModuleNames.filter(moduleName => {
+      return !ingressModuleNames.includes(moduleName) && moduleName !== databaseModuleName;
+    }))
+    .concat(reversedModuleNames.filter(moduleName => moduleName === databaseModuleName));
 }
