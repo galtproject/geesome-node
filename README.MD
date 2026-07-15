@@ -158,6 +158,8 @@ The Docker rebuild keeps dependency and BuildKit caches warm, so source-only upd
 
 Warning: the upgrade script refuses to run with uncommitted local git changes. Commit or stash server-side edits before running it.
 
+GeeSome handles `SIGTERM` and `SIGINT` by closing public HTTP ingress, draining module workers, and closing the database last. The default application shutdown deadline is 30 seconds. Set `GEESOME_SHUTDOWN_TIMEOUT_MS` to change it, and keep `GEESOME_DOCKER_STOP_GRACE_PERIOD` longer than that deadline when running through Docker Compose; the included Compose defaults are `30000` milliseconds and `35s` respectively.
+
 # Optional media tools
 YouTube thumbnail and video import drivers use the local `yt-dlp` binary. Install `yt-dlp` on hosts that need YouTube imports, or set `YT_DLP_BINARY=/path/to/yt-dlp` before starting GeeSome Node.
 

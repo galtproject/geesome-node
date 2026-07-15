@@ -32,7 +32,7 @@ export default interface IGeesomeApiModule {
 
 	prefix(routePrefix: string): IGeesomeApiModule;
 
-	stop(): any;
+	stop(): Promise<void>;
 }
 
 export interface IApiModuleCommonOutput {
