@@ -47,6 +47,7 @@ import {
 import type {DatabaseConnectionDiagnostics} from './connectionDiagnostics.js';
 import {validateDatabaseConnectionBudget} from './connectionBudget.js';
 import type {DatabaseConnectionBudget} from './connectionBudget.js';
+import {cleanupAndRethrow} from '../../resourceCleanup.js';
 const {merge, isUndefined} = _;
 const log = debug('geesome:app:database');
 const SessionStore = expressSessionSequelize(expressSession.Store);
@@ -122,14 +123,9 @@ export default async function (app: IGeesomeApp) {
   if (!fs.existsSync('./data')) {
     fs.mkdirSync('./data');
   }
-  const resConfig = merge(config, app.config.databaseConfig || {});
-  let models, sequelize;
-  try {
-    sequelize = new Sequelize(resConfig);
-    models = await (await import('./models/index.js')).default(sequelize);
-  } catch (e) {
-    throw e;
-  }
+  const resConfig = merge({}, config, app.config.databaseConfig || {});
+  const sequelize = new Sequelize(resConfig);
+  const models = await initializeDatabaseModels(sequelize);
 
   const connectionBudget = await validateDatabaseConnectionBudget(sequelize);
   const connectionDiagnostics = startDatabaseConnectionDiagnostics(sequelize);
@@ -1342,4 +1338,16 @@ function getStorageObjectReferenceUpdateData(storageObjectReference, referenceDa
 
 function getUniqueStorageReferenceTargets(references: Partial<IStorageObjectReferenceRecord>[] = []) {
   return [...new Set(references.map(reference => reference.targetStorageId).filter(Boolean))];
+}
+
+export async function initializeDatabaseModels(sequelize, loadModels = loadDatabaseModels) {
+  try {
+    return await loadModels(sequelize);
+  } catch (error) {
+    return cleanupAndRethrow(error, 'database_bootstrap', () => sequelize.close());
+  }
+}
+
+async function loadDatabaseModels(sequelize) {
+  return (await import('./models/index.js')).default(sequelize);
 }

@@ -9,6 +9,7 @@ import {trackRuntimeHttpRequest} from '../../memoryProfiler.js';
 import {closeHttpServer} from '../../httpServer.js';
 import {buildOpenApiFromApiDoc, getApiDocData} from "../../apiDocSpec.js";
 import {IUser} from "../database/interface.js";
+import {cleanupAndRethrow} from '../../resourceCleanup.js';
 import IGeesomeApiModule, {
 	IApiModuleCommonOutput,
 	IApiModuleGetInput,
@@ -17,9 +18,13 @@ import IGeesomeApiModule, {
 const {trimStart} = _;
 
 export default async (app: IGeesomeApp, options: any = {}) => {
-	const module = await getModule(app, 'v1', process.env.PORT || app.config.port || 2052);
-	(await import('./api.js')).default(app, module);
-	return module;
+	const module = await getModule(app, 'v1', options.port || process.env.PORT || app.config.port || 2052);
+	try {
+		await (options.registerRoutes || registerApiRoutes)(app, module);
+		return module;
+	} catch (error) {
+		return cleanupAndRethrow(error, 'api_bootstrap', () => module.stop());
+	}
 }
 
 async function getModule(app: IGeesomeApp, version, port) {
@@ -439,4 +444,8 @@ function setDocsHeaders(res, docsLinks) {
 		`<${docsLinks.repoDocs}>; rel="describedby"; type="text/markdown"`,
 		`<${docsLinks.moduleDocs}>; rel="describedby"; type="text/markdown"`,
 	].join(', '));
+}
+
+async function registerApiRoutes(app, module) {
+	(await import('./api.js')).default(app, module);
 }
