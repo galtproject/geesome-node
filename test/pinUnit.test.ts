@@ -293,6 +293,7 @@ describe("pin negative paths", function () {
 		const autoActions = [];
 		const pins: any = createPinModule([
 			{
+				id: 1,
 				userId: 1,
 				name: "automatic",
 				service: "pinata",
@@ -314,9 +315,9 @@ describe("pin negative paths", function () {
 
 		assert.equal(autoActions.length, 1);
 		assert.equal(autoActions[0].moduleName, "pin");
-		assert.equal(autoActions[0].funcName, "pinByUserAccount");
+		assert.equal(autoActions[0].funcName, "pinByAccountId");
 		assert.deepEqual(JSON.parse(autoActions[0].funcArgs), [
-			"automatic",
+			1,
 			"storage-id",
 			{source: "auto-pin", collection: "uploads"}
 		]);
@@ -397,8 +398,8 @@ describe("pin negative paths", function () {
 
 		assert.equal(autoActions.length, 2);
 		assert(autoActions.every(action => action.userId === 1));
-		assert(autoActions.every(action => action.funcName === "pinByGroupAccount"));
-		assert.deepEqual(autoActions.map(action => JSON.parse(action.funcArgs)[2]), [
+		assert(autoActions.every(action => action.funcName === "pinByAccountId"));
+		assert.deepEqual(autoActions.map(action => JSON.parse(action.funcArgs)[1]), [
 			"post-manifest",
 			"other-user-content"
 		]);

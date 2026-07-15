@@ -19,6 +19,12 @@ export default interface IGeesomePinModule {
 
 	pinByGroupAccount(userId: number, groupId: number, name: string, storageId: string, options?): Promise<any>;
 
+	pinByAccountId(userId: number, accountId: number, storageId: string, options?): Promise<any>;
+
+	afterContentAdding(userId: number, content): Promise<any[]>;
+
+	afterPostManifestUpdate(userId: number, postId: number): Promise<any[]>;
+
 	recordPinnedStorageObject?(storageId: string, account: IPinAccount, content?: any, result?: any): Promise<IPinStorageObject | null>;
 }
 

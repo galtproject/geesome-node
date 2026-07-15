@@ -148,6 +148,33 @@ export default async function (sequelize: Sequelize) {
 
 	await AutoAction.sync({});
 
+	const AutoActionDedupeKey = sequelize.define('autoActionDedupeKey', {
+		identityKey: {
+			type: DataTypes.STRING(500),
+			allowNull: false
+		},
+		userId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		autoActionId: {
+			type: DataTypes.INTEGER
+		}
+	} as any, {
+		indexes: [
+			{
+				name: 'auto_action_dedupe_keys_user_identity_unique',
+				fields: ['userId', 'identityKey'],
+				unique: true
+			},
+			{name: 'auto_action_dedupe_keys_action_idx', fields: ['autoActionId']}
+		]
+	} as any);
+	await AutoActionDedupeKey.sync({});
+	(AutoAction as any).findOrCreateActiveByIdentity = (options) => {
+		return findOrCreateActiveAutoActionByIdentity(sequelize, AutoAction, AutoActionDedupeKey, options);
+	};
+
 	const NextActionsPivot = sequelize.define('nextActionsPivot',{
 		baseActionId: {
 			type: DataTypes.INTEGER,
@@ -201,8 +228,51 @@ export default async function (sequelize: Sequelize) {
 
 	return {
 		AutoAction,
+		AutoActionDedupeKey,
 		autoActionExecutionClaimsSupported: includeExecutionClaimColumns,
 		NextActionsPivot: await NextActionsPivot.sync({}),
 		AutoActionLog: await AutoActionLog.sync({})
 	};
 };
+
+async function findOrCreateActiveAutoActionByIdentity(
+	sequelize: Sequelize,
+	AutoAction,
+	AutoActionDedupeKey,
+	options
+) {
+	return sequelize.transaction(async transaction => {
+		await AutoActionDedupeKey.findOrCreate({
+			where: {
+				userId: options.userId,
+				identityKey: options.identityKey
+			},
+			transaction
+		});
+		const dedupeKey = await AutoActionDedupeKey.findOne({
+			where: {
+				userId: options.userId,
+				identityKey: options.identityKey
+			},
+			transaction,
+			lock: transaction.LOCK.UPDATE
+		});
+		if (dedupeKey.autoActionId) {
+			const activeAction = await AutoAction.findOne({
+				where: {
+					id: dedupeKey.autoActionId,
+					userId: options.userId,
+					isActive: true
+				},
+				transaction
+			});
+			if (activeAction) {
+				return {action: activeAction, created: false};
+			}
+		}
+
+		const action = await AutoAction.create({...options.autoAction, userId: options.userId}, {transaction});
+		await dedupeKey.update({autoActionId: action.id}, {transaction});
+		return {action, created: true};
+	});
+}

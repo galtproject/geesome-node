@@ -237,6 +237,44 @@ describe("autoActions", function () {
 		assert.deepEqual(secondPage.list.map(action => action.moduleName), ['action-3']);
 	});
 
+	it('deduplicates concurrent active actions by stable identity', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const createAction = () => ({
+			moduleName: 'pin',
+			funcName: 'pinByAccountId',
+			funcArgs: '[1,"storage-id",{}]',
+			isActive: true,
+			executePeriod: 0,
+			totalExecuteAttempts: 1,
+			currentExecuteAttempts: 1,
+			executeOn: new Date()
+		});
+
+		const actions = await Promise.all(Array.from({length: 10}, () => {
+			return autoActions.addUniqueAutoAction(
+				testUser.id,
+				'pin:pin:1:storage-id',
+				createAction()
+			);
+		}));
+
+		assert.equal(new Set(actions.map(action => action.id)).size, 1);
+		const activeActions = await autoActions.getUserActions(testUser.id, {
+			moduleName: 'pin',
+			funcName: 'pinByAccountId',
+			isActive: 'true'
+		});
+		assert.equal(activeActions.total, 1);
+
+		await autoActions.updateAutoAction(testUser.id, actions[0].id, {isActive: false});
+		const replacement = await autoActions.addUniqueAutoAction(
+			testUser.id,
+			'pin:pin:1:storage-id',
+			createAction()
+		);
+		assert.notEqual(replacement.id, actions[0].id);
+	});
+
 	it('claims due auto actions before cron execution', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const dueAction = await autoActions.addAutoAction(testUser.id, {

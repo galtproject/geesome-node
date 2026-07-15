@@ -270,13 +270,13 @@ Verification:
 <!-- todo-section: pinning-operability-and-reconciliation -->
 #### Pinning: Operability And Reconciliation
 
-Status: post-MVP backlog. Manual pinning, user automatic pinning, explicit group-post target policy, account UI, and group settings UI are shipped. The items below improve correctness under retries, multiple node processes, remote provider drift, and larger account/post volume; they are not blockers for the completed single-node MVP.
+Status: post-MVP backlog in progress. Manual pinning, user automatic pinning, explicit group-post target policy, account UI, group settings UI, and persistent pending-job deduplication are shipped. The remaining items improve correctness across multiple node processes, remote provider drift, and larger account/post volume; they are not blockers for the completed single-node MVP.
 
 Goal: make automatic pinning observably idempotent and make the per-account pin ledger the trustworthy source for remote pin state without silently changing or deleting remote pins.
 
 Scope:
 
-- Deduplicate pending automatic jobs by stable identity such as `(pinAccountId, storageId, operation)` before execution. The current ledger skips completed pins, but repeated manifest hooks can still enqueue duplicates while the first job is pending.
+- Completed 2026-07-16: deduplicate pending automatic jobs by stable `(userId, pinAccountId, storageId, operation)` identity before execution. A database-backed unique key serializes concurrent producers across processes, active jobs are reused, and inactive jobs can be replaced. New automatic jobs address accounts by immutable ID, execution rechecks user/group permission, and both user and group hooks skip already-pinned per-account ledger entries. Concurrent hook coverage and the full Docker suite pass (`466 passing`, `11 pending`).
 - Replace indefinitely stale process-local account-policy caches with a bounded TTL/version strategy or a cheap database-backed lookup. Account changes in one process must become visible to workers in another process without restart.
 - Decide and document group-account ownership: distinguish credential creator/owner from group scope, then keep user account lists from ambiguously mixing direct user accounts with group-scoped credentials. Preserve execution-time group permission checks.
 - Replace the silent first-100 group account scan with an explicit product limit, validation rule, or complete bounded traversal. A configured account must not be ignored merely because its sort position falls outside an implementation cap.
@@ -286,7 +286,7 @@ Scope:
 
 Verification:
 
-- Concurrency tests call the same post-manifest hook repeatedly before the worker runs and assert one pending job per account/storage operation.
+- Concurrency tests call the same content and post-manifest hooks repeatedly before the worker runs and assert one pending job per account/storage operation. Keep this coverage when adding new automatic pin producers.
 - Multi-instance or cache-version tests prove create/update/delete policy changes become visible without process restart.
 - Provider tests use an injected fake Pinata client for pinned, missing, failed, rate-limited, and recovered states; CI must not depend on live Pinata.
 - Ownership tests cover creator removal, group admin changes, same `storageId` across users, and exact post-attachment authorization.
