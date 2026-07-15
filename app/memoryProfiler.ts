@@ -15,10 +15,16 @@ let profilerEnabled = false;
 let runtimeProfilerEnabled = false;
 let profilerTimer: NodeJS.Timeout | null = null;
 let eventLoopDelayHistogram: ReturnType<typeof monitorEventLoopDelay> | null = null;
+const profilerOwners = new Set<symbol>();
 let previousCpuUsage = process.cpuUsage();
 let previousCpuTimestamp = process.hrtime.bigint();
 let previousEventLoopUtilization = performance.eventLoopUtilization();
 const requestStatsByService = new Map<string, RequestStats>();
+const pendingLogWrites = new Set<Promise<void>>();
+
+export type MemoryProfilerHandle = {
+	stop(): Promise<void>;
+};
 
 type RequestStats = {
 	started: number;
@@ -85,15 +91,15 @@ export function trackRuntimeHttpRequest(serviceName: string, req: any, res: any)
 	res.once('close', () => settle(!res.writableEnded));
 }
 
-export function startMemoryProfiler() {
+export function startMemoryProfiler(): MemoryProfilerHandle {
 	if (profilerTimer) {
-		return profilerTimer;
+		return createMemoryProfilerHandle(addProfilerOwner());
 	}
 	filePath = getRuntimeLogFilePath();
 	runtimeProfilerEnabled = shouldEnableRuntimeProfiler();
 	profilerEnabled = isProfilingEnabled() || runtimeProfilerEnabled;
 	if (!profilerEnabled) {
-		return null;
+		return createStoppedMemoryProfilerHandle();
 	}
 	prepareLogDirectory();
 	if (runtimeProfilerEnabled) {
@@ -104,10 +110,15 @@ export function startMemoryProfiler() {
 	recordPeriodicSnapshot();
 	profilerTimer = setInterval(recordPeriodicSnapshot, getProfilerIntervalMs());
 	profilerTimer.unref();
-	return profilerTimer;
+	return createMemoryProfilerHandle(addProfilerOwner());
 }
 
-export function stopMemoryProfiler(): void {
+export async function stopMemoryProfiler(): Promise<void> {
+	profilerOwners.clear();
+	await stopMemoryProfilerRuntime();
+}
+
+async function stopMemoryProfilerRuntime(): Promise<void> {
 	if (profilerTimer) {
 		clearInterval(profilerTimer);
 	}
@@ -118,6 +129,7 @@ export function stopMemoryProfiler(): void {
 	runtimeProfilerEnabled = false;
 	filePath = undefined;
 	requestStatsByService.clear();
+	await Promise.all([...pendingLogWrites]);
 }
 
 function takeMemorySnapshot(label?: string, extra?: any) {
@@ -242,11 +254,14 @@ function writeSnapshot(snapshot: any, isRuntimeSnapshot: boolean): void {
 	if (!filePath) {
 		return;
 	}
-	fs.appendFile(filePath, `${JSON.stringify(snapshot)}\n`, (e) => {
-		if (e) {
+	const writePromise = fs.promises.appendFile(filePath, `${JSON.stringify(snapshot)}\n`)
+		.catch((e) => {
 			console.error('runtime_log_file_write_error', e.message);
-		}
-	});
+		})
+		.finally(() => {
+			pendingLogWrites.delete(writePromise);
+		});
+	pendingLogWrites.add(writePromise);
 }
 
 function prepareLogDirectory(): void {
@@ -317,4 +332,32 @@ function toMb(bytes: number): number {
 
 function roundNumber(value: number): number {
 	return Math.round(value * 10) / 10;
+}
+
+function createMemoryProfilerHandle(owner: symbol): MemoryProfilerHandle {
+	let stopped = false;
+	return {
+		async stop() {
+			if (stopped) {
+				return;
+			}
+			stopped = true;
+			profilerOwners.delete(owner);
+			if (profilerOwners.size === 0) {
+				await stopMemoryProfilerRuntime();
+			}
+		}
+	};
+}
+
+function addProfilerOwner(): symbol {
+	const owner = Symbol('memory-profiler-owner');
+	profilerOwners.add(owner);
+	return owner;
+}
+
+function createStoppedMemoryProfilerHandle(): MemoryProfilerHandle {
+	return {
+		async stop() {}
+	};
 }

@@ -13,8 +13,8 @@ describe('runtime profiler', () => {
 	const originalRuntimeProfile = process.env.GEESOME_RUNTIME_PROFILE;
 	const originalDebug = process.env.DEBUG;
 
-	afterEach(() => {
-		stopMemoryProfiler();
+	afterEach(async () => {
+		await stopMemoryProfiler();
 		setOptionalEnv('GEESOME_RUNTIME_LOG_FILE', originalRuntimeLogFile);
 		setOptionalEnv('GEESOME_RUNTIME_LOG_INTERVAL_SEC', originalRuntimeInterval);
 		setOptionalEnv('GEESOME_RUNTIME_PROFILE', originalRuntimeProfile);
@@ -89,6 +89,20 @@ describe('runtime profiler', () => {
 		assert.equal(snapshot.requests.gateway.completed, 0);
 		assert.equal(snapshot.requests.gateway.aborted, 1);
 		assert.equal(snapshot.requests.gateway.inFlight, 0);
+	});
+
+	it('keeps shared profiling active until every app owner stops', async () => {
+		process.env.GEESOME_RUNTIME_LOG_FILE = '/tmp/geesome-runtime-profiler-test.jsonl';
+		process.env.GEESOME_RUNTIME_LOG_INTERVAL_SEC = '3600';
+		const firstOwner = startMemoryProfiler();
+		const secondOwner = startMemoryProfiler();
+
+		await firstOwner.stop();
+		assert.notEqual(recordRuntimeSnapshot('second-owner-active'), null);
+
+		await firstOwner.stop();
+		await secondOwner.stop();
+		assert.equal(recordRuntimeSnapshot('all-owners-stopped'), null);
 	});
 });
 

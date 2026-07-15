@@ -105,8 +105,8 @@ describe('process shutdown', () => {
 
 	it('stops public ingress before workers and the database', () => {
 		assert.deepEqual(
-			getModuleStopOrder(['database', 'api', 'group', 'storageSpace', 'gateway']),
-			['gateway', 'api', 'storageSpace', 'group', 'database']
+			getModuleStopOrder(['drivers', 'database', 'api', 'group', 'storageSpace', 'gateway']),
+			['gateway', 'api', 'storageSpace', 'group', 'drivers', 'database']
 		);
 	});
 

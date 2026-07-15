@@ -5,7 +5,7 @@ import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
 export default async (app: IGeesomeApp, options = {implementation: null}) => {
 	const implementation = options.implementation || app.config.storageConfig.implementation;
 	const module: IGeesomeStorageModule = await (await import(`./${implementation}.js`)).default(app);
-	return suppressStoragePinLogs(normalizeStorageAddresses(module));
+	return makeStorageStopIdempotent(suppressStoragePinLogs(normalizeStorageAddresses(module)));
 };
 
 function normalizeStorageAddress(address): string {
@@ -101,4 +101,19 @@ function withSuppressedStoragePinLogs(callback) {
 
 function isStoragePinLog(args) {
 	return args.length >= 2 && args[1] === 'pinned:';
+}
+
+function makeStorageStopIdempotent(module: IGeesomeStorageModule): IGeesomeStorageModule {
+	const stop = module.stop?.bind(module);
+	if (!stop) {
+		return module;
+	}
+	let stopPromise: Promise<any> | null = null;
+	module.stop = () => {
+		if (!stopPromise) {
+			stopPromise = Promise.resolve().then(stop);
+		}
+		return stopPromise;
+	};
+	return module;
 }

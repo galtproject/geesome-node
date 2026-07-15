@@ -121,6 +121,26 @@ describe("app", function () {
 		);
 	});
 
+	it('releases runtime resources before starting another app on the same port', async () => {
+		const firstApp = app;
+		await firstApp.stop();
+		await assert.rejects(
+			() => firstApp.ms.database.sequelize.authenticate(),
+			/closed/i
+		);
+
+		const appConfig = (await import('../app/config.js')).default;
+		app = await (await import('../app/index.js')).default({
+			storageConfig: appConfig.storageConfig,
+			port: 7771
+		});
+		await app.stop();
+		await assert.rejects(
+			() => app.ms.database.sequelize.authenticate(),
+			/closed/i
+		);
+	});
+
 	it('keeps one user limit row per user and name', async () => {
 		const adminUser = (await app.ms.database.getAllUserList('admin'))[0];
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];

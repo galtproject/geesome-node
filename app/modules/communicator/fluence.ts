@@ -11,8 +11,15 @@ export default async (app: IGeesomeApp) => {
             source: peerId.privKey.bytes
         });
     }
-    fluenceService.stop = async () => {
-
-    }
+    const stopClient = fluenceService.stop.bind(fluenceService);
+    let stopPromise: Promise<any> | null = null;
+    fluenceService.stop = () => {
+        if (!stopPromise) {
+            stopPromise = fluenceService.client
+                ? Promise.resolve().then(stopClient)
+                : Promise.resolve();
+        }
+        return stopPromise;
+    };
     return fluenceService;
 }
