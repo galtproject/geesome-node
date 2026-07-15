@@ -711,7 +711,7 @@ function getModule(config, appPass) {
     }
 
     async stopModules() {
-      await pIteration.forEachSeries(reverse(clone(this.config.modules)), async (moduleName: string) => {
+      await pIteration.forEachSeries(getModuleStopOrder(this.config.modules), async (moduleName: string) => {
         if (this.ms[moduleName] && this.ms[moduleName].stop) {
           log(`Stop ${moduleName} module...`);
           try {
@@ -743,4 +743,12 @@ function getModule(config, appPass) {
   }
 
   return new GeesomeApp(config);
+}
+
+export function getModuleStopOrder(moduleNames: string[]): string[] {
+  const reversedModuleNames = reverse(clone(moduleNames));
+  const ingressModuleNames = ['gateway', 'api'];
+  return ingressModuleNames
+    .filter(moduleName => reversedModuleNames.includes(moduleName))
+    .concat(reversedModuleNames.filter(moduleName => !ingressModuleNames.includes(moduleName)));
 }

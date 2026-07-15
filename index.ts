@@ -9,6 +9,7 @@
 
 import {IGeesomeApp} from "./app/interface";
 import GeesomeApp from './app/index.js';
+import {registerProcessShutdown} from './app/processShutdown.js';
 
 (async () => {
   const databaseConfig: any = {};
@@ -25,6 +26,7 @@ import GeesomeApp from './app/index.js';
     databaseConfig,
     storageConfig: {jsNode: storageConfig, goNode: storageConfig}
   });
+  registerProcessShutdown(app);
 
   await (await import('./publish-docs.js')).default(app);
 })();

@@ -6,4 +6,6 @@ export default interface IGeesomeGatewayModule {
 	onGetRequest(callback);
 
 	onHeadRequest(callback);
+
+	stop(): Promise<void>;
 }
