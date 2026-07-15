@@ -45,6 +45,8 @@ import {
   startDatabaseConnectionDiagnostics
 } from './connectionDiagnostics.js';
 import type {DatabaseConnectionDiagnostics} from './connectionDiagnostics.js';
+import {validateDatabaseConnectionBudget} from './connectionBudget.js';
+import type {DatabaseConnectionBudget} from './connectionBudget.js';
 const {merge, isUndefined} = _;
 const log = debug('geesome:app:database');
 const SessionStore = expressSessionSequelize(expressSession.Store);
@@ -129,8 +131,16 @@ export default async function (app: IGeesomeApp) {
     throw e;
   }
 
+  const connectionBudget = await validateDatabaseConnectionBudget(sequelize);
   const connectionDiagnostics = startDatabaseConnectionDiagnostics(sequelize);
-  return new PostgresDatabase(app, sequelize, models, config, connectionDiagnostics) as IGeesomeDatabaseModule;
+  return new PostgresDatabase(
+    app,
+    sequelize,
+    models,
+    config,
+    connectionDiagnostics,
+    connectionBudget
+  ) as IGeesomeDatabaseModule;
 };
 
 class PostgresDatabase implements IGeesomeDatabaseModule {
@@ -139,14 +149,16 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   models: any;
   config: any;
   connectionDiagnostics: DatabaseConnectionDiagnostics;
+  connectionBudget: DatabaseConnectionBudget | null;
   stopPromise: Promise<void> | null = null;
 
-  constructor(_app, _sequelize, _models, _config, _connectionDiagnostics) {
+  constructor(_app, _sequelize, _models, _config, _connectionDiagnostics, _connectionBudget) {
     this.app = _app;
     this.sequelize = _sequelize;
     this.models = _models;
     this.config = _config;
     this.connectionDiagnostics = _connectionDiagnostics;
+    this.connectionBudget = _connectionBudget;
   }
 
   async getDriver() {
@@ -227,6 +239,10 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
 
   async getConnectionDiagnostics() {
     return this.connectionDiagnostics.getSnapshot();
+  }
+
+  getConnectionBudget() {
+    return this.connectionBudget;
   }
 
   async flushDatabase() {

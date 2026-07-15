@@ -8,6 +8,7 @@
  */
 
 import type {DatabaseConnectionDiagnosticsSnapshot} from './connectionDiagnostics.js';
+import type {DatabaseConnectionBudget} from './connectionBudget.js';
 
 export interface IGeesomeDatabaseModule {
   sequelize: any;
@@ -21,6 +22,8 @@ export interface IGeesomeDatabaseModule {
   stop(): Promise<void>;
 
   getConnectionDiagnostics(): Promise<DatabaseConnectionDiagnosticsSnapshot>;
+
+  getConnectionBudget(): DatabaseConnectionBudget | null;
 
   flushDatabase(): Promise<void>;
 
