@@ -41,6 +41,10 @@ import {
   countRemotePinReferences,
   countStorageObjectChildReferences
 } from './storageReferenceHelpers.js';
+import {
+  startDatabaseConnectionDiagnostics
+} from './connectionDiagnostics.js';
+import type {DatabaseConnectionDiagnostics} from './connectionDiagnostics.js';
 const {merge, isUndefined} = _;
 const log = debug('geesome:app:database');
 const SessionStore = expressSessionSequelize(expressSession.Store);
@@ -125,7 +129,8 @@ export default async function (app: IGeesomeApp) {
     throw e;
   }
 
-  return new PostgresDatabase(app, sequelize, models, config) as IGeesomeDatabaseModule;
+  const connectionDiagnostics = startDatabaseConnectionDiagnostics(sequelize);
+  return new PostgresDatabase(app, sequelize, models, config, connectionDiagnostics) as IGeesomeDatabaseModule;
 };
 
 class PostgresDatabase implements IGeesomeDatabaseModule {
@@ -133,13 +138,15 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   sequelize: any;
   models: any;
   config: any;
+  connectionDiagnostics: DatabaseConnectionDiagnostics;
   stopPromise: Promise<void> | null = null;
 
-  constructor(_app, _sequelize, _models, _config) {
+  constructor(_app, _sequelize, _models, _config, _connectionDiagnostics) {
     this.app = _app;
     this.sequelize = _sequelize;
     this.models = _models;
     this.config = _config;
+    this.connectionDiagnostics = _connectionDiagnostics;
   }
 
   async getDriver() {
@@ -213,9 +220,13 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
 
   async stop() {
     if (!this.stopPromise) {
-      this.stopPromise = this.sequelize.close();
+      this.stopPromise = this.connectionDiagnostics.stop().then(() => this.sequelize.close());
     }
     return this.stopPromise;
+  }
+
+  async getConnectionDiagnostics() {
+    return this.connectionDiagnostics.getSnapshot();
   }
 
   async flushDatabase() {

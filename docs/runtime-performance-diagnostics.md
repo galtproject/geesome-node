@@ -51,3 +51,32 @@ The profiler attributes the first boundary only. It intentionally does not add
 high-cardinality per-route labels or always-on tracing. Once a recurring boundary
 is known, add a focused benchmark or job/route timer and keep it behind the same
 opt-in diagnostics policy.
+
+## Database Connection Diagnostics
+
+Database connection diagnostics are independently disabled by default. Enable a
+bounded aggregate sample every 60 seconds during a connection-pressure incident:
+
+```sh
+GEESOME_DATABASE_CONNECTION_DIAGNOSTICS=1 \
+GEESOME_DATABASE_CONNECTION_DIAGNOSTICS_INTERVAL_MS=60000 \
+  npm run start
+```
+
+The exact `DEBUG=geesome:database:connections` namespace also enables the
+sampler. A broad `DEBUG=geesome*` does not enable it. Each sample contains only:
+
+- configured Sequelize pool maximum, minimum, acquire timeout, and idle timeout;
+- current pool size, available, borrowed, and waiting counters when the active
+  Sequelize pool implementation exposes them;
+- PostgreSQL connection counts grouped by `application_name` and connection
+  state for the current database.
+
+Activity groups default to 20 and are capped at 50 through
+`GEESOME_DATABASE_CONNECTION_DIAGNOSTICS_ACTIVITY_LIMIT`. The sampling interval
+is clamped between one second and one hour. Set `DATABASE_APPLICATION_NAME` to
+distinguish multiple GeeSome process roles; the default is `geesome-node`.
+
+The sampler does not record SQL text, query values, table rows, request data,
+users, client addresses, or process IDs. It owns one non-overlapping interval,
+and app shutdown drains an active sample before closing the Sequelize pool.
