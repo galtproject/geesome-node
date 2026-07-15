@@ -7,6 +7,8 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import type {DatabaseConnectionDiagnosticsSnapshot} from './connectionDiagnostics.js';
+
 export interface IGeesomeDatabaseModule {
   sequelize: any;
   models: any;
@@ -17,6 +19,8 @@ export interface IGeesomeDatabaseModule {
   getSessionStore(): any;
 
   stop(): Promise<void>;
+
+  getConnectionDiagnostics(): Promise<DatabaseConnectionDiagnosticsSnapshot>;
 
   flushDatabase(): Promise<void>;
 

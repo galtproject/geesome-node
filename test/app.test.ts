@@ -141,6 +141,23 @@ describe("app", function () {
 		);
 	});
 
+	it('reports bounded aggregate database connection diagnostics on demand', async () => {
+		const snapshot = await app.ms.database.getConnectionDiagnostics();
+
+		assert.equal(snapshot.configuredPool.max > 0, true);
+		assert.equal(typeof snapshot.runtimePool.size, 'number');
+		assert.equal(Array.isArray(snapshot.activity), true);
+		assert.equal(snapshot.activity.length <= 20, true);
+		assert.equal(snapshot.activity.some(activity => {
+			return activity.applicationName === 'geesome-node' && activity.count >= 1;
+		}), true);
+		assert.deepEqual(Object.keys(snapshot.activity[0]).sort(), [
+			'applicationName',
+			'count',
+			'state'
+		]);
+	});
+
 	it('keeps one user limit row per user and name', async () => {
 		const adminUser = (await app.ms.database.getAllUserList('admin'))[0];
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
