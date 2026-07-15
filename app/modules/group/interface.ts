@@ -8,6 +8,7 @@ import {IUserListResponse} from "../../interface.js";
 import type {RichTextDocument} from "../../richText.js";
 
 export default interface IGeesomeGroupModule {
+	stop(): Promise<void>;
 
 	checkGroupId(groupId, createIfNotExist?): Promise<number>;
 
@@ -93,7 +94,7 @@ export default interface IGeesomeGroupModule {
 
 	startDerivedStateQueueWorker(): void;
 
-	stopDerivedStateQueueWorker(): void;
+	stopDerivedStateQueueWorker(): Promise<void>;
 
 	processDerivedStateQueue(options?): Promise<any>;
 

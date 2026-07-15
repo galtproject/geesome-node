@@ -39,6 +39,36 @@ describe('background interval workers', () => {
 		assert.equal(runCalls, 1);
 	});
 
+	it('tracks and drains an immediate run through the same lifecycle', async () => {
+		let releaseRun;
+		let markStarted;
+		let runCalls = 0;
+		const runReleased = new Promise(resolve => {
+			releaseRun = resolve;
+		});
+		const runStarted = new Promise(resolve => {
+			markStarted = resolve;
+		});
+		const worker = startIntervalWorker(async () => {
+			runCalls++;
+			markStarted(true);
+			await runReleased;
+		}, {
+			intervalMs: 1000,
+			runImmediately: true,
+			onError: assert.fail
+		});
+
+		await runStarted;
+		const stopPromise = worker.stop();
+		await wait(5);
+		assert.equal(runCalls, 1);
+
+		releaseRun(true);
+		await stopPromise;
+		assert.equal(runCalls, 1);
+	});
+
 	it('stops every worker in a group and contains callback failures', async () => {
 		const errors = [];
 		let successfulRuns = 0;

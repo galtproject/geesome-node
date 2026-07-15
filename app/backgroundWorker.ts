@@ -5,6 +5,7 @@ export interface IBackgroundWorker {
 export interface IIntervalWorkerOptions {
 	intervalMs: number;
 	onError(error): void;
+	runImmediately?: boolean;
 }
 
 export interface IIntervalWorkerGroup extends IBackgroundWorker {
@@ -18,7 +19,7 @@ export function startIntervalWorker(
 	let runPromise: Promise<any> | null = null;
 	let stopPromise: Promise<void> | null = null;
 	let stopped = false;
-	const timer = setInterval(() => {
+	const runOnce = () => {
 		if (stopped || runPromise) {
 			return;
 		}
@@ -28,8 +29,12 @@ export function startIntervalWorker(
 			.finally(() => {
 				runPromise = null;
 			});
-	}, options.intervalMs);
+	};
+	const timer = setInterval(runOnce, options.intervalMs);
 	timer.unref?.();
+	if (options.runImmediately) {
+		runOnce();
+	}
 
 	return {
 		stop() {
