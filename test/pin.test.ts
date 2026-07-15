@@ -224,9 +224,12 @@ describe("pin", function () {
 			});
 
 			const content = await app.ms.content.saveData(testUser.id, 'automatic pin', 'automatic-pin.txt');
+			await Promise.all(Array.from({length: 8}, () => {
+				return pins.afterContentAdding(testUser.id, content);
+			}));
 			const queued = await autoActions.getUserActions(testUser.id, {
 				moduleName: 'pin',
-				funcName: 'pinByUserAccount'
+				funcName: 'pinByAccountId'
 			});
 			assert.equal(queued.total, 1);
 			assert.equal(queued.list[0].isActive, true);
@@ -235,7 +238,7 @@ describe("pin", function () {
 
 			const completed = await autoActions.getUserActions(testUser.id, {
 				moduleName: 'pin',
-				funcName: 'pinByUserAccount'
+				funcName: 'pinByAccountId'
 			});
 			const pinnedContent = await app.ms.content.getContentByStorageAndUserId(content.storageId, testUser.id);
 			assert.equal(completed.list[0].isActive, false);
@@ -283,19 +286,22 @@ describe("pin", function () {
 			contents: [{id: content.id, view: ContentView.Attachment}]
 		});
 		const autoActions = app.ms['autoActions'] as IGeesomeAutoActionsModule;
+		await Promise.all(Array.from({length: 8}, () => {
+			return pins.afterPostManifestUpdate(postAuthor.id, post.id);
+		}));
 		await waitForCondition(async () => {
 			const actions = await autoActions.getUserActions(testUser.id, {
 				moduleName: 'pin',
-				funcName: 'pinByGroupAccount'
+				funcName: 'pinByAccountId'
 			});
 			return actions.total === 2;
 		});
 
 		const queued = await autoActions.getUserActions(testUser.id, {
 			moduleName: 'pin',
-			funcName: 'pinByGroupAccount'
+			funcName: 'pinByAccountId'
 		});
-		const storageIds = queued.list.map(action => JSON.parse(action.funcArgs)[2]).sort();
+		const storageIds = queued.list.map(action => JSON.parse(action.funcArgs)[1]).sort();
 		const storedPost = await app.ms.group.getPostPure(post.id);
 		assert.deepEqual(storageIds, [content.storageId, storedPost.manifestStorageId].sort());
 
@@ -305,7 +311,7 @@ describe("pin", function () {
 			await new CronService(app, autoActions).getActionsAndAddToQueueAndRun();
 			const completed = await autoActions.getUserActions(testUser.id, {
 				moduleName: 'pin',
-				funcName: 'pinByGroupAccount'
+				funcName: 'pinByAccountId'
 			});
 			const pinnedContent = await app.ms.content.getContentByStorageAndUserId(content.storageId, postAuthor.id);
 			assert(completed.list.every(action => action.isActive === false));

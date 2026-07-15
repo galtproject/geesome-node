@@ -101,6 +101,21 @@ function getModule(app: IGeesomeApp, models) {
 			return this.setNextActions(res, nextActions).then(() => this.getAutoAction(res.id)) as IAutoAction;
 		}
 
+		async addUniqueAutoAction(userId, identityKey, autoAction) {
+			const normalizedIdentityKey = getAutoActionIdentityKey(identityKey);
+			const nextActions = await this.getNextActionsToStore(userId, autoAction.nextActions);
+			await this.encryptAutoActionIfNecessary(autoAction);
+			const {action, created} = await models.AutoAction.findOrCreateActiveByIdentity({
+				userId,
+				identityKey: normalizedIdentityKey,
+				autoAction
+			});
+			if (created) {
+				await this.setNextActions(action, nextActions);
+			}
+			return this.getAutoAction(action.id) as Promise<IAutoAction>;
+		}
+
 		async encryptAutoActionIfNecessary(autoAction) {
 			if (autoAction.isEncrypted && autoAction.funcArgs) {
 				autoAction.funcArgsEncrypted = await app.encryptTextWithAppPass(autoAction.funcArgs);
@@ -320,11 +335,19 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async flushDatabase() {
-			await pIteration.forEachSeries(['NextActionsPivot', 'AutoActionLog', 'AutoAction'], (modelName) => {
+			await pIteration.forEachSeries(['NextActionsPivot', 'AutoActionLog', 'AutoActionDedupeKey', 'AutoAction'], (modelName) => {
 				return models[modelName].destroy({where: {}});
 			});
 		}
 	}
 
 	return new AutoActionsModule();
+}
+
+function getAutoActionIdentityKey(identityKey): string {
+	const normalizedIdentityKey = String(identityKey || '').trim();
+	if (!normalizedIdentityKey || normalizedIdentityKey.length > 500) {
+		throw new Error('auto_action_identity_key_invalid');
+	}
+	return normalizedIdentityKey;
 }
