@@ -274,22 +274,42 @@ Status: post-MVP backlog in progress. Manual pinning, user automatic pinning, ex
 
 Goal: make automatic pinning observably idempotent and make the per-account pin ledger the trustworthy source for remote pin state without silently changing or deleting remote pins.
 
-Scope:
+Completed foundation:
 
 - Completed 2026-07-16: deduplicate pending automatic jobs by stable `(userId, pinAccountId, storageId, operation)` identity before execution. A database-backed unique key serializes concurrent producers across processes, active jobs are reused, and inactive jobs can be replaced. New automatic jobs address accounts by immutable ID, execution rechecks user/group permission, and both user and group hooks skip already-pinned per-account ledger entries. Concurrent hook coverage and the full Docker suite pass (`466 passing`, `11 pending`).
 - Completed 2026-07-16: replace indefinitely stale process-local account-policy caches with expiring snapshots. Same-process create/update/delete writes still invalidate immediately; changes made through another process become visible after 30 seconds by default without a restart. `PIN_AUTO_POLICY_CACHE_TTL_MS` can shorten the window or use `0` to disable reuse, and values are capped at five minutes. A deterministic two-module test covers remote update/delete/create visibility before and after expiry; the full Docker suite passes (`467 passing`, `11 pending`).
-- Decide and document group-account ownership: distinguish credential creator/owner from group scope, then keep user account lists from ambiguously mixing direct user accounts with group-scoped credentials. Preserve execution-time group permission checks.
-- Replace the silent first-100 group account scan with an explicit product limit, validation rule, or complete bounded traversal. A configured account must not be ignored merely because its sort position falls outside an implementation cap.
-- Treat `PinStorageObject` per-account rows as canonical remote-pin claims. Keep `Content.isPinned` or `StorageObject.isPinned` only as a derived aggregate, because one storage ID can be pinned by multiple accounts/providers and remote state can drift.
-- Add bounded provider-status reconciliation with last-check time, remote status/error, retry/backoff, and operator-visible stale/failed state. Automatic unpin, account deletion cleanup, and physical storage deletion must remain explicit separate policies and fail closed.
-- Add a credential test/health action in the account UI that does not expose secrets, plus last successful check/error summaries suitable for operators.
+
+Recent findings to preserve:
+
+- Cache snapshots are discovery hints only. Job execution reloads the account by immutable ID and rechecks user/group permission from the database; do not turn cached policy into authorization data.
+- Disabling automatic pinning currently prevents new discovery only. An already-pending action still runs because execution does not revalidate the current automatic policy. Deleting an account makes its queued actions retry `pin_account_not_found` until attempts are exhausted instead of cancelling them deliberately.
+- Account deletion has no explicit relationship to historical `PinStorageObject` rows. Those rows snapshot account/service ownership fields, but neither retention nor archival is defined; remote unpin must never be inferred from local account deletion.
+- `addUniqueAutoAction` prepares `nextActions` before it knows whether the root action already exists. Generic callers can therefore create unused child actions, and a failure while attaching children can leave an active dedupe root with an incomplete chain. Pin jobs do not currently use chains, but the shared API contract must not preserve this trap.
+- `AutoActionDedupeKey` retains one row per identity indefinitely. This is useful while an identity can recur, but high-cardinality automatic producers need bounded retention or explicit ownership cleanup so the table does not grow without limit.
+- Pinata requests have no explicit timeout or cooperative abort path. A custom account endpoint can also receive stored credentials without a documented HTTPS/host/private-network trust policy.
+- A successful `pinByHash` request is immediately recorded as `status: pinned` and sets aggregate pinned flags, even though provider acceptance may precede durable remote availability. Failed requests create only auto-action logs, so operators cannot inspect per-account/per-storage failure or retry state from the pin ledger.
+- User account lists include credentials whose `userId` is the creator even when they are group-scoped. Group scans silently inspect only the first 100 name-sorted accounts, so ownership is ambiguous and valid automatic policies beyond that window are ignored.
+
+Recommended remaining slices, in order:
+
+1. Revalidate automatic policy at execution and cancel obsolete work deliberately. For automatic sources, require the current account to remain enabled with the matching user/group scope and requested target; treat disabled policy, deleted account, removed target, unpublished post, or lost permission as a terminal skip rather than a provider retry. Same-process update/delete paths should deactivate matching pending actions promptly, while execution-time checks remain the cross-process safety net. Preserve manual pin behavior.
+2. Bound and constrain provider calls. Add a configurable request timeout, normalized retryable versus terminal errors, bounded error details, and shutdown-compatible cancellation where the HTTP client supports it. Default Pinata endpoints should remain safe; custom endpoints need an explicit product policy for HTTPS, approved hosts, redirects, DNS/private-network targets, and when credentials may be sent.
+3. Harden the shared dedupe lifecycle. Create child actions only after the dedupe root is newly selected, make root/child attachment atomic or compensating, and test concurrent callers with chains and attachment failure. Define cleanup for dedupe keys whose actions are gone or inactive beyond retention, without deleting keys still needed by active jobs.
+4. Define pin-account ownership and traversal semantics. Separate credential owner/creator from optional group scope, decide behavior when the creator leaves or group admins change, and keep direct-user and group-scoped account lists explicit. Replace the first-100 automatic account scan with validated product limits or complete cursor-batched traversal using stable `(name, id)` ordering.
+5. Make `PinStorageObject` the canonical per-account state machine. Distinguish at least requested, confirmed pinned, missing/unpinned, retryable failure, and terminal failure; record bounded provider IDs/errors, attempt/check timestamps, and account/service snapshots. Decide whether account deletion archives or detaches ledger history. Keep `Content.isPinned` and `StorageObject.isPinned` as derived aggregates of confirmed claims, including multiple users/accounts sharing one `storageId`.
+6. Add bounded provider reconciliation through durable async operations. Use an injected provider adapter to poll stale ledger rows in cursor batches with claim/dedupe, backoff, rate-limit handling, restart recovery, and per-account concurrency caps. Reconciliation may correct local state, but remote unpin, account cleanup, and physical storage deletion remain separate explicit policies that fail closed.
+7. Add credential and pin-health operator flows after the ledger contract is stable. Provide a secret-safe credential test, last successful check/error summaries, stale/failed counts, retry/reconcile actions, and bounded history. The UI should distinguish queued, provider-accepted, confirmed, stale, and failed states instead of presenting one optimistic pinned flag.
+8. Prepare release-bound schema upgrades only when promoting `dev`: add migrations and migration-integrity checks for existing production tables, constraints, indexes, state backfills, and dedupe cleanup. Keep brand-new unreleased tables model-sync-only until that release boundary.
 
 Verification:
 
 - Concurrency tests call the same content and post-manifest hooks repeatedly before the worker runs and assert one pending job per account/storage operation. Keep this coverage when adding new automatic pin producers.
 - Keep the deterministic multi-module cache test proving create/update/delete policy changes become visible without process restart.
-- Provider tests use an injected fake Pinata client for pinned, missing, failed, rate-limited, and recovered states; CI must not depend on live Pinata.
-- Ownership tests cover creator removal, group admin changes, same `storageId` across users, and exact post-attachment authorization.
+- Policy-race tests queue work, then disable/delete/move the account or revoke group access before execution; obsolete automatic jobs must stop without calling the provider, while manual operations retain their documented behavior.
+- Dedupe tests cover concurrent chained actions, child-attachment failure, inactive replacement, and bounded stale-key cleanup without orphan actions.
+- Provider tests use an injected fake Pinata adapter for accepted, confirmed, missing, timed out, terminal failure, rate-limited, and recovered states; CI must not depend on live Pinata. Endpoint tests cover redirects and private/loopback targets before sending credentials.
+- Ownership tests cover creator removal, group admin changes, account deletion with retained history, more than 100 configured group accounts, same `storageId` across users/providers, and exact post-attachment authorization.
+- Reconciliation tests stop during an active batch, restart, and resume without duplicate provider calls; aggregate pinned flags must match confirmed surviving claims after every transition.
 - If schema changes become release-bound, add the production migration and migration-integrity checks at release preparation; while changes remain unreleased on `dev`, keep model-sync-only tables aligned with the repo migration rules.
 <!-- /todo-section -->
 
