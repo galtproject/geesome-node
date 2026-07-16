@@ -270,14 +270,14 @@ Verification:
 <!-- todo-section: pinning-operability-and-reconciliation -->
 #### Pinning: Operability And Reconciliation
 
-Status: post-MVP backlog in progress. Manual pinning, user automatic pinning, explicit group-post target policy, account UI, group settings UI, and persistent pending-job deduplication are shipped. The remaining items improve correctness across multiple node processes, remote provider drift, and larger account/post volume; they are not blockers for the completed single-node MVP.
+Status: post-MVP backlog in progress. Manual pinning, user automatic pinning, explicit group-post target policy, account UI, group settings UI, persistent pending-job deduplication, and bounded cross-process policy-cache freshness are shipped. The remaining items improve ownership clarity, remote provider drift handling, and larger account/post volume; they are not blockers for the completed single-node MVP.
 
 Goal: make automatic pinning observably idempotent and make the per-account pin ledger the trustworthy source for remote pin state without silently changing or deleting remote pins.
 
 Scope:
 
 - Completed 2026-07-16: deduplicate pending automatic jobs by stable `(userId, pinAccountId, storageId, operation)` identity before execution. A database-backed unique key serializes concurrent producers across processes, active jobs are reused, and inactive jobs can be replaced. New automatic jobs address accounts by immutable ID, execution rechecks user/group permission, and both user and group hooks skip already-pinned per-account ledger entries. Concurrent hook coverage and the full Docker suite pass (`466 passing`, `11 pending`).
-- Replace indefinitely stale process-local account-policy caches with a bounded TTL/version strategy or a cheap database-backed lookup. Account changes in one process must become visible to workers in another process without restart.
+- Completed 2026-07-16: replace indefinitely stale process-local account-policy caches with expiring snapshots. Same-process create/update/delete writes still invalidate immediately; changes made through another process become visible after 30 seconds by default without a restart. `PIN_AUTO_POLICY_CACHE_TTL_MS` can shorten the window or use `0` to disable reuse, and values are capped at five minutes. A deterministic two-module test covers remote update/delete/create visibility before and after expiry; the full Docker suite passes (`467 passing`, `11 pending`).
 - Decide and document group-account ownership: distinguish credential creator/owner from group scope, then keep user account lists from ambiguously mixing direct user accounts with group-scoped credentials. Preserve execution-time group permission checks.
 - Replace the silent first-100 group account scan with an explicit product limit, validation rule, or complete bounded traversal. A configured account must not be ignored merely because its sort position falls outside an implementation cap.
 - Treat `PinStorageObject` per-account rows as canonical remote-pin claims. Keep `Content.isPinned` or `StorageObject.isPinned` only as a derived aggregate, because one storage ID can be pinned by multiple accounts/providers and remote state can drift.
@@ -287,7 +287,7 @@ Scope:
 Verification:
 
 - Concurrency tests call the same content and post-manifest hooks repeatedly before the worker runs and assert one pending job per account/storage operation. Keep this coverage when adding new automatic pin producers.
-- Multi-instance or cache-version tests prove create/update/delete policy changes become visible without process restart.
+- Keep the deterministic multi-module cache test proving create/update/delete policy changes become visible without process restart.
 - Provider tests use an injected fake Pinata client for pinned, missing, failed, rate-limited, and recovered states; CI must not depend on live Pinata.
 - Ownership tests cover creator removal, group admin changes, same `storageId` across users, and exact post-attachment authorization.
 - If schema changes become release-bound, add the production migration and migration-integrity checks at release preparation; while changes remain unreleased on `dev`, keep model-sync-only tables aligned with the repo migration rules.

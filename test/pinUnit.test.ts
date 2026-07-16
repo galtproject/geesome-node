@@ -11,7 +11,8 @@ function createPinModule(
 	markedStorageObjects: any[] = [],
 	pinnedStorageObjects: any[] = [],
 	autoActions: any[] = [],
-	postsById: Record<number, any> = {}
+	postsById: Record<number, any> = {},
+	moduleOptions: any = {}
 ) {
 	return getPinModule({
 		encryptTextWithAppPass: async (text) => `encrypted:${text}`,
@@ -128,7 +129,7 @@ function createPinModule(
 				return [created, true];
 			}
 		}
-	});
+	}, moduleOptions);
 }
 
 describe("pin negative paths", function () {
@@ -478,6 +479,57 @@ describe("pin negative paths", function () {
 
 		assert.equal(autoActions.length, 1);
 		assert.equal(JSON.parse(autoActions[0].funcArgs)[1], "second-storage");
+	});
+
+	it("refreshes auto pin policy changes made by another module after the bounded ttl", async () => {
+		const accounts: any[] = [{
+			id: 1,
+			userId: 1,
+			name: "automatic",
+			service: "pinata",
+			options: JSON.stringify({autoPin: {enabled: false}})
+		}];
+		const autoActions = [];
+		let now = 0;
+		const moduleOptions = {
+			autoPinPolicyCacheTtlMs: 100,
+			now: () => now
+		};
+		const firstPins: any = createPinModule(
+			accounts, {}, [1], [], [], autoActions, {}, moduleOptions
+		);
+		const secondPins: any = createPinModule(
+			accounts, {}, [1], [], [], [], {}, moduleOptions
+		);
+
+		await firstPins.afterContentAdding(1, {storageId: "initial-disabled"});
+		await secondPins.updateAccount(1, 1, {options: {autoPin: {enabled: true}}});
+		await firstPins.afterContentAdding(1, {storageId: "update-before-expiry"});
+		assert.equal(autoActions.length, 0);
+
+		now = 100;
+		await firstPins.afterContentAdding(1, {storageId: "update-after-expiry"});
+		assert.equal(autoActions.length, 1);
+
+		await secondPins.deleteAccount(1, 1);
+		await firstPins.afterContentAdding(1, {storageId: "delete-before-expiry"});
+		assert.equal(autoActions.length, 2);
+
+		now = 200;
+		await firstPins.afterContentAdding(1, {storageId: "delete-after-expiry"});
+		assert.equal(autoActions.length, 2);
+
+		await secondPins.createAccount(1, {
+			name: "replacement",
+			service: "pinata",
+			options: {autoPin: {enabled: true}}
+		});
+		await firstPins.afterContentAdding(1, {storageId: "create-before-expiry"});
+		assert.equal(autoActions.length, 2);
+
+		now = 300;
+		await firstPins.afterContentAdding(1, {storageId: "create-after-expiry"});
+		assert.equal(autoActions.length, 3);
 	});
 
 	it("marks content and storage object pinned after a successful remote pin", async () => {

@@ -12,6 +12,18 @@ const pinAccountListParams: IListParamsOptions = {
 	allowedSortBy: ['name', 'service', 'createdAt', 'updatedAt', 'id'],
 	maxLimit: 100
 };
+const defaultAutoPinPolicyCacheTtlMs = 30000;
+const maxAutoPinPolicyCacheTtlMs = 5 * 60 * 1000;
+
+type IAutoPinPolicyCacheEntry = {
+	accounts: IPinAccount[];
+	expiresAt: number;
+};
+
+type IPinModuleOptions = {
+	autoPinPolicyCacheTtlMs?: number;
+	now?: () => number;
+};
 
 function getPinAccountListOrder(sortBy, sortDir) {
 	const direction = sortDir.toUpperCase();
@@ -30,9 +42,13 @@ export default async (app: IGeesomeApp) => {
 	return module;
 }
 
-export function getModule(app: IGeesomeApp, models) {
-	const autoPinAccountsByUser = new Map<number, IPinAccount[]>();
-	const autoPinAccountsByGroup = new Map<number, IPinAccount[]>();
+export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions = {}) {
+	const autoPinAccountsByUser = new Map<number, IAutoPinPolicyCacheEntry>();
+	const autoPinAccountsByGroup = new Map<number, IAutoPinPolicyCacheEntry>();
+	const autoPinPolicyCacheTtlMs = getAutoPinPolicyCacheTtlMs(
+		options.autoPinPolicyCacheTtlMs ?? process.env.PIN_AUTO_POLICY_CACHE_TTL_MS
+	);
+	const now = options.now || Date.now;
 
 	class PinModule implements IGeesomePinModule {
 		async createAccount(userId: number, account: IPinAccount): Promise<IPinAccount> {
@@ -325,20 +341,22 @@ export function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getUserAutoPinAccounts(userId) {
-			if (autoPinAccountsByUser.has(userId)) {
-				return autoPinAccountsByUser.get(userId);
+			const cachedAccounts = getCachedAutoPinAccounts(autoPinAccountsByUser, userId, now());
+			if (cachedAccounts) {
+				return cachedAccounts;
 			}
 			const accounts = await this.getUserAccountsList(userId, {limit: 100});
 			const autoPinAccounts = accounts
 				.filter(isUserAutoPinAccount)
 				.map(getAutoPinAccountPolicy);
-			autoPinAccountsByUser.set(userId, autoPinAccounts);
+			cacheAutoPinAccounts(autoPinAccountsByUser, userId, autoPinAccounts, now(), autoPinPolicyCacheTtlMs);
 			return autoPinAccounts;
 		}
 
 		async getGroupAutoPinAccounts(groupId) {
-			if (autoPinAccountsByGroup.has(groupId)) {
-				return autoPinAccountsByGroup.get(groupId);
+			const cachedAccounts = getCachedAutoPinAccounts(autoPinAccountsByGroup, groupId, now());
+			if (cachedAccounts) {
+				return cachedAccounts;
 			}
 			const accounts = await models.PinAccount.findAll({
 				where: {groupId},
@@ -348,7 +366,7 @@ export function getModule(app: IGeesomeApp, models) {
 			const autoPinAccounts = accounts
 				.filter(isGroupAutoPinAccount)
 				.map(getAutoPinAccountPolicy);
-			autoPinAccountsByGroup.set(groupId, autoPinAccounts);
+			cacheAutoPinAccounts(autoPinAccountsByGroup, groupId, autoPinAccounts, now(), autoPinPolicyCacheTtlMs);
 			return autoPinAccounts;
 		}
 
@@ -594,6 +612,33 @@ function invalidateAutoPinAccountCaches(userCache, groupCache, account: IPinAcco
 	if (account?.groupId) {
 		groupCache.delete(account.groupId);
 	}
+}
+
+function getAutoPinPolicyCacheTtlMs(value): number {
+	const ttlMs = Number.parseInt(value, 10);
+	if (!Number.isFinite(ttlMs) || ttlMs < 0) {
+		return defaultAutoPinPolicyCacheTtlMs;
+	}
+	return Math.min(ttlMs, maxAutoPinPolicyCacheTtlMs);
+}
+
+function getCachedAutoPinAccounts(cache, key: number, now: number): IPinAccount[] | null {
+	const entry = cache.get(key);
+	if (!entry) {
+		return null;
+	}
+	if (entry.expiresAt <= now) {
+		cache.delete(key);
+		return null;
+	}
+	return entry.accounts;
+}
+
+function cacheAutoPinAccounts(cache, key: number, accounts: IPinAccount[], now: number, ttlMs: number) {
+	cache.set(key, {
+		accounts,
+		expiresAt: now + ttlMs
+	});
 }
 
 function getPlainAccount(account) {
