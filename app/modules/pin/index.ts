@@ -6,6 +6,9 @@ import {IGeesomeApp} from "../../interface.js";
 import helpers from "../../helpers.js";
 import {PostStatus} from "../group/interface.js";
 import {Op} from "sequelize";
+import debug from "debug";
+
+const log = debug('geesome:app:pin');
 
 const pinAccountListParams: IListParamsOptions = {
 	sortBy: 'name',
@@ -69,6 +72,7 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 			if (!account) {
 				throw new Error("pin_account_not_found");
 			}
+			const accountBeforeUpdate = getAutoPinAccountPolicy(account);
 			await this.checkCanManageAccount(userId, account);
 			if (updateData.groupId && Number(updateData.groupId) !== Number(account.groupId)
 				&& !(await app.ms.group.canEditGroup(userId, updateData.groupId))) {
@@ -83,6 +87,9 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 				.then(acc => this.decryptPinAccountIfNecessary(acc));
 			invalidateAutoPinAccountCaches(autoPinAccountsByUser, autoPinAccountsByGroup, account);
 			invalidateAutoPinAccountCaches(autoPinAccountsByUser, autoPinAccountsByGroup, updatedAccount);
+			if (shouldDeactivatePendingAutoPins(accountBeforeUpdate, updatedAccount)) {
+				await this.deactivatePendingAutoPinActions(accountBeforeUpdate);
+			}
 			return updatedAccount;
 		}
 
@@ -94,7 +101,28 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 			await this.checkCanManageAccount(userId, account);
 			await models.PinAccount.destroy({where: {id}});
 			invalidateAutoPinAccountCaches(autoPinAccountsByUser, autoPinAccountsByGroup, account);
+			await this.deactivatePendingAutoPinActions(account);
 			return {success: true};
+		}
+
+		async deactivatePendingAutoPinActions(account: IPinAccount): Promise<number> {
+			const autoActions = app.ms['autoActions'];
+			if (!account?.id || !account?.userId
+				|| typeof autoActions?.deactivateUniqueAutoActionsByIdentityPrefix !== 'function') {
+				return 0;
+			}
+			try {
+				return await autoActions.deactivateUniqueAutoActionsByIdentityPrefix(
+					account.userId,
+					getAutoPinIdentityPrefix(account.id)
+				);
+			} catch (error) {
+				helpers.logDebug(log, () => ['deactivatePendingAutoPinActions', {
+					accountId: account.id,
+					error: error?.message || String(error)
+				}]);
+				return 0;
+			}
 		}
 
 		async checkCanManageAccount(userId: number, account: IPinAccount) {
@@ -152,27 +180,54 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 		async pinByUserAccount(userId: number, name: string, storageId: string, options = {}): Promise<any> {
 			const account = await this.getUserAccount(userId, name);
 			if (!account) {
+				if (isAutomaticPinOptions(options)) {
+					return getAutomaticPinSkip('account_missing');
+				}
 				throw new Error("pin_account_not_found");
 			}
-			return this.pinByAnyService(storageId, account, options)
+			const automaticPreflight = await this.prepareAutomaticPinExecution(userId, account, storageId, options);
+			if (automaticPreflight?.result) {
+				return automaticPreflight.result;
+			}
+			return this.pinByAnyService(storageId, account, options, automaticPreflight?.content);
 		}
 
 		async pinByGroupAccount(userId: number, groupId: number, name: string, storageId: string, options: any = {}): Promise<any> {
-			const account = await this.getGroupAccount(userId, groupId, name);
+			const account = isAutomaticPinOptions(options)
+				? await models.PinAccount.findOne({where: {groupId, name}})
+					.then(pinAccount => this.decryptPinAccountIfNecessary(pinAccount))
+				: await this.getGroupAccount(userId, groupId, name);
 			if (!account) {
+				if (isAutomaticPinOptions(options)) {
+					return getAutomaticPinSkip('account_missing');
+				}
 				throw new Error("pin_account_not_found");
 			}
+			const automaticPreflight = await this.prepareAutomaticPinExecution(userId, account, storageId, options);
+			if (automaticPreflight?.result) {
+				return automaticPreflight.result;
+			}
 			const content = options?.postId
-				? await this.resolveGroupPostPinTarget(groupId, options.postId, storageId)
-				: null;
-			return this.pinByAnyService(storageId, account, options, content)
+				? automaticPreflight?.content || await this.resolveGroupPostPinTarget(groupId, options.postId, storageId)
+				: automaticPreflight?.content || null;
+			return this.pinByAnyService(storageId, account, options, content);
 		}
 
 		async pinByAccountId(userId: number, accountId: number, storageId: string, options: any = {}): Promise<any> {
 			const account = await models.PinAccount.findOne({where: {id: accountId}})
 				.then(pinAccount => this.decryptPinAccountIfNecessary(pinAccount));
 			if (!account) {
+				if (isAutomaticPinOptions(options)) {
+					return getAutomaticPinSkip('account_missing');
+				}
 				throw new Error("pin_account_not_found");
+			}
+			const automaticPreflight = await this.prepareAutomaticPinExecution(userId, account, storageId, options);
+			if (automaticPreflight?.result) {
+				return automaticPreflight.result;
+			}
+			if (automaticPreflight) {
+				return this.pinByAnyService(storageId, account, options, automaticPreflight.content);
 			}
 			let content = null;
 			if (account.groupId) {
@@ -186,6 +241,36 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 				throw new Error("not_permitted");
 			}
 			return this.pinByAnyService(storageId, account, options, content);
+		}
+
+		async prepareAutomaticPinExecution(userId, account: IPinAccount, storageId: string, options) {
+			const automaticPinKind = getAutomaticPinKind(options);
+			if (!automaticPinKind) {
+				return null;
+			}
+			const policySkipReason = getAutomaticPinPolicySkipReason(userId, account, options);
+			if (policySkipReason) {
+				return {result: getAutomaticPinSkip(policySkipReason)};
+			}
+			if (automaticPinKind === 'user') {
+				const content = await app.ms.content.getContentByStorageAndUserId(storageId, account.userId);
+				return content
+					? {content}
+					: {result: getAutomaticPinSkip('content_missing')};
+			}
+			if (!await app.ms.group.canEditGroup(userId, account.groupId)) {
+				return {result: getAutomaticPinSkip('group_permission_lost')};
+			}
+			try {
+				return {
+					content: await this.resolveGroupPostPinTarget(account.groupId, options.postId, storageId)
+				};
+			} catch (error) {
+				if (isObsoleteAutomaticPinTargetError(error)) {
+					return {result: getAutomaticPinSkip(error.message)};
+				}
+				throw error;
+			}
 		}
 
 		async pinByAnyService(storageId: string, account: IPinAccount, options?, content?) {
@@ -537,7 +622,7 @@ function getGroupAutoPinAction(account: IPinAccount, post, target) {
 }
 
 function queueAutoPinAction(autoActions, account: IPinAccount, storageId: string, action) {
-	const identityKey = `pin:pin:${account.id}:${storageId}`;
+	const identityKey = `${getAutoPinIdentityPrefix(account.id)}${storageId}`;
 	if (typeof autoActions.addUniqueAutoAction === 'function') {
 		return autoActions.addUniqueAutoAction(account.userId, identityKey, action);
 	}
@@ -603,6 +688,72 @@ function validateAutoPinPolicy(account: IPinAccount) {
 	if (autoPin.scope === 'group-post') {
 		throw new Error('user_auto_pin_policy_invalid');
 	}
+}
+
+function shouldDeactivatePendingAutoPins(previousAccount: IPinAccount, updatedAccount: IPinAccount): boolean {
+	const previous = getPlainAccount(previousAccount);
+	const updated = getPlainAccount(updatedAccount);
+	const previousAutoPin = getPinAccountOptions(previous).autoPin;
+	if (previousAutoPin?.enabled !== true) {
+		return false;
+	}
+	const updatedAutoPin = getPinAccountOptions(updated).autoPin;
+	if (updatedAutoPin?.enabled !== true) {
+		return true;
+	}
+	return Number(previous.userId) !== Number(updated.userId)
+		|| Number(previous.groupId || 0) !== Number(updated.groupId || 0)
+		|| previousAutoPin.scope !== updatedAutoPin.scope;
+}
+
+function getAutoPinIdentityPrefix(accountId): string {
+	return `pin:pin:${accountId}:`;
+}
+
+function isAutomaticPinOptions(options): boolean {
+	return getAutomaticPinKind(options) !== null;
+}
+
+function getAutomaticPinKind(options): 'user' | 'group' | null {
+	if (options?.source === 'auto-pin') {
+		return 'user';
+	}
+	if (options?.source === 'group-post-auto-pin') {
+		return 'group';
+	}
+	return null;
+}
+
+function getAutomaticPinPolicySkipReason(userId, account: IPinAccount, options): string | null {
+	const automaticPinKind = getAutomaticPinKind(options);
+	const autoPin = getPinAccountOptions(account).autoPin;
+	if (autoPin?.enabled !== true) {
+		return 'policy_disabled';
+	}
+	if (automaticPinKind === 'user') {
+		if (account.groupId || Number(account.userId) !== Number(userId) || autoPin.scope === 'group-post') {
+			return 'account_scope_changed';
+		}
+		return null;
+	}
+	if (!account.groupId || autoPin.scope !== 'group-post') {
+		return 'account_scope_changed';
+	}
+	if (!getGroupAutoPinTargetNames(autoPin.targets).includes(options?.target)) {
+		return 'target_removed';
+	}
+	return null;
+}
+
+function getAutomaticPinSkip(reason: string) {
+	return {
+		skipped: true,
+		reason: `auto_pin_${reason}`
+	};
+}
+
+function isObsoleteAutomaticPinTargetError(error): boolean {
+	return ['group_post_pin_not_permitted', 'content_not_found'].includes(error?.message);
 }
 
 function invalidateAutoPinAccountCaches(userCache, groupCache, account: IPinAccount) {

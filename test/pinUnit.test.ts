@@ -23,6 +23,12 @@ function createPinModule(
 					const created = {id: autoActions.length + 1, userId, ...action};
 					autoActions.push(created);
 					return created;
+				},
+				deactivateUniqueAutoActionsByIdentityPrefix: async (userId, identityPrefix) => {
+					const deactivations = (autoActions as any).deactivations || [];
+					deactivations.push({userId, identityPrefix});
+					(autoActions as any).deactivations = deactivations;
+					return 1;
 				}
 			},
 			content: {
@@ -150,6 +156,97 @@ describe("pin negative paths", function () {
 			() => pins.pinByUserAccount(1, "missing", "storage-id"),
 			(error: Error) => error.message === "pin_account_not_found"
 		);
+		assert.deepEqual(
+			await pins.pinByAccountId(1, 404, "storage-id", {source: "auto-pin"}),
+			{skipped: true, reason: "auto_pin_account_missing"}
+		);
+	});
+
+	it("skips obsolete automatic pin policies before provider access", async () => {
+		let providerCalls = 0;
+		axios.post = async () => {
+			providerCalls += 1;
+			return {data: {ok: true}};
+		};
+		const content = {id: 1, userId: 1, storageId: "storage-id", name: "content"};
+		const account = {
+			id: 1,
+			userId: 1,
+			name: "automatic",
+			service: "pinata",
+			options: JSON.stringify({autoPin: {enabled: false}})
+		};
+		const pins = createPinModule([account], {"storage-id": content});
+
+		assert.deepEqual(
+			await pins.pinByAccountId(1, 1, "storage-id", {source: "auto-pin"}),
+			{skipped: true, reason: "auto_pin_policy_disabled"}
+		);
+		assert.deepEqual(
+			await pins.pinByUserAccount(1, "automatic", "storage-id", {source: "auto-pin"}),
+			{skipped: true, reason: "auto_pin_policy_disabled"}
+		);
+		account.options = JSON.stringify({autoPin: {enabled: true}});
+		assert.deepEqual(
+			await pins.pinByAccountId(2, 1, "storage-id", {source: "auto-pin"}),
+			{skipped: true, reason: "auto_pin_account_scope_changed"}
+		);
+		assert.equal(providerCalls, 0);
+	});
+
+	it("skips obsolete group automatic pin targets and permissions", async () => {
+		let providerCalls = 0;
+		axios.post = async () => {
+			providerCalls += 1;
+			return {data: {ok: true}};
+		};
+		const account = {
+			id: 1,
+			userId: 1,
+			groupId: 10,
+			name: "group-automatic",
+			service: "pinata",
+			options: JSON.stringify({
+				autoPin: {enabled: true, scope: "group-post", targets: ["contents"]}
+			})
+		};
+		const post = {
+			id: 5,
+			groupId: 10,
+			status: "published",
+			isDeleted: false,
+			group: {isPublic: true, isRemote: false, isEncrypted: false},
+			manifestStorageId: "manifest-id",
+			contents: []
+		};
+		const pins = createPinModule([account], {}, [10], [], [], [], {5: post});
+
+		assert.deepEqual(
+			await pins.pinByAccountId(1, 1, "manifest-id", {
+				source: "group-post-auto-pin",
+				postId: 5,
+				target: "post-manifest"
+			}),
+			{skipped: true, reason: "auto_pin_target_removed"}
+		);
+		assert.deepEqual(
+			await pins.pinByGroupAccount(1, 10, "group-automatic", "manifest-id", {
+				source: "group-post-auto-pin",
+				postId: 5,
+				target: "post-manifest"
+			}),
+			{skipped: true, reason: "auto_pin_target_removed"}
+		);
+		const noPermissionPins = createPinModule([account], {}, [], [], [], [], {5: post});
+		assert.deepEqual(
+			await noPermissionPins.pinByAccountId(1, 1, "manifest-id", {
+				source: "group-post-auto-pin",
+				postId: 5,
+				target: "contents"
+			}),
+			{skipped: true, reason: "auto_pin_group_permission_lost"}
+		);
+		assert.equal(providerCalls, 0);
 	});
 
 	it("fails explicitly for unknown pin services", async () => {
@@ -479,6 +576,30 @@ describe("pin negative paths", function () {
 
 		assert.equal(autoActions.length, 1);
 		assert.equal(JSON.parse(autoActions[0].funcArgs)[1], "second-storage");
+	});
+
+	it("deactivates pending automatic pins when policy is disabled or the account is deleted", async () => {
+		const accounts: any[] = [{
+			id: 1,
+			userId: 1,
+			name: "automatic",
+			service: "pinata",
+			options: JSON.stringify({autoPin: {enabled: true}})
+		}];
+		const autoActions = [];
+		const pins: any = createPinModule(accounts, {}, [1], [], [], autoActions);
+
+		await pins.updateAccount(1, 1, {options: {autoPin: {enabled: false}}});
+		assert.deepEqual((autoActions as any).deactivations, [{
+			userId: 1,
+			identityPrefix: "pin:pin:1:"
+		}]);
+
+		await pins.deleteAccount(1, 1);
+		assert.deepEqual((autoActions as any).deactivations, [
+			{userId: 1, identityPrefix: "pin:pin:1:"},
+			{userId: 1, identityPrefix: "pin:pin:1:"}
+		]);
 	});
 
 	it("refreshes auto pin policy changes made by another module after the bounded ttl", async () => {

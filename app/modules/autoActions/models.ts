@@ -174,6 +174,15 @@ export default async function (sequelize: Sequelize) {
 	(AutoAction as any).findOrCreateActiveByIdentity = (options) => {
 		return findOrCreateActiveAutoActionByIdentity(sequelize, AutoAction, AutoActionDedupeKey, options);
 	};
+	(AutoAction as any).deactivateActiveByIdentityPrefix = (options) => {
+		return deactivateActiveAutoActionsByIdentityPrefix(
+			sequelize,
+			AutoAction,
+			AutoActionDedupeKey,
+			includeExecutionClaimColumns,
+			options
+		);
+	};
 
 	const NextActionsPivot = sequelize.define('nextActionsPivot',{
 		baseActionId: {
@@ -275,4 +284,44 @@ async function findOrCreateActiveAutoActionByIdentity(
 		await dedupeKey.update({autoActionId: action.id}, {transaction});
 		return {action, created: true};
 	});
+}
+
+async function deactivateActiveAutoActionsByIdentityPrefix(
+	sequelize: Sequelize,
+	AutoAction,
+	AutoActionDedupeKey,
+	includeExecutionClaimColumns: boolean,
+	options
+) {
+	const queryGenerator = sequelize.getQueryInterface().queryGenerator;
+	const actionTable = queryGenerator.quoteTable(AutoAction.getTableName());
+	const dedupeTable = queryGenerator.quoteTable(AutoActionDedupeKey.getTableName());
+	const claimReleaseSql = includeExecutionClaimColumns
+		? ', "executeClaimedAt" = NULL, "executeClaimExpiresAt" = NULL'
+		: '';
+	const rows = await sequelize.query<any>(`
+		UPDATE ${actionTable} AS action
+		SET
+			"isActive" = false,
+			"updatedAt" = :now
+			${claimReleaseSql}
+		WHERE action."userId" = :userId
+			AND action."isActive" = true
+			AND EXISTS (
+				SELECT 1
+				FROM ${dedupeTable} AS dedupe
+				WHERE dedupe."autoActionId" = action.id
+					AND dedupe."userId" = :userId
+					AND LEFT(dedupe."identityKey", CHAR_LENGTH(:identityPrefix)) = :identityPrefix
+			)
+		RETURNING action.id
+	`, {
+		replacements: {
+			userId: options.userId,
+			identityPrefix: options.identityPrefix,
+			now: new Date()
+		},
+		type: QueryTypes.SELECT
+	});
+	return rows.length;
 }
