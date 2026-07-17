@@ -13,6 +13,15 @@ import {
 	normalizePinProviderError,
 	preparePinProviderRequest
 } from "./providerRequest.js";
+import {
+	getBoundedPinResultJson,
+	getPinStorageObjectAttemptId,
+	getPinStorageObjectAttemptStatus,
+	getPinStorageObjectErrorCode,
+	getPinStorageObjectErrorMessage,
+	PinStorageObjectStatus,
+	protectedPinStorageObjectStatuses
+} from './stateHelpers.js';
 
 const log = debug('geesome:app:pin');
 
@@ -303,12 +312,13 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 			if (!content) {
 				throw new Error("content_not_found");
 			}
-			const hostNodes = await app.ms.storage.remoteNodeAddressList(['tcp']);
+			const attempt = await this.beginPinStorageObjectAttempt(storageId, account, content);
 			let result;
 			const abortController = new AbortController();
 			activeProviderRequests.add(abortController);
 			let providerRequest;
 			try {
+				const hostNodes = await app.ms.storage.remoteNodeAddressList(['tcp']);
 				providerRequest = await preparePinProviderRequest(
 					account.endpoint,
 					abortController.signal,
@@ -326,27 +336,33 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 					headers: { pinata_api_key: account.apiKey, pinata_secret_api_key: account.secretApiKey }
 				});
 			} catch (error) {
-				throw normalizePinProviderError(error, [account.apiKey, account.secretApiKey]);
+				const normalizedError = normalizePinProviderError(error, [account.apiKey, account.secretApiKey]);
+				await this.finishPinStorageObjectAttempt(attempt, getPinStorageObjectAttemptStatus(normalizedError), {
+					error: normalizedError
+				});
+				throw normalizedError;
 			} finally {
 				activeProviderRequests.delete(abortController);
 				providerRequest?.dispose();
 			}
-			if (content.id) {
-				await app.ms.database.updateContent(content.id, {isPinned: true});
-				await app.ms.database.markStorageObjectPinnedByContent(content);
-				await this.recordPinnedStorageObject(storageId, account, content, result);
-			}
+			await this.finishPinStorageObjectAttempt(attempt, PinStorageObjectStatus.Accepted, {storageId, result});
 			return result?.data ?? result;
 		}
 
 		async recordPinnedStorageObject(storageId: string, account: IPinAccount, content?, result?) {
+			const attempt = await this.beginPinStorageObjectAttempt(storageId, account, content);
+			return this.finishPinStorageObjectAttempt(attempt, PinStorageObjectStatus.Accepted, {storageId, result});
+		}
+
+		async beginPinStorageObjectAttempt(storageId: string, account: IPinAccount, content?) {
 			if (!models.PinStorageObject) {
 				return null;
 			}
 			if (!account?.id) {
 				return null;
 			}
-			const pinStorageObjectData = getPinStorageObjectData(storageId, account, content, result);
+			const attemptId = getPinStorageObjectAttemptId();
+			const pinStorageObjectData = getPinStorageObjectAttemptData(storageId, account, content, attemptId);
 			const [pinStorageObject, created] = await models.PinStorageObject.findOrCreate({
 				where: {
 					pinAccountId: account.id,
@@ -354,10 +370,33 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 				},
 				defaults: pinStorageObjectData
 			});
-			if (created) {
-				return pinStorageObject;
+			if (!created) {
+				await pinStorageObject.increment('attemptCount');
+				await pinStorageObject.update(getPinStorageObjectAttemptUpdateData(pinStorageObjectData));
 			}
-			await pinStorageObject.update(getPinStorageObjectUpdateData(pinStorageObject, pinStorageObjectData));
+			return {id: pinStorageObject.id, attemptId};
+		}
+
+		async finishPinStorageObjectAttempt(attempt, status: PinStorageObjectStatus, details: any = {}) {
+			if (!attempt || !models.PinStorageObject) {
+				return null;
+			}
+			await models.PinStorageObject.update(
+				getPinStorageObjectCompletionData(status, details),
+				{where: {id: attempt.id, attemptId: attempt.attemptId}}
+			);
+			return models.PinStorageObject.findOne({where: {id: attempt.id}});
+		}
+
+		async updatePinStorageObjectStatus(pinAccountId: number, storageId: string, status: PinStorageObjectStatus, details: any = {}) {
+			if (!Object.values(PinStorageObjectStatus).includes(status)) {
+				throw new Error('pin_storage_object_status_invalid');
+			}
+			const pinStorageObject = await models.PinStorageObject?.findOne({where: {pinAccountId, storageId}});
+			if (!pinStorageObject) {
+				throw new Error('pin_storage_object_not_found');
+			}
+			await pinStorageObject.update(getPinStorageObjectStatusData(status, details));
 			return pinStorageObject;
 		}
 
@@ -442,7 +481,8 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 				attributes: ['pinAccountId', 'storageId'],
 				where: {
 					pinAccountId: {[Op.in]: accountIds},
-					storageId: {[Op.in]: storageIds}
+					storageId: {[Op.in]: storageIds},
+					status: {[Op.in]: protectedPinStorageObjectStatuses}
 				}
 			});
 			return new Set(rows.map(row => getPinStorageObjectKey(row.pinAccountId, row.storageId)));
@@ -510,20 +550,24 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 	return new PinModule();
 }
 
-function getPinStorageObjectData(storageId: string, account: IPinAccount, content, result) {
+function getPinStorageObjectAttemptData(storageId: string, account: IPinAccount, content, attemptId: string) {
 	const now = new Date();
 	return {
 		storageId,
 		service: account.service || null,
-		status: 'pinned',
+		status: PinStorageObjectStatus.Requested,
 		pinAccountId: account.id,
 		accountName: account.name || null,
 		userId: account.userId || content?.userId || null,
 		groupId: account.groupId || null,
-		remoteId: getRemotePinId(storageId, result),
-		pinnedAt: now,
+		attemptId,
+		attemptCount: 1,
+		requestedAt: now,
+		lastAttemptAt: now,
 		checkedAt: now,
-		resultJson: stringifyPinResult(result),
+		lastErrorCode: null,
+		lastErrorMessage: null,
+		resultJson: null
 	};
 }
 
@@ -531,45 +575,64 @@ function getPinStorageObjectKey(accountId, storageId) {
 	return `${accountId}:${storageId}`;
 }
 
-function getPinStorageObjectUpdateData(pinStorageObject, pinStorageObjectData) {
-	const existingData = typeof pinStorageObject?.toJSON === 'function'
-		? pinStorageObject.toJSON()
-		: pinStorageObject;
-	const updateData: Record<string, any> = {};
-	getPinStorageObjectMetadataFields().forEach((field) => {
-		if (existingData[field] === pinStorageObjectData[field]) {
-			return;
-		}
-		updateData[field] = pinStorageObjectData[field];
-	});
+function getPinStorageObjectAttemptUpdateData(data) {
+	const updateData = {...data};
+	delete updateData.storageId;
+	delete updateData.pinAccountId;
+	delete updateData.attemptCount;
 	return updateData;
 }
 
-function getPinStorageObjectMetadataFields() {
-	return [
-		'service',
-		'status',
-		'accountName',
-		'userId',
-		'groupId',
-		'remoteId',
-		'pinnedAt',
-		'checkedAt',
-		'resultJson'
-	];
+function getPinStorageObjectCompletionData(status: PinStorageObjectStatus, details) {
+	return getPinStorageObjectStatusData(status, details);
 }
 
-function getRemotePinId(storageId: string, result) {
-	const resultData = result?.data || {};
-	return resultData.IpfsHash || resultData.ipfsHash || resultData.cid || storageId;
-}
-
-function stringifyPinResult(result) {
-	try {
-		return JSON.stringify(result?.data || null);
-	} catch (e) {
-		return JSON.stringify({error: 'pin_result_unserializable'});
+function getPinStorageObjectStatusData(status: PinStorageObjectStatus, details) {
+	const now = new Date();
+	const data: any = {
+		status,
+		checkedAt: now
+	};
+	if (Object.prototype.hasOwnProperty.call(details, 'result')) {
+		data.resultJson = getBoundedPinResultJson(details.result?.data ?? details.result);
 	}
+	if (status === PinStorageObjectStatus.Accepted) {
+		data.acceptedAt = now;
+		data.nextCheckAt = now;
+		data.remoteId = getRemotePinId(details.storageId, details.result);
+		data.lastErrorCode = null;
+		data.lastErrorMessage = null;
+	}
+	if (status === PinStorageObjectStatus.Confirmed) {
+		data.confirmedAt = now;
+		data.pinnedAt = now;
+		data.nextCheckAt = details.nextCheckAt || null;
+		data.lastErrorCode = null;
+		data.lastErrorMessage = null;
+	}
+	if ([PinStorageObjectStatus.RetryableFailure, PinStorageObjectStatus.TerminalFailure].includes(status)) {
+		data.failedAt = now;
+		data.lastErrorCode = getPinStorageObjectErrorCode(details.error);
+		data.lastErrorMessage = getPinStorageObjectErrorMessage(details.error);
+		data.resultJson = getBoundedPinResultJson({
+			status: details.error?.status || null,
+			details: data.lastErrorMessage
+		});
+		data.nextCheckAt = status === PinStorageObjectStatus.RetryableFailure
+			? details.nextCheckAt || now
+			: null;
+	}
+	if (status === PinStorageObjectStatus.Missing) {
+		data.nextCheckAt = null;
+		data.lastErrorCode = null;
+		data.lastErrorMessage = null;
+	}
+	return data;
+}
+
+function getRemotePinId(storageId: string | undefined, result) {
+	const resultData = result?.data || {};
+	return resultData.IpfsHash || resultData.ipfsHash || resultData.cid || storageId || null;
 }
 
 function preparePinAccountForStorage(account: IPinAccount): IPinAccount {

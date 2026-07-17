@@ -11,6 +11,7 @@ import assert from "assert";
 import {ContentMimeType, ContentStorageType, ContentView, CorePermissionName} from "../app/modules/database/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
 import {PostStatus} from "../app/modules/group/interface.js";
+import {PinStorageObjectStatus} from "../app/modules/pin/stateHelpers.js";
 
 describe("storage space usage", function () {
 	this.timeout(60000);
@@ -82,6 +83,18 @@ describe("storage space usage", function () {
 		await app.ms['pin'].recordPinnedStorageObject(sharedContent.storageId, pinAccount, sharedContent, {
 			data: {IpfsHash: sharedContent.storageId}
 		});
+		const acceptedOverview = await app.ms.storageSpace.getStorageSpaceOverview();
+		const acceptedDeleteSafety = await app.ms.database.getStorageObjectDeleteSafety(sharedContent.storageId);
+		assert.equal(
+			acceptedOverview.remotePinnedStorageObjectsCount - before.remotePinnedStorageObjectsCount,
+			0
+		);
+		assert.equal(acceptedDeleteSafety.storageRefs.remotePinRefs, 1);
+		await app.ms['pin'].updatePinStorageObjectStatus(
+			pinAccount.id,
+			sharedContent.storageId,
+			PinStorageObjectStatus.Confirmed
+		);
 		await app.ms.database.updateContent(sharedContent.id, {peersCount: 3});
 		await app.ms.database.models.Post.update({peersCount: 5, fullyPeersCount: 2}, {where: {id: sharedPost.id}});
 		await app.ms.database.models.Group.update({peersCount: 7, fullyPeersCount: 4}, {where: {id: group.id}});

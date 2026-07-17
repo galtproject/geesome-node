@@ -1,4 +1,5 @@
 import {IListParams} from "../database/interface.js";
+import {PinStorageObjectStatus} from './stateHelpers.js';
 
 export default interface IGeesomePinModule {
 	stop?(): Promise<void>;
@@ -28,6 +29,8 @@ export default interface IGeesomePinModule {
 	afterPostManifestUpdate(userId: number, postId: number): Promise<any[]>;
 
 	recordPinnedStorageObject?(storageId: string, account: IPinAccount, content?: any, result?: any): Promise<IPinStorageObject | null>;
+
+	updatePinStorageObjectStatus?(pinAccountId: number, storageId: string, status: PinStorageObjectStatus, details?: any): Promise<IPinStorageObject>;
 }
 
 export interface IPinAccount {
@@ -64,7 +67,19 @@ export interface IPinStorageObject {
 	userId?: number;
 	groupId?: number;
 	remoteId?: string;
+	attemptId?: string;
+	attemptCount?: number;
+	requestedAt?: Date;
+	acceptedAt?: Date;
+	confirmedAt?: Date;
+	failedAt?: Date;
+	lastAttemptAt?: Date;
+	nextCheckAt?: Date;
+	lastErrorCode?: string;
+	lastErrorMessage?: string;
 	pinnedAt?: Date;
 	checkedAt?: Date;
 	resultJson?: string;
 }
+
+export {PinStorageObjectStatus};

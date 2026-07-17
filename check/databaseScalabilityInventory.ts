@@ -186,11 +186,13 @@ function modelRows(): ModelRow[] {
   const hasStorageObjectPinState = has(storageObjectSource, 'isPinned')
     && has(databaseModuleSource, 'markStorageObjectPinnedByContent')
     && has(databaseModuleSource, 'pinnedStorageObjects')
-    && has(databaseModuleSource, "getContentDeleteBlocker('storage', 'pinnedStorageObjects'")
-    && has(pinIndexSource, 'markStorageObjectPinnedByContent');
+    && has(databaseModuleSource, "getContentDeleteBlocker('storage', 'pinnedStorageObjects'");
   const hasPinStorageObjectLedger = has(pinSource, 'PinStorageObject')
     && has(pinSource, 'pin_storage_objects_account_storage_unique')
+    && has(pinSource, 'pin_storage_objects_status_check_idx')
     && has(pinIndexSource, 'recordPinnedStorageObject')
+    && has(pinIndexSource, 'beginPinStorageObjectAttempt')
+    && has(pinIndexSource, 'PinStorageObjectStatus.Accepted')
     && has(databaseModuleSource, 'remotePinRefs');
   const hasStorageObjectReconciliation = has(storageObjectIntegritySource, 'getCanonicalStorageObjectSql')
     && has(storageObjectIntegritySource, 'repairStorageObjects')
@@ -401,7 +403,7 @@ function modelRows(): ModelRow[] {
                 ? (hasStorageObjectIdentity
                   ? (hasContentManifestStorageObjectIdentityProducer
                     ? (hasStorageObjectIdentityLookup
-                      ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes plus nullable ownerless/federated identity metadata; GeeSome content manifest imports seed that identity on the canonical storage object, database callers can resolve canonical rows by identity pair, public shared metadata reads prefer storageId metadata, successful pins and legacy pinned rows mark canonical storage-object state, remote pin refs are recorded separately, delete safety checks both the canonical pin bit and remote-pin ledger, and restored-backup rehearsal repairs missing/mismatched canonical rows'
+                      ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes plus nullable ownerless/federated identity metadata; GeeSome content manifest imports seed that identity on the canonical storage object, database callers can resolve canonical rows by identity pair, public shared metadata reads prefer storageId metadata, local and restored legacy pin state remains canonical, per-account remote pin attempts are recorded separately, delete safety checks both the canonical local pin bit and protected remote-pin states, and restored-backup rehearsal repairs missing/mismatched canonical rows'
                       : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes plus nullable ownerless/federated identity metadata; GeeSome content manifest imports seed that identity on the canonical storage object, public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, remote pin refs are recorded separately, delete safety checks both the canonical pin bit and remote-pin ledger, and restored-backup rehearsal repairs missing/mismatched canonical rows')
                     : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes plus nullable ownerless/federated identity metadata; public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, remote pin refs are recorded separately, delete safety checks both the canonical pin bit and remote-pin ledger, and restored-backup rehearsal repairs missing/mismatched canonical rows')
                   : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, remote pin refs are recorded separately, delete safety checks both the canonical pin bit and remote-pin ledger, and restored-backup rehearsal repairs missing/mismatched canonical rows')
@@ -610,11 +612,14 @@ function modelRows(): ModelRow[] {
         has(pinSource, 'pin_storage_objects_storage_status_idx')
           ? 'storageId,status cleanup blocker lookup'
           : 'missing storage/status lookup',
+        has(pinSource, 'pin_storage_objects_status_check_idx')
+          ? 'status,nextCheckAt,id reconciliation scan'
+          : 'missing reconciliation scan index',
       ],
       notes: [
         hasPinStorageObjectLedger
-          ? 'model-sync remote-pin ledger records successful remote pins independently from the canonical StorageObject.isPinned flag'
-          : 'successful remote pins are only represented by Content/StorageObject pin booleans',
+          ? 'model-sync per-account state machine records requested, accepted, confirmed, missing, and failed remote-pin state independently from local pin flags'
+          : 'remote pins are only represented by Content/StorageObject pin booleans',
       ],
     },
     {
@@ -883,18 +888,19 @@ function hotspotRows(): HotspotRow[] {
   const hasStorageObjectPinState = has(storageObjectModelSource, 'isPinned')
     && has(databaseSource, 'markStorageObjectPinnedByContent')
     && has(databaseSource, 'pinnedStorageObjects')
-    && has(databaseSource, "getContentDeleteBlocker('storage', 'pinnedStorageObjects'")
-    && has(pinSource, 'markStorageObjectPinnedByContent');
+    && has(databaseSource, "getContentDeleteBlocker('storage', 'pinnedStorageObjects'");
   const hasPinStorageObjectLedger = has(pinModelSource, 'PinStorageObject')
     && has(pinModelSource, 'pin_storage_objects_account_storage_unique')
     && has(pinModelSource, 'pin_storage_objects_storage_status_idx')
+    && has(pinModelSource, 'pin_storage_objects_status_check_idx')
     && has(pinSource, 'recordPinnedStorageObject')
+    && has(pinSource, 'beginPinStorageObjectAttempt')
+    && has(pinSource, 'PinStorageObjectStatus.Accepted')
     && has(storageReferenceHelpersSource, 'countRemotePinReferences')
     && has(databaseSource, 'remotePinRefs')
     && has(databaseSource, "getContentDeleteBlocker('storage', 'remotePinRefs'");
   const hasPinnedContentDeleteGuard = has(databaseSource, 'pinnedContents')
     && has(databaseSource, "getContentDeleteBlocker('content', 'pinnedContents'")
-    && has(pinSource, 'isPinned: true')
     && hasStorageObjectPinState
     && hasContentDeleteSafetyHelper;
   const hasDerivedStorageDeleteGuard = has(storageReferenceHelpersSource, 'derivedStorageReferenceSources')

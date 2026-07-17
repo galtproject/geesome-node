@@ -15,6 +15,7 @@ import IGeesomeAutoActionsModule from "../app/modules/autoActions/interface.js";
 import CronService from "../app/modules/autoActions/cronService.js";
 import {IGeesomeApp} from "../app/interface.js";
 import {PostStatus} from "../app/modules/group/interface.js";
+import {PinStorageObjectStatus} from "../app/modules/pin/stateHelpers.js";
 
 function isUniqueConstraintError(error: Error) {
 	return error.name === 'SequelizeUniqueConstraintError';
@@ -242,7 +243,11 @@ describe("pin", function () {
 			});
 			const pinnedContent = await app.ms.content.getContentByStorageAndUserId(content.storageId, testUser.id);
 			assert.equal(completed.list[0].isActive, false);
-			assert.equal(pinnedContent.isPinned, true);
+			assert.notEqual(pinnedContent.isPinned, true);
+			const pinStorageObject = await app.ms.database.sequelize.models.pinStorageObject.findOne({
+				where: {storageId: content.storageId}
+			});
+			assert.equal(pinStorageObject.status, PinStorageObjectStatus.Accepted);
 		} finally {
 			axios.post = originalAxiosPost;
 		}
@@ -315,7 +320,13 @@ describe("pin", function () {
 			});
 			const pinnedContent = await app.ms.content.getContentByStorageAndUserId(content.storageId, postAuthor.id);
 			assert(completed.list.every(action => action.isActive === false));
-			assert.equal(pinnedContent.isPinned, true);
+			assert.notEqual(pinnedContent.isPinned, true);
+			const pinStorageObjects = await app.ms.database.sequelize.models.pinStorageObject.findAll();
+			const acceptedStorageIds = pinStorageObjects
+				.filter(row => row.status === PinStorageObjectStatus.Accepted)
+				.map(row => row.storageId)
+				.sort();
+			assert.deepEqual(acceptedStorageIds, [content.storageId, storedPost.manifestStorageId].sort());
 		} finally {
 			axios.post = originalAxiosPost;
 		}

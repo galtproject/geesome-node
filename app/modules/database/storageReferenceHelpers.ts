@@ -1,4 +1,5 @@
 import {Op, QueryTypes} from 'sequelize';
+import {protectedPinStorageObjectStatuses} from '../pin/stateHelpers.js';
 
 export async function countDerivedStorageIdReferences(models, sequelize, storageId, options: any = {}) {
   return countDirectDerivedStorageIdReferences(models, sequelize, storageId, options);
@@ -43,7 +44,7 @@ export async function countRemotePinReferences(models, sequelize, storageId) {
   return pinStorageObjectModel.count({
     where: {
       storageId,
-      status: 'pinned',
+      status: {[Op.in]: protectedPinStorageObjectStatuses},
     },
   });
 }

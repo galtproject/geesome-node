@@ -7,6 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 import {Sequelize, DataTypes, Op} from 'sequelize';
+import {PinStorageObjectStatus} from './stateHelpers.js';
 
 export default async function (sequelize: Sequelize) {
 
@@ -80,7 +81,7 @@ export default async function (sequelize: Sequelize) {
 		status: {
 			type: DataTypes.STRING(100),
 			allowNull: false,
-			defaultValue: 'pinned'
+			defaultValue: PinStorageObjectStatus.Requested
 		},
 		pinAccountId: {
 			type: DataTypes.INTEGER
@@ -96,6 +97,38 @@ export default async function (sequelize: Sequelize) {
 		},
 		remoteId: {
 			type: DataTypes.STRING(200)
+		},
+		attemptId: {
+			type: DataTypes.STRING(100)
+		},
+		attemptCount: {
+			type: DataTypes.INTEGER,
+			allowNull: false,
+			defaultValue: 0
+		},
+		requestedAt: {
+			type: DataTypes.DATE
+		},
+		acceptedAt: {
+			type: DataTypes.DATE
+		},
+		confirmedAt: {
+			type: DataTypes.DATE
+		},
+		failedAt: {
+			type: DataTypes.DATE
+		},
+		lastAttemptAt: {
+			type: DataTypes.DATE
+		},
+		nextCheckAt: {
+			type: DataTypes.DATE
+		},
+		lastErrorCode: {
+			type: DataTypes.STRING(100)
+		},
+		lastErrorMessage: {
+			type: DataTypes.TEXT
 		},
 		pinnedAt: {
 			type: DataTypes.DATE
@@ -118,6 +151,7 @@ export default async function (sequelize: Sequelize) {
 				}
 			},
 			{ name: 'pin_storage_objects_storage_status_idx', fields: ['storageId', 'status'] },
+			{ name: 'pin_storage_objects_status_check_idx', fields: ['status', 'nextCheckAt', 'id'] },
 			{ name: 'pin_storage_objects_user_storage_idx', fields: ['userId', 'storageId'] },
 			{ name: 'pin_storage_objects_group_storage_idx', fields: ['groupId', 'storageId'] },
 		]
