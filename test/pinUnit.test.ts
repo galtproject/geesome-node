@@ -384,7 +384,54 @@ describe("pin negative paths", function () {
 		});
 		assert.equal(pinataRequest.config.headers.pinata_api_key, "pinata-key");
 		assert.equal(pinataRequest.config.headers.pinata_secret_api_key, "pinata-secret");
+		assert.equal(pinataRequest.config.timeout, 30000);
+		assert.equal(pinataRequest.config.maxRedirects, 0);
+		assert.ok(pinataRequest.config.signal instanceof AbortSignal);
 		assert.deepEqual(response, {ok: true});
+	});
+
+	it("aborts active provider requests when the module stops", async () => {
+		axios.post = async (_url, _body, config) => new Promise((_resolve, reject) => {
+			config.signal.addEventListener('abort', () => reject(Object.assign(new Error('canceled'), {code: 'ERR_CANCELED'})));
+		});
+		const pins: any = createPinModule(
+			[{userId: 1, name: "pinata", service: "pinata"}],
+			{"storage-id": {userId: 1, name: "content-name"}}
+		);
+		const request = pins.pinByUserAccount(1, "pinata", "storage-id");
+		await new Promise(resolve => setImmediate(resolve));
+		await pins.stop();
+
+		await assert.rejects(request, (error: any) => {
+			assert.equal(error.message, 'pinata_pin_failed');
+			assert.equal(error.retryable, true);
+			return true;
+		});
+	});
+
+	it("rejects unapproved custom endpoints before sending account credentials", async () => {
+		let providerCalls = 0;
+		axios.post = async () => {
+			providerCalls += 1;
+			return {data: {ok: true}};
+		};
+		const pins = createPinModule(
+			[{
+				userId: 1,
+				name: "custom-pinata",
+				service: "pinata",
+				endpoint: "https://unapproved.example.test/pin",
+				apiKey: "pinata-key",
+				secretApiKey: "pinata-secret"
+			}],
+			{"storage-id": {userId: 1, name: "content-name"}}
+		);
+
+		await assert.rejects(
+			() => pins.pinByUserAccount(1, "custom-pinata", "storage-id"),
+			(error: any) => error.message === 'pin_provider_custom_endpoint_disabled' && error.retryable === false
+		);
+		assert.equal(providerCalls, 0);
 	});
 
 	it("queues one-shot auto pin actions only for opted-in user accounts", async () => {
@@ -731,10 +778,11 @@ describe("pin negative paths", function () {
 
 		await assert.rejects(
 			() => pins.pinByUserAccount(1, "pinata", "storage-id"),
-			(error: Error & {status?: number, details?: any}) => {
+			(error: Error & {status?: number, details?: any, retryable?: boolean}) => {
 				assert.equal(error.message, "pinata_pin_failed");
 				assert.equal(error.status, 503);
-				assert.deepEqual(error.details, {error: "temporarily unavailable"});
+				assert.equal(error.details, '{"error":"temporarily unavailable"}');
+				assert.equal(error.retryable, true);
 				return true;
 			}
 		);

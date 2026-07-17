@@ -334,6 +334,12 @@ function getModule(app: IGeesomeApp, models) {
 				rootActionId: _rootActionId,
 				error: JSON.stringify(_error.message.toString())
 			});
+			if (_error?.retryable === false) {
+				return this.updateAutoAction(userId, _actionId, {
+					currentExecuteAttempts,
+					isActive: false
+				});
+			}
 			currentExecuteAttempts--;
 			if (currentExecuteAttempts > 0) {
 				return this.updateAutoActionExecuteOn(userId, _actionId, { currentExecuteAttempts });

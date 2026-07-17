@@ -398,6 +398,28 @@ describe("autoActions", function () {
 		assert.equal(JSON.parse(logs[1].error), 'x'.repeat(400));
 	});
 
+	it('deactivates terminal failures without consuming the retry budget', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const action = await autoActions.addAutoAction(testUser.id, {
+			moduleName: 'testModule',
+			funcName: 'run',
+			funcArgs: '[]',
+			isActive: true,
+			totalExecuteAttempts: 3,
+			currentExecuteAttempts: 3,
+			executeOn: new Date(Date.now() - 1000)
+		});
+		const terminalError = Object.assign(new Error('provider_credentials_rejected'), {
+			retryable: false
+		});
+
+		await autoActions.handleAutoActionFailedExecution(testUser.id, action.id, terminalError);
+
+		const storedAction = await (autoActions as any).getAutoAction(action.id);
+		assert.equal(storedAction.isActive, false);
+		assert.equal(storedAction.currentExecuteAttempts, 3);
+	});
+
 	it('deactivates successful one-shot actions and keeps recurring actions active', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const oneShot = await autoActions.addAutoAction(testUser.id, {
