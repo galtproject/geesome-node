@@ -1,6 +1,8 @@
 import {IListParams} from "../database/interface.js";
 
 export default interface IGeesomePinModule {
+	stop?(): Promise<void>;
+
 	createAccount(userId: number, account: IPinAccount): Promise<IPinAccount>;
 
 	updateAccount(userId: number, id: number, updateData: IPinAccount): Promise<IPinAccount>;

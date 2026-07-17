@@ -7,6 +7,12 @@ import helpers from "../../helpers.js";
 import {PostStatus} from "../group/interface.js";
 import {Op} from "sequelize";
 import debug from "debug";
+import {
+	getPinProviderOptionsFromEnvironment,
+	IPinProviderRequestOptions,
+	normalizePinProviderError,
+	preparePinProviderRequest
+} from "./providerRequest.js";
 
 const log = debug('geesome:app:pin');
 
@@ -26,6 +32,7 @@ type IAutoPinPolicyCacheEntry = {
 type IPinModuleOptions = {
 	autoPinPolicyCacheTtlMs?: number;
 	now?: () => number;
+	providerRequest?: IPinProviderRequestOptions;
 };
 
 function getPinAccountListOrder(sortBy, sortDir) {
@@ -52,8 +59,15 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 		options.autoPinPolicyCacheTtlMs ?? process.env.PIN_AUTO_POLICY_CACHE_TTL_MS
 	);
 	const now = options.now || Date.now;
+	const providerRequestOptions = {...getPinProviderOptionsFromEnvironment(), ...options.providerRequest};
+	const activeProviderRequests = new Set<AbortController>();
 
 	class PinModule implements IGeesomePinModule {
+		async stop() {
+			activeProviderRequests.forEach(controller => controller.abort());
+			activeProviderRequests.clear();
+		}
+
 		async createAccount(userId: number, account: IPinAccount): Promise<IPinAccount> {
 			if (account.groupId && !(await app.ms.group.canEditGroup(userId, account.groupId))) {
 				throw new Error("not_permitted");
@@ -291,8 +305,16 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 			}
 			const hostNodes = await app.ms.storage.remoteNodeAddressList(['tcp']);
 			let result;
+			const abortController = new AbortController();
+			activeProviderRequests.add(abortController);
+			let providerRequest;
 			try {
-				result = await axios.post(account.endpoint || `https://api.pinata.cloud/pinning/pinByHash`, {
+				providerRequest = await preparePinProviderRequest(
+					account.endpoint,
+					abortController.signal,
+					providerRequestOptions
+				);
+				result = await axios.post(providerRequest.endpoint, {
 					hostNodes,
 					hashToPin: storageId,
 					pinataMetadata: {
@@ -300,13 +322,14 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 						keyvalues: options || {}
 					}
 				},{
+					...providerRequest.config,
 					headers: { pinata_api_key: account.apiKey, pinata_secret_api_key: account.secretApiKey }
 				});
 			} catch (error) {
-				const normalizedError = new Error("pinata_pin_failed") as Error & {status?: number, details?: any};
-				normalizedError.status = error?.response?.status;
-				normalizedError.details = error?.response?.data || error?.message;
-				throw normalizedError;
+				throw normalizePinProviderError(error, [account.apiKey, account.secretApiKey]);
+			} finally {
+				activeProviderRequests.delete(abortController);
+				providerRequest?.dispose();
 			}
 			if (content.id) {
 				await app.ms.database.updateContent(content.id, {isPinned: true});
