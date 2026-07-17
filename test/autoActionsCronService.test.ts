@@ -95,8 +95,39 @@ describe("autoActions cron service", () => {
 		assert.equal(stopResolved, true);
 		assert.equal(runCalls, 1);
 	});
+
+	it('keeps executing due actions when dedupe cleanup fails', async () => {
+		let runCalls = 0;
+		const worker = startAutoActionsCron({} as any, {
+			cleanupStaleAutoActionDedupeKeys: async () => {
+				throw new Error('cleanup_failed');
+			}
+		} as any, {
+			intervalMs: 1,
+			cronService: {
+				async getActionsAndAddToQueueAndRun() {
+					runCalls += 1;
+				}
+			} as any
+		});
+
+		await waitFor(() => runCalls > 0);
+		await worker.stop();
+
+		assert(runCalls > 0);
+	});
 });
 
 function wait(timeoutMs: number): Promise<void> {
 	return new Promise(resolve => setTimeout(resolve, timeoutMs));
+}
+
+async function waitFor(condition: () => boolean): Promise<void> {
+	for (let attempt = 0; attempt < 20; attempt += 1) {
+		if (condition()) {
+			return;
+		}
+		await wait(5);
+	}
+	throw new Error('condition_timeout');
 }
