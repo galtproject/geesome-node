@@ -23,6 +23,7 @@ const pinAccountListParams: IListParamsOptions = {
 };
 const defaultAutoPinPolicyCacheTtlMs = 30000;
 const maxAutoPinPolicyCacheTtlMs = 5 * 60 * 1000;
+const autoPinAccountBatchSize = 100;
 
 type IAutoPinPolicyCacheEntry = {
 	accounts: IPinAccount[];
@@ -88,10 +89,7 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 			}
 			const accountBeforeUpdate = getAutoPinAccountPolicy(account);
 			await this.checkCanManageAccount(userId, account);
-			if (updateData.groupId && Number(updateData.groupId) !== Number(account.groupId)
-				&& !(await app.ms.group.canEditGroup(userId, updateData.groupId))) {
-				throw new Error("not_permitted");
-			}
+			assertPinAccountScopeUnchanged(account, updateData);
 			validateAutoPinPolicy({...getPlainAccount(account), ...updateData});
 			const updatedAccount = await models.PinAccount.update(
 				await this.encryptPinAccountIfNecessary(preparePinAccountForStorage(updateData)),
@@ -140,17 +138,22 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 		}
 
 		async checkCanManageAccount(userId: number, account: IPinAccount) {
-			if (account.userId === userId) {
-				return;
+			if (account.groupId) {
+				if (await app.ms.group.canEditGroup(userId, account.groupId)) {
+					return;
+				}
+				throw new Error("not_permitted");
 			}
-			if (account.groupId && await app.ms.group.canEditGroup(userId, account.groupId)) {
+			if (Number(account.userId) === Number(userId)) {
 				return;
 			}
 			throw new Error("not_permitted");
 		}
 
 		async getUserAccount(userId: number, name: string): Promise<IPinAccount> {
-			return models.PinAccount.findOne({where: {userId, name}}).then(acc => this.decryptPinAccountIfNecessary(acc));
+			return models.PinAccount.findOne({
+				where: {userId, groupId: null, name}
+			}).then(acc => this.decryptPinAccountIfNecessary(acc));
 		}
 
 		prepareAccountListParams(listParams?: IListParams) {
@@ -163,7 +166,7 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 			listParams = this.prepareAccountListParams(listParams);
 			const {limit, offset, sortBy, sortDir} = listParams;
 			return models.PinAccount.findAll({
-				where: {userId},
+				where: {userId, groupId: null},
 				order: getPinAccountListOrder(sortBy, sortDir),
 				limit,
 				offset
@@ -271,9 +274,6 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 				return content
 					? {content}
 					: {result: getAutomaticPinSkip('content_missing')};
-			}
-			if (!await app.ms.group.canEditGroup(userId, account.groupId)) {
-				return {result: getAutomaticPinSkip('group_permission_lost')};
 			}
 			try {
 				return {
@@ -453,10 +453,11 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 			if (cachedAccounts) {
 				return cachedAccounts;
 			}
-			const accounts = await this.getUserAccountsList(userId, {limit: 100});
-			const autoPinAccounts = accounts
-				.filter(isUserAutoPinAccount)
-				.map(getAutoPinAccountPolicy);
+			const autoPinAccounts = await getAutoPinAccountsInBatches(
+				models.PinAccount,
+				{userId, groupId: null},
+				isUserAutoPinAccount
+			);
 			cacheAutoPinAccounts(autoPinAccountsByUser, userId, autoPinAccounts, now(), autoPinPolicyCacheTtlMs);
 			return autoPinAccounts;
 		}
@@ -466,14 +467,11 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 			if (cachedAccounts) {
 				return cachedAccounts;
 			}
-			const accounts = await models.PinAccount.findAll({
-				where: {groupId},
-				order: getPinAccountListOrder('name', 'ASC'),
-				limit: 100
-			});
-			const autoPinAccounts = accounts
-				.filter(isGroupAutoPinAccount)
-				.map(getAutoPinAccountPolicy);
+			const autoPinAccounts = await getAutoPinAccountsInBatches(
+				models.PinAccount,
+				{groupId},
+				isGroupAutoPinAccount
+			);
 			cacheAutoPinAccounts(autoPinAccountsByGroup, groupId, autoPinAccounts, now(), autoPinPolicyCacheTtlMs);
 			return autoPinAccounts;
 		}
@@ -581,6 +579,82 @@ function preparePinAccountForStorage(account: IPinAccount): IPinAccount {
 	return {
 		...account,
 		options: JSON.stringify(account.options)
+	};
+}
+
+function assertPinAccountScopeUnchanged(account: IPinAccount, updateData: IPinAccount) {
+	if (!Object.prototype.hasOwnProperty.call(updateData, 'groupId')) {
+		return;
+	}
+	if (Number(account.groupId || 0) === Number(updateData.groupId || 0)) {
+		return;
+	}
+	throw new Error('pin_account_scope_immutable');
+}
+
+async function getAutoPinAccountsInBatches(pinAccountModel, scopeWhere, isEligible) {
+	const accounts = [];
+	await collectNamedAutoPinAccounts(pinAccountModel, scopeWhere, isEligible, accounts);
+	await collectUnnamedAutoPinAccounts(pinAccountModel, scopeWhere, isEligible, accounts);
+	return accounts;
+}
+
+async function collectNamedAutoPinAccounts(pinAccountModel, scopeWhere, isEligible, accounts) {
+	let cursor = null;
+	while (true) {
+		const where: any = {
+			...scopeWhere,
+			name: {[Op.ne]: null}
+		};
+		if (cursor) {
+			where[Op.or] = [
+				{name: {[Op.gt]: cursor.name}},
+				{name: cursor.name, id: {[Op.gt]: cursor.id}}
+			];
+		}
+		const batch = await pinAccountModel.findAll({
+			where,
+			order: getPinAccountListOrder('name', 'ASC'),
+			limit: autoPinAccountBatchSize
+		});
+		appendEligibleAutoPinAccounts(accounts, batch, isEligible);
+		if (batch.length < autoPinAccountBatchSize) {
+			return;
+		}
+		cursor = getPinAccountCursor(batch[batch.length - 1]);
+	}
+}
+
+async function collectUnnamedAutoPinAccounts(pinAccountModel, scopeWhere, isEligible, accounts) {
+	let cursorId = 0;
+	while (true) {
+		const batch = await pinAccountModel.findAll({
+			where: {
+				...scopeWhere,
+				name: null,
+				id: {[Op.gt]: cursorId}
+			},
+			order: [['id', 'ASC']],
+			limit: autoPinAccountBatchSize
+		});
+		appendEligibleAutoPinAccounts(accounts, batch, isEligible);
+		if (batch.length < autoPinAccountBatchSize) {
+			return;
+		}
+		cursorId = Number(batch[batch.length - 1].id);
+	}
+}
+
+function appendEligibleAutoPinAccounts(accounts, batch, isEligible) {
+	batch.filter(isEligible).forEach((account) => {
+		accounts.push(getAutoPinAccountPolicy(account));
+	});
+}
+
+function getPinAccountCursor(account) {
+	return {
+		name: account.name,
+		id: Number(account.id)
 	};
 }
 

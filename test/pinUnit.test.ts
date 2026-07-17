@@ -7,7 +7,7 @@ import {IGeesomeApp} from "../app/interface.js";
 function createPinModule(
 	accounts: any[] = [],
 	contentByStorageId: Record<string, any> = {},
-	editableGroupIds: number[] = [1],
+	editableGroupIds: number[] | ((userId: number, groupId: number) => boolean) = [1],
 	markedStorageObjects: any[] = [],
 	pinnedStorageObjects: any[] = [],
 	autoActions: any[] = [],
@@ -59,7 +59,9 @@ function createPinModule(
 				}
 			},
 			group: {
-				canEditGroup: async (userId, groupId) => editableGroupIds.includes(Number(groupId)),
+				canEditGroup: async (userId, groupId) => typeof editableGroupIds === 'function'
+					? editableGroupIds(Number(userId), Number(groupId))
+					: editableGroupIds.includes(Number(groupId)),
 				getPostPure: async (postId) => postsById[postId] || null
 			}
 		}
@@ -73,13 +75,9 @@ function createPinModule(
 				accounts.push(created);
 				return created;
 			},
-			findOne: async ({where}) => accounts.find((account) => {
-				return Object.keys(where).every((key) => account[key] === where[key]);
-			}) || null,
+			findOne: async ({where}) => accounts.find(account => matchesWhere(account, where)) || null,
 			findAll: async ({where = {}, order = [], limit, offset = 0} = {}) => {
-				const result = accounts.filter((account) => {
-					return Object.keys(where).every((key) => account[key] === where[key]);
-				});
+				const result = accounts.filter(account => matchesWhere(account, where));
 				result.sort((left, right) => {
 					for (const [field, direction] of order) {
 						if (left[field] === right[field]) {
@@ -95,18 +93,14 @@ function createPinModule(
 				return result.slice(start, end);
 			},
 			update: async (updateData, {where}) => {
-				const account = accounts.find((item) => {
-					return Object.keys(where).every((key) => item[key] === where[key]);
-				});
+				const account = accounts.find(item => matchesWhere(item, where));
 				if (account) {
 					Object.assign(account, updateData);
 				}
 				return [account ? 1 : 0];
 			},
 			destroy: async ({where}) => {
-				const index = accounts.findIndex((item) => {
-					return Object.keys(where).every((key) => item[key] === where[key]);
-				});
+				const index = accounts.findIndex(item => matchesWhere(item, where));
 				if (index === -1) {
 					return 0;
 				}
@@ -194,7 +188,7 @@ describe("pin negative paths", function () {
 		assert.equal(providerCalls, 0);
 	});
 
-	it("skips obsolete group automatic pin targets and permissions", async () => {
+	it("skips removed group targets and preserves group policy across admin changes", async () => {
 		let providerCalls = 0;
 		axios.post = async () => {
 			providerCalls += 1;
@@ -244,9 +238,9 @@ describe("pin negative paths", function () {
 				postId: 5,
 				target: "contents"
 			}),
-			{skipped: true, reason: "auto_pin_group_permission_lost"}
+			{ok: true}
 		);
-		assert.equal(providerCalls, 0);
+		assert.equal(providerCalls, 1);
 	});
 
 	it("fails explicitly for unknown pin services", async () => {
@@ -502,7 +496,7 @@ describe("pin negative paths", function () {
 		assert.equal(account.groupId, 10);
 		await assert.rejects(
 			() => pins.updateAccount(1, account.id, {groupId: 11}),
-			(error: Error) => error.message === "not_permitted"
+			(error: Error) => error.message === "pin_account_scope_immutable"
 		);
 	});
 
@@ -765,6 +759,111 @@ describe("pin negative paths", function () {
 		assert.equal(gotAccounts[99].name, "pin-100");
 	});
 
+	it("keeps direct and group account authorization separate across admin changes", async () => {
+		const accounts: any[] = [{
+			id: 1,
+			userId: 1,
+			groupId: 10,
+			name: "group-pinata",
+			service: "pinata",
+			apiKey: "key",
+			secretApiKey: "secret"
+		}];
+		const canEditGroup = (userId, groupId) => userId === 2 && groupId === 10;
+		const pinnedStorageObjects = [{pinAccountId: 1, storageId: "historical-storage", status: "pinned"}];
+		const pins = createPinModule(accounts, {}, canEditGroup, [], pinnedStorageObjects);
+
+		assert.equal(await pins.getUserAccount(1, "group-pinata"), null);
+		assert.deepEqual(await pins.getUserAccountsList(1), []);
+		await assert.rejects(
+			() => pins.updateAccount(1, 1, {apiKey: "former-admin-key"}),
+			(error: Error) => error.message === "not_permitted"
+		);
+		await assert.rejects(
+			() => pins.pinByGroupAccount(1, 10, "group-pinata", "storage-id"),
+			(error: Error) => error.message === "not_permitted"
+		);
+
+		const updated = await pins.updateAccount(2, 1, {apiKey: "current-admin-key"});
+		assert.equal(updated.apiKey, "current-admin-key");
+		assert.equal((await pins.getGroupAccountsList(2, 10))[0].id, 1);
+		await assert.rejects(
+			() => pins.updateAccount(2, 1, {groupId: null}),
+			(error: Error) => error.message === "pin_account_scope_immutable"
+		);
+		await pins.deleteAccount(2, 1);
+		assert.equal(accounts.length, 0);
+		assert.equal(pinnedStorageObjects.length, 1);
+		assert.equal(pinnedStorageObjects[0].storageId, "historical-storage");
+	});
+
+	it("discovers every automatic account through cursor batches", async () => {
+		const userAccounts = Array.from({length: 105}, (_, index) => ({
+			id: index + 1,
+			userId: 1,
+			groupId: null,
+			name: `user-${String(105 - index).padStart(3, "0")}`,
+			service: "pinata",
+			options: JSON.stringify({autoPin: {enabled: true}})
+		}));
+		const groupAccounts = Array.from({length: 105}, (_, index) => ({
+			id: index + 106,
+			userId: 2,
+			groupId: 10,
+			name: `group-${String(105 - index).padStart(3, "0")}`,
+			service: "pinata",
+			options: JSON.stringify({
+				autoPin: {enabled: true, scope: "group-post", targets: ["post-manifest"]}
+			})
+		}));
+		userAccounts.push({
+			id: 211,
+			userId: 1,
+			groupId: null,
+			name: null,
+			service: "pinata",
+			options: JSON.stringify({autoPin: {enabled: true}})
+		});
+		groupAccounts.push({
+			id: 212,
+			userId: 2,
+			groupId: 10,
+			name: null,
+			service: "pinata",
+			options: JSON.stringify({
+				autoPin: {enabled: true, scope: "group-post", targets: ["post-manifest"]}
+			})
+		});
+		const autoActions = [];
+		const postsById = {
+			7: {
+				id: 7,
+				groupId: 10,
+				status: "published",
+				isDeleted: false,
+				isRemote: false,
+				manifestStorageId: "manifest-id",
+				contents: [],
+				group: {isPublic: true, isRemote: false, isEncrypted: false}
+			}
+		};
+		const pins = createPinModule(
+			[...userAccounts, ...groupAccounts],
+			{},
+			[10],
+			[],
+			[],
+			autoActions,
+			postsById
+		);
+
+		await pins.afterContentAdding(1, {storageId: "content-id"});
+		await pins.afterPostManifestUpdate(2, 7);
+
+		assert.equal(autoActions.filter(action => action.userId === 1).length, 106);
+		assert.equal(autoActions.filter(action => action.userId === 2).length, 106);
+	});
+
 	it("normalizes remote Pinata request failures", async () => {
 		axios.post = async () => {
 			const error = new Error("request failed") as Error & {response?: any};
@@ -799,4 +898,31 @@ function createPinnedStorageObjectRecord(data) {
 		toJSON: () => record
 	};
 	return record;
+}
+
+function matchesWhere(record, where) {
+	return Reflect.ownKeys(where).every((key) => {
+		if (key === Op.or) {
+			return where[key].some(condition => matchesWhere(record, condition));
+		}
+		return matchesWhereValue(record[key as any], where[key]);
+	});
+}
+
+function matchesWhereValue(actual, expected) {
+	if (expected === null) {
+		return actual === null || typeof actual === 'undefined';
+	}
+	if (!expected || typeof expected !== 'object') {
+		return actual === expected;
+	}
+	return Reflect.ownKeys(expected).every((operator) => {
+		if (operator === Op.ne) {
+			return expected[operator] === null ? actual !== null && typeof actual !== 'undefined' : actual !== expected[operator];
+		}
+		if (operator === Op.gt) {
+			return actual > expected[operator];
+		}
+		return false;
+	});
 }

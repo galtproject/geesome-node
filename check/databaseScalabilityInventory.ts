@@ -1025,7 +1025,7 @@ function hotspotRows(): HotspotRow[] {
     && has(storageSpaceSource, 'processStorageSpaceSnapshotRefreshQueue')
     && has(storageSpaceSource, 'storageSpaceSnapshotQueueModuleName')
     && has(asyncOperationSource, 'processModuleOperationQueue')
-    && has(asyncOperationSource, 'moduleOperationQueuesInProcess')
+    && has(asyncOperationSource, 'moduleOperationQueuePromises')
     && has(storageSpaceApiSource, 'admin/storage-space/snapshot')
     && has(storageSpaceApiSource, 'admin/storage-space/snapshot/refresh')
     && has(storageSpaceApiSource, 'admin/storage-space/snapshot/refresh-async');
@@ -1928,10 +1928,12 @@ function hotspotRows(): HotspotRow[] {
       area: 'Pin account lookup/list',
       source: 'app/modules/pin/index.ts',
       hotspot: 'getUserAccount / getGroupAccount / getUserAccountsList / getGroupAccountsList',
-      observedPattern: has(pinSource, 'findOne({where: {userId, name}}') && has(pinSource, 'findOne({where: {groupId, name}}')
+      observedPattern: has(pinSource, 'where: {userId, groupId: null, name}') && has(pinSource, 'findOne({where: {groupId, name}}')
         ? (hasPinAccountListLimits
-          ? 'looks up pin accounts by owner id plus name and lists owner-scoped accounts with allowlisted sort fields, default pages, and a lower cap'
-          : 'looks up pin accounts by owner id plus name')
+          ? (has(pinSource, 'getAutoPinAccountsInBatches')
+            ? 'separates direct-user and group-scoped account lookups, caps public list pages, and discovers automatic policies through stable cursor batches'
+            : 'separates direct-user and group-scoped account lookups and caps public list pages')
+          : 'separates direct-user and group-scoped account lookups by owner id plus name')
         : 'review pin account lookup implementation',
       scalabilityRisk: has(pinModelSource, 'pin_accounts_user_name_unique') && has(pinModelSource, 'pin_accounts_group_name_unique')
         ? (hasPinAccountListLimits

@@ -80,7 +80,7 @@ describe("pin", function () {
 		});
 
 		let gotAccount = await pins.getUserAccount(testUser.id, 'pinata-1');
-		assert.equal(acc.id, gotAccount.id);
+		assert.equal(gotAccount, null);
 
 		const testUser2 = await app.registerUser({
 			email: 'user2@user.com',
@@ -121,7 +121,7 @@ describe("pin", function () {
 		});
 
 		gotAccount = await pins.getUserAccount(testUser.id, 'pinata-1');
-		assert.equal(acc.id, gotAccount.id);
+		assert.equal(gotAccount, null);
 
 		gotAccount = await pins.getUserAccount(testUser2.id, 'pinata-1');
 		assert.equal(acc2.id, gotAccount.id);
@@ -145,7 +145,7 @@ describe("pin", function () {
 		});
 		assert.equal(updatedAccount.apiKey, '456');
 
-		gotAccount = await pins.getUserAccount(testUser.id, 'pinata-1');
+		gotAccount = await pins.getGroupAccount(testUser.id, testGroup.id, 'pinata-1');
 		assert.equal(gotAccount.apiKey, '123');
 	});
 
