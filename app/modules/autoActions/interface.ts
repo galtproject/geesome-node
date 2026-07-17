@@ -7,6 +7,8 @@ export default interface IGeesomeAutoActionsModule {
 
 	addUniqueAutoAction(userId: number, identityKey: string, autoAction: IAutoAction): Promise<IAutoAction>;
 
+	deactivateUniqueAutoActionsByIdentityPrefix(userId: number, identityPrefix: string): Promise<number>;
+
 	updateAutoAction(userId: number, id: number, autoAction: IAutoAction): Promise<IAutoAction>;
 
 	getAutoActionsToExecute(): Promise<IAutoAction[]>;

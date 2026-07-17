@@ -273,6 +273,22 @@ describe("autoActions", function () {
 			createAction()
 		);
 		assert.notEqual(replacement.id, actions[0].id);
+
+		const unrelated = await autoActions.addUniqueAutoAction(
+			testUser.id,
+			'pin:pin:2:storage-id',
+			createAction()
+		);
+		assert.equal(
+			await autoActions.deactivateUniqueAutoActionsByIdentityPrefix(testUser.id, 'pin:pin:1:'),
+			1
+		);
+		const remainingActiveActions = await autoActions.getUserActions(testUser.id, {
+			moduleName: 'pin',
+			funcName: 'pinByAccountId',
+			isActive: 'true'
+		});
+		assert.deepEqual(remainingActiveActions.list.map(action => action.id), [unrelated.id]);
 	});
 
 	it('claims due auto actions before cron execution', async () => {

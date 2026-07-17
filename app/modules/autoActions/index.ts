@@ -116,6 +116,14 @@ function getModule(app: IGeesomeApp, models) {
 			return this.getAutoAction(action.id) as Promise<IAutoAction>;
 		}
 
+		async deactivateUniqueAutoActionsByIdentityPrefix(userId, identityPrefix) {
+			const normalizedIdentityPrefix = getAutoActionIdentityKey(identityPrefix);
+			return models.AutoAction.deactivateActiveByIdentityPrefix({
+				userId,
+				identityPrefix: normalizedIdentityPrefix
+			});
+		}
+
 		async encryptAutoActionIfNecessary(autoAction) {
 			if (autoAction.isEncrypted && autoAction.funcArgs) {
 				autoAction.funcArgsEncrypted = await app.encryptTextWithAppPass(autoAction.funcArgs);
