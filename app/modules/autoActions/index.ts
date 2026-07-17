@@ -12,6 +12,10 @@ const {some, orderBy, reverse} = _;
 const log = debug('geesome:app:autoActions');
 const autoActionExecuteBatchLimit = 100;
 const defaultAutoActionClaimTtlMs = 5 * 60 * 1000;
+const defaultAutoActionDedupeRetentionMs = 30 * 24 * 60 * 60 * 1000;
+const maxAutoActionDedupeRetentionMs = 365 * 24 * 60 * 60 * 1000;
+const defaultAutoActionDedupeCleanupLimit = 100;
+const maxAutoActionDedupeCleanupLimit = 1000;
 const autoActionClaimTtlMs = parsePositiveNumber(process.env.AUTO_ACTION_CLAIM_TTL_MS, defaultAutoActionClaimTtlMs);
 const autoActionListParams: IListParamsOptions = {
 	sortBy: 'createdAt',
@@ -103,17 +107,29 @@ function getModule(app: IGeesomeApp, models) {
 
 		async addUniqueAutoAction(userId, identityKey, autoAction) {
 			const normalizedIdentityKey = getAutoActionIdentityKey(identityKey);
-			const nextActions = await this.getNextActionsToStore(userId, autoAction.nextActions);
-			await this.encryptAutoActionIfNecessary(autoAction);
-			const {action, created} = await models.AutoAction.findOrCreateActiveByIdentity({
+			const preparedAction = await this.prepareUniqueAutoAction(autoAction);
+			const {action} = await models.AutoAction.findOrCreateActiveByIdentity({
 				userId,
 				identityKey: normalizedIdentityKey,
-				autoAction
+				autoAction: preparedAction.autoAction,
+				nextActions: preparedAction.nextActions
 			});
-			if (created) {
-				await this.setNextActions(action, nextActions);
-			}
 			return this.getAutoAction(action.id) as Promise<IAutoAction>;
+		}
+
+		async prepareUniqueAutoAction(autoAction) {
+			const rootAction = {...autoAction};
+			delete rootAction.nextActions;
+			await this.encryptAutoActionIfNecessary(rootAction);
+			const nextActions = await pIteration.mapSeries(autoAction.nextActions || [], async nextAction => {
+				if (hasAutoActionId(nextAction)) {
+					return {id: nextAction.id};
+				}
+				const preparedNextAction = {...nextAction};
+				await this.encryptAutoActionIfNecessary(preparedNextAction);
+				return preparedNextAction;
+			});
+			return {autoAction: rootAction, nextActions};
 		}
 
 		async deactivateUniqueAutoActionsByIdentityPrefix(userId, identityPrefix) {
@@ -121,6 +137,13 @@ function getModule(app: IGeesomeApp, models) {
 			return models.AutoAction.deactivateActiveByIdentityPrefix({
 				userId,
 				identityPrefix: normalizedIdentityPrefix
+			});
+		}
+
+		async cleanupStaleAutoActionDedupeKeys(options = {}) {
+			return models.AutoAction.cleanupStaleDedupeKeys({
+				before: getAutoActionDedupeCleanupBefore(options),
+				limit: getAutoActionDedupeCleanupLimit(options.limit)
 			});
 		}
 
@@ -364,4 +387,32 @@ function getAutoActionIdentityKey(identityKey): string {
 		throw new Error('auto_action_identity_key_invalid');
 	}
 	return normalizedIdentityKey;
+}
+
+function hasAutoActionId(action) {
+	return action?.id !== undefined && action?.id !== null;
+}
+
+function getAutoActionDedupeCleanupBefore(options) {
+	if (options.before instanceof Date && Number.isFinite(options.before.getTime())) {
+		return options.before;
+	}
+	const retentionMs = Math.min(
+		helpers.parsePositiveInteger(
+			options.retentionMs ?? process.env.AUTO_ACTION_DEDUPE_RETENTION_MS,
+			defaultAutoActionDedupeRetentionMs
+		),
+		maxAutoActionDedupeRetentionMs
+	);
+	return new Date(Date.now() - retentionMs);
+}
+
+function getAutoActionDedupeCleanupLimit(value) {
+	return Math.min(
+		helpers.parsePositiveInteger(
+			value ?? process.env.AUTO_ACTION_DEDUPE_CLEANUP_LIMIT,
+			defaultAutoActionDedupeCleanupLimit
+		),
+		maxAutoActionDedupeCleanupLimit
+	);
 }
