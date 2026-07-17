@@ -26,6 +26,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @apiError (403) NotPermitted Current user or API key cannot manage the requested group pin account.
      * @apiError (400) GroupAutoPinPolicyInvalid Group automatic pinning must use `group-post` scope and select at least one supported target.
      * @apiError (400) UserAutoPinPolicyInvalid User automatic pinning cannot use the group-post ownership scope.
+     * @apiError (400) PinAccountScopeImmutable Move credentials between user and group scopes by creating a new account instead of updating `groupId`.
      * @apiError (403) GroupPostPinNotPermitted The requested post is not a local, public, unencrypted, published post in this group.
      * @apiError (502) PinataPinFailed The remote Pinata pin request failed.
      * @apiErrorExample {json} Pin account missing
@@ -42,7 +43,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @api {post} /v1/user/pin/create-account Create pin account
      * @apiName UserPinCreateAccount
      * @apiGroup UserPin
-     * @apiDescription Creates a user-owned or group-owned account for an external pinning service. When `groupId` is provided, the current user must be able to edit that group. Group automatic pinning is deliberately post-scoped: it runs only after a local, public, unencrypted post is published and can pin the final post manifest, attached content, or both. For Pinata, set `service` to `pinata`; `secretApiKey` can be encrypted at rest by setting `isEncrypted` to `true`. Secret fields are write-only and are not returned in API responses.
+     * @apiDescription Creates a direct user account or a group-scoped account for an external pinning service. When `groupId` is provided, the current user must be able to edit that group and current group editors control the account after creation; the creator id remains audit metadata but does not grant permanent access. Group automatic pinning is deliberately post-scoped: it runs only after a local, public, unencrypted post is published and can pin the final post manifest, attached content, or both. For Pinata, set `service` to `pinata`; `secretApiKey` can be encrypted at rest by setting `isEncrypted` to `true`. Secret fields are write-only and are not returned in API responses.
      *
      * @apiUse ApiKey
      * @apiUse AuthErrors
@@ -85,7 +86,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @api {post} /v1/user/pin/update-account/:id Update pin account
      * @apiName UserPinUpdateAccount
      * @apiGroup UserPin
-     * @apiDescription Updates a user-owned pin account or a group-owned pin account editable by the current user. Secret updates follow the same `isEncrypted` handling as account creation. Secret fields are write-only and are not returned in API responses.
+     * @apiDescription Updates a direct user pin account or a group-scoped pin account controlled by a current group editor. Account scope is immutable: create a replacement account to move credentials into or out of a group. Secret updates follow the same `isEncrypted` handling as account creation. Secret fields are write-only and are not returned in API responses.
      *
      * @apiUse ApiKey
      * @apiUse AuthErrors
@@ -111,7 +112,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @api {post} /v1/user/pin/delete-account/:id Delete pin account
      * @apiName UserPinDeleteAccount
      * @apiGroup UserPin
-     * @apiDescription Deletes a user-owned pin account or a group-owned pin account editable by the current user. This only removes the local service credentials; it does not unpin already pinned remote content.
+     * @apiDescription Deletes a direct user pin account or a group-scoped pin account controlled by a current group editor. This only removes the local service credentials; it retains historical pin-ledger rows and does not unpin already pinned remote content.
      *
      * @apiUse ApiKey
      * @apiUse AuthErrors
@@ -132,7 +133,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @api {get} /v1/user/pin/user-accounts List user pin accounts
      * @apiName UserPinAccounts
      * @apiGroup UserPin
-     * @apiDescription Lists pin accounts owned directly by the current user.
+     * @apiDescription Lists only direct pin accounts owned by the current user. Group-scoped accounts created by this user are available through the group-account endpoint instead.
      *
      * @apiUse ApiKey
      * @apiUse AuthErrors

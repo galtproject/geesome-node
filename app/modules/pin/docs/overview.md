@@ -6,8 +6,8 @@ The `pin` module stores pinning-service accounts and sends storage pin requests,
 
 ## Owns
 
-- User and group pin-account records, including encrypted secret API keys.
-- Permission checks for group-owned pin accounts.
+- Direct-user and group-scoped pin-account records, including encrypted secret API keys.
+- Current group-editor permission checks for group-scoped pin accounts.
 - Pin requests through user accounts and editable group pin accounts.
 - Pin result recording in `PinStorageObject` when the model is available.
 - Marking content and canonical storage objects as pinned after successful remote pin requests.
@@ -21,8 +21,17 @@ The `pin` module stores pinning-service accounts and sends storage pin requests,
 - Set `options.autoPin.enabled` on a user-owned account to enqueue newly saved content. `attempts` is clamped to `1..10` and defaults to `3`; optional flat `metadata` is forwarded to Pinata.
 - Successful one-shot actions are deactivated. Retryable failures reuse the existing bounded retry and action-log behavior; explicitly terminal failures deactivate immediately without consuming the remaining retry budget.
 - Group accounts are not triggered from the raw content hook because an upload has no group/post context. The explicit `group-post` policy queues selected post-manifest and content targets only after attachment to an eligible public post.
-- The current Pinata path only pins storage IDs backed by content owned by the pin-account owner; storage ID alone is not enough authorization.
+- Automatic account discovery walks every direct-user or group-scoped account in stable `(name, id)` cursor batches. Public account-list responses remain capped independently.
+- Direct Pinata requests require content owned by the direct account owner. Group requests require an exact eligible group-post manifest or attachment; storage ID alone is never enough authorization.
 - Remote pin results should be recorded so storage-space analysis and cleanup safety can see remote pin state.
+
+## Ownership
+
+- A direct account has no `groupId`; only its `userId` owner can list, use, update, or delete it.
+- A group-scoped account has a `groupId`; current group editors can list, use, update, or delete it. Its `userId` records who created the credential and owns existing auto-action rows, but does not preserve access after that user loses group edit permission.
+- Group automatic policy belongs to the group account and survives creator/admin rotation. Execution reloads the account and exact eligible group-post target; it does not require the original creator to remain a group editor.
+- Account scope is immutable. Create a replacement account instead of changing `groupId`, which avoids silently transferring credentials between a user and a group.
+- Deleting an account removes local credentials and pending automatic work, but retains `PinStorageObject` history and never implies a remote unpin.
 
 ## Boundaries
 
