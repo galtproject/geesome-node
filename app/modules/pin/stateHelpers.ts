@@ -21,6 +21,7 @@ export const protectedPinStorageObjectStatuses = [
 	PinStorageObjectStatus.RetryableFailure,
 	legacyConfirmedPinStorageObjectStatus
 ];
+export const requestedPinReconciliationDelayMs = 5 * 60 * 1000;
 
 const maxPinResultLength = 4096;
 const maxPinErrorMessageLength = 1000;

@@ -1,6 +1,12 @@
 import axios from "axios";
 import pIteration from 'p-iteration';
-import IGeesomePinModule, {IPinAccount, IPinAccountOptions, IPinReconciliationQueueOptions} from "./interface.js";
+import IGeesomePinModule, {
+	IPinAccount,
+	IPinAccountHealthOptions,
+	IPinAccountOptions,
+	IPinAccountReconciliationOptions,
+	IPinReconciliationQueueOptions
+} from "./interface.js";
 import {IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from "../../helpers.js";
@@ -21,9 +27,21 @@ import {
 	getPinStorageObjectErrorCode,
 	getPinStorageObjectErrorMessage,
 	PinStorageObjectStatus,
-	protectedPinStorageObjectStatuses
+	legacyConfirmedPinStorageObjectStatus,
+	protectedPinStorageObjectStatuses,
+	requestedPinReconciliationDelayMs
 } from './stateHelpers.js';
-import {createPinProviderInspector, IPinProviderInspector} from './providerAdapter.js';
+import {
+	createPinProviderCredentialVerifier,
+	createPinProviderInspector,
+	IPinProviderCredentialVerifier,
+	IPinProviderInspector
+} from './providerAdapter.js';
+import {
+	getPinAccountHealthResponse,
+	getPinAccountHealthSummary,
+	getPinStorageObjectHealthAttributes
+} from './healthHelpers.js';
 
 const log = debug('geesome:app:pin');
 
@@ -39,11 +57,14 @@ const pinReconciliationQueueModuleName = 'pin-provider-reconciliation';
 const defaultPinReconciliationQueueLimit = 20;
 const defaultPinReconciliationPerAccountLimit = 2;
 const defaultPinReconciliationClaimTtlMs = 5 * 60 * 1000;
-const requestedPinReconciliationDelayMs = 5 * 60 * 1000;
 const acceptedPinReconciliationDelayMs = 5 * 60 * 1000;
 const confirmedPinReconciliationDelayMs = 24 * 60 * 60 * 1000;
 const retryablePinReconciliationBaseDelayMs = 5 * 60 * 1000;
 const retryablePinReconciliationMaxDelayMs = 6 * 60 * 60 * 1000;
+const defaultPinAccountHealthHistoryLimit = 10;
+const maxPinAccountHealthHistoryLimit = 50;
+const defaultManualPinReconciliationLimit = 20;
+const maxManualPinReconciliationLimit = 100;
 
 type IAutoPinPolicyCacheEntry = {
 	accounts: IPinAccount[];
@@ -55,6 +76,7 @@ type IPinModuleOptions = {
 	now?: () => number;
 	providerRequest?: IPinProviderRequestOptions;
 	providerInspector?: IPinProviderInspector;
+	credentialVerifier?: IPinProviderCredentialVerifier;
 };
 
 function getPinAccountListOrder(sortBy, sortDir) {
@@ -84,6 +106,7 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 	const now = options.now || Date.now;
 	const providerRequestOptions = {...getPinProviderOptionsFromEnvironment(), ...options.providerRequest};
 	const providerInspector = options.providerInspector || createPinProviderInspector(providerRequestOptions);
+	const credentialVerifier = options.credentialVerifier || createPinProviderCredentialVerifier(providerRequestOptions);
 	const activeProviderRequests = new Set<AbortController>();
 
 	class PinModule implements IGeesomePinModule {
@@ -181,6 +204,113 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 				return;
 			}
 			throw new Error("not_permitted");
+		}
+
+		async getManageableAccount(userId: number, id: number, decrypt = false) {
+			let account = await models.PinAccount.findOne({where: {id}});
+			if (!account) {
+				throw new Error('pin_account_not_found');
+			}
+			await this.checkCanManageAccount(userId, account);
+			if (decrypt) {
+				account = await this.decryptPinAccountIfNecessary(account);
+			}
+			return account;
+		}
+
+		async testAccountCredentials(userId: number, id: number) {
+			const account = await this.getManageableAccount(userId, id, true);
+			const abortController = new AbortController();
+			activeProviderRequests.add(abortController);
+			try {
+				const result = await credentialVerifier(account, abortController.signal);
+				return {ok: result.ok, service: result.service, checkedAt: new Date(now())};
+			} finally {
+				activeProviderRequests.delete(abortController);
+			}
+		}
+
+		async getAccountHealth(userId: number, id: number, options: IPinAccountHealthOptions = {}) {
+			const account = await this.getManageableAccount(userId, id);
+			const historyLimit = getBoundedPositiveInteger(
+				options.historyLimit,
+				defaultPinAccountHealthHistoryLimit,
+				maxPinAccountHealthHistoryLimit
+			);
+			const [summary, lastError, recent] = await Promise.all([
+				getPinAccountHealthSummary(app.ms.database.sequelize, Number(account.id), new Date(now())),
+				models.PinStorageObject.findOne({
+					attributes: ['storageId', 'status', 'lastErrorCode', 'lastErrorMessage', 'failedAt'],
+					where: {pinAccountId: account.id, lastErrorCode: {[Op.ne]: null}},
+					order: [['failedAt', 'DESC'], ['id', 'DESC']]
+				}),
+				models.PinStorageObject.findAll({
+					attributes: getPinStorageObjectHealthAttributes(),
+					where: {pinAccountId: account.id},
+					order: [['updatedAt', 'DESC'], ['id', 'DESC']],
+					limit: historyLimit
+				})
+			]);
+			return getPinAccountHealthResponse(account, summary, lastError, recent);
+		}
+
+		async queueAccountReconciliation(
+			userId: number,
+			id: number,
+			options: IPinAccountReconciliationOptions = {}
+		) {
+			const account = await this.getManageableAccount(userId, id);
+			const storageId = getOptionalStorageId(options.storageId);
+			const limit = getBoundedPositiveInteger(
+				options.limit,
+				defaultManualPinReconciliationLimit,
+				maxManualPinReconciliationLimit
+			);
+			const where: any = {pinAccountId: account.id};
+			if (storageId) {
+				where.storageId = storageId;
+			}
+			const rows = await models.PinStorageObject.findAll({
+				attributes: ['id', 'storageId', 'status'],
+				where,
+				order: [['updatedAt', 'ASC'], ['id', 'ASC']],
+				limit
+			});
+			if (storageId && !rows.length) {
+				throw new Error('pin_storage_object_not_found');
+			}
+			if (!rows.length) {
+				return {queued: 0, accountId: Number(account.id)};
+			}
+			const rowIds = rows.map(row => row.id);
+			const resetRowIds = rows
+				.filter(row => isManualPinReconciliationResetStatus(row.status))
+				.map(row => row.id);
+			const requestedAt = new Date(now());
+			await models.PinStorageObject.update({nextCheckAt: requestedAt}, {where: {id: {[Op.in]: rowIds}}});
+			if (resetRowIds.length) {
+				await models.PinStorageObject.update(
+					{status: PinStorageObjectStatus.Requested},
+					{where: {id: {[Op.in]: resetRowIds}}}
+				);
+			}
+			const asyncOperation = app.ms.asyncOperation;
+			await pIteration.forEachSeries(rows, row => asyncOperation.addUniqueUserOperationQueue(
+				userId,
+				pinReconciliationQueueModuleName,
+				null,
+				getPinReconciliationJobInput(account.id, row.storageId)
+			));
+			this.startPinReconciliationQueueProcessing({limit: rows.length});
+			return {queued: rows.length, accountId: Number(account.id)};
+		}
+
+		startPinReconciliationQueueProcessing(options: IPinReconciliationQueueOptions = {}) {
+			void this.processPinReconciliationQueue(options).catch(error => {
+				helpers.logDebug(log, () => ['processPinReconciliationQueue', {
+					error: error?.message || String(error)
+				}]);
+			});
 		}
 
 		async getUserAccount(userId: number, name: string): Promise<IPinAccount> {
@@ -1231,6 +1361,28 @@ function getAutoPinPolicyCacheTtlMs(value): number {
 		return defaultAutoPinPolicyCacheTtlMs;
 	}
 	return Math.min(ttlMs, maxAutoPinPolicyCacheTtlMs);
+}
+
+function getBoundedPositiveInteger(value, defaultValue: number, maxValue: number): number {
+	return Math.min(helpers.parsePositiveInteger(value, defaultValue), maxValue);
+}
+
+function getOptionalStorageId(value): string | null {
+	if (value === undefined || value === null || value === '') {
+		return null;
+	}
+	if (typeof value !== 'string' || !value.trim()) {
+		throw new Error('pin_storage_id_invalid');
+	}
+	return value.trim();
+}
+
+function isManualPinReconciliationResetStatus(status): boolean {
+	return [
+		PinStorageObjectStatus.Missing,
+		PinStorageObjectStatus.TerminalFailure,
+		legacyConfirmedPinStorageObjectStatus
+	].includes(status);
 }
 
 function getCachedAutoPinAccounts(cache, key: number, now: number): IPinAccount[] | null {

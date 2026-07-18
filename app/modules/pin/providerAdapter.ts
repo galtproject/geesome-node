@@ -4,6 +4,7 @@ import {
 	IPinProviderRequestOptions,
 	normalizePinProviderEndpoint,
 	normalizePinProviderError,
+	pinataAuthenticationEndpoint,
 	pinataEndpoint,
 	pinataPinJobsEndpoint,
 	pinataPinListEndpoint,
@@ -24,6 +25,11 @@ export type IPinProviderInspector = (
 	storageId: string,
 	signal: AbortSignal
 ) => Promise<IPinProviderInspectionResult>;
+
+export type IPinProviderCredentialVerifier = (
+	account: IPinAccount,
+	signal: AbortSignal
+) => Promise<{ok: true; service: string}>;
 
 const terminalPinataJobStatuses = new Set([
 	'expired',
@@ -74,6 +80,25 @@ export function createPinProviderInspector(options: IPinProviderRequestOptions =
 	};
 }
 
+export function createPinProviderCredentialVerifier(
+	options: IPinProviderRequestOptions = {}
+): IPinProviderCredentialVerifier {
+	return async (account, signal) => {
+		if (account.service !== 'pinata') {
+			throw getUnsupportedCredentialTest(account.service);
+		}
+		if (normalizePinProviderEndpoint(account.endpoint) !== pinataEndpoint) {
+			throw getUnsupportedCredentialTest('pinata_custom_endpoint');
+		}
+		try {
+			await getPinata(account, pinataAuthenticationEndpoint, undefined, signal, options);
+			return {ok: true, service: 'pinata'};
+		} catch (error) {
+			throw normalizePinProviderError(error, [account.apiKey, account.secretApiKey]);
+		}
+	};
+}
+
 async function getPinataPinnedRow(account, storageId, signal, options) {
 	const result = await getPinata(account, pinataPinListEndpoint, {
 		cid: storageId,
@@ -113,6 +138,14 @@ function getUnsupportedProviderInspection(service): IPinProviderInspectionResult
 	const error = new Error(`pin_provider_reconciliation_unsupported:${service || 'unknown'}`) as Error & {retryable?: boolean};
 	error.retryable = true;
 	throw error;
+}
+
+function getUnsupportedCredentialTest(service) {
+	const error = new Error(`pin_provider_credential_test_unsupported:${service || 'unknown'}`) as Error & {
+		retryable?: boolean;
+	};
+	error.retryable = false;
+	return error;
 }
 
 function getPinataJobError(status: string) {

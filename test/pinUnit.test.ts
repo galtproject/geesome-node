@@ -43,6 +43,9 @@ function createPinModule(
 				remoteNodeAddressList: async () => ["node-address"]
 			},
 			database: {
+				sequelize: {
+					query: moduleOptions.sequelizeQuery || (async () => [{}])
+				},
 				updateContent: async (id, updateData) => {
 					const content = Object.values(contentByStorageId).find((item: any) => item.id === id);
 					if (content) {
@@ -112,7 +115,14 @@ function createPinModule(
 		},
 		PinStorageObject: {
 			findOne: async ({where}) => pinnedStorageObjects.find(item => matchesWhere(item, where)) || null,
-			findAll: async ({where}) => pinnedStorageObjects.filter(item => matchesWhere(item, where)),
+			findAll: async (findOptions: any = {}) => {
+				if (moduleOptions.pinStorageObjectFindAll) {
+					return moduleOptions.pinStorageObjectFindAll(findOptions, pinnedStorageObjects);
+				}
+				const {where, limit} = findOptions;
+				const rows = pinnedStorageObjects.filter(item => matchesWhere(item, where || {}));
+				return typeof limit === 'number' ? rows.slice(0, limit) : rows;
+			},
 			findOrCreate: async ({where, defaults}) => {
 				const existing = pinnedStorageObjects.find((item) => {
 					return Object.keys(where).every((key) => item[key] === where[key]);
@@ -272,6 +282,116 @@ describe("pin negative paths", function () {
 			() => pins.updateAccount(1, 404, {apiKey: "updated"}),
 			(error: Error) => error.message === "pin_account_not_found"
 		);
+	});
+
+	it('tests stored credentials without returning provider data or bypassing account scope', async () => {
+		const account = {
+			id: 1,
+			userId: 1,
+			groupId: null,
+			service: 'pinata',
+			apiKey: 'pinata-key',
+			secretApiKeyEncrypted: 'encrypted:pinata-secret',
+			isEncrypted: true
+		};
+		let verifiedAccount;
+		const pins = createPinModule([account], {}, [1], [], [], [], {}, {
+			now: () => 1234,
+			credentialVerifier: async (value) => {
+				verifiedAccount = value;
+				return {ok: true, service: 'pinata', providerPayload: 'must-not-leak'};
+			}
+		});
+
+		const result = await pins.testAccountCredentials(1, 1);
+
+		assert.deepEqual(result, {ok: true, service: 'pinata', checkedAt: new Date(1234)});
+		assert.equal(verifiedAccount.secretApiKey, 'pinata-secret');
+		await assert.rejects(
+			() => pins.testAccountCredentials(2, 1),
+			(error: Error) => error.message === 'not_permitted'
+		);
+	});
+
+	it('returns bounded account health and retries one failed ledger row through the shared queue', async () => {
+		const account = {id: 1, userId: 1, groupId: null, service: 'pinata'};
+		const failedRow = createPinnedStorageObjectRecord({
+			id: 1,
+			pinAccountId: 1,
+			storageId: 'failed-storage',
+			status: PinStorageObjectStatus.TerminalFailure,
+			attemptCount: 2,
+			reconcileAttemptCount: 1,
+			lastErrorCode: 'invalid_object',
+			lastErrorMessage: 'invalid object',
+			failedAt: new Date(1000)
+		});
+		const confirmedRow = createPinnedStorageObjectRecord({
+			id: 2,
+			pinAccountId: 1,
+			storageId: 'confirmed-storage',
+			status: PinStorageObjectStatus.Confirmed,
+			attemptCount: 1,
+			reconcileAttemptCount: 3,
+			checkedAt: new Date(2000)
+		});
+		const queuedJobs = [];
+		let processorStarts = 0;
+		const pins = createPinModule([account], {}, [1], [], [failedRow, confirmedRow], [], {}, {
+			now: () => 5000,
+			sequelizeQuery: async () => [{
+				totalCount: '2',
+				confirmedCount: '1',
+				terminalFailureCount: '1',
+				dueReconciliationCount: '1',
+				activeClaimCount: '0',
+				lastCheckedAt: new Date(2000),
+				lastSuccessfulCheckAt: new Date(2000)
+			}],
+			asyncOperation: {
+				addUniqueUserOperationQueue: async (userId, module, apiKeyId, input) => {
+					queuedJobs.push({userId, module, apiKeyId, input});
+					return {id: queuedJobs.length};
+				},
+				processModuleOperationQueue: async () => {
+					processorStarts += 1;
+					return {processed: 0};
+				}
+			}
+		});
+
+		const health = await pins.getAccountHealth(1, 1, {historyLimit: 1});
+		assert.equal(health.totalCount, 2);
+		assert.equal(health.statusCounts.confirmed, 1);
+		assert.equal(health.statusCounts.terminalFailure, 1);
+		assert.equal(health.dueReconciliationCount, 1);
+		assert.equal(health.lastError.code, 'invalid_object');
+		assert.equal(health.recent.length, 1);
+		assert.equal((health.recent[0] as any).resultJson, undefined);
+
+		const queued = await pins.queueAccountReconciliation(1, 1, {storageId: 'failed-storage'});
+		assert.deepEqual(queued, {queued: 1, accountId: 1});
+		assert.equal(processorStarts, 1);
+		assert.equal(failedRow.status, PinStorageObjectStatus.Requested);
+		assert.equal(new Date(failedRow.nextCheckAt).getTime(), 5000);
+		assert.deepEqual(queuedJobs[0].input, {pinAccountId: 1, storageId: 'failed-storage'});
+	});
+
+	it('rotates bounded account-wide reconciliation through least-recently-updated rows', async () => {
+		const account = {id: 1, userId: 1, groupId: null, service: 'pinata'};
+		let selectedOrder;
+		const pins = createPinModule([account], {}, [1], [], [], [], {}, {
+			pinStorageObjectFindAll: async (findOptions) => {
+				selectedOrder = findOptions.order;
+				return [];
+			}
+		});
+
+		assert.deepEqual(await pins.queueAccountReconciliation(1, 1, {limit: 5}), {
+			queued: 0,
+			accountId: 1
+		});
+		assert.deepEqual(selectedOrder, [['updatedAt', 'ASC'], ['id', 'ASC']]);
 	});
 
 	it("allows group pin account creation only for editable groups", async () => {
