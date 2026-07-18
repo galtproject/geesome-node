@@ -81,6 +81,8 @@ export interface IGeesomeDatabaseModule {
 
   countStorageIdReferences(storageId, excludeContentId?, options?: IStorageIdReferenceOptions): Promise<IStorageIdReferenceCounts>;
 
+  getStorageObjectPinProvenance(storageId: string): Promise<IStorageObjectPinProvenance>;
+
   countContentReferences(contentId): Promise<IContentReferenceCounts>;
 
   getContentDeleteSafety(content: IContent | number, options?: IContentDeleteSafetyOptions): Promise<IContentDeleteSafety>;
@@ -291,6 +293,22 @@ export interface IStorageIdReferenceCounts {
   remotePinRefs: number;
   derivedStorageRefs: number;
   storageObjectChildRefs: number;
+  pinProvenance: IStorageObjectPinProvenance;
+}
+
+export interface IStorageObjectPinProvenance {
+  // Current writes use StorageObject for local intent, but historical rows may
+  // contain remote-derived state and remain explicitly ambiguous until audited.
+  storageObjectPinRefs: number;
+  contentPinRefs: number;
+  // Confirmed claims prove remote availability; protected claims additionally
+  // include uncertain nonterminal attempts that must fail closed for deletion.
+  confirmedRemotePinRefs: number;
+  protectedRemotePinRefs: number;
+  hasLocalOrLegacyPin: boolean;
+  hasConfirmedRemotePin: boolean;
+  isConfirmedPinned: boolean;
+  isDeletionProtected: boolean;
 }
 
 export interface IStorageIdReferenceOptions {

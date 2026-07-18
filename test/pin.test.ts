@@ -382,4 +382,89 @@ describe("pin", function () {
 		assert.equal(rows[0].status, PinStorageObjectStatus.Confirmed);
 		assert.equal(rows[1].status, PinStorageObjectStatus.Accepted);
 	});
+
+	it('keeps local and per-account remote claims independent for shared storage', async () => {
+		const firstUser = (await app.ms.database.getAllUserList('user'))[0];
+		const secondUser = await app.registerUser({
+			email: 'pin-peer@user.com',
+			name: 'pin-peer',
+			password: 'pin-peer',
+			permissions: [CorePermissionName.UserAll]
+		});
+		const firstContent = await app.ms.content.saveData(firstUser.id, 'shared pin body', 'first.txt');
+		const secondContent = await app.ms.content.saveData(secondUser.id, 'shared pin body', 'second.txt');
+		assert.equal(firstContent.storageId, secondContent.storageId);
+
+		await app.ms.database.markStorageObjectPinnedByContent(firstContent);
+		const firstAccount = await pins.createAccount(firstUser.id, {
+			name: 'first-pinata',
+			service: 'pinata',
+			apiKey: 'first-key',
+			secretApiKey: 'first-secret'
+		});
+		const secondAccount = await pins.createAccount(secondUser.id, {
+			name: 'second-pinata',
+			service: 'pinata',
+			apiKey: 'second-key',
+			secretApiKey: 'second-secret'
+		});
+		await confirmPin(pins, firstAccount, firstContent);
+		await confirmPin(pins, secondAccount, secondContent);
+
+		let provenance = await app.ms.database.getStorageObjectPinProvenance(firstContent.storageId);
+		assert.equal(provenance.storageObjectPinRefs, 1);
+		assert.equal(provenance.confirmedRemotePinRefs, 2);
+		assert.equal(provenance.protectedRemotePinRefs, 2);
+		assert.equal(provenance.isConfirmedPinned, true);
+		assert.equal(provenance.isDeletionProtected, true);
+
+		await pins.updatePinStorageObjectStatus(
+			firstAccount.id,
+			firstContent.storageId,
+			PinStorageObjectStatus.Missing
+		);
+		provenance = await app.ms.database.getStorageObjectPinProvenance(firstContent.storageId);
+		assert.equal(provenance.confirmedRemotePinRefs, 1);
+		assert.equal(provenance.protectedRemotePinRefs, 1);
+		assert.equal(provenance.isConfirmedPinned, true);
+
+		await pins.updatePinStorageObjectStatus(
+			secondAccount.id,
+			firstContent.storageId,
+			PinStorageObjectStatus.Missing
+		);
+		provenance = await app.ms.database.getStorageObjectPinProvenance(firstContent.storageId);
+		assert.equal(provenance.confirmedRemotePinRefs, 0);
+		assert.equal(provenance.protectedRemotePinRefs, 0);
+		assert.equal(provenance.hasLocalOrLegacyPin, true);
+		assert.equal(provenance.isConfirmedPinned, true);
+		assert.equal(provenance.isDeletionProtected, true);
+
+		await app.ms.database.models.StorageObject.update(
+			{isPinned: false},
+			{where: {storageId: firstContent.storageId}}
+		);
+		await pins.updatePinStorageObjectStatus(
+			secondAccount.id,
+			firstContent.storageId,
+			PinStorageObjectStatus.Accepted
+		);
+		provenance = await app.ms.database.getStorageObjectPinProvenance(firstContent.storageId);
+		assert.equal(provenance.isConfirmedPinned, false);
+		assert.equal(provenance.isDeletionProtected, true);
+		const deleteSafety = await app.ms.database.getStorageObjectDeleteSafety(firstContent.storageId);
+		assert.equal(deleteSafety.storageRefs.remotePinRefs, 1);
+		assert.equal(deleteSafety.storageRefs.pinProvenance.isDeletionProtected, true);
+	});
 });
+
+async function confirmPin(pins: IGeesomePinModule, account, content) {
+	await pins.recordPinnedStorageObject(content.storageId, account, content, {
+		data: {IpfsHash: content.storageId}
+	});
+	await pins.updatePinStorageObjectStatus(
+		account.id,
+		content.storageId,
+		PinStorageObjectStatus.Confirmed
+	);
+}

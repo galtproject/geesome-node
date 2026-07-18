@@ -38,7 +38,7 @@ import {
 } from "./interface.js";
 import {
   countDerivedStorageIdReferences,
-  countRemotePinReferences,
+  getStorageObjectPinProvenance,
   countStorageObjectChildReferences
 } from './storageReferenceHelpers.js';
 import {
@@ -533,15 +533,13 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     const [
       otherContents,
       previewRefs,
-      pinnedStorageObjects,
-      remotePinRefs,
+      pinProvenance,
       derivedStorageRefs,
       storageObjectChildRefs
     ] = await Promise.all([
       this.models.Content.count({where: otherContentsWhere}),
       this.models.Content.count({where: previewRefsWhere}),
-      this.models.StorageObject.count({where: {storageId, isPinned: true}}),
-      countRemotePinReferences(this.models, this.sequelize, storageId),
+      this.getStorageObjectPinProvenance(storageId),
       countDerivedStorageIdReferences(this.models, this.sequelize, storageId, options),
       countStorageObjectChildReferences(this.models, this.sequelize, storageId, {
         ...options,
@@ -551,11 +549,16 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     return {
       otherContents,
       previewRefs,
-      pinnedStorageObjects,
-      remotePinRefs,
+      pinnedStorageObjects: pinProvenance.storageObjectPinRefs,
+      remotePinRefs: pinProvenance.protectedRemotePinRefs,
       derivedStorageRefs,
-      storageObjectChildRefs
+      storageObjectChildRefs,
+      pinProvenance,
     };
+  }
+
+  async getStorageObjectPinProvenance(storageId: string) {
+    return getStorageObjectPinProvenance(this.models, this.sequelize, storageId);
   }
 
   // A1 reference-count helper for a specific Content row. Used by delete paths to detect
@@ -1147,6 +1150,20 @@ function getEmptyStorageIdReferenceCounts() {
     remotePinRefs: 0,
     derivedStorageRefs: 0,
     storageObjectChildRefs: 0,
+    pinProvenance: getEmptyStorageObjectPinProvenance(),
+  };
+}
+
+function getEmptyStorageObjectPinProvenance() {
+  return {
+    storageObjectPinRefs: 0,
+    contentPinRefs: 0,
+    confirmedRemotePinRefs: 0,
+    protectedRemotePinRefs: 0,
+    hasLocalOrLegacyPin: false,
+    hasConfirmedRemotePin: false,
+    isConfirmedPinned: false,
+    isDeletionProtected: false,
   };
 }
 
