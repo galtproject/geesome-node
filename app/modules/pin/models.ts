@@ -191,7 +191,18 @@ export default async function (sequelize: Sequelize) {
 async function claimPinStorageObjectForReconciliation(
 	sequelize: Sequelize,
 	PinStorageObject,
-	{pinAccountId, storageId, statuses, now, claimId, claimExpiresAt, perAccountLimit}
+	{
+		pinAccountId,
+		storageId,
+		statuses,
+		requestedStatus,
+		unplannedDueStatuses,
+		requestedBefore,
+		now,
+		claimId,
+		claimExpiresAt,
+		perAccountLimit
+	}
 ) {
 	return sequelize.transaction(async (transaction) => {
 		await sequelize.query('SELECT pg_advisory_xact_lock(:namespace, :pinAccountId)', {
@@ -230,12 +241,35 @@ async function claimPinStorageObjectForReconciliation(
 						candidate."reconcileClaimExpiresAt" IS NULL
 						OR candidate."reconcileClaimExpiresAt" <= :now
 					)
+					AND (
+						candidate."nextCheckAt" <= :now
+						OR (
+							candidate."nextCheckAt" IS NULL
+							AND (
+								candidate.status IN (:unplannedDueStatuses)
+								OR (
+									candidate.status = :requestedStatus
+									AND candidate."lastAttemptAt" <= :requestedBefore
+								)
+							)
+						)
+					)
 				FOR UPDATE SKIP LOCKED
 				LIMIT 1
 			)
 			RETURNING target.id, target."reconcileAttemptCount"
 		`, {
-			replacements: {pinAccountId, storageId, statuses, now, claimId, claimExpiresAt},
+			replacements: {
+				pinAccountId,
+				storageId,
+				statuses,
+				requestedStatus,
+				unplannedDueStatuses,
+				requestedBefore,
+				now,
+				claimId,
+				claimExpiresAt
+			},
 			transaction,
 			type: QueryTypes.SELECT
 		});

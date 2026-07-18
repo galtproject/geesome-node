@@ -370,9 +370,14 @@ describe("pin", function () {
 		);
 		resolveInspection({status: PinStorageObjectStatus.Confirmed, result: {id: 'remote-id'}});
 		await first;
+		const staleDuplicate = await secondModule.reconcilePinStorageObject(
+			{pinAccountId: account.id, storageId: 'reconcile-first'},
+			{perAccountLimit: 1}
+		);
 
 		assert.equal(providerCalls, 1);
 		assert.equal(second.skipped, true);
+		assert.equal(staleDuplicate.skipped, true);
 		const rows = await PinStorageObject.findAll({order: [['storageId', 'ASC']]});
 		assert.equal(rows[0].status, PinStorageObjectStatus.Confirmed);
 		assert.equal(rows[1].status, PinStorageObjectStatus.Accepted);

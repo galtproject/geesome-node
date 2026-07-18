@@ -81,6 +81,7 @@ function modelRows(): ModelRow[] {
   const staticIdIndexSource = read('app/modules/staticId/index.ts');
   const databaseModuleSource = read('app/modules/database/index.ts');
   const appSource = read('app/index.ts');
+  const appConfigSource = read('app/config.ts');
   const userContentActionSource = read('app/modules/database/models/userContentAction.ts');
   const userLimitSource = read('app/modules/database/models/userLimit.ts');
   const asyncOperationSource = read('app/modules/asyncOperation/models.ts');
@@ -90,6 +91,8 @@ function modelRows(): ModelRow[] {
   const autoActionCronSource = read('app/modules/autoActions/cronService.ts');
   const pinSource = read('app/modules/pin/models.ts');
   const pinIndexSource = read('app/modules/pin/index.ts');
+  const pinCronSource = read('app/modules/pin/cron.ts');
+  const pinCronServiceSource = read('app/modules/pin/cronService.ts');
   const foreignAccountSource = read('app/modules/foreignAccounts/models.ts');
   const foreignAccountIndexSource = read('app/modules/foreignAccounts/index.ts');
   const socNetAccountSource = read('app/modules/socNetAccount/models.ts');
@@ -199,6 +202,12 @@ function modelRows(): ModelRow[] {
     && has(pinIndexSource, 'queueDuePinReconciliations')
     && has(pinIndexSource, 'processPinReconciliationQueue')
     && has(pinIndexSource, 'retryablePinReconciliationMaxDelayMs');
+  const hasPinProviderReconciliationWorker = hasPinProviderReconciliation
+    && has(appConfigSource, 'PIN_RECONCILIATION_WORKER')
+    && has(pinCronSource, 'runImmediately: true')
+    && has(pinCronServiceSource, 'sweepInProcess')
+    && has(pinCronServiceSource, 'queueDuePinReconciliations')
+    && has(pinCronServiceSource, 'processPinReconciliationQueue');
   const hasStorageObjectReconciliation = has(storageObjectIntegritySource, 'getCanonicalStorageObjectSql')
     && has(storageObjectIntegritySource, 'repairStorageObjects')
     && has(storageObjectIntegritySource, 'CONFIRM_STORAGE_OBJECT_REPAIR')
@@ -627,7 +636,9 @@ function modelRows(): ModelRow[] {
       notes: [
         hasPinStorageObjectLedger
           ? (hasPinProviderReconciliation
-            ? 'model-sync per-account state machine has bounded durable provider reconciliation, expiring row claims, and cross-process account concurrency caps independently from local pin flags'
+            ? (hasPinProviderReconciliationWorker
+              ? 'model-sync per-account state machine has opt-in restart and periodic provider reconciliation, expiring due-row claims, and cross-process account concurrency caps independently from local pin flags'
+              : 'model-sync per-account state machine has bounded durable provider reconciliation, expiring row claims, and cross-process account concurrency caps independently from local pin flags')
             : 'model-sync per-account state machine records requested, accepted, confirmed, missing, and failed remote-pin state independently from local pin flags')
           : 'remote pins are only represented by Content/StorageObject pin booleans',
       ],

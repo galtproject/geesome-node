@@ -67,6 +67,13 @@ export default {
     sourceRefreshPollerLimit: process.env.BLUESKY_SOURCE_REFRESH_POLLER_LIMIT,
     sourceRefreshPollerStaleMs: process.env.BLUESKY_SOURCE_REFRESH_POLLER_STALE_MS
   },
+  pinConfig: {
+    reconciliationWorker: process.env.PIN_RECONCILIATION_WORKER === '1',
+    reconciliationWorkerIntervalMs: process.env.PIN_RECONCILIATION_WORKER_INTERVAL_MS,
+    reconciliationWorkerLimit: process.env.PIN_RECONCILIATION_WORKER_LIMIT,
+    reconciliationPerAccountLimit: process.env.PIN_RECONCILIATION_PER_ACCOUNT_LIMIT,
+    reconciliationClaimTtlMs: process.env.PIN_RECONCILIATION_CLAIM_TTL_MS
+  },
   modules: process.env.MODULES ? process.env.MODULES.split(',') : modulePacks.main.concat(modulePacks.improve).concat(modulePacks.socNet)
 };
 

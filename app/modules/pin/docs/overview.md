@@ -17,7 +17,8 @@ The `pin` module stores pinning-service accounts and sends storage pin requests,
 ## Async Boundaries
 
 - New pin requests remain driven by `autoActions` or an explicit caller. Provider-state reconciliation uses the shared durable `asyncOperation` queue under the `pin-provider-reconciliation` module identity.
-- `queueDuePinReconciliations` selects stale rows in bounded batches with a per-account cap; `processPinReconciliationQueue` processes durable jobs. Periodic scheduling is deliberately separate and is not enabled by this first reconciliation slice.
+- `queueDuePinReconciliations` selects stale rows in bounded batches with a per-account cap; `processPinReconciliationQueue` processes durable jobs.
+- Provider polling remains disabled by default. Set `PIN_RECONCILIATION_WORKER=1` to run one immediate restart sweep and then periodic sweeps. `PIN_RECONCILIATION_WORKER_INTERVAL_MS` defaults to five minutes, `PIN_RECONCILIATION_WORKER_LIMIT` defaults to 20 rows per phase, `PIN_RECONCILIATION_PER_ACCOUNT_LIMIT` defaults to two active provider calls, and `PIN_RECONCILIATION_CLAIM_TTL_MS` defaults to five minutes.
 - Set `options.autoPin.enabled` on a user-owned account to enqueue newly saved content. `attempts` is clamped to `1..10` and defaults to `3`; optional flat `metadata` is forwarded to Pinata.
 - Successful one-shot actions are deactivated. Retryable failures reuse the existing bounded retry and action-log behavior; explicitly terminal failures deactivate immediately without consuming the remaining retry budget.
 - Group accounts are not triggered from the raw content hook because an upload has no group/post context. The explicit `group-post` policy queues selected post-manifest and content targets only after attachment to an eligible public post.
@@ -27,7 +28,7 @@ The `pin` module stores pinning-service accounts and sends storage pin requests,
 - `requested`, `accepted`, `confirmed`, and `retryable_failure` rows block physical deletion because the remote outcome is present or uncertain. `missing` and `terminal_failure` rows do not.
 - Legacy `pinned` rows remain readable as confirmed claims while unreleased environments move to the explicit states.
 - Reconciliation checks Pinata's pinned-file list first, then active/error `pinJobs`. A CID becomes `missing` only when neither endpoint reports it. Retrieval jobs remain `accepted`; known terminal job statuses become terminal failures.
-- Expiring ledger claims and a PostgreSQL per-account advisory lock prevent duplicate provider calls across workers. Retryable inspection failures use bounded exponential backoff; confirmed rows receive a later health-check timestamp.
+- Expiring ledger claims and a PostgreSQL per-account advisory lock prevent duplicate provider calls across workers. Every worker rechecks that the ledger row is still due while claiming it, so stale duplicate queue rows close without repeating provider traffic. Retryable inspection failures use bounded exponential backoff; confirmed rows receive a later health-check timestamp.
 
 ## Ownership
 
@@ -56,7 +57,7 @@ The `pin` module stores pinning-service accounts and sends storage pin requests,
 - Custom endpoints must use HTTPS and cannot contain URL credentials. Every resolved address must be public, the approved DNS result is pinned into the request connection, and redirects are disabled before API credentials are sent.
 - Provider error details are bounded and configured API credentials are redacted. HTTP 408, 425, 429, 5xx, timeout, cancellation, and network errors are retryable; other HTTP responses and endpoint-policy violations are terminal.
 - Module shutdown aborts in-flight provider requests. Durable retry state remains owned by `autoActions`.
-- Module shutdown also aborts in-flight reconciliation requests. Their claims expire so a later queue run can recover them.
+- Module shutdown stops new reconciliation ticks, aborts in-flight provider requests, and drains the active sweep. A crash leaves expiring claims; the immediate startup sweep can recover due work after claim expiry without overlapping provider calls.
 
 ## Related Docs
 
