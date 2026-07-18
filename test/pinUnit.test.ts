@@ -3,6 +3,7 @@ import axios from "axios";
 import {Op} from "sequelize";
 import {getModule as getPinModule} from "../app/modules/pin/index.js";
 import {IGeesomeApp} from "../app/interface.js";
+import {PinStorageObjectStatus} from "../app/modules/pin/stateHelpers.js";
 
 function createPinModule(
 	accounts: any[] = [],
@@ -109,11 +110,8 @@ function createPinModule(
 			}
 		},
 		PinStorageObject: {
-			findAll: async ({where}) => pinnedStorageObjects.filter((item) => {
-				const accountIds = where.pinAccountId[Op.in];
-				const storageIds = where.storageId[Op.in];
-				return accountIds.includes(item.pinAccountId) && storageIds.includes(item.storageId);
-			}),
+			findOne: async ({where}) => pinnedStorageObjects.find(item => matchesWhere(item, where)) || null,
+			findAll: async ({where}) => pinnedStorageObjects.filter(item => matchesWhere(item, where)),
 			findOrCreate: async ({where, defaults}) => {
 				const existing = pinnedStorageObjects.find((item) => {
 					return Object.keys(where).every((key) => item[key] === where[key]);
@@ -127,6 +125,11 @@ function createPinModule(
 				});
 				pinnedStorageObjects.push(created);
 				return [created, true];
+			},
+			update: async (updateData, {where}) => {
+				const rows = pinnedStorageObjects.filter(item => matchesWhere(item, where));
+				rows.forEach(item => Object.assign(item, updateData));
+				return [rows.length];
 			}
 		}
 	}, moduleOptions);
@@ -405,12 +408,14 @@ describe("pin negative paths", function () {
 
 	it("rejects unapproved custom endpoints before sending account credentials", async () => {
 		let providerCalls = 0;
+		const pinnedStorageObjects = [];
 		axios.post = async () => {
 			providerCalls += 1;
 			return {data: {ok: true}};
 		};
 		const pins = createPinModule(
 			[{
+				id: 1,
 				userId: 1,
 				name: "custom-pinata",
 				service: "pinata",
@@ -418,7 +423,10 @@ describe("pin negative paths", function () {
 				apiKey: "pinata-key",
 				secretApiKey: "pinata-secret"
 			}],
-			{"storage-id": {userId: 1, name: "content-name"}}
+			{"storage-id": {userId: 1, name: "content-name"}},
+			[1],
+			[],
+			pinnedStorageObjects
 		);
 
 		await assert.rejects(
@@ -426,6 +434,10 @@ describe("pin negative paths", function () {
 			(error: any) => error.message === 'pin_provider_custom_endpoint_disabled' && error.retryable === false
 		);
 		assert.equal(providerCalls, 0);
+		assert.equal(pinnedStorageObjects.length, 1);
+		assert.equal(pinnedStorageObjects[0].status, PinStorageObjectStatus.TerminalFailure);
+		assert.equal(pinnedStorageObjects[0].lastErrorCode, 'pin_provider_custom_endpoint_disabled');
+		assert.equal(pinnedStorageObjects[0].nextCheckAt, null);
 	});
 
 	it("queues one-shot auto pin actions only for opted-in user accounts", async () => {
@@ -502,7 +514,7 @@ describe("pin negative paths", function () {
 
 	it("queues group post targets under the account owner and skips pinned targets", async () => {
 		const autoActions = [];
-		const pinnedStorageObjects = [{pinAccountId: 7, storageId: "already-pinned"}];
+		const pinnedStorageObjects = [{pinAccountId: 7, storageId: "already-pinned", status: "pinned"}];
 		const post = {
 			id: 55,
 			groupId: 10,
@@ -559,6 +571,7 @@ describe("pin negative paths", function () {
 			return {data: {IpfsHash: body.hashToPin}};
 		};
 		const content: any = {id: 101, userId: 2, storageId: "other-user-content", name: "shared.jpg"};
+		const pinnedStorageObjects = [];
 		const post = {
 			id: 55,
 			groupId: 10,
@@ -574,12 +587,13 @@ describe("pin negative paths", function () {
 			groupId: 10,
 			name: "group-pinata",
 			service: "pinata"
-		}], {"other-user-content": content}, [10], [], [], [], {55: post});
+		}], {"other-user-content": content}, [10], [], pinnedStorageObjects, [], {55: post});
 
 		await pins.pinByGroupAccount(1, 10, "group-pinata", "other-user-content", {postId: 55});
 
 		assert.equal(pinataRequest.body.hashToPin, "other-user-content");
-		assert.equal(content.isPinned, true);
+		assert.equal(content.isPinned, undefined);
+		assert.equal(pinnedStorageObjects[0].status, "accepted");
 		post.group.isPublic = false;
 		await assert.rejects(
 			() => pins.pinByGroupAccount(1, 10, "group-pinata", "other-user-content", {postId: 55}),
@@ -694,7 +708,7 @@ describe("pin negative paths", function () {
 		assert.equal(autoActions.length, 3);
 	});
 
-	it("marks content and storage object pinned after a successful remote pin", async () => {
+	it("records provider acceptance without claiming confirmation", async () => {
 		axios.post = async () => {
 			return {data: {IpfsHash: "storage-id", ok: true}};
 		};
@@ -718,15 +732,19 @@ describe("pin negative paths", function () {
 
 		await pins.pinByUserAccount(1, "pinata", "storage-id");
 
-		assert.equal(content.isPinned, true);
-		assert.equal(content.storageObjectPinned, true);
-		assert.deepEqual(markedStorageObjects.map(item => item.storageId), ["storage-id"]);
+		assert.equal(content.isPinned, false);
+		assert.equal(content.storageObjectPinned, undefined);
+		assert.deepEqual(markedStorageObjects, []);
 		assert.equal(pinnedStorageObjects.length, 1);
 		assert.equal(pinnedStorageObjects[0].storageId, "storage-id");
 		assert.equal(pinnedStorageObjects[0].pinAccountId, 4);
 		assert.equal(pinnedStorageObjects[0].accountName, "pinata");
 		assert.equal(pinnedStorageObjects[0].service, "pinata");
-		assert.equal(pinnedStorageObjects[0].status, "pinned");
+		assert.equal(pinnedStorageObjects[0].status, "accepted");
+		assert.equal(pinnedStorageObjects[0].attemptCount, 1);
+		assert.equal(!!pinnedStorageObjects[0].requestedAt, true);
+		assert.equal(!!pinnedStorageObjects[0].acceptedAt, true);
+		assert.equal(!!pinnedStorageObjects[0].attemptId, true);
 		assert.equal(pinnedStorageObjects[0].resultJson.includes("pinata-secret"), false);
 	});
 
@@ -865,14 +883,18 @@ describe("pin negative paths", function () {
 	});
 
 	it("normalizes remote Pinata request failures", async () => {
+		const pinnedStorageObjects = [];
 		axios.post = async () => {
 			const error = new Error("request failed") as Error & {response?: any};
 			error.response = {status: 503, data: {error: "temporarily unavailable"}};
 			throw error;
 		};
 		const pins = createPinModule(
-			[{userId: 1, name: "pinata", service: "pinata"}],
-			{"storage-id": {userId: 1, name: "content-name"}}
+			[{id: 1, userId: 1, name: "pinata", service: "pinata"}],
+			{"storage-id": {userId: 1, name: "content-name"}},
+			[1],
+			[],
+			pinnedStorageObjects
 		);
 
 		await assert.rejects(
@@ -885,12 +907,64 @@ describe("pin negative paths", function () {
 				return true;
 			}
 		);
+		assert.equal(pinnedStorageObjects.length, 1);
+		assert.equal(pinnedStorageObjects[0].status, PinStorageObjectStatus.RetryableFailure);
+		assert.equal(pinnedStorageObjects[0].attemptCount, 1);
+		assert.equal(pinnedStorageObjects[0].lastErrorCode, 'pinata_pin_failed');
+		assert.match(pinnedStorageObjects[0].lastErrorMessage, /temporarily unavailable/);
+		assert(pinnedStorageObjects[0].nextCheckAt instanceof Date);
+	});
+
+	it("keeps the newest concurrent pin attempt state", async () => {
+		const pinnedStorageObjects = [];
+		const pins: any = createPinModule([], {}, [1], [], pinnedStorageObjects);
+		const account = {id: 1, userId: 1, name: 'pinata', service: 'pinata'};
+		const firstAttempt = await pins.beginPinStorageObjectAttempt('storage-id', account);
+		const secondAttempt = await pins.beginPinStorageObjectAttempt('storage-id', account);
+
+		await pins.finishPinStorageObjectAttempt(secondAttempt, PinStorageObjectStatus.Accepted, {
+			storageId: 'storage-id',
+			result: {data: {IpfsHash: 'storage-id'}}
+		});
+		await pins.finishPinStorageObjectAttempt(firstAttempt, PinStorageObjectStatus.TerminalFailure, {
+			error: Object.assign(new Error('late failure'), {retryable: false})
+		});
+
+		assert.equal(pinnedStorageObjects[0].attemptCount, 2);
+		assert.equal(pinnedStorageObjects[0].attemptId, secondAttempt.attemptId);
+		assert.equal(pinnedStorageObjects[0].status, PinStorageObjectStatus.Accepted);
+	});
+
+	it("supports explicit provider reconciliation transitions", async () => {
+		const pinnedStorageObjects = [createPinnedStorageObjectRecord({
+			id: 1,
+			pinAccountId: 2,
+			storageId: 'storage-id',
+			status: PinStorageObjectStatus.Accepted,
+			resultJson: JSON.stringify({IpfsHash: 'storage-id'})
+		})];
+		const pins: any = createPinModule([], {}, [1], [], pinnedStorageObjects);
+
+		await pins.updatePinStorageObjectStatus(2, 'storage-id', PinStorageObjectStatus.Confirmed);
+		assert.equal(pinnedStorageObjects[0].status, PinStorageObjectStatus.Confirmed);
+		assert(pinnedStorageObjects[0].confirmedAt instanceof Date);
+		assert(pinnedStorageObjects[0].pinnedAt instanceof Date);
+		assert.equal(pinnedStorageObjects[0].resultJson, JSON.stringify({IpfsHash: 'storage-id'}));
+
+		await pins.updatePinStorageObjectStatus(2, 'storage-id', PinStorageObjectStatus.Missing);
+		assert.equal(pinnedStorageObjects[0].status, PinStorageObjectStatus.Missing);
+		assert.equal(pinnedStorageObjects[0].nextCheckAt, null);
+		assert.equal(pinnedStorageObjects[0].resultJson, JSON.stringify({IpfsHash: 'storage-id'}));
 	});
 });
 
 function createPinnedStorageObjectRecord(data) {
 	const record = {
 		...data,
+		increment: async (field) => {
+			record[field] = Number(record[field] || 0) + 1;
+			return record;
+		},
 		update: async (updateData) => {
 			Object.assign(record, updateData);
 			return record;
@@ -922,6 +996,9 @@ function matchesWhereValue(actual, expected) {
 		}
 		if (operator === Op.gt) {
 			return actual > expected[operator];
+		}
+		if (operator === Op.in) {
+			return expected[operator].includes(actual);
 		}
 		return false;
 	});

@@ -9,8 +9,8 @@ The `pin` module stores pinning-service accounts and sends storage pin requests,
 - Direct-user and group-scoped pin-account records, including encrypted secret API keys.
 - Current group-editor permission checks for group-scoped pin accounts.
 - Pin requests through user accounts and editable group pin accounts.
-- Pin result recording in `PinStorageObject` when the model is available.
-- Marking content and canonical storage objects as pinned after successful remote pin requests.
+- A per-account `PinStorageObject` state machine for every authorized target, including group post manifests that have no `Content` row.
+- Provider-request attempts, bounded result/error details, and accepted-versus-confirmed remote state without changing local pin flags optimistically.
 - A narrow auto-action allowlist for `pinByUserAccount`, `pinByGroupAccount`, and immutable-account-ID execution through `pinByAccountId`.
 - Opt-in production of one-shot auto actions when a user-owned account's owner saves new content.
 
@@ -23,7 +23,9 @@ The `pin` module stores pinning-service accounts and sends storage pin requests,
 - Group accounts are not triggered from the raw content hook because an upload has no group/post context. The explicit `group-post` policy queues selected post-manifest and content targets only after attachment to an eligible public post.
 - Automatic account discovery walks every direct-user or group-scoped account in stable `(name, id)` cursor batches. Public account-list responses remain capped independently.
 - Direct Pinata requests require content owned by the direct account owner. Group requests require an exact eligible group-post manifest or attachment; storage ID alone is never enough authorization.
-- Remote pin results should be recorded so storage-space analysis and cleanup safety can see remote pin state.
+- A provider-accepted request is recorded as `accepted`, not `confirmed`. Reconciliation must prove remote availability before storage-space reports it as remotely pinned.
+- `requested`, `accepted`, `confirmed`, and `retryable_failure` rows block physical deletion because the remote outcome is present or uncertain. `missing` and `terminal_failure` rows do not.
+- Legacy `pinned` rows remain readable as confirmed claims while unreleased environments move to the explicit states.
 
 ## Ownership
 
@@ -36,7 +38,9 @@ The `pin` module stores pinning-service accounts and sends storage pin requests,
 ## Boundaries
 
 - Do not store plain secret keys when `isEncrypted` is set.
-- Do not infer pin safety from a successful HTTP response alone; keep DB state in sync.
+- Do not infer confirmed remote availability from a successful HTTP response. Persist acceptance first and let provider reconciliation confirm or correct it.
+- Treat `status` as authoritative. Attempt tokens prevent a late completion from overwriting a newer request for the same account and storage ID.
+- Keep `Content.isPinned` and `StorageObject.isPinned` for local/derived aggregate state. A provider acceptance alone must not set either flag.
 - Do not add broad auto-action access. Keep the allowlist small and permission-aware.
 - Keep automatic pinning opt-in. Existing accounts and malformed/unknown account options remain manual-only.
 - New pin providers should normalize status, remote IDs, errors, and account ownership before being exposed.

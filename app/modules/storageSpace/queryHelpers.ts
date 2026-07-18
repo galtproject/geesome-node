@@ -1,4 +1,5 @@
 import {QueryTypes} from 'sequelize';
+import {confirmedPinStorageObjectStatuses} from '../pin/stateHelpers.js';
 
 const numericOverviewFields = [
   'contentRowsCount',
@@ -1301,7 +1302,7 @@ function getStorageSpaceQueryReplacements(options: any = {}) {
     fileType: options.fileType || 'file',
     publishedStatus: options.publishedStatus || 'published',
     unknownValue: 'unknown',
-    pinnedStatus: 'pinned',
+    confirmedPinStatuses: confirmedPinStorageObjectStatuses,
   };
 }
 
@@ -1325,7 +1326,7 @@ function getRemotePinnedStorageIdsSql(hasRemotePinRefs) {
 
         SELECT "storageId"
         FROM "pinStorageObjects"
-        WHERE status = :pinnedStatus
+        WHERE status IN (:confirmedPinStatuses)
   `;
 }
 
@@ -1345,7 +1346,7 @@ function getOverviewRemotePinStatsSql(hasRemotePinRefs) {
         COUNT(DISTINCT "storageId")::bigint AS "remotePinnedStorageObjectsCount",
         COUNT(*)::bigint AS "remotePinRefsCount"
       FROM "pinStorageObjects"
-      WHERE status = :pinnedStatus
+      WHERE status IN (:confirmedPinStatuses)
     )
   `;
 }
@@ -1371,7 +1372,7 @@ function getPinnedStorageObjectRemotePinStatsSql(hasRemotePinRefs) {
         COUNT(DISTINCT "pinAccountId")::bigint AS "pinAccountsCount",
         STRING_AGG(DISTINCT COALESCE(service, :unknownValue), ', ' ORDER BY COALESCE(service, :unknownValue)) AS "pinServices"
       FROM "pinStorageObjects"
-      WHERE status = :pinnedStatus
+      WHERE status IN (:confirmedPinStatuses)
       GROUP BY "storageId"
     )
   `;
@@ -1410,7 +1411,7 @@ function getAvailabilityRemotePinStatsSql(hasRemotePinRefs) {
         STRING_AGG(DISTINCT COALESCE(service, :unknownValue), ', ' ORDER BY COALESCE(service, :unknownValue)) AS "pinServices",
         MAX(COALESCE("checkedAt", "pinnedAt", "updatedAt")) AS "latestRemotePinSignalAt"
       FROM "pinStorageObjects"
-      WHERE status = :pinnedStatus
+      WHERE status IN (:confirmedPinStatuses)
       GROUP BY "storageId"
     )
   `;
@@ -1426,7 +1427,7 @@ function getAvailabilityRemotePinCandidateSql(hasRemotePinRefs) {
       SELECT "storageId"
       FROM "pinStorageObjects"
       WHERE "storageId" IS NOT NULL
-        AND status = :pinnedStatus
+        AND status IN (:confirmedPinStatuses)
   `;
 }
 
