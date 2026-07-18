@@ -7,6 +7,7 @@ import helpers from "../../helpers.js";
 import {PostStatus} from "../group/interface.js";
 import {Op} from "sequelize";
 import debug from "debug";
+import type {IBackgroundWorker} from '../../backgroundWorker.js';
 import {
 	getPinProviderOptionsFromEnvironment,
 	IPinProviderRequestOptions,
@@ -70,6 +71,7 @@ export default async (app: IGeesomeApp) => {
 
 	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
 	(await import('./api.js')).default(app, module);
+	module.setCronWorker((await import('./cron.js')).default(app, module));
 	return module;
 }
 
@@ -85,9 +87,19 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 	const activeProviderRequests = new Set<AbortController>();
 
 	class PinModule implements IGeesomePinModule {
+		cronWorker: IBackgroundWorker | null = null;
+
+		setCronWorker(cronWorker: IBackgroundWorker | null) {
+			this.cronWorker = cronWorker;
+		}
+
 		async stop() {
+			const cronWorker = this.cronWorker;
+			this.cronWorker = null;
+			const stopWorkerPromise = cronWorker?.stop();
 			activeProviderRequests.forEach(controller => controller.abort());
 			activeProviderRequests.clear();
+			await stopWorkerPromise;
 		}
 
 		async createAccount(userId: number, account: IPinAccount): Promise<IPinAccount> {
@@ -800,19 +812,28 @@ async function claimPinStorageObjectReconciliation(
 		return PinStorageObject.claimForReconciliation({
 			...job,
 			statuses: getReconciliablePinStorageObjectStatuses(),
+			requestedStatus: PinStorageObjectStatus.Requested,
+			unplannedDueStatuses: [PinStorageObjectStatus.Accepted, PinStorageObjectStatus.RetryableFailure],
+			requestedBefore: new Date(now.getTime() - requestedPinReconciliationDelayMs),
 			now,
 			claimId,
 			claimExpiresAt,
 			perAccountLimit
 		});
 	}
+	const candidate = await PinStorageObject.findOne({
+		where: {pinAccountId: job.pinAccountId, storageId: job.storageId}
+	});
+	if (!candidate || !getReconciliablePinStorageObjectStatuses().includes(candidate.status)
+		|| !isPinStorageObjectDueForReconciliation(candidate, now)) {
+		return null;
+	}
 	const [claimedCount] = await PinStorageObject.update({
 		reconcileClaimId: claimId,
 		reconcileClaimExpiresAt: claimExpiresAt
 	}, {
 		where: {
-			pinAccountId: job.pinAccountId,
-			storageId: job.storageId,
+			id: candidate.id,
 			status: {[Op.in]: getReconciliablePinStorageObjectStatuses()},
 			[Op.or]: [
 				{reconcileClaimExpiresAt: null},

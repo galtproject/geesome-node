@@ -398,6 +398,13 @@ describe("pin negative paths", function () {
 		);
 		const request = pins.pinByUserAccount(1, "pinata", "storage-id");
 		await new Promise(resolve => setImmediate(resolve));
+		let workerStopped = false;
+		pins.setCronWorker({
+			async stop() {
+				await request.catch(() => null);
+				workerStopped = true;
+			}
+		});
 		await pins.stop();
 
 		await assert.rejects(request, (error: any) => {
@@ -405,6 +412,7 @@ describe("pin negative paths", function () {
 			assert.equal(error.retryable, true);
 			return true;
 		});
+		assert.equal(workerStopped, true);
 	});
 
 	it("rejects unapproved custom endpoints before sending account credentials", async () => {
@@ -1038,6 +1046,36 @@ describe("pin negative paths", function () {
 		assert.equal(pinnedStorageObjects[0].reconcileAttemptCount, 1);
 		assert.equal(pinnedStorageObjects[0].reconcileClaimId, null);
 		assert.equal(new Date(pinnedStorageObjects[0].nextCheckAt).getTime(), now + 24 * 60 * 60 * 1000);
+	});
+
+	it("closes stale duplicate jobs without repeating provider inspection", async () => {
+		const now = Date.parse('2026-07-18T10:00:00.000Z');
+		const pinnedStorageObjects = [getReconciliationRecord(1, 1, 'storage-id', now - 1000)];
+		let providerCalls = 0;
+		const pins: any = createPinModule(
+			[{id: 1, userId: 1, service: 'pinata'}],
+			{},
+			[1],
+			[],
+			pinnedStorageObjects,
+			[],
+			{},
+			{
+				now: () => now,
+				providerInspector: async () => {
+					providerCalls += 1;
+					return {status: PinStorageObjectStatus.Confirmed};
+				}
+			}
+		);
+		const job = {pinAccountId: 1, storageId: 'storage-id'};
+
+		assert.equal((await pins.reconcilePinStorageObject(job)).status, PinStorageObjectStatus.Confirmed);
+		const duplicateResult = await pins.reconcilePinStorageObject(job);
+
+		assert.equal(providerCalls, 1);
+		assert.equal(duplicateResult.skipped, true);
+		assert.equal(pinnedStorageObjects[0].reconcileAttemptCount, 1);
 	});
 
 	it("backs off retryable reconciliation failures and releases the claim", async () => {

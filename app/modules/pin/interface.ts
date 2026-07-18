@@ -32,9 +32,9 @@ export default interface IGeesomePinModule {
 
 	updatePinStorageObjectStatus?(pinAccountId: number, storageId: string, status: PinStorageObjectStatus, details?: any): Promise<IPinStorageObject>;
 
-	queueDuePinReconciliations?(options?: IPinReconciliationQueueOptions): Promise<{queued: number}>;
+	queueDuePinReconciliations(options?: IPinReconciliationQueueOptions): Promise<{queued: number}>;
 
-	processPinReconciliationQueue?(options?: IPinReconciliationQueueOptions): Promise<{processed: number}>;
+	processPinReconciliationQueue(options?: IPinReconciliationQueueOptions): Promise<{processed: number}>;
 }
 
 export interface IPinAccount {
