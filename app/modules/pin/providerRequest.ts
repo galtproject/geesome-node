@@ -4,6 +4,8 @@ import {Agent as HttpsAgent} from "node:https";
 import {BlockList, isIP} from "node:net";
 
 export const pinataEndpoint = "https://api.pinata.cloud/pinning/pinByHash";
+export const pinataPinListEndpoint = "https://api.pinata.cloud/data/pinList";
+export const pinataPinJobsEndpoint = "https://api.pinata.cloud/pinning/pinJobs";
 
 const defaultRequestTimeoutMs = 30000;
 const minRequestTimeoutMs = 1000;
@@ -37,7 +39,7 @@ export async function preparePinProviderRequest(
 		maxRedirects: 0,
 		maxContentLength: maxResponseLength
 	};
-	if (endpoint === pinataEndpoint) {
+	if ([pinataEndpoint, pinataPinListEndpoint, pinataPinJobsEndpoint].includes(endpoint)) {
 		return {endpoint, config, dispose: () => null};
 	}
 	const url = validateCustomPinProviderUrl(endpoint, options);
@@ -83,7 +85,7 @@ export function getPinProviderOptionsFromEnvironment(): IPinProviderRequestOptio
 	};
 }
 
-function normalizePinProviderEndpoint(value: unknown): string {
+export function normalizePinProviderEndpoint(value: unknown): string {
 	if (value === undefined || value === null || value === '') {
 		return pinataEndpoint;
 	}

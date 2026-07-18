@@ -194,6 +194,11 @@ function modelRows(): ModelRow[] {
     && has(pinIndexSource, 'beginPinStorageObjectAttempt')
     && has(pinIndexSource, 'PinStorageObjectStatus.Accepted')
     && has(databaseModuleSource, 'remotePinRefs');
+  const hasPinProviderReconciliation = has(pinSource, 'pin_storage_objects_reconcile_claim_idx')
+    && has(pinSource, 'claimForReconciliation')
+    && has(pinIndexSource, 'queueDuePinReconciliations')
+    && has(pinIndexSource, 'processPinReconciliationQueue')
+    && has(pinIndexSource, 'retryablePinReconciliationMaxDelayMs');
   const hasStorageObjectReconciliation = has(storageObjectIntegritySource, 'getCanonicalStorageObjectSql')
     && has(storageObjectIntegritySource, 'repairStorageObjects')
     && has(storageObjectIntegritySource, 'CONFIRM_STORAGE_OBJECT_REPAIR')
@@ -615,10 +620,15 @@ function modelRows(): ModelRow[] {
         has(pinSource, 'pin_storage_objects_status_check_idx')
           ? 'status,nextCheckAt,id reconciliation scan'
           : 'missing reconciliation scan index',
+        has(pinSource, 'pin_storage_objects_reconcile_claim_idx')
+          ? 'pinAccountId,reconcileClaimExpiresAt,id account claim scan'
+          : 'missing account claim scan index',
       ],
       notes: [
         hasPinStorageObjectLedger
-          ? 'model-sync per-account state machine records requested, accepted, confirmed, missing, and failed remote-pin state independently from local pin flags'
+          ? (hasPinProviderReconciliation
+            ? 'model-sync per-account state machine has bounded durable provider reconciliation, expiring row claims, and cross-process account concurrency caps independently from local pin flags'
+            : 'model-sync per-account state machine records requested, accepted, confirmed, missing, and failed remote-pin state independently from local pin flags')
           : 'remote pins are only represented by Content/StorageObject pin booleans',
       ],
     },

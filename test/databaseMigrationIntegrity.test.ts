@@ -42,7 +42,11 @@ describe("databaseMigrationIntegrity", function () {
         'lastAttemptAt',
         'nextCheckAt',
         'lastErrorCode',
-        'lastErrorMessage'
+        'lastErrorMessage',
+        'reconcileClaimId',
+        'reconcileClaimExpiresAt',
+        'reconcileAttemptCount',
+        'lastReconcileAt'
       ]) {
         assert(pinStorageObjectColumns[column], `pinStorageObjects.${column} is missing after model sync`);
       }
@@ -50,6 +54,10 @@ describe("databaseMigrationIntegrity", function () {
       assert(
         pinStorageObjectIndexes.some(index => index.name === 'pin_storage_objects_status_check_idx'),
         'pinStorageObjects reconciliation scan index is missing after model sync'
+      );
+      assert(
+        pinStorageObjectIndexes.some(index => index.name === 'pin_storage_objects_reconcile_claim_idx'),
+        'pinStorageObjects reconciliation claim index is missing after model sync'
       );
 
       const results = await runMigrationIntegrityAudit({requireMigrationMeta: false});

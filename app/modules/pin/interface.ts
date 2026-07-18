@@ -31,6 +31,10 @@ export default interface IGeesomePinModule {
 	recordPinnedStorageObject?(storageId: string, account: IPinAccount, content?: any, result?: any): Promise<IPinStorageObject | null>;
 
 	updatePinStorageObjectStatus?(pinAccountId: number, storageId: string, status: PinStorageObjectStatus, details?: any): Promise<IPinStorageObject>;
+
+	queueDuePinReconciliations?(options?: IPinReconciliationQueueOptions): Promise<{queued: number}>;
+
+	processPinReconciliationQueue?(options?: IPinReconciliationQueueOptions): Promise<{processed: number}>;
 }
 
 export interface IPinAccount {
@@ -77,9 +81,19 @@ export interface IPinStorageObject {
 	nextCheckAt?: Date;
 	lastErrorCode?: string;
 	lastErrorMessage?: string;
+	reconcileClaimId?: string;
+	reconcileClaimExpiresAt?: Date;
+	reconcileAttemptCount?: number;
+	lastReconcileAt?: Date;
 	pinnedAt?: Date;
 	checkedAt?: Date;
 	resultJson?: string;
+}
+
+export interface IPinReconciliationQueueOptions {
+	limit?: number;
+	perAccountLimit?: number;
+	claimTtlMs?: number;
 }
 
 export {PinStorageObjectStatus};
