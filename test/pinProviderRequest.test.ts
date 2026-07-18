@@ -2,6 +2,8 @@ import assert from "assert";
 import {
 	normalizePinProviderError,
 	pinataEndpoint,
+	pinataPinJobsEndpoint,
+	pinataPinListEndpoint,
 	preparePinProviderRequest
 } from "../app/modules/pin/providerRequest.js";
 
@@ -18,6 +20,17 @@ describe("pin provider request policy", function () {
 		assert.equal(prepared.config.signal, controller.signal);
 		assert.equal(prepared.config.httpsAgent, undefined);
 		prepared.dispose();
+	});
+
+	it("keeps canonical Pinata reconciliation endpoints under the same request policy", async () => {
+		const signal = new AbortController().signal;
+		for (const endpoint of [pinataPinListEndpoint, pinataPinJobsEndpoint]) {
+			const prepared = await preparePinProviderRequest(endpoint, signal);
+			assert.equal(prepared.endpoint, endpoint);
+			assert.equal(prepared.config.maxRedirects, 0);
+			assert.equal(prepared.config.httpsAgent, undefined);
+			prepared.dispose();
+		}
 	});
 
 	it("requires explicit HTTPS custom endpoint approval", async () => {

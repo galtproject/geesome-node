@@ -1,6 +1,6 @@
 import axios from "axios";
 import pIteration from 'p-iteration';
-import IGeesomePinModule, {IPinAccount, IPinAccountOptions} from "./interface.js";
+import IGeesomePinModule, {IPinAccount, IPinAccountOptions, IPinReconciliationQueueOptions} from "./interface.js";
 import {IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from "../../helpers.js";
@@ -22,6 +22,7 @@ import {
 	PinStorageObjectStatus,
 	protectedPinStorageObjectStatuses
 } from './stateHelpers.js';
+import {createPinProviderInspector, IPinProviderInspector} from './providerAdapter.js';
 
 const log = debug('geesome:app:pin');
 
@@ -33,6 +34,15 @@ const pinAccountListParams: IListParamsOptions = {
 const defaultAutoPinPolicyCacheTtlMs = 30000;
 const maxAutoPinPolicyCacheTtlMs = 5 * 60 * 1000;
 const autoPinAccountBatchSize = 100;
+const pinReconciliationQueueModuleName = 'pin-provider-reconciliation';
+const defaultPinReconciliationQueueLimit = 20;
+const defaultPinReconciliationPerAccountLimit = 2;
+const defaultPinReconciliationClaimTtlMs = 5 * 60 * 1000;
+const requestedPinReconciliationDelayMs = 5 * 60 * 1000;
+const acceptedPinReconciliationDelayMs = 5 * 60 * 1000;
+const confirmedPinReconciliationDelayMs = 24 * 60 * 60 * 1000;
+const retryablePinReconciliationBaseDelayMs = 5 * 60 * 1000;
+const retryablePinReconciliationMaxDelayMs = 6 * 60 * 60 * 1000;
 
 type IAutoPinPolicyCacheEntry = {
 	accounts: IPinAccount[];
@@ -43,6 +53,7 @@ type IPinModuleOptions = {
 	autoPinPolicyCacheTtlMs?: number;
 	now?: () => number;
 	providerRequest?: IPinProviderRequestOptions;
+	providerInspector?: IPinProviderInspector;
 };
 
 function getPinAccountListOrder(sortBy, sortDir) {
@@ -55,7 +66,7 @@ function getPinAccountListOrder(sortBy, sortDir) {
 }
 
 export default async (app: IGeesomeApp) => {
-	app.checkModules(['database', 'group', 'content', 'storage']);
+	app.checkModules(['database', 'group', 'content', 'storage', 'asyncOperation']);
 
 	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
 	(await import('./api.js')).default(app, module);
@@ -70,6 +81,7 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 	);
 	const now = options.now || Date.now;
 	const providerRequestOptions = {...getPinProviderOptionsFromEnvironment(), ...options.providerRequest};
+	const providerInspector = options.providerInspector || createPinProviderInspector(providerRequestOptions);
 	const activeProviderRequests = new Set<AbortController>();
 
 	class PinModule implements IGeesomePinModule {
@@ -400,6 +412,100 @@ export function getModule(app: IGeesomeApp, models, options: IPinModuleOptions =
 			return pinStorageObject;
 		}
 
+		async queueDuePinReconciliations(options: IPinReconciliationQueueOptions = {}) {
+			const asyncOperation = app.ms['asyncOperation'];
+			if (!asyncOperation?.addUniqueUserOperationQueue || !models.PinStorageObject) {
+				return {queued: 0};
+			}
+			const limit = helpers.parsePositiveInteger(options.limit, defaultPinReconciliationQueueLimit);
+			const perAccountLimit = helpers.parsePositiveInteger(
+				options.perAccountLimit,
+				defaultPinReconciliationPerAccountLimit
+			);
+			const dueRows = await getDuePinStorageObjects(models.PinStorageObject, new Date(now()), limit, perAccountLimit);
+			if (!dueRows.length) {
+				return {queued: 0};
+			}
+			const accountIds = helpers.normalizeUniqueIds(dueRows.map(row => row.pinAccountId));
+			const accounts = await models.PinAccount.findAll({where: {id: {[Op.in]: accountIds}}});
+			const accountsById = new Map(accounts.map(account => [Number(account.id), account]));
+			let queued = 0;
+			await pIteration.forEachSeries(dueRows, async (row) => {
+				const account = accountsById.get(Number(row.pinAccountId));
+				if (!account?.userId) {
+					return;
+				}
+				await asyncOperation.addUniqueUserOperationQueue(
+					account.userId,
+					pinReconciliationQueueModuleName,
+					null,
+					getPinReconciliationJobInput(row.pinAccountId, row.storageId)
+				);
+				queued += 1;
+			});
+			return {queued};
+		}
+
+		async processPinReconciliationQueue(options: IPinReconciliationQueueOptions = {}) {
+			const asyncOperation = app.ms['asyncOperation'];
+			if (!asyncOperation?.processModuleOperationQueue) {
+				return {processed: 0};
+			}
+			const limit = helpers.parsePositiveInteger(options.limit, defaultPinReconciliationQueueLimit);
+			return asyncOperation.processModuleOperationQueue(pinReconciliationQueueModuleName, {
+				limit,
+				getPayload: waitingQueue => parsePinReconciliationJob(waitingQueue.inputJson),
+				getAsyncOperationData: (_waitingQueue, job) => ({
+					name: 'reconcile-pin-provider-state',
+					channel: `pin:${job.pinAccountId}:${job.storageId}`,
+					percent: 5
+				}),
+				run: (_waitingQueue, _asyncOperation, job) => this.reconcilePinStorageObject(job, options)
+			});
+		}
+
+		async reconcilePinStorageObject(job, options: IPinReconciliationQueueOptions = {}) {
+			const claim = await claimPinStorageObjectReconciliation(
+				models.PinStorageObject,
+				job,
+				new Date(now()),
+				helpers.parsePositiveInteger(options.claimTtlMs, defaultPinReconciliationClaimTtlMs),
+				helpers.parsePositiveInteger(options.perAccountLimit, defaultPinReconciliationPerAccountLimit)
+			);
+			if (!claim) {
+				return {skipped: true, reason: 'pin_reconciliation_claimed_or_stale'};
+			}
+			const account = await models.PinAccount.findOne({where: {id: job.pinAccountId}})
+				.then(value => this.decryptPinAccountIfNecessary(value));
+			if (!account) {
+				await releasePinStorageObjectReconciliationClaim(models.PinStorageObject, claim, {
+					nextCheckAt: getDateAfter(now(), confirmedPinReconciliationDelayMs)
+				});
+				return {skipped: true, reason: 'pin_reconciliation_account_missing'};
+			}
+
+			const abortController = new AbortController();
+			activeProviderRequests.add(abortController);
+			try {
+				const inspection = await providerInspector(account, job.storageId, abortController.signal);
+				const statusDetails = getPinReconciliationStatusDetails(inspection, now());
+				await finishPinStorageObjectReconciliation(models.PinStorageObject, claim, inspection.status, statusDetails);
+				return {status: inspection.status, storageId: job.storageId};
+			} catch (error) {
+				const status = getPinStorageObjectAttemptStatus(error);
+				const nextCheckAt = status === PinStorageObjectStatus.RetryableFailure
+					? getPinReconciliationRetryAt(now(), claim.reconcileAttemptCount)
+					: null;
+				await finishPinStorageObjectReconciliation(models.PinStorageObject, claim, status, {
+					error,
+					nextCheckAt
+				});
+				return {status, storageId: job.storageId};
+			} finally {
+				activeProviderRequests.delete(abortController);
+			}
+		}
+
 		async afterContentAdding(userId, content) {
 			const autoActions = app.ms['autoActions'];
 			if (!autoActions || typeof autoActions.addAutoAction !== 'function') {
@@ -564,7 +670,10 @@ function getPinStorageObjectAttemptData(storageId: string, account: IPinAccount,
 		attemptCount: 1,
 		requestedAt: now,
 		lastAttemptAt: now,
+		nextCheckAt: new Date(now.getTime() + requestedPinReconciliationDelayMs),
 		checkedAt: now,
+		reconcileClaimId: null,
+		reconcileClaimExpiresAt: null,
 		lastErrorCode: null,
 		lastErrorMessage: null,
 		resultJson: null
@@ -596,10 +705,13 @@ function getPinStorageObjectStatusData(status: PinStorageObjectStatus, details) 
 	if (Object.prototype.hasOwnProperty.call(details, 'result')) {
 		data.resultJson = getBoundedPinResultJson(details.result?.data ?? details.result);
 	}
+	if (Object.prototype.hasOwnProperty.call(details, 'remoteId')) {
+		data.remoteId = details.remoteId || null;
+	}
 	if (status === PinStorageObjectStatus.Accepted) {
 		data.acceptedAt = now;
-		data.nextCheckAt = now;
-		data.remoteId = getRemotePinId(details.storageId, details.result);
+		data.nextCheckAt = details.nextCheckAt || now;
+		data.remoteId = details.remoteId || getRemotePinId(details.storageId, details.result);
 		data.lastErrorCode = null;
 		data.lastErrorMessage = null;
 	}
@@ -628,6 +740,173 @@ function getPinStorageObjectStatusData(status: PinStorageObjectStatus, details) 
 		data.lastErrorMessage = null;
 	}
 	return data;
+}
+
+async function getDuePinStorageObjects(PinStorageObject, now: Date, limit: number, perAccountLimit: number) {
+	const scanLimit = Math.min(Math.max(limit * Math.max(perAccountLimit, 10), limit), 1000);
+	const rows = await PinStorageObject.findAll({
+		where: {
+			status: {[Op.in]: getReconciliablePinStorageObjectStatuses()}
+		},
+		order: [['nextCheckAt', 'ASC'], ['id', 'ASC']],
+		limit: scanLimit
+	});
+	const accountCounts = new Map<number, number>();
+	const dueRows = [];
+	for (const row of rows) {
+		if (!isPinStorageObjectDueForReconciliation(row, now)) {
+			continue;
+		}
+		const accountId = Number(row.pinAccountId);
+		if (!Number.isFinite(accountId) || accountId <= 0) {
+			continue;
+		}
+		const accountCount = accountCounts.get(accountId) || 0;
+		if (accountCount >= perAccountLimit) {
+			continue;
+		}
+		accountCounts.set(accountId, accountCount + 1);
+		dueRows.push(row);
+		if (dueRows.length >= limit) {
+			break;
+		}
+	}
+	return dueRows;
+}
+
+function isPinStorageObjectDueForReconciliation(row, now: Date): boolean {
+	if (row.reconcileClaimExpiresAt && new Date(row.reconcileClaimExpiresAt).getTime() > now.getTime()) {
+		return false;
+	}
+	if (row.nextCheckAt) {
+		return new Date(row.nextCheckAt).getTime() <= now.getTime();
+	}
+	if (row.status === PinStorageObjectStatus.Requested && row.lastAttemptAt) {
+		return new Date(row.lastAttemptAt).getTime() + requestedPinReconciliationDelayMs <= now.getTime();
+	}
+	return [PinStorageObjectStatus.Accepted, PinStorageObjectStatus.RetryableFailure].includes(row.status);
+}
+
+async function claimPinStorageObjectReconciliation(
+	PinStorageObject,
+	job,
+	now: Date,
+	claimTtlMs: number,
+	perAccountLimit: number
+) {
+	const claimId = getPinStorageObjectAttemptId();
+	const claimExpiresAt = new Date(now.getTime() + claimTtlMs);
+	if (typeof PinStorageObject.claimForReconciliation === 'function') {
+		return PinStorageObject.claimForReconciliation({
+			...job,
+			statuses: getReconciliablePinStorageObjectStatuses(),
+			now,
+			claimId,
+			claimExpiresAt,
+			perAccountLimit
+		});
+	}
+	const [claimedCount] = await PinStorageObject.update({
+		reconcileClaimId: claimId,
+		reconcileClaimExpiresAt: claimExpiresAt
+	}, {
+		where: {
+			pinAccountId: job.pinAccountId,
+			storageId: job.storageId,
+			status: {[Op.in]: getReconciliablePinStorageObjectStatuses()},
+			[Op.or]: [
+				{reconcileClaimExpiresAt: null},
+				{reconcileClaimExpiresAt: {[Op.lte]: now}}
+			]
+		}
+	});
+	if (claimedCount !== 1) {
+		return null;
+	}
+	let claimedRow = await PinStorageObject.findOne({where: {pinAccountId: job.pinAccountId, storageId: job.storageId, reconcileClaimId: claimId}});
+	if (!claimedRow) {
+		return null;
+	}
+	await claimedRow.increment('reconcileAttemptCount');
+	await claimedRow.update({lastReconcileAt: now});
+	claimedRow = await PinStorageObject.findOne({where: {id: claimedRow.id, reconcileClaimId: claimId}}) || claimedRow;
+	return {
+		id: claimedRow.id,
+		claimId,
+		reconcileAttemptCount: Number(claimedRow.reconcileAttemptCount || 1)
+	};
+}
+
+async function finishPinStorageObjectReconciliation(PinStorageObject, claim, status: PinStorageObjectStatus, details) {
+	const [updatedCount] = await PinStorageObject.update({
+		...getPinStorageObjectStatusData(status, details),
+		reconcileClaimId: null,
+		reconcileClaimExpiresAt: null
+	}, {where: {id: claim.id, reconcileClaimId: claim.claimId}});
+	return updatedCount === 1;
+}
+
+async function releasePinStorageObjectReconciliationClaim(PinStorageObject, claim, updateData = {}) {
+	return PinStorageObject.update({
+		...updateData,
+		reconcileClaimId: null,
+		reconcileClaimExpiresAt: null
+	}, {where: {id: claim.id, reconcileClaimId: claim.claimId}});
+}
+
+function getPinReconciliationStatusDetails(inspection, now: number) {
+	const details: any = {
+		remoteId: inspection.remoteId,
+		result: inspection.result
+	};
+	if (inspection.status === PinStorageObjectStatus.Accepted) {
+		details.nextCheckAt = getDateAfter(now, acceptedPinReconciliationDelayMs);
+	}
+	if (inspection.status === PinStorageObjectStatus.Confirmed) {
+		details.nextCheckAt = getDateAfter(now, confirmedPinReconciliationDelayMs);
+	}
+	if (inspection.status === PinStorageObjectStatus.TerminalFailure) {
+		details.error = inspection.error;
+	}
+	return details;
+}
+
+function getPinReconciliationRetryAt(now: number, attemptCount: number) {
+	const exponent = Math.max(Math.min(Number(attemptCount || 1) - 1, 10), 0);
+	const delayMs = Math.min(retryablePinReconciliationBaseDelayMs * (2 ** exponent), retryablePinReconciliationMaxDelayMs);
+	return getDateAfter(now, delayMs);
+}
+
+function getDateAfter(now: number, delayMs: number) {
+	return new Date(now + delayMs);
+}
+
+function getReconciliablePinStorageObjectStatuses() {
+	return [
+		PinStorageObjectStatus.Requested,
+		PinStorageObjectStatus.Accepted,
+		PinStorageObjectStatus.Confirmed,
+		PinStorageObjectStatus.RetryableFailure
+	];
+}
+
+function getPinReconciliationJobInput(pinAccountId, storageId) {
+	return {pinAccountId: Number(pinAccountId), storageId: String(storageId)};
+}
+
+function parsePinReconciliationJob(inputJson) {
+	let input;
+	try {
+		input = JSON.parse(inputJson);
+	} catch (error) {
+		throw new Error('pin_reconciliation_job_invalid');
+	}
+	const pinAccountId = Number(input?.pinAccountId);
+	const storageId = typeof input?.storageId === 'string' ? input.storageId.trim() : '';
+	if (!Number.isInteger(pinAccountId) || pinAccountId <= 0 || !storageId) {
+		throw new Error('pin_reconciliation_job_invalid');
+	}
+	return {pinAccountId, storageId};
 }
 
 function getRemotePinId(storageId: string | undefined, result) {

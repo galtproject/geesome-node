@@ -16,8 +16,8 @@ The `pin` module stores pinning-service accounts and sends storage pin requests,
 
 ## Async Boundaries
 
-- The module does not own a durable worker queue itself.
-- Long-running or scheduled pinning should be driven by `autoActions` or another producer that calls the pin methods.
+- New pin requests remain driven by `autoActions` or an explicit caller. Provider-state reconciliation uses the shared durable `asyncOperation` queue under the `pin-provider-reconciliation` module identity.
+- `queueDuePinReconciliations` selects stale rows in bounded batches with a per-account cap; `processPinReconciliationQueue` processes durable jobs. Periodic scheduling is deliberately separate and is not enabled by this first reconciliation slice.
 - Set `options.autoPin.enabled` on a user-owned account to enqueue newly saved content. `attempts` is clamped to `1..10` and defaults to `3`; optional flat `metadata` is forwarded to Pinata.
 - Successful one-shot actions are deactivated. Retryable failures reuse the existing bounded retry and action-log behavior; explicitly terminal failures deactivate immediately without consuming the remaining retry budget.
 - Group accounts are not triggered from the raw content hook because an upload has no group/post context. The explicit `group-post` policy queues selected post-manifest and content targets only after attachment to an eligible public post.
@@ -26,6 +26,8 @@ The `pin` module stores pinning-service accounts and sends storage pin requests,
 - A provider-accepted request is recorded as `accepted`, not `confirmed`. Reconciliation must prove remote availability before storage-space reports it as remotely pinned.
 - `requested`, `accepted`, `confirmed`, and `retryable_failure` rows block physical deletion because the remote outcome is present or uncertain. `missing` and `terminal_failure` rows do not.
 - Legacy `pinned` rows remain readable as confirmed claims while unreleased environments move to the explicit states.
+- Reconciliation checks Pinata's pinned-file list first, then active/error `pinJobs`. A CID becomes `missing` only when neither endpoint reports it. Retrieval jobs remain `accepted`; known terminal job statuses become terminal failures.
+- Expiring ledger claims and a PostgreSQL per-account advisory lock prevent duplicate provider calls across workers. Retryable inspection failures use bounded exponential backoff; confirmed rows receive a later health-check timestamp.
 
 ## Ownership
 
@@ -44,6 +46,7 @@ The `pin` module stores pinning-service accounts and sends storage pin requests,
 - Do not add broad auto-action access. Keep the allowlist small and permission-aware.
 - Keep automatic pinning opt-in. Existing accounts and malformed/unknown account options remain manual-only.
 - New pin providers should normalize status, remote IDs, errors, and account ownership before being exposed.
+- Custom Pinata-compatible write endpoints remain protected but unreconciled until they provide an explicit status adapter; the ledger stays retryable/deletion-safe instead of assuming absence.
 
 ## Provider Request Policy
 
@@ -53,6 +56,7 @@ The `pin` module stores pinning-service accounts and sends storage pin requests,
 - Custom endpoints must use HTTPS and cannot contain URL credentials. Every resolved address must be public, the approved DNS result is pinned into the request connection, and redirects are disabled before API credentials are sent.
 - Provider error details are bounded and configured API credentials are redacted. HTTP 408, 425, 429, 5xx, timeout, cancellation, and network errors are retryable; other HTTP responses and endpoint-policy violations are terminal.
 - Module shutdown aborts in-flight provider requests. Durable retry state remains owned by `autoActions`.
+- Module shutdown also aborts in-flight reconciliation requests. Their claims expire so a later queue run can recover them.
 
 ## Related Docs
 

@@ -19,6 +19,7 @@ function createPinModule(
 		encryptTextWithAppPass: async (text) => `encrypted:${text}`,
 		decryptTextWithAppPass: async (text) => text.replace(/^encrypted:/, ""),
 		ms: {
+			asyncOperation: moduleOptions.asyncOperation || {},
 			autoActions: {
 				addAutoAction: async (userId, action) => {
 					const created = {id: autoActions.length + 1, userId, ...action};
@@ -956,7 +957,246 @@ describe("pin negative paths", function () {
 		assert.equal(pinnedStorageObjects[0].nextCheckAt, null);
 		assert.equal(pinnedStorageObjects[0].resultJson, JSON.stringify({IpfsHash: 'storage-id'}));
 	});
+
+	it("queues bounded due reconciliations per pin account", async () => {
+		const now = Date.parse('2026-07-18T10:00:00.000Z');
+		const queuedJobs = [];
+		const pinnedStorageObjects = [
+			getReconciliationRecord(1, 1, 'account-1-first', now - 1000),
+			getReconciliationRecord(2, 1, 'account-1-second', now - 1000),
+			getReconciliationRecord(3, 2, 'account-2-first', now - 1000),
+			getReconciliationRecord(4, 2, 'account-2-future', now + 60000)
+		];
+		const pins: any = createPinModule(
+			[
+				{id: 1, userId: 10, service: 'pinata'},
+				{id: 2, userId: 20, service: 'pinata'}
+			],
+			{},
+			[1],
+			[],
+			pinnedStorageObjects,
+			[],
+			{},
+			{
+				now: () => now,
+				asyncOperation: {
+					addUniqueUserOperationQueue: async (userId, module, _apiKeyId, input) => {
+						queuedJobs.push({userId, module, input});
+					}
+				}
+			}
+		);
+
+		const result = await pins.queueDuePinReconciliations({limit: 10, perAccountLimit: 1});
+
+		assert.equal(result.queued, 2);
+		assert.deepEqual(queuedJobs.map(job => job.input.storageId), ['account-1-first', 'account-2-first']);
+		assert(queuedJobs.every(job => job.module === 'pin-provider-reconciliation'));
+	});
+
+	it("lets only one worker inspect a pin ledger row", async () => {
+		const now = Date.parse('2026-07-18T10:00:00.000Z');
+		const pinnedStorageObjects = [getReconciliationRecord(1, 1, 'storage-id', now - 1000)];
+		let providerCalls = 0;
+		let resolveInspection;
+		const inspection = new Promise(resolve => {
+			resolveInspection = resolve;
+		});
+		const pins: any = createPinModule(
+			[{id: 1, userId: 1, service: 'pinata'}],
+			{},
+			[1],
+			[],
+			pinnedStorageObjects,
+			[],
+			{},
+			{
+				now: () => now,
+				providerInspector: async () => {
+					providerCalls += 1;
+					return inspection;
+				}
+			}
+		);
+		const job = {pinAccountId: 1, storageId: 'storage-id'};
+		const first = pins.reconcilePinStorageObject(job);
+		await new Promise(resolve => setImmediate(resolve));
+		const second = await pins.reconcilePinStorageObject(job);
+		resolveInspection({
+			status: PinStorageObjectStatus.Confirmed,
+			remoteId: 'remote-id',
+			result: {id: 'remote-id'}
+		});
+		const firstResult = await first;
+
+		assert.equal(providerCalls, 1);
+		assert.equal(second.skipped, true);
+		assert.equal(firstResult.status, PinStorageObjectStatus.Confirmed);
+		assert.equal(pinnedStorageObjects[0].status, PinStorageObjectStatus.Confirmed);
+		assert.equal(pinnedStorageObjects[0].remoteId, 'remote-id');
+		assert.equal(pinnedStorageObjects[0].reconcileAttemptCount, 1);
+		assert.equal(pinnedStorageObjects[0].reconcileClaimId, null);
+		assert.equal(new Date(pinnedStorageObjects[0].nextCheckAt).getTime(), now + 24 * 60 * 60 * 1000);
+	});
+
+	it("backs off retryable reconciliation failures and releases the claim", async () => {
+		const now = Date.parse('2026-07-18T10:00:00.000Z');
+		const pinnedStorageObjects = [getReconciliationRecord(1, 1, 'storage-id', now - 1000)];
+		pinnedStorageObjects[0].reconcileAttemptCount = 2;
+		const pins: any = createPinModule(
+			[{id: 1, userId: 1, service: 'pinata'}],
+			{},
+			[1],
+			[],
+			pinnedStorageObjects,
+			[],
+			{},
+			{
+				now: () => now,
+				providerInspector: async () => {
+					throw Object.assign(new Error('provider unavailable'), {retryable: true});
+				}
+			}
+		);
+
+		const result = await pins.reconcilePinStorageObject({pinAccountId: 1, storageId: 'storage-id'});
+
+		assert.equal(result.status, PinStorageObjectStatus.RetryableFailure);
+		assert.equal(pinnedStorageObjects[0].reconcileAttemptCount, 3);
+		assert.equal(pinnedStorageObjects[0].reconcileClaimId, null);
+		assert.equal(new Date(pinnedStorageObjects[0].nextCheckAt).getTime(), now + 20 * 60 * 1000);
+	});
+
+	it("delays the next check while a provider job remains accepted", async () => {
+		const now = Date.parse('2026-07-18T10:00:00.000Z');
+		const pinnedStorageObjects = [getReconciliationRecord(1, 1, 'storage-id', now - 1000)];
+		const pins: any = createPinModule(
+			[{id: 1, userId: 1, service: 'pinata'}],
+			{},
+			[1],
+			[],
+			pinnedStorageObjects,
+			[],
+			{},
+			{
+				now: () => now,
+				providerInspector: async () => ({status: PinStorageObjectStatus.Accepted})
+			}
+		);
+
+		await pins.reconcilePinStorageObject({pinAccountId: 1, storageId: 'storage-id'});
+
+		assert.equal(pinnedStorageObjects[0].status, PinStorageObjectStatus.Accepted);
+		assert.equal(new Date(pinnedStorageObjects[0].nextCheckAt).getTime(), now + 5 * 60 * 1000);
+	});
+
+	it("recovers an expired reconciliation claim after a worker stops", async () => {
+		const now = Date.parse('2026-07-18T10:00:00.000Z');
+		const pinnedStorageObjects = [getReconciliationRecord(1, 1, 'storage-id', now - 1000)];
+		pinnedStorageObjects[0].reconcileClaimId = 'stopped-worker';
+		pinnedStorageObjects[0].reconcileClaimExpiresAt = new Date(now - 1);
+		const pins: any = createPinModule(
+			[{id: 1, userId: 1, service: 'pinata'}],
+			{},
+			[1],
+			[],
+			pinnedStorageObjects,
+			[],
+			{},
+			{
+				now: () => now,
+				providerInspector: async () => ({status: PinStorageObjectStatus.Confirmed})
+			}
+		);
+
+		const result = await pins.reconcilePinStorageObject({pinAccountId: 1, storageId: 'storage-id'});
+
+		assert.equal(result.status, PinStorageObjectStatus.Confirmed);
+		assert.equal(pinnedStorageObjects[0].reconcileAttemptCount, 1);
+		assert.equal(pinnedStorageObjects[0].reconcileClaimId, null);
+	});
+
+	it("stops retrying terminal provider reconciliation failures", async () => {
+		const now = Date.parse('2026-07-18T10:00:00.000Z');
+		const pinnedStorageObjects = [getReconciliationRecord(1, 1, 'storage-id', now - 1000)];
+		const pins: any = createPinModule(
+			[{id: 1, userId: 1, service: 'pinata'}],
+			{},
+			[1],
+			[],
+			pinnedStorageObjects,
+			[],
+			{},
+			{
+				now: () => now,
+				providerInspector: async () => ({
+					status: PinStorageObjectStatus.TerminalFailure,
+					error: Object.assign(new Error('pinata_pin_job_invalid_object'), {retryable: false})
+				})
+			}
+		);
+
+		const result = await pins.reconcilePinStorageObject({pinAccountId: 1, storageId: 'storage-id'});
+
+		assert.equal(result.status, PinStorageObjectStatus.TerminalFailure);
+		assert.equal(pinnedStorageObjects[0].status, PinStorageObjectStatus.TerminalFailure);
+		assert.equal(pinnedStorageObjects[0].nextCheckAt, null);
+		assert.equal(pinnedStorageObjects[0].reconcileClaimId, null);
+		assert.match(pinnedStorageObjects[0].lastErrorMessage, /invalid_object/);
+	});
+
+	it("processes durable reconciliation queue payloads through async operations", async () => {
+		const now = Date.parse('2026-07-18T10:00:00.000Z');
+		const pinnedStorageObjects = [getReconciliationRecord(1, 1, 'storage-id', now - 1000)];
+		let operationData;
+		const pins: any = createPinModule(
+			[{id: 1, userId: 1, service: 'pinata'}],
+			{},
+			[1],
+			[],
+			pinnedStorageObjects,
+			[],
+			{},
+			{
+				now: () => now,
+				providerInspector: async () => ({status: PinStorageObjectStatus.Missing}),
+				asyncOperation: {
+					processModuleOperationQueue: async (module, processor) => {
+						const waitingQueue = {
+							inputJson: JSON.stringify({pinAccountId: 1, storageId: 'storage-id'})
+						};
+						const payload = processor.getPayload(waitingQueue);
+						operationData = processor.getAsyncOperationData(waitingQueue, payload);
+						await processor.run(waitingQueue, {id: 1}, payload);
+						assert.equal(module, 'pin-provider-reconciliation');
+						return {processed: 1};
+					}
+				}
+			}
+		);
+
+		const result = await pins.processPinReconciliationQueue({limit: 1});
+
+		assert.deepEqual(result, {processed: 1});
+		assert.equal(operationData.name, 'reconcile-pin-provider-state');
+		assert.equal(operationData.channel, 'pin:1:storage-id');
+		assert.equal(pinnedStorageObjects[0].status, PinStorageObjectStatus.Missing);
+	});
 });
+
+function getReconciliationRecord(id, pinAccountId, storageId, nextCheckAt) {
+	return createPinnedStorageObjectRecord({
+		id,
+		pinAccountId,
+		storageId,
+		status: PinStorageObjectStatus.Accepted,
+		nextCheckAt: new Date(nextCheckAt),
+		reconcileAttemptCount: 0,
+		reconcileClaimId: null,
+		reconcileClaimExpiresAt: null
+	});
+}
 
 function createPinnedStorageObjectRecord(data) {
 	const record = {
@@ -999,6 +1239,9 @@ function matchesWhereValue(actual, expected) {
 		}
 		if (operator === Op.in) {
 			return expected[operator].includes(actual);
+		}
+		if (operator === Op.lte) {
+			return actual !== null && typeof actual !== 'undefined' && new Date(actual).getTime() <= new Date(expected[operator]).getTime();
 		}
 		return false;
 	});

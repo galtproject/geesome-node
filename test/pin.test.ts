@@ -16,6 +16,7 @@ import CronService from "../app/modules/autoActions/cronService.js";
 import {IGeesomeApp} from "../app/interface.js";
 import {PostStatus} from "../app/modules/group/interface.js";
 import {PinStorageObjectStatus} from "../app/modules/pin/stateHelpers.js";
+import {getModule as getPinModule} from "../app/modules/pin/index.js";
 
 function isUniqueConstraintError(error: Error) {
 	return error.name === 'SequelizeUniqueConstraintError';
@@ -330,5 +331,50 @@ describe("pin", function () {
 		} finally {
 			axios.post = originalAxiosPost;
 		}
+	});
+
+	it('enforces the reconciliation account concurrency cap across module instances', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const account = await pins.createAccount(testUser.id, {
+			name: 'reconciliation-pinata',
+			service: 'pinata',
+			apiKey: '111',
+			secretApiKey: '222'
+		});
+		const PinAccount = app.ms.database.sequelize.models.pinAccount;
+		const PinStorageObject = app.ms.database.sequelize.models.pinStorageObject;
+		await PinStorageObject.bulkCreate([
+			{pinAccountId: account.id, storageId: 'reconcile-first', status: PinStorageObjectStatus.Accepted},
+			{pinAccountId: account.id, storageId: 'reconcile-second', status: PinStorageObjectStatus.Accepted}
+		]);
+		let providerCalls = 0;
+		let resolveInspection;
+		const inspection = new Promise(resolve => {
+			resolveInspection = resolve;
+		});
+		const providerInspector: any = async () => {
+			providerCalls += 1;
+			return inspection;
+		};
+		const firstModule: any = getPinModule(app, {PinAccount, PinStorageObject}, {providerInspector});
+		const secondModule: any = getPinModule(app, {PinAccount, PinStorageObject}, {providerInspector});
+
+		const first = firstModule.reconcilePinStorageObject(
+			{pinAccountId: account.id, storageId: 'reconcile-first'},
+			{perAccountLimit: 1}
+		);
+		await waitForCondition(async () => providerCalls === 1);
+		const second = await secondModule.reconcilePinStorageObject(
+			{pinAccountId: account.id, storageId: 'reconcile-second'},
+			{perAccountLimit: 1}
+		);
+		resolveInspection({status: PinStorageObjectStatus.Confirmed, result: {id: 'remote-id'}});
+		await first;
+
+		assert.equal(providerCalls, 1);
+		assert.equal(second.skipped, true);
+		const rows = await PinStorageObject.findAll({order: [['storageId', 'ASC']]});
+		assert.equal(rows[0].status, PinStorageObjectStatus.Confirmed);
+		assert.equal(rows[1].status, PinStorageObjectStatus.Accepted);
 	});
 });
