@@ -39,7 +39,7 @@ describe('image composition persistence and authorization', function () {
 			permissions: [CorePermissionName.UserAll],
 		});
 		group = await app.ms.group.createGroup(owner.id, {
-			name: `composition-${randomUUID()}`,
+			name: `composition_${randomUUID().replace(/-/g, '').slice(0, 12)}`,
 			title: 'Private compositions',
 			isPublic: false,
 			isOpen: false,

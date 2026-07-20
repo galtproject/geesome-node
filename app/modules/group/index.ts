@@ -1162,7 +1162,7 @@ function getModule(app: IGeesomeApp, models) {
 					}
 					const recoveredPost = await this.getPostPure(existingPost.id);
 					const recoveredComposition = parseStoredImageComposition(recoveredPost);
-					if (!doesStoredCompositionMatchCreate(recoveredComposition, input)) {
+					if (operation.attemptCount <= 1 || !doesStoredCompositionMatchCreate(recoveredComposition, input)) {
 						throw new ImageCompositionApiError('composition_idempotency_conflict', 409);
 					}
 					const repairedPost = await this.applyPostManifestUpdate(userId, recoveredPost, recoveredPost.group);
@@ -1185,6 +1185,7 @@ function getModule(app: IGeesomeApp, models) {
 						{
 							mimeType: generated.mimeType,
 							view: ContentView.Attachment,
+							driver: {raw: true},
 							properties: {
 								source: 'image-composition-v1',
 								semanticHash: generated.semanticHash,
@@ -1257,7 +1258,7 @@ function getModule(app: IGeesomeApp, models) {
 				return operation.response;
 			}
 			if (current.revision !== input.expectedRevision) {
-				if (current.revision === input.expectedRevision + 1 && doesStoredCompositionMatchUpdate(current, input)) {
+				if (operation.attemptCount > 1 && current.revision === input.expectedRevision + 1 && doesStoredCompositionMatchUpdate(current, input)) {
 					const repairedPost = await this.applyPostManifestUpdate(userId, oldPost, oldPost.group);
 					const response = buildResolvedImageComposition(repairedPost, current);
 					await imageCompositionOperations.succeed(operation.id, operation.claimToken, {
@@ -1293,6 +1294,7 @@ function getModule(app: IGeesomeApp, models) {
 							{
 								mimeType: generated.mimeType,
 								view: ContentView.Attachment,
+								driver: {raw: true},
 								properties: {
 									source: 'image-composition-v1',
 									semanticHash: generated.semanticHash,
@@ -1423,7 +1425,12 @@ function getModule(app: IGeesomeApp, models) {
 				return {replay: true, response: claim.result?.response};
 			}
 			if (claim.disposition === 'claimed') {
-				return {replay: false, id: claim.operation.id, claimToken: claim.claimToken};
+				return {
+					replay: false,
+					id: claim.operation.id,
+					claimToken: claim.claimToken,
+					attemptCount: Number(claim.operation.attemptCount) || 1,
+				};
 			}
 			for (let attempt = 0; attempt < 50; attempt += 1) {
 				await new Promise(resolve => setTimeout(resolve, 100));
@@ -1437,7 +1444,12 @@ function getModule(app: IGeesomeApp, models) {
 						requestHash: createImageCompositionRequestHash(request),
 					});
 					if (reclaimed.disposition === 'claimed') {
-						return {replay: false, id: reclaimed.operation.id, claimToken: reclaimed.claimToken};
+						return {
+							replay: false,
+							id: reclaimed.operation.id,
+							claimToken: reclaimed.claimToken,
+							attemptCount: Number(reclaimed.operation.attemptCount) || 1,
+						};
 					}
 				}
 			}
