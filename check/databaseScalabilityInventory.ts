@@ -263,6 +263,9 @@ function modelRows(): ModelRow[] {
         'source,sourceDate',
         'source,sourceChannelId',
         'source,sourceChannelId,sourcePostId',
+        has(postSource, 'posts_group_type_timeline_idx')
+          ? 'groupId,type,isDeleted,status,publishedAt,id typed timeline index'
+          : 'missing typed group timeline index',
         hasPostSourceUnique ? 'groupId,source,sourceChannelId,sourcePostId unique source identity' : 'missing group/source unique identity',
       ],
       notes: [
@@ -808,6 +811,7 @@ function modelRows(): ModelRow[] {
 function hotspotRows(): HotspotRow[] {
   const appSource = read('app/index.ts');
   const groupSource = read('app/modules/group/index.ts');
+  const postModelSource = read('app/modules/group/models/post.ts');
   const groupModelSource = read('app/modules/group/models/group.ts');
   const postEventHelperSource = read('app/modules/group/postEventHelpers.ts');
   const postEventSource = read('app/modules/group/models/postEvent.ts');
@@ -863,6 +867,9 @@ function hotspotRows(): HotspotRow[] {
   const activityPubSource = read('app/modules/activityPub/index.ts');
   const activityPubModelSource = read('app/modules/activityPub/models.ts');
   const hasTimelineIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(postIds') && has(groupSource, "attributes: ['id', 'publishedAt']");
+  const hasIndexedCompositionTimeline = has(postModelSource, 'posts_group_type_timeline_idx')
+    && has(groupSource, 'type: IMAGE_COMPOSITION_POST_TYPE')
+    && has(groupSource, 'async getImageCompositions');
   const hasAllPostsIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(pagePosts.map')
     && (has(groupSource, "attributes: ['id']") || has(groupSource, "attributes: ['id', 'publishedAt']"));
   const hasAllPostsCursorRefs = has(groupSource, 'async getAllPostRefs')
@@ -1462,6 +1469,17 @@ function hotspotRows(): HotspotRow[] {
         : (has(groupSource, 'nextCursor')
           ? 'cursor avoids large offsets, but eager content/repost hydration can still fan out per page'
           : 'large offsets and eager content joins can scan/sort many rows before returning one page'),
+    },
+    {
+      area: 'Image composition timeline',
+      source: 'app/modules/group/index.ts + app/modules/group/models/post.ts',
+      hotspot: 'getImageCompositions',
+      observedPattern: hasIndexedCompositionTimeline
+        ? 'filters by the dedicated post type before page hydration and uses the group/type/status/publishedAt/id cursor index'
+        : 'composition listing may scan ordinary posts or lack a matching typed timeline index',
+      scalabilityRisk: hasIndexedCompositionTimeline
+        ? 'composition pages remain bounded and avoid propertiesJson scans; legacy offset callers can still request totals'
+        : 'large mixed groups could scan or hydrate unrelated ordinary posts',
     },
     {
       area: 'Global post listings',
