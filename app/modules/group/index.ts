@@ -863,7 +863,7 @@ function getModule(app: IGeesomeApp, models) {
 			}) as IGroup;
 		}
 
-		async getGroupPosts(groupId, filters = {}, listParams?: IListParams) {
+		async getGroupPosts(groupId, filters = {}, listParams?: IListParams, options: {emitInitialCursor?: boolean} = {}) {
 			groupId = await this.checkGroupId(groupId);
 			listParams = helpers.prepareListParams(listParams, publicPostListParams);
 			if (isUndefined(filters['isDeleted'])) {
@@ -883,7 +883,9 @@ function getModule(app: IGeesomeApp, models) {
 			});
 			const postIds = pagePosts.map(post => post.id);
 			const list = await this.getHydratedPostListByIds(postIds, {groupId, includeRepostOf: true});
-			const nextCursor = helpers.getNextListCursor(cursor, pagePosts, limit);
+			const nextCursor = options.emitInitialCursor
+				? helpers.getNextCursorFromRows(pagePosts, limit)
+				: helpers.getNextListCursor(cursor, pagePosts, limit);
 
 			return {
 				list,
@@ -1398,7 +1400,7 @@ function getModule(app: IGeesomeApp, models) {
 				type: IMAGE_COMPOSITION_POST_TYPE,
 				status: PostStatus.Published,
 				isDeleted: false,
-			}, listParams);
+			}, listParams, {emitInitialCursor: true});
 			return {
 				...result,
 				list: result.list.flatMap(post => {

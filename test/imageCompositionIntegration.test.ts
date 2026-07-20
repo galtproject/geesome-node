@@ -110,6 +110,30 @@ describe('image composition persistence and authorization', function () {
 		assert.notEqual(updatedOrdinary.type, IMAGE_COMPOSITION_POST_TYPE);
 	});
 
+	it('returns a cursor on the first full page and continues in stable timeline order', async () => {
+		const created = [];
+		for (let index = 0; index < 3; index += 1) {
+			created.push(await app.ms.group.createImageComposition(owner.id, createInput()));
+		}
+
+		const first = await app.ms.group.getImageCompositions(owner.id, group.id, {}, {limit: 2});
+		assert.equal(first.list.length, 2);
+		assert(first.nextCursor);
+		assert(first.nextCursor.publishedAt);
+		assert(Number.isSafeInteger(Number(first.nextCursor.id)));
+
+		const second = await app.ms.group.getImageCompositions(owner.id, group.id, {
+			cursorPublishedAt: first.nextCursor.publishedAt,
+			cursorId: first.nextCursor.id,
+		}, {limit: 2});
+		assert.equal(second.list.length, 1);
+		assert.equal(second.nextCursor, null);
+
+		const listedIds = [...first.list, ...second.list].map(item => item.postId);
+		assert.equal(new Set(listedIds).size, 3);
+		assert.deepEqual(listedIds, created.map(item => item.postId).reverse());
+	});
+
 	it('rejects reused identities with mismatched payloads and stale revisions', async () => {
 		const input = createInput();
 		const created = await app.ms.group.createImageComposition(owner.id, input);
