@@ -135,6 +135,11 @@ function modelRows(): ModelRow[] {
   const hasPostSourceUnique = has(postSource, 'posts_group_source_post_unique')
     && has(postSource, "fields: ['groupId', 'source', 'sourceChannelId', 'sourcePostId']")
     && has(postSource, 'unique: true');
+  const hasPostEntityUnique = has(compositionTimelineMigrationSource, 'posts_group_type_entity_unique')
+    && has(compositionTimelineMigrationSource, 'CREATE UNIQUE INDEX CONCURRENTLY')
+    && has(compositionTimelineMigrationSource, 'ON posts ("groupId", "type", "entityId")')
+    && has(compositionTimelineMigrationSource, 'WHERE "entityId" IS NOT NULL')
+    && !has(postSource, 'posts_group_type_entity_unique');
   const hasPostContentPositionUnique = has(postSource, 'posts_contents_post_position_unique')
     && has(postSource, "fields: ['postId', 'position']")
     && has(postSource, 'unique: true');
@@ -264,6 +269,9 @@ function modelRows(): ModelRow[] {
         'source,sourceDate',
         'source,sourceChannelId',
         'source,sourceChannelId,sourcePostId',
+        hasPostEntityUnique
+          ? 'groupId,type,entityId migration-owned unique native identity'
+          : 'missing group/type/entity native identity',
         has(compositionTimelineMigrationSource, 'posts_group_type_timeline_idx')
           && has(compositionTimelineMigrationSource, 'CREATE INDEX CONCURRENTLY')
           && !has(postSource, 'posts_group_type_timeline_idx')
@@ -275,6 +283,7 @@ function modelRows(): ModelRow[] {
         has(postSource, "fields: ['groupId'") ? 'has group index' : 'missing explicit group timeline index',
         hasPostGroupLocalUnique ? 'has group/local unique identity' : (has(postSource, "fields: ['groupId', 'localId'") ? 'has group/local lookup index' : 'missing explicit group/local lookup index'),
         hasPostSourceUnique ? 'has group/source unique import identity' : 'missing group/source unique import identity',
+        hasPostEntityUnique ? 'has group/type/entity unique native identity' : 'missing group/type/entity unique native identity',
         has(postSource, "fields: ['manifestStorageId'") ? 'has manifest lookup index' : 'missing manifest lookup index',
       ],
     },

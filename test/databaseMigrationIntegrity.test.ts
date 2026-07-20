@@ -25,12 +25,43 @@ describe("databaseMigrationIntegrity", function () {
         permissions: [CorePermissionName.UserAll]
       });
 
-      await app.ms.group.createGroup(testUser.id, {
+      const group = await app.ms.group.createGroup(testUser.id, {
         name: 'test',
         title: 'Test'
       });
 
       const queryInterface = app.ms.database.sequelize.getQueryInterface();
+      const legacyComposition = await app.ms.database.models.Post.create({
+        groupId: group.id,
+        userId: testUser.id,
+        status: 'published',
+        type: 'microwave-girls-image-composition',
+        source: 'microwave-girls',
+        sourceChannelId: 'image-composition-v1',
+        sourcePostId: 'legacy-composition-identity',
+      });
+      const entityMigration = (await import('../app/modules/group/migrations/20260720000000-add-image-composition-post-index.cjs')).default;
+      await entityMigration.up(queryInterface);
+      await legacyComposition.reload();
+      assert.equal(legacyComposition.type, 'image-composition');
+      assert.equal(legacyComposition.entityId, 'legacy-composition-identity');
+      assert.equal(legacyComposition.source, null);
+      assert.equal(legacyComposition.sourceChannelId, null);
+      assert.equal(legacyComposition.sourcePostId, null);
+
+      const postIndexes = await queryInterface.showIndex('posts');
+      const entityIndex = postIndexes.find(index => index.name === 'posts_group_type_entity_unique');
+      assert(entityIndex, 'native post entity identity index is missing after migration');
+      assert.equal(entityIndex.unique, true);
+      assert.deepEqual(entityIndex.fields.map(field => field.attribute), ['groupId', 'type', 'entityId']);
+      await assert.rejects(app.ms.database.models.Post.create({
+        groupId: group.id,
+        userId: testUser.id,
+        status: 'published',
+        type: 'image-composition',
+        entityId: 'legacy-composition-identity',
+      }), (error: any) => error?.name === 'SequelizeUniqueConstraintError');
+
       const pinStorageObjectColumns = await queryInterface.describeTable('pinStorageObjects');
       for (const column of [
         'attemptId',
