@@ -691,7 +691,8 @@ function getModule(app: IGeesomeApp) {
 
 		async updateExistsContentMetadata(userId: number, content: IContent, options) {
 			const propsToUpdate = ['view'];
-			if (content.mediumPreviewStorageId && content.previewMimeType) {
+			const isRaw = !!this.getDriverNameAndParams(options).raw;
+			if (isRaw || (content.mediumPreviewStorageId && content.previewMimeType)) {
 				if (propsToUpdate.some(prop => options[prop] && content[prop] !== options[prop])) {
 					await app.ms.database.updateContent(content.id, pick(options, propsToUpdate));
 					await this.updateContentManifest({
