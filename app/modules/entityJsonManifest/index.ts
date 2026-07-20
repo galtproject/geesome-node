@@ -81,7 +81,7 @@ function getModule(app: IGeesomeApp) {
         const post: IPost = data;
         //TODO: fix size, view and type
         //TODO: add groupNumber
-        const postManifest = ipfsHelper.pickObjectFields(post, ['status', 'publishedAt', 'view', 'type', 'size', 'source', 'sourceChannelId', 'sourcePostId', 'directoryStorageId', 'sourceDate']);
+        const postManifest = ipfsHelper.pickObjectFields(post, ['status', 'publishedAt', 'view', 'type', 'entityId', 'size', 'source', 'sourceChannelId', 'sourcePostId', 'directoryStorageId', 'sourceDate']);
 
         if(post.propertiesJson) {
           postManifest.properties = JSON.parse(post.propertiesJson);
@@ -256,7 +256,7 @@ function getModule(app: IGeesomeApp) {
         if (options.isEncrypted) {
           post = { ...options, isEncrypted: true, encryptedManifestStorageId: manifestId };
         } else {
-          post = ipfsHelper.pickObjectFields(manifest, ['status', 'publishedAt', 'view', 'type', 'size', 'source', 'sourceChannelId', 'sourcePostId', 'sourceDate']);
+          post = ipfsHelper.pickObjectFields(manifest, ['status', 'publishedAt', 'view', 'type', 'entityId', 'size', 'source', 'sourceChannelId', 'sourcePostId', 'sourceDate']);
 
           post.manifestStorageId = manifestId;
 

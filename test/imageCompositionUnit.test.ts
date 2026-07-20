@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import registerGroupApi from '../app/modules/group/api.js';
+import registerImageCompositionApi from '../app/modules/imageComposition/api.js';
 import {
   buildResolvedImageComposition,
   canViewImageCompositionGroup,
@@ -7,8 +7,8 @@ import {
   ImageCompositionApiError,
   normalizeImageCompositionCreateInput,
   normalizeImageCompositionUpdateInput,
-} from '../app/modules/group/imageComposition.js';
-import {IMAGE_COMPOSITION_POST_TYPE} from '../app/modules/group/imageCompositionContract.js';
+} from '../app/modules/imageComposition/helpers.js';
+import {IMAGE_COMPOSITION_POST_TYPE} from '../app/modules/imageComposition/contract.js';
 
 const sticker = {
   id: 'bubble-1',
@@ -153,7 +153,7 @@ describe('image composition contract integration', function () {
         throw new ImageCompositionApiError('composition_revision_conflict', 409, {currentRevision: 5});
       },
     };
-    registerGroupApi(app, groupModule);
+    registerImageCompositionApi(app, groupModule);
     assert(routes.has('POST user/group/create-image-composition'));
     assert(routes.has('GET user/group/:groupId/image-compositions'));
     const sent: any[] = [];

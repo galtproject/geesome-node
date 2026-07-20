@@ -9,10 +9,10 @@ import {
   ImageCompositionUpdateInput,
   ResolvedImageComposition,
   StoredImageComposition,
-} from './imageCompositionContract.js';
-import {validateImageCompositionStickerSemanticInput} from './imageCompositionSvg.js';
+} from './contract.js';
+import {validateImageCompositionStickerSemanticInput} from './svg.js';
 import type {IContent} from '../database/interface.js';
-import type {IPost} from './interface.js';
+import type {IPost} from '../group/interface.js';
 
 export class ImageCompositionApiError extends Error {
   readonly errorCode: string;

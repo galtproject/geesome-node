@@ -6,7 +6,7 @@ import {
 	generateImageCompositionStickerSvg,
 	getImageCompositionStickerSemanticHash,
 	wrapImageCompositionStickerText,
-} from '../app/modules/group/imageCompositionSvg.js';
+} from '../app/modules/imageComposition/svg.js';
 
 const goldenSvg = readFileSync(new URL('./fixtures/imageCompositionSpeechV1.svg', import.meta.url), 'utf8').trimEnd();
 const goldenSemanticHash = readFileSync(

@@ -1,7 +1,6 @@
 import {IGeesomeApp} from "../../interface.js";
 import IGeesomeGroupModule from "./interface.js";
 import helpers from "../../helpers.js";
-import {ImageCompositionApiError} from './imageComposition.js';
 
 export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
 
@@ -209,70 +208,6 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      */
     app.ms.api.onAuthorizedPost('user/group/update-post/:postId', async (req, res) => {
         res.send(await groupModule.updatePost(req.user.id, req.params.postId, req.body), 200);
-    });
-
-    /**
-     * @api {post} /v1/user/group/create-image-composition Create image composition
-     * @apiName UserGroupCreateImageComposition
-     * @apiGroup UserGroup
-     * @apiUse ApiKey
-     * @apiBody {Number} groupId Target group id.
-     * @apiBody {String} idempotencyKey Stable retry key.
-     * @apiBody {String} compositionId Stable composition id.
-     * @apiBody {String} baseContentManifestId Base raster content manifest id.
-     * @apiBody {Object} output Natural output dimensions.
-     * @apiBody {Object[]} stickers Validated semantic text bubbles.
-     */
-    app.ms.api.onAuthorizedPost('user/group/create-image-composition', async (req, res) => {
-        await withImageCompositionErrorResponse(res, async () => {
-            res.send(await groupModule.createImageComposition(req.user.id, req.body), 200);
-        });
-    });
-
-    /**
-     * @api {post} /v1/user/group/update-image-composition/:postId Update image composition
-     * @apiName UserGroupUpdateImageComposition
-     * @apiGroup UserGroup
-     * @apiUse ApiKey
-     * @apiParam {Number} postId Post id.
-     * @apiBody {String} idempotencyKey Stable retry key.
-     * @apiBody {Number} expectedRevision Optimistic concurrency revision.
-     * @apiBody {Object} output Natural output dimensions.
-     * @apiBody {Object[]} stickers Complete next semantic sticker list.
-     */
-    app.ms.api.onAuthorizedPost('user/group/update-image-composition/:postId', async (req, res) => {
-        await withImageCompositionErrorResponse(res, async () => {
-            res.send(await groupModule.updateImageComposition(req.user.id, req.params.postId, req.body), 200);
-        });
-    });
-
-    /**
-     * @api {get} /v1/user/group/image-composition/:postId Get image composition
-     * @apiName UserGroupGetImageComposition
-     * @apiGroup UserGroup
-     * @apiUse ApiKey
-     * @apiParam {Number} postId Post id.
-     * @apiSuccess {Object} composition Resolved portable composition projection.
-     */
-    app.ms.api.onAuthorizedGet('user/group/image-composition/:postId', async (req, res) => {
-        await withImageCompositionErrorResponse(res, async () => {
-            res.send(await groupModule.getImageComposition(req.user.id, req.params.postId), 200);
-        });
-    });
-
-    /**
-     * @api {get} /v1/user/group/:groupId/image-compositions List image compositions
-     * @apiName UserGroupListImageCompositions
-     * @apiGroup UserGroup
-     * @apiUse ApiKey
-     * @apiParam {Number} groupId Group id.
-     * @apiSuccess {Object[]} list Resolved image compositions.
-     * @apiSuccess {String} nextCursor Cursor for the next page.
-     */
-    app.ms.api.onAuthorizedGet('user/group/:groupId/image-compositions', async (req, res) => {
-        await withImageCompositionErrorResponse(res, async () => {
-            res.send(await groupModule.getImageCompositions(req.user.id, req.params.groupId, req.query, req.query), 200);
-        });
     });
 
     /**
@@ -547,22 +482,3 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
         res.send(await groupModule.removeUserFriendById(req.user.id, req.body.friendId));
     });
 };
-
-async function withImageCompositionErrorResponse(res, callback) {
-    try {
-        return await callback();
-    } catch (error) {
-        if (!(error instanceof ImageCompositionApiError)) {
-            throw error;
-        }
-        const body = {
-            message: error.errorCode,
-            errorCode: error.errorCode,
-            ...(error.details ? {details: error.details} : {}),
-        };
-        if (res.stream && typeof res.stream.status === 'function') {
-            return res.stream.status(error.statusCode).send(body);
-        }
-        return res.send(body, error.statusCode);
-    }
-}

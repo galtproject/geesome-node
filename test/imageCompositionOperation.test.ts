@@ -4,12 +4,12 @@ import {Op, Sequelize} from 'sequelize';
 import databaseConfig from '../app/modules/database/config.js';
 import defineImageCompositionOperation, {
 	ImageCompositionOperationState
-} from '../app/modules/group/models/imageCompositionOperation.js';
+} from '../app/modules/imageComposition/models/imageCompositionOperation.js';
 import {
 	canonicalizeImageCompositionRequest,
 	createImageCompositionOperationRepository,
 	createImageCompositionRequestHash
-} from '../app/modules/group/imageCompositionOperationRepository.js';
+} from '../app/modules/imageComposition/operationRepository.js';
 
 describe('image composition operation persistence', function () {
 	this.timeout(30_000);

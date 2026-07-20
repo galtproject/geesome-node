@@ -158,7 +158,6 @@ Interpretation notes:
 | group | POST | `/v1/user/group/:groupId/add-member` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | GET | `/v1/user/group/:groupId/can-create-post` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | GET | `/v1/user/group/:groupId/can-edit` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
-| group | GET | `/v1/user/group/:groupId/image-compositions` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | POST | `/v1/user/group/:groupId/is-member` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | POST | `/v1/user/group/:groupId/join` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | POST | `/v1/user/group/:groupId/leave` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
@@ -168,12 +167,9 @@ Interpretation notes:
 | group | POST | `/v1/user/group/:groupId/set-members` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | POST | `/v1/user/group/:groupId/set-permissions` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | POST | `/v1/user/group/:groupId/update` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
-| group | POST | `/v1/user/group/create-image-composition` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | POST | `/v1/user/group/create-post` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
-| group | GET | `/v1/user/group/image-composition/:postId` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | POST | `/v1/user/group/set-read` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | GET | `/v1/user/group/unread/:groupId` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
-| group | POST | `/v1/user/group/update-image-composition/:postId` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | POST | `/v1/user/group/update-post/:postId` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | GET | `/v1/user/member-in-groups` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | GET | `/v1/user/personal-chat-groups` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
@@ -191,6 +187,10 @@ Interpretation notes:
 | groupCategory | POST | `/v1/user/group-section/create` | authorized | - | token only; module/user ownership checks expected | `app/modules/groupCategory/api.ts` |
 | groupCategory | GET | `/v1/user/group-sections` | authorized | - | token only; module/user ownership checks expected | `app/modules/groupCategory/api.ts` |
 | groupCategory | POST | `/v1/user/group/:groupId/add-to-section/:groupSectionId` | authorized | - | token only; module/user ownership checks expected | `app/modules/groupCategory/api.ts` |
+| imageComposition | GET | `/v1/user/group/:groupId/image-compositions` | authorized | - | token only; module/user ownership checks expected | `app/modules/imageComposition/api.ts` |
+| imageComposition | POST | `/v1/user/group/create-image-composition` | authorized | - | token only; module/user ownership checks expected | `app/modules/imageComposition/api.ts` |
+| imageComposition | GET | `/v1/user/group/image-composition/:postId` | authorized | - | token only; module/user ownership checks expected | `app/modules/imageComposition/api.ts` |
+| imageComposition | POST | `/v1/user/group/update-image-composition/:postId` | authorized | - | token only; module/user ownership checks expected | `app/modules/imageComposition/api.ts` |
 | invite | POST | `/v1/admin/add-invite` | authorized | - | authentication flow; token only; module/user ownership checks expected | `app/modules/invite/api.ts` |
 | invite | GET | `/v1/admin/invites` | authorized | - | authentication flow; token only; module/user ownership checks expected | `app/modules/invite/api.ts` |
 | invite | POST | `/v1/admin/update-invite/:id` | authorized | - | authentication flow; token only; module/user ownership checks expected | `app/modules/invite/api.ts` |

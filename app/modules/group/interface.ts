@@ -6,11 +6,6 @@ import {
 } from "../database/interface.js";
 import {IUserListResponse} from "../../interface.js";
 import type {RichTextDocument} from "../../richText.js";
-import type {
-	ImageCompositionCreateInput,
-	ImageCompositionUpdateInput,
-	ResolvedImageComposition,
-} from './imageCompositionContract.js';
 
 export default interface IGeesomeGroupModule {
 	stop(): Promise<void>;
@@ -71,17 +66,14 @@ export default interface IGeesomeGroupModule {
 
 	updatePost(userId, postId, postData);
 
-	createImageComposition(userId: number, input: ImageCompositionCreateInput): Promise<ResolvedImageComposition>;
+	updatePostPure(userId, postId, postData, options?: {
+		oldPost?: IPost;
+		expectedPropertiesJson?: string | null;
+		createPropertiesConflictError?: (lockedPost: IPost) => Error;
+		[key: string]: any;
+	});
 
-	updateImageComposition(userId: number, postId: number, input: ImageCompositionUpdateInput): Promise<ResolvedImageComposition>;
-
-	getImageComposition(userId: number, postId: number): Promise<ResolvedImageComposition>;
-
-	getImageCompositions(userId: number, groupId: number, filters?, listParams?: IListParams): Promise<{
-		list: ResolvedImageComposition[];
-		total: number | null;
-		nextCursor?: any;
-	}>;
+	applyPostManifestUpdate(userId, post: IPost, group?, options?): Promise<IPost>;
 
 	deletePosts(userId, postIds, options?): Promise<any>;
 
@@ -125,7 +117,7 @@ export default interface IGeesomeGroupModule {
 
 	getPostContentDataWithUrl(post: IPost, baseStorageUri: string, options?: IContentDataProjectionOptions): Promise<IContentData[]>;
 
-	getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
+	getGroupPosts(groupId, filters?, listParams?: IListParams, options?: {emitInitialCursor?: boolean}): Promise<IPostListResponse>;
 
 	getGroupPostRefs(groupId, filters?, listParams?: IListParams, options?): Promise<IPost[]>;
 
@@ -394,6 +386,7 @@ export interface IPost {
 	source?: string;
 	sourceChannelId?: string;
 	sourcePostId?: string;
+	entityId?: string;
 	sourceDate?;
 
 	encryptedManifestStorageId?: string;
@@ -551,6 +544,7 @@ export interface IPostApiResponse {
 	source?: string;
 	sourceChannelId?: string;
 	sourcePostId?: string;
+	entityId?: string;
 	sourceDate?: any;
 	encryptedManifestStorageId?: string;
 	createdAt: any;

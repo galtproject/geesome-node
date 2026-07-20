@@ -823,6 +823,7 @@ function modelRows(): ModelRow[] {
 function hotspotRows(): HotspotRow[] {
   const appSource = read('app/index.ts');
   const groupSource = read('app/modules/group/index.ts');
+  const imageCompositionSource = read('app/modules/imageComposition/index.ts');
   const postModelSource = read('app/modules/group/models/post.ts');
   const compositionTimelineMigrationSource = read('app/modules/group/migrations/20260720000000-add-image-composition-post-index.cjs');
   const groupModelSource = read('app/modules/group/models/group.ts');
@@ -883,8 +884,8 @@ function hotspotRows(): HotspotRow[] {
   const hasIndexedCompositionTimeline = has(compositionTimelineMigrationSource, 'posts_group_type_timeline_idx')
     && has(compositionTimelineMigrationSource, 'CREATE INDEX CONCURRENTLY')
     && !has(postModelSource, 'posts_group_type_timeline_idx')
-    && has(groupSource, 'type: IMAGE_COMPOSITION_POST_TYPE')
-    && has(groupSource, 'async getImageCompositions');
+    && has(imageCompositionSource, 'type: IMAGE_COMPOSITION_POST_TYPE')
+    && has(imageCompositionSource, 'async getImageCompositions');
   const hasAllPostsIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(pagePosts.map')
     && (has(groupSource, "attributes: ['id']") || has(groupSource, "attributes: ['id', 'publishedAt']"));
   const hasAllPostsCursorRefs = has(groupSource, 'async getAllPostRefs')
@@ -1487,7 +1488,7 @@ function hotspotRows(): HotspotRow[] {
     },
     {
       area: 'Image composition timeline',
-      source: 'app/modules/group/index.ts + app/modules/group/models/post.ts',
+      source: 'app/modules/imageComposition/index.ts + app/modules/group/models/post.ts',
       hotspot: 'getImageCompositions',
       observedPattern: hasIndexedCompositionTimeline
         ? 'filters by the dedicated post type before page hydration and uses the group/type/status/publishedAt/id cursor index'
@@ -2163,7 +2164,6 @@ function render(): string {
     lines.push(`| ${escapeCell(row.area)} | ${escapeCell(row.hotspot)} | ${escapeCell(row.observedPattern)} | ${escapeCell(row.scalabilityRisk)} | \`${escapeCell(row.source)}\` |`);
   }
 
-  lines.push('');
   return `${lines.join('\n')}\n`;
 }
 

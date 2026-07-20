@@ -1,8 +1,8 @@
 import assert from 'node:assert';
 import {randomUUID} from 'node:crypto';
 import {ContentView, CorePermissionName} from '../app/modules/database/interface.js';
-import {ImageCompositionApiError} from '../app/modules/group/imageComposition.js';
-import {IMAGE_COMPOSITION_POST_TYPE} from '../app/modules/group/imageCompositionContract.js';
+import {ImageCompositionApiError} from '../app/modules/imageComposition/helpers.js';
+import {IMAGE_COMPOSITION_POST_TYPE} from '../app/modules/imageComposition/contract.js';
 import {PostStatus} from '../app/modules/group/interface.js';
 import {IGeesomeApp} from '../app/interface.js';
 
@@ -79,18 +79,27 @@ describe('image composition persistence and authorization', function () {
 
 	it('creates, replays, lists, and updates compositions without affecting ordinary posts', async () => {
 		const input = createInput();
-		const created = await app.ms.group.createImageComposition(owner.id, input);
-		const replayed = await app.ms.group.createImageComposition(owner.id, input);
+		const created = await app.ms.imageComposition.createImageComposition(owner.id, input);
+		const replayed = await app.ms.imageComposition.createImageComposition(owner.id, input);
 		assert.deepEqual(replayed, created);
 		assert.equal(created.revision, 1);
 		assert.equal(created.stickers.length, 1);
+		const compositionPost = await app.ms.group.getPostPure(created.postId);
+		assert.equal(compositionPost.type, 'image-composition');
+		assert.equal((compositionPost as any).entityId, input.compositionId);
+		assert.equal(compositionPost.source, null);
+		assert.equal(compositionPost.sourceChannelId, null);
+		assert.equal(compositionPost.sourcePostId, null);
+		const compositionManifest = await app.ms.storage.getObject(compositionPost.manifestStorageId);
+		assert.equal(compositionManifest.entityId, input.compositionId);
+		assert.equal(compositionManifest.source, undefined);
 
 		const ordinary = await app.ms.group.createPost(owner.id, {
 			groupId: group.id,
 			status: PostStatus.Published,
 			name: 'ordinary post',
 		});
-		const listed = await app.ms.group.getImageCompositions(owner.id, group.id, {}, {limit: 10});
+		const listed = await app.ms.imageComposition.getImageCompositions(owner.id, group.id, {}, {limit: 10});
 		assert.deepEqual(listed.list.map(item => item.postId), [created.postId]);
 		assert.equal((await app.ms.group.getPostPure(ordinary.id)).type, null);
 
@@ -100,10 +109,10 @@ describe('image composition persistence and authorization', function () {
 			output: input.output,
 			stickers: [{...input.stickers[0], text: 'Edited'}],
 		};
-		const updated = await app.ms.group.updateImageComposition(owner.id, created.postId, update);
+		const updated = await app.ms.imageComposition.updateImageComposition(owner.id, created.postId, update);
 		assert.equal(updated.revision, 2);
 		assert.equal(updated.stickers[0].text, 'Edited');
-		assert.deepEqual(await app.ms.group.updateImageComposition(owner.id, created.postId, update), updated);
+		assert.deepEqual(await app.ms.imageComposition.updateImageComposition(owner.id, created.postId, update), updated);
 
 		const updatedOrdinary = await app.ms.group.updatePost(owner.id, ordinary.id, {name: 'ordinary post edited'});
 		assert.equal(updatedOrdinary.name, 'ordinary post edited');
@@ -113,16 +122,16 @@ describe('image composition persistence and authorization', function () {
 	it('returns a cursor on the first full page and continues in stable timeline order', async () => {
 		const created = [];
 		for (let index = 0; index < 3; index += 1) {
-			created.push(await app.ms.group.createImageComposition(owner.id, createInput()));
+			created.push(await app.ms.imageComposition.createImageComposition(owner.id, createInput()));
 		}
 
-		const first = await app.ms.group.getImageCompositions(owner.id, group.id, {}, {limit: 2});
+		const first = await app.ms.imageComposition.getImageCompositions(owner.id, group.id, {}, {limit: 2});
 		assert.equal(first.list.length, 2);
 		assert(first.nextCursor);
 		assert(first.nextCursor.publishedAt);
 		assert(Number.isSafeInteger(Number(first.nextCursor.id)));
 
-		const second = await app.ms.group.getImageCompositions(owner.id, group.id, {
+		const second = await app.ms.imageComposition.getImageCompositions(owner.id, group.id, {
 			cursorPublishedAt: first.nextCursor.publishedAt,
 			cursorId: first.nextCursor.id,
 		}, {limit: 2});
@@ -136,16 +145,16 @@ describe('image composition persistence and authorization', function () {
 
 	it('rejects reused identities with mismatched payloads and stale revisions', async () => {
 		const input = createInput();
-		const created = await app.ms.group.createImageComposition(owner.id, input);
+		const created = await app.ms.imageComposition.createImageComposition(owner.id, input);
 		await assert.rejects(
-			() => app.ms.group.createImageComposition(owner.id, {
+			() => app.ms.imageComposition.createImageComposition(owner.id, {
 				...input,
 				stickers: [{...input.stickers[0], text: 'Changed under the same key'}],
 			}),
 			(error: ImageCompositionApiError) => error.errorCode === 'composition_idempotency_conflict',
 		);
 		await assert.rejects(
-			() => app.ms.group.createImageComposition(owner.id, {
+			() => app.ms.imageComposition.createImageComposition(owner.id, {
 				...input,
 				idempotencyKey: `new-key-${randomUUID()}`,
 				stickers: [{...input.stickers[0], text: 'Changed under a new key'}],
@@ -153,14 +162,14 @@ describe('image composition persistence and authorization', function () {
 			(error: ImageCompositionApiError) => error.errorCode === 'composition_idempotency_conflict',
 		);
 
-		await app.ms.group.updateImageComposition(owner.id, created.postId, {
+		await app.ms.imageComposition.updateImageComposition(owner.id, created.postId, {
 			idempotencyKey: `update-${randomUUID()}`,
 			expectedRevision: 1,
 			output: input.output,
 			stickers: [],
 		});
 		await assert.rejects(
-			() => app.ms.group.updateImageComposition(owner.id, created.postId, {
+			() => app.ms.imageComposition.updateImageComposition(owner.id, created.postId, {
 				idempotencyKey: `stale-${randomUUID()}`,
 				expectedRevision: 1,
 				output: input.output,
@@ -175,8 +184,8 @@ describe('image composition persistence and authorization', function () {
 	it('recovers matching concurrent creates and returns a structured conflict for mismatched payloads', async () => {
 		const matchingInput = createInput();
 		const matchingResults = await Promise.all([
-			app.ms.group.createImageComposition(owner.id, matchingInput),
-			app.ms.group.createImageComposition(owner.id, {
+			app.ms.imageComposition.createImageComposition(owner.id, matchingInput),
+			app.ms.imageComposition.createImageComposition(owner.id, {
 				...matchingInput,
 				idempotencyKey: `concurrent-${randomUUID()}`,
 			}),
@@ -185,13 +194,13 @@ describe('image composition persistence and authorization', function () {
 		assert.equal(await app.ms.database.models.Post.count({where: {
 			groupId: group.id,
 			type: IMAGE_COMPOSITION_POST_TYPE,
-			sourcePostId: matchingInput.compositionId,
+			entityId: matchingInput.compositionId,
 		}}), 1);
 
 		const mismatchedInput = createInput();
 		const mismatchedResults = await Promise.allSettled([
-			app.ms.group.createImageComposition(owner.id, mismatchedInput),
-			app.ms.group.createImageComposition(owner.id, {
+			app.ms.imageComposition.createImageComposition(owner.id, mismatchedInput),
+			app.ms.imageComposition.createImageComposition(owner.id, {
 				...mismatchedInput,
 				idempotencyKey: `concurrent-${randomUUID()}`,
 				stickers: [{...mismatchedInput.stickers[0], text: 'Different concurrent payload'}],
@@ -206,23 +215,23 @@ describe('image composition persistence and authorization', function () {
 		assert.equal(await app.ms.database.models.Post.count({where: {
 			groupId: group.id,
 			type: IMAGE_COMPOSITION_POST_TYPE,
-			sourcePostId: mismatchedInput.compositionId,
+			entityId: mismatchedInput.compositionId,
 		}}), 1);
 	});
 
 	it('prevents outsiders from reading or creating in private composition groups', async () => {
 		const input = createInput();
-		const created = await app.ms.group.createImageComposition(owner.id, input);
+		const created = await app.ms.imageComposition.createImageComposition(owner.id, input);
 		await assert.rejects(
-			() => app.ms.group.getImageComposition(outsider.id, created.postId),
+			() => app.ms.imageComposition.getImageComposition(outsider.id, created.postId),
 			(error: ImageCompositionApiError) => error.errorCode === 'composition_not_permitted',
 		);
 		await assert.rejects(
-			() => app.ms.group.getImageCompositions(outsider.id, group.id, {}, {limit: 10}),
+			() => app.ms.imageComposition.getImageCompositions(outsider.id, group.id, {}, {limit: 10}),
 			(error: ImageCompositionApiError) => error.errorCode === 'composition_not_permitted',
 		);
 		await assert.rejects(
-			() => app.ms.group.createImageComposition(outsider.id, {
+			() => app.ms.imageComposition.createImageComposition(outsider.id, {
 				...input,
 				idempotencyKey: `outsider-${randomUUID()}`,
 				compositionId: `outsider-${randomUUID()}`,

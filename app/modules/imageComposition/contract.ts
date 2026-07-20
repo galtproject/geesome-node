@@ -1,6 +1,6 @@
 export const IMAGE_COMPOSITION_CONTRACT = 'image-composition-v1';
 export const IMAGE_COMPOSITION_VERSION = 1;
-export const IMAGE_COMPOSITION_POST_TYPE = 'microwave-girls-image-composition';
+export const IMAGE_COMPOSITION_POST_TYPE = 'image-composition';
 export const IMAGE_COMPOSITION_VIEW = 'image-with-overlays';
 export const IMAGE_COMPOSITION_TEMPLATE = 'speech-v1';
 

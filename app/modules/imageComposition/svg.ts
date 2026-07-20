@@ -4,7 +4,7 @@ import {
 	IMAGE_COMPOSITION_LIMITS,
 	IMAGE_COMPOSITION_TEMPLATE,
 	ImageCompositionStickerInput,
-} from './imageCompositionContract.js';
+} from './contract.js';
 
 export const IMAGE_COMPOSITION_TEMPLATE_VERSION = 1;
 
