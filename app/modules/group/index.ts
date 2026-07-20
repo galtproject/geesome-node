@@ -47,6 +47,8 @@ import {
 import {
 	assertRasterBaseContent,
 	buildResolvedImageComposition,
+	canViewImageCompositionGroup,
+	doesStoredCompositionMatchCreate,
 	getImageCompositionProperties,
 	ImageCompositionApiError,
 	normalizeImageCompositionCreateInput,
@@ -1132,7 +1134,6 @@ function getModule(app: IGeesomeApp, models) {
 
 		async createImageComposition(userId: number, rawInput) {
 			const input = normalizeImageCompositionCreateInput(rawInput);
-			const baseContent = await this.getPermittedImageCompositionBase(userId, input.baseContentManifestId);
 			const [, canCreate] = await Promise.all([
 				app.checkUserCan(userId, CorePermissionName.UserGroupManagement),
 				this.canCreatePostInGroup(userId, input.groupId),
@@ -1140,6 +1141,7 @@ function getModule(app: IGeesomeApp, models) {
 			if (!canCreate) {
 				throw new ImageCompositionApiError('composition_not_permitted', 403);
 			}
+			const baseContent = await this.getPermittedImageCompositionBase(userId, input.baseContentManifestId);
 			const operation = await this.claimImageCompositionOperation(userId, 'create', input.compositionId, input);
 			if (operation.replay) {
 				return operation.response;
@@ -1159,8 +1161,12 @@ function getModule(app: IGeesomeApp, models) {
 						throw new ImageCompositionApiError('composition_idempotency_conflict', 409);
 					}
 					const recoveredPost = await this.getPostPure(existingPost.id);
+					const recoveredComposition = parseStoredImageComposition(recoveredPost);
+					if (!doesStoredCompositionMatchCreate(recoveredComposition, input)) {
+						throw new ImageCompositionApiError('composition_idempotency_conflict', 409);
+					}
 					const repairedPost = await this.applyPostManifestUpdate(userId, recoveredPost, recoveredPost.group);
-					const response = buildResolvedImageComposition(repairedPost);
+					const response = buildResolvedImageComposition(repairedPost, recoveredComposition);
 					await imageCompositionOperations.succeed(operation.id, operation.claimToken, {
 						postId: response.postId,
 						revision: response.revision,
@@ -1332,16 +1338,30 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getImageComposition(userId: number, postId) {
-			const post = await this.getPost(userId, postId);
-			if (!post) {
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			const post = await this.getPostPure(postId);
+			if (!post || post.isDeleted || post.status !== PostStatus.Published) {
 				throw new ImageCompositionApiError('composition_not_found', 404);
+			}
+			if (!(await this.canViewImageCompositionGroup(userId, post.group))) {
+				throw new ImageCompositionApiError('composition_not_permitted', 403);
 			}
 			return buildResolvedImageComposition(post);
 		}
 
 		async getImageCompositions(userId: number, groupId, filters = {}, listParams?: IListParams) {
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-			const result = await this.getGroupPosts(groupId, {...filters, type: IMAGE_COMPOSITION_POST_TYPE}, listParams);
+			groupId = await this.checkGroupId(groupId);
+			const group = await this.getGroup(groupId);
+			if (!(await this.canViewImageCompositionGroup(userId, group))) {
+				throw new ImageCompositionApiError('composition_not_permitted', 403);
+			}
+			const result = await this.getGroupPosts(groupId, {
+				...filters,
+				type: IMAGE_COMPOSITION_POST_TYPE,
+				status: PostStatus.Published,
+				isDeleted: false,
+			}, listParams);
 			return {
 				...result,
 				list: result.list.flatMap(post => {
@@ -1355,6 +1375,22 @@ function getModule(app: IGeesomeApp, models) {
 					}
 				}),
 			};
+		}
+
+		async canViewImageCompositionGroup(userId: number, group) {
+			if (!group) {
+				return false;
+			}
+			// Public compositions are readable by authenticated clients. Private-group
+			// compositions are restricted to that group's members and administrators.
+			if (group.isPublic) {
+				return true;
+			}
+			const [isMember, isAdmin] = await Promise.all([
+				this.isMemberInGroupPure(userId, group.id),
+				this.isAdminInGroupPure(userId, group.id),
+			]);
+			return canViewImageCompositionGroup(group, isMember, isAdmin);
 		}
 
 		async getPermittedImageCompositionBase(userId: number, manifestStorageId: string): Promise<IContent> {
@@ -2585,7 +2621,7 @@ function getModule(app: IGeesomeApp, models) {
 
 		async flushDatabase() {
 			await pIteration.forEachSeries([
-				'Mention', 'AutoTag', 'Tag', 'GroupRead', 'PostEvent', 'PostsContents', 'Post', 'GroupPermission',
+				'ImageCompositionOperation', 'Mention', 'AutoTag', 'Tag', 'GroupRead', 'PostEvent', 'PostsContents', 'Post', 'GroupPermission',
 				'GroupAdministrators', 'GroupMembers', 'Group'
 			], (modelName) => {
 				return models[modelName].destroy({where: {}});

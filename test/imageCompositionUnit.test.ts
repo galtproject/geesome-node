@@ -2,6 +2,8 @@ import assert from 'node:assert';
 import registerGroupApi from '../app/modules/group/api.js';
 import {
   buildResolvedImageComposition,
+  canViewImageCompositionGroup,
+  doesStoredCompositionMatchCreate,
   ImageCompositionApiError,
   normalizeImageCompositionCreateInput,
   normalizeImageCompositionUpdateInput,
@@ -72,6 +74,47 @@ describe('image composition contract integration', function () {
     assert.equal(resolved.base.previewUrl, '/ipfs/preview-cid');
     assert.equal(resolved.stickers[0].url, '/ipfs/sticker-cid');
     assert.equal(resolved.revision, 2);
+  });
+
+  it('only recovers an existing create when the complete composition input matches', function () {
+	const input: any = normalizeImageCompositionCreateInput({
+	  groupId: 4,
+	  idempotencyKey: 'new-request-key',
+	  compositionId: 'composition-id',
+	  baseContentManifestId: 'base-manifest',
+	  output: {width: 1200, height: 800},
+	  stickers: [sticker],
+	});
+	const stored: any = {
+	  version: 1,
+	  compositionId: input.compositionId,
+	  revision: 1,
+	  baseContentManifestId: input.baseContentManifestId,
+	  output: input.output,
+	  stickers: [{
+		...input.stickers[0],
+		templateVersion: 1,
+		contentManifestId: 'sticker-manifest',
+		semanticHash: `sha256:${'a'.repeat(64)}`,
+	  }],
+	};
+	assert.equal(doesStoredCompositionMatchCreate(stored, input), true);
+	assert.equal(doesStoredCompositionMatchCreate(stored, {
+	  ...input,
+	  stickers: [{...input.stickers[0], text: 'Different'}],
+	}), false);
+	assert.equal(doesStoredCompositionMatchCreate(stored, {
+	  ...input,
+	  baseContentManifestId: 'other-base',
+	}), false);
+  });
+
+  it('allows public composition reads and restricts private reads to group participants', function () {
+	assert.equal(canViewImageCompositionGroup({isPublic: true}, false, false), true);
+	assert.equal(canViewImageCompositionGroup({isPublic: false}, true, false), true);
+	assert.equal(canViewImageCompositionGroup({isPublic: false}, false, true), true);
+	assert.equal(canViewImageCompositionGroup({isPublic: false}, false, false), false);
+	assert.equal(canViewImageCompositionGroup(null, true, true), false);
   });
 
   it('registers dedicated authorized routes and preserves structured conflicts', async function () {

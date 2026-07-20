@@ -95,6 +95,21 @@ const contentManifestStorageObjectFields = [
 	'previewExtension'
 ];
 
+export function getContentServingSecurityHeaders(mimeType?: string) {
+	const headers = {
+		'X-Content-Type-Options': 'nosniff'
+	};
+	if (String(mimeType || '').split(';', 1)[0].trim().toLowerCase() !== 'image/svg+xml') {
+		return headers;
+	}
+	return {
+		...headers,
+		// SVG is an active document format. Keep stored SVG useful as an <img> source while
+		// preventing scripts, network fetches, and document-level navigation when opened directly.
+		'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+	};
+}
+
 export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
 	(await import('./api.js')).default(app, module);
@@ -1372,6 +1387,7 @@ function getModule(app: IGeesomeApp) {
 					// 'Pragma': 'no-cache',
 					// 'Expires': 0,
 					...storageResponseHeaders,
+					...getContentServingSecurityHeaders(mimeType),
 					'Cross-Origin-Resource-Policy': 'cross-origin',
 					'Content-Type': mimeType,
 					'Accept-Ranges': 'bytes',
@@ -1424,9 +1440,11 @@ function getModule(app: IGeesomeApp) {
 				contentData['Content-Length'] = dataSize;
 				contentData['x-ipfs-datasize'] = dataSize;
 			}
+			const mimeType = contentData['Content-Type'];
 			return {
 				...contentData,
 				...extraHeaders,
+				...getContentServingSecurityHeaders(mimeType),
 				'Accept-Ranges': 'bytes',
 				'Cross-Origin-Resource-Policy': 'cross-origin',
 				'cache-control': 'public, max-age=29030400, immutable',
@@ -1457,6 +1475,9 @@ function getModule(app: IGeesomeApp) {
 			log('contentType', contentType);
 			if (contentType) {
 				res.setHeader('Content-Type', contentType);
+			}
+			for (const [name, value] of Object.entries(getContentServingSecurityHeaders(contentType))) {
+				res.setHeader(name, value);
 			}
 			return preparedDataPath;
 		}

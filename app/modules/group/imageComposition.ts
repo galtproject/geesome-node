@@ -79,6 +79,28 @@ export function getImageCompositionProperties(composition: StoredImageCompositio
   return JSON.stringify({microwaveGirlsComposition: composition});
 }
 
+export function doesStoredCompositionMatchCreate(
+  composition: StoredImageComposition,
+  input: ImageCompositionCreateInput,
+): boolean {
+  if (composition.compositionId !== input.compositionId
+    || composition.baseContentManifestId !== input.baseContentManifestId
+    || composition.output.width !== input.output.width
+    || composition.output.height !== input.output.height
+    || composition.stickers.length !== input.stickers.length) {
+    return false;
+  }
+  const inputFields = ['id', 'kind', 'template', 'text', 'x', 'y', 'width', 'height', 'rotationDeg', 'zIndex'];
+  return input.stickers.every((sticker, index) => {
+    const stored = composition.stickers[index];
+    return inputFields.every(field => stored?.[field] === sticker[field]);
+  });
+}
+
+export function canViewImageCompositionGroup(group: {isPublic?: boolean} | null, isMember: boolean, isAdmin: boolean) {
+  return Boolean(group && (group.isPublic || isMember || isAdmin));
+}
+
 export function buildResolvedImageComposition(post: IPost, composition = parseStoredImageComposition(post)): ResolvedImageComposition {
   const contentsByManifest = new Map<string, IContent>();
   for (const content of post.contents || []) {
