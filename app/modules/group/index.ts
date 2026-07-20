@@ -38,6 +38,26 @@ import {
 	isProjectedRichTextContent
 } from './contentProjectionHelpers.js';
 import {getPostInputContents, stripPostContentInputFields} from './postContentInputHelpers.js';
+import {
+	IMAGE_COMPOSITION_POST_TYPE,
+	IMAGE_COMPOSITION_VIEW,
+	IMAGE_COMPOSITION_VERSION,
+	StoredImageComposition,
+} from './imageCompositionContract.js';
+import {
+	assertRasterBaseContent,
+	buildResolvedImageComposition,
+	getImageCompositionProperties,
+	ImageCompositionApiError,
+	normalizeImageCompositionCreateInput,
+	normalizeImageCompositionUpdateInput,
+	parseStoredImageComposition,
+} from './imageComposition.js';
+import {generateImageCompositionStickerSvg} from './imageCompositionSvg.js';
+import {
+	createImageCompositionOperationRepository,
+	createImageCompositionRequestHash,
+} from './imageCompositionOperationRepository.js';
 const {extend, pick, isUndefined, some, uniqBy, clone, orderBy, sumBy} = _;
 const log = debug('geesome:app:group');
 const groupDerivedStateQueueModuleName = 'group-derived-state';
@@ -212,6 +232,20 @@ function getErrorMessage(error) {
 	return String(error);
 }
 
+function doesStoredCompositionMatchUpdate(composition: StoredImageComposition, input): boolean {
+	if (composition.output.width !== input.output.width || composition.output.height !== input.output.height) {
+		return false;
+	}
+	if (composition.stickers.length !== input.stickers.length) {
+		return false;
+	}
+	const semanticFields = ['id', 'kind', 'template', 'text', 'x', 'y', 'width', 'height', 'rotationDeg', 'zIndex'];
+	return input.stickers.every((sticker, index) => {
+		const stored = composition.stickers[index];
+		return semanticFields.every(field => stored?.[field] === sticker[field]);
+	});
+}
+
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'communicator', 'storage', 'staticId', 'content', 'asyncOperation']);
 	const {sequelize, models} = app.ms.database;
@@ -223,6 +257,7 @@ export default async (app: IGeesomeApp) => {
 
 function getModule(app: IGeesomeApp, models) {
 	const {communicator} = app.ms;
+	const imageCompositionOperations = createImageCompositionOperationRepository(app.ms.database.sequelize, models);
 	let derivedStateQueueProcessPromise: Promise<any> | null = null;
 	let derivedStateQueueWorker: IBackgroundWorker | null = null;
 	let stopped = false;
@@ -1095,6 +1130,296 @@ function getModule(app: IGeesomeApp, models) {
 			return uniqBy(contentsData.filter(c => c.id), 'id');
 		}
 
+		async createImageComposition(userId: number, rawInput) {
+			const input = normalizeImageCompositionCreateInput(rawInput);
+			const baseContent = await this.getPermittedImageCompositionBase(userId, input.baseContentManifestId);
+			const [, canCreate] = await Promise.all([
+				app.checkUserCan(userId, CorePermissionName.UserGroupManagement),
+				this.canCreatePostInGroup(userId, input.groupId),
+			]);
+			if (!canCreate) {
+				throw new ImageCompositionApiError('composition_not_permitted', 403);
+			}
+			const operation = await this.claimImageCompositionOperation(userId, 'create', input.compositionId, input);
+			if (operation.replay) {
+				return operation.response;
+			}
+
+			try {
+				const existingPost = await models.Post.findOne({where: {
+					groupId: input.groupId,
+					type: IMAGE_COMPOSITION_POST_TYPE,
+					source: 'microwave-girls',
+					sourceChannelId: 'image-composition-v1',
+					sourcePostId: input.compositionId,
+					isDeleted: false,
+				}});
+				if (existingPost) {
+					if (Number(existingPost.userId) !== Number(userId)) {
+						throw new ImageCompositionApiError('composition_idempotency_conflict', 409);
+					}
+					const recoveredPost = await this.getPostPure(existingPost.id);
+					const repairedPost = await this.applyPostManifestUpdate(userId, recoveredPost, recoveredPost.group);
+					const response = buildResolvedImageComposition(repairedPost);
+					await imageCompositionOperations.succeed(operation.id, operation.claimToken, {
+						postId: response.postId,
+						revision: response.revision,
+						response,
+					});
+					return response;
+				}
+				const storedStickers = [];
+				const stickerContents: IContent[] = [];
+				for (const sticker of input.stickers) {
+					const generated = generateImageCompositionStickerSvg(sticker);
+					const content = await app.ms.content.saveData(
+						userId,
+						generated.svg,
+						`composition-${input.compositionId}-${sticker.id}.svg`,
+						{
+							mimeType: generated.mimeType,
+							view: ContentView.Attachment,
+							properties: {
+								source: 'image-composition-v1',
+								semanticHash: generated.semanticHash,
+								templateVersion: generated.templateVersion,
+							},
+						},
+					);
+					stickerContents.push(content);
+					storedStickers.push({
+						...sticker,
+						templateVersion: generated.templateVersion,
+						contentManifestId: content.manifestStorageId,
+						semanticHash: generated.semanticHash,
+					});
+				}
+				const composition: StoredImageComposition = {
+					version: IMAGE_COMPOSITION_VERSION,
+					compositionId: input.compositionId,
+					revision: 1,
+					baseContentManifestId: input.baseContentManifestId,
+					output: input.output,
+					stickers: storedStickers,
+				};
+				const post = await this.createPost(userId, {
+					groupId: input.groupId,
+					status: PostStatus.Published,
+					type: IMAGE_COMPOSITION_POST_TYPE,
+					view: IMAGE_COMPOSITION_VIEW,
+					source: 'microwave-girls',
+					sourceChannelId: 'image-composition-v1',
+					sourcePostId: input.compositionId,
+					propertiesJson: getImageCompositionProperties(composition),
+					contents: [
+						{id: baseContent.id, view: ContentView.Media},
+						...stickerContents.map(content => ({id: content.id, view: ContentView.Attachment})),
+					],
+				});
+				const response = buildResolvedImageComposition(post, composition);
+				await imageCompositionOperations.succeed(operation.id, operation.claimToken, {
+					postId: response.postId,
+					revision: response.revision,
+					response,
+				});
+				return response;
+			} catch (error) {
+				await this.failImageCompositionOperation(operation, error);
+				throw error;
+			}
+		}
+
+		async updateImageComposition(userId: number, postId, rawInput) {
+			const input = normalizeImageCompositionUpdateInput(rawInput);
+			const oldPost = await this.getPostPure(postId);
+			if (!oldPost) {
+				throw new ImageCompositionApiError('composition_not_found', 404);
+			}
+			const current = parseStoredImageComposition(oldPost);
+			const [, canEdit] = await Promise.all([
+				app.checkUserCan(userId, CorePermissionName.UserGroupManagement),
+				this.canEditPostInGroup(userId, oldPost.groupId, oldPost.id),
+			]);
+			if (!canEdit) {
+				throw new ImageCompositionApiError('composition_not_permitted', 403);
+			}
+			if (current.output.width !== input.output.width || current.output.height !== input.output.height) {
+				throw new ImageCompositionApiError('composition_invalid', 422, {field: 'output'});
+			}
+			const operation = await this.claimImageCompositionOperation(userId, 'update', String(oldPost.id), input);
+			if (operation.replay) {
+				return operation.response;
+			}
+			if (current.revision !== input.expectedRevision) {
+				if (current.revision === input.expectedRevision + 1 && doesStoredCompositionMatchUpdate(current, input)) {
+					const repairedPost = await this.applyPostManifestUpdate(userId, oldPost, oldPost.group);
+					const response = buildResolvedImageComposition(repairedPost, current);
+					await imageCompositionOperations.succeed(operation.id, operation.claimToken, {
+						postId: response.postId,
+						revision: response.revision,
+						response,
+					});
+					return response;
+				}
+				const conflict = new ImageCompositionApiError('composition_revision_conflict', 409, {currentRevision: current.revision});
+				await this.failImageCompositionOperation(operation, conflict);
+				throw conflict;
+			}
+
+			try {
+				const contentsByManifest = new Map((oldPost.contents || []).map(content => [content.manifestStorageId, content]));
+				const baseContent = contentsByManifest.get(current.baseContentManifestId);
+				assertRasterBaseContent(baseContent || null);
+				const oldStickers = new Map(current.stickers.map(sticker => [sticker.id, sticker]));
+				const nextStickers = [];
+				const nextContents: IContent[] = [];
+				for (const sticker of input.stickers) {
+					const generated = generateImageCompositionStickerSvg(sticker);
+					const oldSticker = oldStickers.get(sticker.id);
+					let content = oldSticker?.semanticHash === generated.semanticHash
+						? contentsByManifest.get(oldSticker.contentManifestId)
+						: null;
+					if (!content) {
+						content = await app.ms.content.saveData(
+							userId,
+							generated.svg,
+							`composition-${current.compositionId}-${sticker.id}-r${current.revision + 1}.svg`,
+							{
+								mimeType: generated.mimeType,
+								view: ContentView.Attachment,
+								properties: {
+									source: 'image-composition-v1',
+									semanticHash: generated.semanticHash,
+									templateVersion: generated.templateVersion,
+								},
+							},
+						);
+					}
+					nextContents.push(content);
+					nextStickers.push({
+						...sticker,
+						templateVersion: generated.templateVersion,
+						contentManifestId: content.manifestStorageId,
+						semanticHash: generated.semanticHash,
+					});
+				}
+				const composition: StoredImageComposition = {
+					...current,
+					revision: current.revision + 1,
+					stickers: nextStickers,
+				};
+				const post = await this.updatePostPure(userId, oldPost.id, {
+					propertiesJson: getImageCompositionProperties(composition),
+					contents: [
+						{id: baseContent.id, view: ContentView.Media},
+						...nextContents.map(content => ({id: content.id, view: ContentView.Attachment})),
+					],
+				}, {
+					oldPost,
+					expectedCompositionRevision: input.expectedRevision,
+				});
+				const response = buildResolvedImageComposition(post, composition);
+				await imageCompositionOperations.succeed(operation.id, operation.claimToken, {
+					postId: response.postId,
+					revision: response.revision,
+					response,
+				});
+				return response;
+			} catch (error) {
+				await this.failImageCompositionOperation(operation, error);
+				throw error;
+			}
+		}
+
+		async getImageComposition(userId: number, postId) {
+			const post = await this.getPost(userId, postId);
+			if (!post) {
+				throw new ImageCompositionApiError('composition_not_found', 404);
+			}
+			return buildResolvedImageComposition(post);
+		}
+
+		async getImageCompositions(userId: number, groupId, filters = {}, listParams?: IListParams) {
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			const result = await this.getGroupPosts(groupId, {...filters, type: IMAGE_COMPOSITION_POST_TYPE}, listParams);
+			return {
+				...result,
+				list: result.list.flatMap(post => {
+					try {
+						return [buildResolvedImageComposition(post)];
+					} catch (error) {
+						if (error instanceof ImageCompositionApiError) {
+							return [];
+						}
+						throw error;
+					}
+				}),
+			};
+		}
+
+		async getPermittedImageCompositionBase(userId: number, manifestStorageId: string): Promise<IContent> {
+			let content = await app.ms.database.getContentByManifestAndUserId(manifestStorageId, userId);
+			if (!content) {
+				content = await app.ms.database.getContentByManifestId(manifestStorageId);
+				if (content && !content.isPublic) {
+					throw new ImageCompositionApiError('composition_content_not_permitted', 403);
+				}
+			}
+			assertRasterBaseContent(content);
+			return content;
+		}
+
+		async claimImageCompositionOperation(userId: number, operationKind: 'create' | 'update', targetKey: string, request) {
+			const identity = {actorUserId: userId, operationKind, targetKey, idempotencyKey: request.idempotencyKey};
+			let claim;
+			try {
+				claim = await imageCompositionOperations.claim({
+					...identity,
+					requestHash: createImageCompositionRequestHash(request),
+				});
+			} catch (error) {
+				if ((error as Error).message === 'composition_idempotency_conflict') {
+					throw new ImageCompositionApiError('composition_idempotency_conflict', 409);
+				}
+				throw error;
+			}
+			if (claim.disposition === 'replay') {
+				return {replay: true, response: claim.result?.response};
+			}
+			if (claim.disposition === 'claimed') {
+				return {replay: false, id: claim.operation.id, claimToken: claim.claimToken};
+			}
+			for (let attempt = 0; attempt < 50; attempt += 1) {
+				await new Promise(resolve => setTimeout(resolve, 100));
+				const pending = await imageCompositionOperations.find(identity);
+				if (pending?.state === 'succeeded') {
+					return {replay: true, response: pending.resultJson ? JSON.parse(pending.resultJson) : undefined};
+				}
+				if (pending?.state === 'failed') {
+					const reclaimed = await imageCompositionOperations.claim({
+						...identity,
+						requestHash: createImageCompositionRequestHash(request),
+					});
+					if (reclaimed.disposition === 'claimed') {
+						return {replay: false, id: reclaimed.operation.id, claimToken: reclaimed.claimToken};
+					}
+				}
+			}
+			throw new ImageCompositionApiError('composition_idempotency_conflict', 409, {retryable: true});
+		}
+
+		async failImageCompositionOperation(operation, error) {
+			try {
+				await imageCompositionOperations.fail(
+					operation.id,
+					operation.claimToken,
+					error instanceof ImageCompositionApiError ? error.errorCode : 'composition_storage_failed',
+				);
+			} catch (claimError) {
+				log('failed to record image composition operation failure', claimError);
+			}
+		}
+
 		async createPost(userId, postData) {
 			postData = clone(postData);
 			log('createPost', postData);
@@ -1451,6 +1776,22 @@ function getModule(app: IGeesomeApp, models) {
 			};
 
 			await app.ms.database.sequelize.transaction(async (transaction) => {
+				if (!isUndefined(options.expectedCompositionRevision)) {
+					const lockedPost = await models.Post.findOne({
+						where: {id: postId},
+						transaction,
+						lock: transaction.LOCK.UPDATE,
+					});
+					if (!lockedPost) {
+						throw new ImageCompositionApiError('composition_not_found', 404);
+					}
+					const lockedComposition = parseStoredImageComposition(lockedPost as IPost);
+					if (lockedComposition.revision !== options.expectedCompositionRevision) {
+						throw new ImageCompositionApiError('composition_revision_conflict', 409, {
+							currentRevision: lockedComposition.revision,
+						});
+					}
+				}
 				if (isPublished && !oldPost.localId) {
 					postData.localId = await this.allocatePostLocalId({...postData, groupId: oldPost.groupId}, transaction);
 					postData.publishedAt = postData.publishedAt || oldPost.publishedAt || new Date();
@@ -1827,6 +2168,7 @@ function getModule(app: IGeesomeApp, models) {
 			[
 				'id',
 				'status',
+				'type',
 				'replyToId',
 				'repostOfId',
 				'name',

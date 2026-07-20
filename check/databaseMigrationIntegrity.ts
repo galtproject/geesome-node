@@ -228,6 +228,11 @@ const coveredMigrations: CoveredMigration[] = [
     file: '20260515000000-backfill-post-and-group-size-counters.cjs',
     verifies: ['post attachment size backfill', 'group size and availability counter backfill'],
   },
+  {
+    module: 'group',
+    file: '20260720000000-add-image-composition-post-index.cjs',
+    verifies: ['group image-composition type timeline index'],
+  },
 ];
 
 const expectedColumns: ExpectedColumn[] = [
@@ -319,6 +324,7 @@ const expectedIndexes: ExpectedIndex[] = [
   {name: 'pin_accounts_user_name_unique', table: 'pinAccounts', columns: ['userId', 'name'], unique: true},
   {name: 'pin_accounts_group_name_unique', table: 'pinAccounts', columns: ['groupId', 'name'], unique: true},
   {name: 'posts_group_timeline_idx', table: 'posts', columns: ['groupId', 'isDeleted', 'status', 'publishedAt', 'id']},
+  {name: 'posts_group_type_timeline_idx', table: 'posts', columns: ['groupId', 'type', 'isDeleted', 'status', 'publishedAt', 'id']},
   {name: 'posts_group_manifest_cursor_idx', table: 'posts', columns: ['groupId', 'status', 'updatedAt', 'id']},
   {name: 'posts_group_id_idx', table: 'posts', columns: ['groupId', 'id']},
   {name: 'posts_group_local_unique', table: 'posts', columns: ['groupId', 'localId'], unique: true},

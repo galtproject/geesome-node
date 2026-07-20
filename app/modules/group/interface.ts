@@ -6,6 +6,11 @@ import {
 } from "../database/interface.js";
 import {IUserListResponse} from "../../interface.js";
 import type {RichTextDocument} from "../../richText.js";
+import type {
+	ImageCompositionCreateInput,
+	ImageCompositionUpdateInput,
+	ResolvedImageComposition,
+} from './imageCompositionContract.js';
 
 export default interface IGeesomeGroupModule {
 	stop(): Promise<void>;
@@ -65,6 +70,18 @@ export default interface IGeesomeGroupModule {
 	updateRemotePostByObject(userId, postId, postData, options?);
 
 	updatePost(userId, postId, postData);
+
+	createImageComposition(userId: number, input: ImageCompositionCreateInput): Promise<ResolvedImageComposition>;
+
+	updateImageComposition(userId: number, postId: number, input: ImageCompositionUpdateInput): Promise<ResolvedImageComposition>;
+
+	getImageComposition(userId: number, postId: number): Promise<ResolvedImageComposition>;
+
+	getImageCompositions(userId: number, groupId: number, filters?, listParams?: IListParams): Promise<{
+		list: ResolvedImageComposition[];
+		total: number | null;
+		nextCursor?: any;
+	}>;
 
 	deletePosts(userId, postIds, options?): Promise<any>;
 
