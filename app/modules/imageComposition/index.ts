@@ -87,10 +87,9 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
 				groupId: input.groupId,
 				type: IMAGE_COMPOSITION_POST_TYPE,
 				entityId: input.compositionId,
-				isDeleted: false,
 			};
 			const recoverExistingPost = async (existingPost, options: {allowFreshOperation?: boolean; repairManifest?: boolean} = {}) => {
-				if (Number(existingPost.userId) !== Number(userId)) {
+				if (existingPost.isDeleted || Number(existingPost.userId) !== Number(userId)) {
 					throw new ImageCompositionApiError('composition_idempotency_conflict', 409);
 				}
 				const recoveredPost = await app.ms.group.getPostPure(existingPost.id);

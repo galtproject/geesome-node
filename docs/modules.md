@@ -23,6 +23,7 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 - `gateway`: [overview](../app/modules/gateway/docs/overview.md)
 - `group`: [overview](../app/modules/group/docs/overview.md)
 - `groupCategory`: [overview](../app/modules/groupCategory/docs/overview.md)
+- `imageComposition`: [overview](../app/modules/imageComposition/docs/overview.md)
 - `invite`: [overview](../app/modules/invite/docs/overview.md)
 - `pin`: [overview](../app/modules/pin/docs/overview.md)
 - `remoteContentModeration`: [overview](../app/modules/remoteContentModeration/docs/overview.md)
@@ -59,6 +60,7 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 | `gateway` | Serves frontend assets and a DNSLink-based public content gateway for IPFS/IPNS-style GET/HEAD requests. | [Overview](../app/modules/gateway/docs/overview.md) |
 | `group` | Owns groups, memberships, posts, permissions, post contents, and group manifests. | [Overview](../app/modules/group/docs/overview.md) |
 | `groupCategory` | Manages category records, group/category pivots, category member/admin pivots, category-derived post feeds, and group-section placement. | [Overview](../app/modules/groupCategory/docs/overview.md) |
+| `imageComposition` | Owns semantic SVG overlays, composition persistence, idempotency, optimistic revisions, and the compatible group-scoped composition API facade. | [Overview](../app/modules/imageComposition/docs/overview.md) |
 | `invite` | Manages invite-code status, rate-limited public join/register flows, invite-derived permissions/limits, optional group joins, and invite lifecycle. | [Overview](../app/modules/invite/docs/overview.md) |
 | `pin` | Stores pinning accounts and sends storage pin requests. | [Overview](../app/modules/pin/docs/overview.md) |
 | `remoteContentModeration` | Provides reusable policy helpers for review-first/auto-import decisions and bounded keyword/regex/source/group filters before remote content becomes visible posts. | [Overview](../app/modules/remoteContentModeration/docs/overview.md) |
@@ -80,7 +82,7 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 2. Background-worker and async-flow overviews are in place for `asyncOperation`, `autoActions`, `pin`, `staticSiteGenerator`, `socNetImport`, `activityPub`, and `bluesky`.
 3. Integration overviews are in place for `telegramClient`, `twitterClient`, `tgContentBot`, `remoteGroup`, and `communicator`.
 4. API/security/identity overviews are in place for `api`, `invite`, `foreignAccounts`, `ethereumAuthorization`, `socNetAccount`, `accountStorage`, and `staticId`.
-5. Utility/feed/moderation-helper overviews are in place for `drivers`, `gateway`, `groupCategory`, `remoteContentModeration`, and `rss`.
+5. Utility/feed/moderation-helper and composition overviews are in place for `drivers`, `gateway`, `groupCategory`, `imageComposition`, `remoteContentModeration`, and `rss`.
 6. Subagent review pass completed across all module inventory rows and overview docs; keep future reviews focused on code ownership, public API, models/storage, background jobs, user-facing behavior, and integration boundaries.
 7. Add the module-doc index to the same runtime docs-discovery path as API docs: the future `docs/README.md` portal and `/v1` discovery JSON should point agents and users to this file and to the published IPFS path when docs are pinned.
 8. Keep this index updated whenever a module gains docs, but keep detailed behavior, schemas, route lists, and migration notes inside the module docs folder.

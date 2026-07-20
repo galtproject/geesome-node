@@ -1,6 +1,6 @@
 {
   "contractVersion": "image-composition-v1",
-  "postType": "microwave-girls-image-composition",
+  "postType": "image-composition",
   "limits": {
     "maxStickers": 64,
     "maxTextLength": 500,
@@ -120,4 +120,3 @@
     }
   }
 }
-

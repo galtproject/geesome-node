@@ -219,6 +219,22 @@ describe('image composition persistence and authorization', function () {
 		}}), 1);
 	});
 
+	it('returns a structured conflict when a deleted post retains its native composition identity', async () => {
+		const input = createInput();
+		const created = await app.ms.imageComposition.createImageComposition(owner.id, input);
+		await app.ms.database.models.Post.update({isDeleted: true}, {where: {id: created.postId}});
+
+		await assert.rejects(
+			() => app.ms.imageComposition.createImageComposition(owner.id, {
+				...input,
+				idempotencyKey: `deleted-${randomUUID()}`,
+			}),
+			(error: ImageCompositionApiError) => {
+				return error.errorCode === 'composition_idempotency_conflict' && error.statusCode === 409;
+			},
+		);
+	});
+
 	it('prevents outsiders from reading or creating in private composition groups', async () => {
 		const input = createInput();
 		const created = await app.ms.imageComposition.createImageComposition(owner.id, input);
