@@ -127,7 +127,6 @@ export default async function (sequelize: Sequelize, models) {
       { fields: ['source', 'sourceChannelId', 'sourcePostId'] },
       // Scalability review slice 4 (matched by 20260506000000-add-post-timeline-indexes.cjs):
       { name: 'posts_group_timeline_idx', fields: ['groupId', 'isDeleted', 'status', 'publishedAt', 'id'] },
-      { name: 'posts_group_type_timeline_idx', fields: ['groupId', 'type', 'isDeleted', 'status', 'publishedAt', 'id'] },
       { name: 'posts_group_manifest_cursor_idx', fields: ['groupId', 'status', 'updatedAt', 'id'] },
       { name: 'posts_group_id_idx', fields: ['groupId', 'id'] },
       { name: 'posts_group_local_unique', fields: ['groupId', 'localId'], unique: true },
