@@ -34,7 +34,11 @@ describe("databaseMigrationIntegrity", function () {
       const legacyComposition = await app.ms.database.models.Post.create({
         groupId: group.id,
         userId: testUser.id,
-        status: 'published',
+        // This is a pre-migration row fixture inserted below the canonical post
+        // lifecycle. Keep it draft/zero-size so the migration audit does not
+        // mistake the fixture for a published post whose counters were skipped.
+        status: 'draft',
+        size: 0,
         type: 'microwave-girls-image-composition',
         source: 'microwave-girls',
         sourceChannelId: 'image-composition-v1',
@@ -57,7 +61,8 @@ describe("databaseMigrationIntegrity", function () {
       await assert.rejects(app.ms.database.models.Post.create({
         groupId: group.id,
         userId: testUser.id,
-        status: 'published',
+        status: 'draft',
+        size: 0,
         type: 'image-composition',
         entityId: 'legacy-composition-identity',
       }), (error: any) => error?.name === 'SequelizeUniqueConstraintError');
