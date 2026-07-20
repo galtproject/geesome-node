@@ -186,9 +186,6 @@ function normalizeOutput(input: unknown): ImageCompositionOutput {
   const value = requireObject(input);
   const width = requirePositiveInteger(value.width, 'output.width');
   const height = requirePositiveInteger(value.height, 'output.height');
-  if (width > IMAGE_COMPOSITION_LIMITS.maxExportDimension || height > IMAGE_COMPOSITION_LIMITS.maxExportDimension || width * height > IMAGE_COMPOSITION_LIMITS.maxExportPixels) {
-    throw invalid('output');
-  }
   return {width, height};
 }
 

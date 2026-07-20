@@ -46,6 +46,29 @@ describe('image composition contract integration', function () {
     }), (error: ImageCompositionApiError) => error.errorCode === 'composition_invalid');
   });
 
+  it('retains oversized natural dimensions for fallback export and rejects unsafe dimensions', function () {
+    const oversized = normalizeImageCompositionCreateInput({
+      groupId: 4,
+      idempotencyKey: 'oversized-create-key',
+      compositionId: 'oversized-composition-id',
+      baseContentManifestId: 'oversized-base-manifest',
+      output: {width: 20_000, height: 20_000},
+      stickers: [sticker],
+    });
+    assert.deepEqual(oversized.output, {width: 20_000, height: 20_000});
+
+    for (const output of [
+      {width: 0, height: 800},
+      {width: Number.POSITIVE_INFINITY, height: 800},
+      {width: Number.MAX_SAFE_INTEGER + 1, height: 800},
+    ]) {
+      assert.throws(() => normalizeImageCompositionCreateInput({
+        ...oversized,
+        output,
+      }), (error: ImageCompositionApiError) => error.errorCode === 'composition_invalid');
+    }
+  });
+
   it('builds a resolved projection only from attached portable manifest ids', function () {
     const composition: any = {
       version: 1,
