@@ -148,6 +148,44 @@ describe('image composition persistence and authorization', function () {
 		);
 	});
 
+	it('recovers matching concurrent creates and returns a structured conflict for mismatched payloads', async () => {
+		const matchingInput = createInput();
+		const matchingResults = await Promise.all([
+			app.ms.group.createImageComposition(owner.id, matchingInput),
+			app.ms.group.createImageComposition(owner.id, {
+				...matchingInput,
+				idempotencyKey: `concurrent-${randomUUID()}`,
+			}),
+		]);
+		assert.equal(matchingResults[0].postId, matchingResults[1].postId);
+		assert.equal(await app.ms.database.models.Post.count({where: {
+			groupId: group.id,
+			type: IMAGE_COMPOSITION_POST_TYPE,
+			sourcePostId: matchingInput.compositionId,
+		}}), 1);
+
+		const mismatchedInput = createInput();
+		const mismatchedResults = await Promise.allSettled([
+			app.ms.group.createImageComposition(owner.id, mismatchedInput),
+			app.ms.group.createImageComposition(owner.id, {
+				...mismatchedInput,
+				idempotencyKey: `concurrent-${randomUUID()}`,
+				stickers: [{...mismatchedInput.stickers[0], text: 'Different concurrent payload'}],
+			}),
+		]);
+		assert.equal(mismatchedResults.filter(result => result.status === 'fulfilled').length, 1);
+		const rejected = mismatchedResults.find(result => result.status === 'rejected') as PromiseRejectedResult;
+		assert(rejected);
+		assert.equal(rejected.reason.name, 'ImageCompositionApiError');
+		assert.equal(rejected.reason.errorCode, 'composition_idempotency_conflict');
+		assert.equal(rejected.reason.statusCode, 409);
+		assert.equal(await app.ms.database.models.Post.count({where: {
+			groupId: group.id,
+			type: IMAGE_COMPOSITION_POST_TYPE,
+			sourcePostId: mismatchedInput.compositionId,
+		}}), 1);
+	});
+
 	it('prevents outsiders from reading or creating in private composition groups', async () => {
 		const input = createInput();
 		const created = await app.ms.group.createImageComposition(owner.id, input);

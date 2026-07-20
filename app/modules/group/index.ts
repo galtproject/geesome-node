@@ -248,6 +248,16 @@ function doesStoredCompositionMatchUpdate(composition: StoredImageComposition, i
 	});
 }
 
+function isImageCompositionSourceIdentityUniqueError(error): boolean {
+	if ((error as any)?.name !== 'SequelizeUniqueConstraintError') {
+		return false;
+	}
+	return [
+		(error as any)?.parent?.constraint,
+		(error as any)?.original?.constraint,
+	].includes('posts_group_source_post_unique');
+}
+
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['database', 'communicator', 'storage', 'staticId', 'content', 'asyncOperation']);
 	const {sequelize, models} = app.ms.database;
@@ -1146,33 +1156,40 @@ function getModule(app: IGeesomeApp, models) {
 			if (operation.replay) {
 				return operation.response;
 			}
+			const postIdentityWhere = {
+				groupId: input.groupId,
+				type: IMAGE_COMPOSITION_POST_TYPE,
+				source: 'microwave-girls',
+				sourceChannelId: 'image-composition-v1',
+				sourcePostId: input.compositionId,
+				isDeleted: false,
+			};
+			const recoverExistingPost = async (existingPost, options: {allowFreshOperation?: boolean; repairManifest?: boolean} = {}) => {
+				if (Number(existingPost.userId) !== Number(userId)) {
+					throw new ImageCompositionApiError('composition_idempotency_conflict', 409);
+				}
+				const recoveredPost = await this.getPostPure(existingPost.id);
+				const recoveredComposition = parseStoredImageComposition(recoveredPost);
+				if ((!options.allowFreshOperation && operation.attemptCount <= 1)
+					|| !doesStoredCompositionMatchCreate(recoveredComposition, input)) {
+					throw new ImageCompositionApiError('composition_idempotency_conflict', 409);
+				}
+				const repairedPost = options.repairManifest === false
+					? recoveredPost
+					: await this.applyPostManifestUpdate(userId, recoveredPost, recoveredPost.group);
+				const response = buildResolvedImageComposition(repairedPost, recoveredComposition);
+				await imageCompositionOperations.succeed(operation.id, operation.claimToken, {
+					postId: response.postId,
+					revision: response.revision,
+					response,
+				});
+				return response;
+			};
 
 			try {
-				const existingPost = await models.Post.findOne({where: {
-					groupId: input.groupId,
-					type: IMAGE_COMPOSITION_POST_TYPE,
-					source: 'microwave-girls',
-					sourceChannelId: 'image-composition-v1',
-					sourcePostId: input.compositionId,
-					isDeleted: false,
-				}});
+				const existingPost = await models.Post.findOne({where: postIdentityWhere});
 				if (existingPost) {
-					if (Number(existingPost.userId) !== Number(userId)) {
-						throw new ImageCompositionApiError('composition_idempotency_conflict', 409);
-					}
-					const recoveredPost = await this.getPostPure(existingPost.id);
-					const recoveredComposition = parseStoredImageComposition(recoveredPost);
-					if (operation.attemptCount <= 1 || !doesStoredCompositionMatchCreate(recoveredComposition, input)) {
-						throw new ImageCompositionApiError('composition_idempotency_conflict', 409);
-					}
-					const repairedPost = await this.applyPostManifestUpdate(userId, recoveredPost, recoveredPost.group);
-					const response = buildResolvedImageComposition(repairedPost, recoveredComposition);
-					await imageCompositionOperations.succeed(operation.id, operation.claimToken, {
-						postId: response.postId,
-						revision: response.revision,
-						response,
-					});
-					return response;
+					return recoverExistingPost(existingPost);
 				}
 				const storedStickers = [];
 				const stickerContents: IContent[] = [];
@@ -1209,20 +1226,38 @@ function getModule(app: IGeesomeApp, models) {
 					output: input.output,
 					stickers: storedStickers,
 				};
-				const post = await this.createPost(userId, {
-					groupId: input.groupId,
-					status: PostStatus.Published,
-					type: IMAGE_COMPOSITION_POST_TYPE,
-					view: IMAGE_COMPOSITION_VIEW,
-					source: 'microwave-girls',
-					sourceChannelId: 'image-composition-v1',
-					sourcePostId: input.compositionId,
-					propertiesJson: getImageCompositionProperties(composition),
-					contents: [
-						{id: baseContent.id, view: ContentView.Media},
-						...stickerContents.map(content => ({id: content.id, view: ContentView.Attachment})),
-					],
-				});
+				let post;
+				try {
+					post = await this.createPost(userId, {
+						groupId: input.groupId,
+						status: PostStatus.Published,
+						type: IMAGE_COMPOSITION_POST_TYPE,
+						view: IMAGE_COMPOSITION_VIEW,
+						source: 'microwave-girls',
+						sourceChannelId: 'image-composition-v1',
+						sourcePostId: input.compositionId,
+						propertiesJson: getImageCompositionProperties(composition),
+						contents: [
+							{id: baseContent.id, view: ContentView.Media},
+							...stickerContents.map(content => ({id: content.id, view: ContentView.Attachment})),
+						],
+					});
+				} catch (error) {
+					if (!isImageCompositionSourceIdentityUniqueError(error)) {
+						throw error;
+					}
+					const concurrentPost = await models.Post.findOne({where: postIdentityWhere});
+					if (!concurrentPost) {
+						throw error;
+					}
+					// The winning create already committed the canonical post transaction. Do not
+					// race its synchronous manifest/directory publication; that path or the
+					// derived-state queue remains responsible for publishing those projections.
+					return recoverExistingPost(concurrentPost, {
+						allowFreshOperation: true,
+						repairManifest: false,
+					});
+				}
 				const response = buildResolvedImageComposition(post, composition);
 				await imageCompositionOperations.succeed(operation.id, operation.claimToken, {
 					postId: response.postId,
