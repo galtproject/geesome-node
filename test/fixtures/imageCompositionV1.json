@@ -1,0 +1,123 @@
+{
+  "contractVersion": "image-composition-v1",
+  "postType": "microwave-girls-image-composition",
+  "limits": {
+    "maxStickers": 64,
+    "maxTextLength": 500,
+    "maxTextLines": 12,
+    "maxExportPixels": 64000000,
+    "maxExportDimension": 16384,
+    "fallbackExportDimension": 4096
+  },
+  "create": {
+    "groupId": 123,
+    "idempotencyKey": "create-key-1",
+    "compositionId": "composition-1",
+    "baseContentManifestId": "base-manifest-1",
+    "output": {
+      "width": 2048,
+      "height": 2048
+    },
+    "stickers": [
+      {
+        "id": "sticker-1",
+        "kind": "text-bubble",
+        "template": "speech-v1",
+        "text": "Hello & <world>",
+        "x": 0.12,
+        "y": 0.18,
+        "width": 0.34,
+        "height": 0.19,
+        "rotationDeg": 0,
+        "zIndex": 1
+      }
+    ]
+  },
+  "update": {
+    "idempotencyKey": "update-key-1",
+    "expectedRevision": 1,
+    "output": {
+      "width": 2048,
+      "height": 2048
+    },
+    "stickers": [
+      {
+        "id": "sticker-1",
+        "kind": "text-bubble",
+        "template": "speech-v1",
+        "text": "Edited",
+        "x": 0.2,
+        "y": 0.18,
+        "width": 0.34,
+        "height": 0.19,
+        "rotationDeg": 0,
+        "zIndex": 1
+      },
+      {
+        "id": "sticker-2",
+        "kind": "text-bubble",
+        "template": "speech-v1",
+        "text": "New bubble",
+        "x": 0.55,
+        "y": 0.62,
+        "width": 0.28,
+        "height": 0.16,
+        "rotationDeg": 0,
+        "zIndex": 2
+      }
+    ]
+  },
+  "resolved": {
+    "postId": 812,
+    "type": "image-composition",
+    "version": 1,
+    "compositionId": "composition-1",
+    "revision": 1,
+    "updatedAt": "2026-07-20T12:00:00.000Z",
+    "base": {
+      "contentManifestId": "base-manifest-1",
+      "url": "https://artist.example/ipfs/base",
+      "previewUrl": "https://artist.example/ipfs/base-preview",
+      "width": 2048,
+      "height": 2048
+    },
+    "stickers": [
+      {
+        "id": "sticker-1",
+        "kind": "text-bubble",
+        "template": "speech-v1",
+        "templateVersion": 1,
+        "text": "Hello & <world>",
+        "contentManifestId": "sticker-manifest-1",
+        "semanticHash": "fixture-hash-replaced-by-generator-test",
+        "url": "https://artist.example/ipfs/sticker-1",
+        "x": 0.12,
+        "y": 0.18,
+        "width": 0.34,
+        "height": 0.19,
+        "rotationDeg": 0,
+        "zIndex": 1
+      }
+    ]
+  },
+  "errors": {
+    "revisionConflict": {
+      "status": 409,
+      "code": "composition_revision_conflict",
+      "details": {
+        "postId": 812,
+        "expectedRevision": 1,
+        "currentRevision": 2
+      }
+    },
+    "idempotencyConflict": {
+      "status": 409,
+      "code": "composition_idempotency_conflict"
+    },
+    "unknownVersion": {
+      "status": 422,
+      "code": "composition_version_unknown"
+    }
+  }
+}
+
