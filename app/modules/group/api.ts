@@ -216,8 +216,12 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiName UserGroupCreateImageComposition
      * @apiGroup UserGroup
      * @apiUse ApiKey
-     * @apiInterface (./imageCompositionContract.ts) {ImageCompositionCreateInput} apiBody
-     * @apiInterface (./imageCompositionContract.ts) {ResolvedImageComposition} apiSuccess
+     * @apiBody {Number} groupId Target group id.
+     * @apiBody {String} idempotencyKey Stable retry key.
+     * @apiBody {String} compositionId Stable composition id.
+     * @apiBody {String} baseContentManifestId Base raster content manifest id.
+     * @apiBody {Object} output Natural output dimensions.
+     * @apiBody {Object[]} stickers Validated semantic text bubbles.
      */
     app.ms.api.onAuthorizedPost('user/group/create-image-composition', async (req, res) => {
         await withImageCompositionErrorResponse(res, async () => {
@@ -231,8 +235,10 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      * @apiUse ApiKey
      * @apiParam {Number} postId Post id.
-     * @apiInterface (./imageCompositionContract.ts) {ImageCompositionUpdateInput} apiBody
-     * @apiInterface (./imageCompositionContract.ts) {ResolvedImageComposition} apiSuccess
+     * @apiBody {String} idempotencyKey Stable retry key.
+     * @apiBody {Number} expectedRevision Optimistic concurrency revision.
+     * @apiBody {Object} output Natural output dimensions.
+     * @apiBody {Object[]} stickers Complete next semantic sticker list.
      */
     app.ms.api.onAuthorizedPost('user/group/update-image-composition/:postId', async (req, res) => {
         await withImageCompositionErrorResponse(res, async () => {
@@ -246,7 +252,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      * @apiUse ApiKey
      * @apiParam {Number} postId Post id.
-     * @apiInterface (./imageCompositionContract.ts) {ResolvedImageComposition} apiSuccess
+     * @apiSuccess {Object} composition Resolved portable composition projection.
      */
     app.ms.api.onAuthorizedGet('user/group/image-composition/:postId', async (req, res) => {
         await withImageCompositionErrorResponse(res, async () => {
@@ -260,7 +266,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiGroup UserGroup
      * @apiUse ApiKey
      * @apiParam {Number} groupId Group id.
-     * @apiInterface (./imageCompositionContract.ts) {ResolvedImageComposition[]} apiSuccess
+     * @apiSuccess {Object[]} list Resolved image compositions.
+     * @apiSuccess {String} nextCursor Cursor for the next page.
      */
     app.ms.api.onAuthorizedGet('user/group/:groupId/image-compositions', async (req, res) => {
         await withImageCompositionErrorResponse(res, async () => {
