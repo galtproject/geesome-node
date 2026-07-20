@@ -1097,7 +1097,7 @@ function getModule(app: IGeesomeApp, models) {
 			return uniqBy(contentsData.filter(c => c.id), 'id');
 		}
 
-		async createPost(userId, postData) {
+		async createPost(userId, postData, options: any = {}) {
 			postData = clone(postData);
 			log('createPost', postData);
 			const [, canCreate, canReply] = await Promise.all([
@@ -1172,7 +1172,7 @@ function getModule(app: IGeesomeApp, models) {
 			// static directory, and the personal-chat encryption handshake unless the row
 			// was created as an active published post.
 			if (post.status === PostStatus.Published && !post.isDeleted) {
-				post = await this.applyPostManifestUpdate(userId, post, group);
+				post = await this.applyPostManifestUpdate(userId, post, group, options);
 				log('updatePostManifest');
 
 				if (group.isEncrypted && group.type === GroupType.PersonalChat) {

@@ -164,7 +164,7 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
 							{id: baseContent.id, view: ContentView.Media},
 							...stickerContents.map(content => ({id: content.id, view: ContentView.Attachment})),
 						],
-					});
+					}, {asyncDerivedState: false});
 				} catch (error) {
 					if (!isImageCompositionEntityUniqueError(error)) {
 						throw error;
@@ -268,6 +268,7 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
 					],
 				}, {
 					oldPost,
+					asyncDerivedState: false,
 					expectedPropertiesJson: oldPost.propertiesJson,
 					createPropertiesConflictError: lockedPost => {
 						const locked = parseStoredImageComposition(lockedPost);

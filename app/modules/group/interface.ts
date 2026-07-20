@@ -58,7 +58,7 @@ export default interface IGeesomeGroupModule {
 
 	getGroupPostPath(postId);
 
-	createPost(userId, postData);
+	createPost(userId, postData, options?: {asyncDerivedState?: boolean; [key: string]: any});
 
 	createRemotePostByObject(userId, postData, options?);
 
