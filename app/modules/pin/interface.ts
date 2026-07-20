@@ -18,6 +18,12 @@ export default interface IGeesomePinModule {
 
 	getGroupAccountsList(userId: number, groupId: number, listParams?: IListParams): Promise<IPinAccount[]>;
 
+	testAccountCredentials(userId: number, id: number): Promise<IPinAccountCredentialTestResult>;
+
+	getAccountHealth(userId: number, id: number, options?: IPinAccountHealthOptions): Promise<IPinAccountHealth>;
+
+	queueAccountReconciliation(userId: number, id: number, options?: IPinAccountReconciliationOptions): Promise<{queued: number; accountId: number}>;
+
 	pinByUserAccount(userId: number, name: string, storageId: string, options?): Promise<any>;
 
 	pinByGroupAccount(userId: number, groupId: number, name: string, storageId: string, options?): Promise<any>;
@@ -94,6 +100,53 @@ export interface IPinReconciliationQueueOptions {
 	limit?: number;
 	perAccountLimit?: number;
 	claimTtlMs?: number;
+}
+
+export interface IPinAccountCredentialTestResult {
+	ok: true;
+	service: string;
+	checkedAt: Date;
+}
+
+export interface IPinAccountHealthOptions {
+	historyLimit?: number;
+}
+
+export interface IPinAccountReconciliationOptions {
+	storageId?: string;
+	limit?: number;
+}
+
+export interface IPinAccountHealth {
+	accountId: number;
+	service?: string;
+	totalCount: number;
+	statusCounts: Record<string, number>;
+	dueReconciliationCount: number;
+	activeClaimCount: number;
+	lastCheckedAt?: Date | null;
+	lastSuccessfulCheckAt?: Date | null;
+	lastError?: {
+		storageId: string;
+		status: string;
+		code?: string | null;
+		message?: string | null;
+		failedAt?: Date | null;
+	} | null;
+	recent: IPinStorageObjectHealthEntry[];
+}
+
+export interface IPinStorageObjectHealthEntry {
+	storageId: string;
+	status: string;
+	attemptCount: number;
+	reconcileAttemptCount: number;
+	lastAttemptAt?: Date | null;
+	lastReconcileAt?: Date | null;
+	checkedAt?: Date | null;
+	nextCheckAt?: Date | null;
+	lastErrorCode?: string | null;
+	lastErrorMessage?: string | null;
 }
 
 export {PinStorageObjectStatus};

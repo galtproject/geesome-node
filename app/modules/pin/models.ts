@@ -167,6 +167,7 @@ export default async function (sequelize: Sequelize) {
 			{ name: 'pin_storage_objects_storage_status_idx', fields: ['storageId', 'status'] },
 			{ name: 'pin_storage_objects_status_check_idx', fields: ['status', 'nextCheckAt', 'id'] },
 			{ name: 'pin_storage_objects_reconcile_claim_idx', fields: ['pinAccountId', 'reconcileClaimExpiresAt', 'id'] },
+			{ name: 'pin_storage_objects_account_updated_idx', fields: ['pinAccountId', 'updatedAt', 'id'] },
 			{ name: 'pin_storage_objects_user_storage_idx', fields: ['userId', 'storageId'] },
 			{ name: 'pin_storage_objects_group_storage_idx', fields: ['groupId', 'storageId'] },
 		]

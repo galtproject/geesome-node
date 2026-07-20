@@ -96,4 +96,43 @@ describe("pin api", function () {
 
 		assert.deepEqual(await call("POST", "user/pin/delete-account/:id", {params: {id: 1}}), {success: true});
 	});
+
+	it('forwards account health, credential tests, and bounded reconciliation to the pin module', async () => {
+		const calls = [];
+		const {call} = createPinApiHarness({
+			testAccountCredentials: async (userId, id) => {
+				calls.push(['credentials', userId, id]);
+				return {ok: true, service: 'pinata', checkedAt: new Date(1000)};
+			},
+			getAccountHealth: async (userId, id, options) => {
+				calls.push(['health', userId, id, options]);
+				return {accountId: 4, totalCount: 0, statusCounts: {}, dueReconciliationCount: 0, activeClaimCount: 0, recent: []};
+			},
+			queueAccountReconciliation: async (userId, id, options) => {
+				calls.push(['reconcile', userId, id, options]);
+				return {queued: 1, accountId: 4};
+			}
+		});
+
+		const credentialResult = await call('POST', 'user/pin/account/:id/test-credentials', {
+			params: {id: 4}
+		});
+		const healthResult = await call('GET', 'user/pin/account/:id/health', {
+			params: {id: 4},
+			query: {historyLimit: '7'}
+		});
+		const reconcileResult = await call('POST', 'user/pin/account/:id/reconcile', {
+			params: {id: 4},
+			body: {storageId: 'bafy-test'}
+		});
+
+		assert.equal(credentialResult.ok, true);
+		assert.equal(healthResult.accountId, 4);
+		assert.deepEqual(reconcileResult, {queued: 1, accountId: 4});
+		assert.deepEqual(calls, [
+			['credentials', 1, 4],
+			['health', 1, 4, {historyLimit: '7'}],
+			['reconcile', 1, 4, {storageId: 'bafy-test'}]
+		]);
+	});
 });

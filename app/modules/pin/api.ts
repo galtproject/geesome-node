@@ -27,6 +27,9 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @apiError (400) GroupAutoPinPolicyInvalid Group automatic pinning must use `group-post` scope and select at least one supported target.
      * @apiError (400) UserAutoPinPolicyInvalid User automatic pinning cannot use the group-post ownership scope.
      * @apiError (400) PinAccountScopeImmutable Move credentials between user and group scopes by creating a new account instead of updating `groupId`.
+     * @apiError (400) PinStorageObjectNotFound The requested storage id has no ledger row for this account.
+     * @apiError (400) PinStorageIdInvalid The storage id must be a non-empty string.
+     * @apiError (400) PinCredentialTestUnsupported The account service or custom endpoint has no safe credential-test adapter.
      * @apiError (403) GroupPostPinNotPermitted The requested post is not a local, public, unencrypted, published post in this group.
      * @apiError (502) PinataPinFailed The remote Pinata pin request failed.
      * @apiErrorExample {json} Pin account missing
@@ -173,6 +176,75 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
         res.send({
             list: sanitizePinAccounts(await pinModule.getGroupAccountsList(req.user.id, req.params.groupId, req.query))
         });
+    });
+
+    /**
+     * @api {post} /v1/user/pin/account/:id/test-credentials Test pin account credentials
+     * @apiName UserPinTestAccountCredentials
+     * @apiGroup UserPin
+     * @apiDescription Tests the stored credentials through the provider's read-only authentication endpoint. The current user must own the direct account or be able to edit its group. The response never includes credentials or the provider response body. Custom endpoints fail closed until they have an explicit credential-test adapter.
+     *
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse PinErrors
+     *
+     * @apiParam {Number} id Pin account id.
+     * @apiInterface (./interface.ts) {IPinAccountCredentialTestResult} apiSuccess
+     *
+     * @apiExample {curl} Test Pinata credentials
+     *   curl -X POST http://localhost:2052/v1/user/pin/account/15/test-credentials \
+     *     -H "Authorization: Bearer geesome-api-key"
+     */
+    app.ms.api.onAuthorizedPost('user/pin/account/:id/test-credentials', async (req, res) => {
+        res.send(await pinModule.testAccountCredentials(req.user.id, req.params.id));
+    });
+
+    /**
+     * @api {get} /v1/user/pin/account/:id/health Get pin account health
+     * @apiName UserPinAccountHealth
+     * @apiGroup UserPin
+     * @apiDescription Returns bounded per-account ledger health for an owned direct account or editable group account. Confirmed, accepted, missing, and failed states remain distinct. Recent entries omit provider result JSON and credentials; error text is the bounded credential-redacted value stored by the pin module.
+     *
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse PinErrors
+     *
+     * @apiParam {Number} id Pin account id.
+     * @apiQuery {Number{1-50}} [historyLimit=10] Maximum recent ledger entries.
+     * @apiInterface (./interface.ts) {IPinAccountHealth} apiSuccess
+     *
+     * @apiExample {curl} Read account health
+     *   curl -X GET 'http://localhost:2052/v1/user/pin/account/15/health?historyLimit=20' \
+     *     -H "Authorization: Bearer geesome-api-key"
+     */
+    app.ms.api.onAuthorizedGet('user/pin/account/:id/health', async (req, res) => {
+        res.send(await pinModule.getAccountHealth(req.user.id, req.params.id, req.query));
+    });
+
+    /**
+     * @api {post} /v1/user/pin/account/:id/reconcile Reconcile pin account
+     * @apiName UserPinReconcileAccount
+     * @apiGroup UserPin
+     * @apiDescription Queues a bounded provider reconciliation for an owned direct account or editable group account and starts shared async queue processing. Supply `storageId` to retry one ledger row, including a missing or terminal-failure row; otherwise the least-recently-updated account rows are queued so repeated bounded runs advance through the ledger. This action never unpins remote content.
+     *
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse PinErrors
+     *
+     * @apiParam {Number} id Pin account id.
+     * @apiBody {String} [storageId] Retry one exact account/storage ledger row.
+     * @apiBody {Number{1-100}} [limit=20] Maximum rows to queue when `storageId` is omitted.
+     * @apiSuccess {Number} queued Number of ledger rows queued or already represented by a waiting unique job.
+     * @apiSuccess {Number} accountId Pin account id.
+     *
+     * @apiExample {curl} Retry one missing pin
+     *   curl -X POST http://localhost:2052/v1/user/pin/account/15/reconcile \
+     *     -H "Authorization: Bearer geesome-api-key" \
+     *     -H "Content-Type: application/json" \
+     *     -d '{"storageId":"bafy..."}'
+     */
+    app.ms.api.onAuthorizedPost('user/pin/account/:id/reconcile', async (req, res) => {
+        res.send(await pinModule.queueAccountReconciliation(req.user.id, req.params.id, req.body));
     });
 
     /**

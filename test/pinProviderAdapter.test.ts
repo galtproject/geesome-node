@@ -1,6 +1,9 @@
 import assert from 'node:assert';
 import axios from 'axios';
-import {createPinProviderInspector} from '../app/modules/pin/providerAdapter.js';
+import {
+	createPinProviderCredentialVerifier,
+	createPinProviderInspector
+} from '../app/modules/pin/providerAdapter.js';
 import {PinStorageObjectStatus} from '../app/modules/pin/stateHelpers.js';
 
 describe('pin provider adapter', function () {
@@ -92,6 +95,45 @@ describe('pin provider adapter', function () {
 		await assert.rejects(
 			() => inspect({...getAccount(), endpoint: 'https://pin.example.test/pinning/pinByHash'}, 'storage-id', new AbortController().signal),
 			(error: any) => error.retryable === true && error.message.includes('reconciliation_unsupported')
+		);
+	});
+
+	it('tests credentials through the read-only Pinata authentication endpoint', async () => {
+		let request;
+		axios.get = async (url, config) => {
+			request = {url, config};
+			return {data: {message: 'provider response must stay internal'}};
+		};
+		const verify = createPinProviderCredentialVerifier();
+
+		const result = await verify(getAccount(), new AbortController().signal);
+
+		assert.deepEqual(result, {ok: true, service: 'pinata'});
+		assert.equal(request.url, 'https://api.pinata.cloud/data/testAuthentication');
+		assert.equal(request.config.headers.pinata_api_key, 'pinata-key');
+		assert.equal(request.config.headers.pinata_secret_api_key, 'secret-value');
+	});
+
+	it('redacts credential-test failures and rejects unsupported endpoint adapters', async () => {
+		axios.get = async () => {
+			const error: any = new Error('secret-value rejected');
+			error.response = {status: 401, data: {message: 'secret-value rejected'}};
+			throw error;
+		};
+		const verify = createPinProviderCredentialVerifier();
+
+		await assert.rejects(
+			() => verify(getAccount(), new AbortController().signal),
+			(error: any) => error.status === 401
+				&& error.retryable === false
+				&& !error.details.includes('secret-value')
+		);
+		await assert.rejects(
+			() => verify(
+				{...getAccount(), endpoint: 'https://pin.example.test/pinning/pinByHash'},
+				new AbortController().signal
+			),
+			(error: any) => error.retryable === false && error.message.includes('credential_test_unsupported')
 		);
 	});
 });

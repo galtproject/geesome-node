@@ -456,6 +456,52 @@ describe("pin", function () {
 		assert.equal(deleteSafety.storageRefs.remotePinRefs, 1);
 		assert.equal(deleteSafety.storageRefs.pinProvenance.isDeletionProtected, true);
 	});
+
+	it('reports bounded account health and tests credentials without exposing provider data', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const account = await pins.createAccount(testUser.id, {
+			name: 'health-pinata',
+			service: 'pinata',
+			apiKey: 'health-key',
+			secretApiKey: 'health-secret'
+		});
+		const confirmedContent = await app.ms.content.saveData(testUser.id, 'confirmed health body', 'confirmed.txt');
+		const failedContent = await app.ms.content.saveData(testUser.id, 'failed health body', 'failed.txt');
+		await confirmPin(pins, account, confirmedContent);
+		await pins.recordPinnedStorageObject(failedContent.storageId, account, failedContent, {
+			data: {IpfsHash: failedContent.storageId}
+		});
+		await pins.updatePinStorageObjectStatus(
+			account.id,
+			failedContent.storageId,
+			PinStorageObjectStatus.TerminalFailure,
+			{error: {message: 'invalid_object', retryable: false}}
+		);
+
+		const health = await pins.getAccountHealth(testUser.id, account.id, {historyLimit: 1});
+		assert.equal(health.totalCount, 2);
+		assert.equal(health.statusCounts.confirmed, 1);
+		assert.equal(health.statusCounts.terminalFailure, 1);
+		assert.equal(health.lastError.code, 'invalid_object');
+		assert.equal(health.recent.length, 1);
+		assert.equal((health.recent[0] as any).resultJson, undefined);
+
+		const originalAxiosGet = axios.get;
+		let credentialRequest;
+		axios.get = async (url, config) => {
+			credentialRequest = {url, config};
+			return {data: {message: 'provider message must stay internal'}} as any;
+		};
+		try {
+			const credentialResult = await pins.testAccountCredentials(testUser.id, account.id);
+			assert.equal(credentialResult.ok, true);
+			assert.equal(credentialResult.service, 'pinata');
+			assert.equal((credentialResult as any).message, undefined);
+			assert.equal(credentialRequest.url, 'https://api.pinata.cloud/data/testAuthentication');
+		} finally {
+			axios.get = originalAxiosGet;
+		}
+	});
 });
 
 async function confirmPin(pins: IGeesomePinModule, account, content) {

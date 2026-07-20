@@ -1,6 +1,7 @@
 import assert from "assert";
 import {
 	normalizePinProviderError,
+	pinataAuthenticationEndpoint,
 	pinataEndpoint,
 	pinataPinJobsEndpoint,
 	pinataPinListEndpoint,
@@ -24,7 +25,7 @@ describe("pin provider request policy", function () {
 
 	it("keeps canonical Pinata reconciliation endpoints under the same request policy", async () => {
 		const signal = new AbortController().signal;
-		for (const endpoint of [pinataPinListEndpoint, pinataPinJobsEndpoint]) {
+		for (const endpoint of [pinataAuthenticationEndpoint, pinataPinListEndpoint, pinataPinJobsEndpoint]) {
 			const prepared = await preparePinProviderRequest(endpoint, signal);
 			assert.equal(prepared.endpoint, endpoint);
 			assert.equal(prepared.config.maxRedirects, 0);

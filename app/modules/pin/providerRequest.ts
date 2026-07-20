@@ -4,6 +4,7 @@ import {Agent as HttpsAgent} from "node:https";
 import {BlockList, isIP} from "node:net";
 
 export const pinataEndpoint = "https://api.pinata.cloud/pinning/pinByHash";
+export const pinataAuthenticationEndpoint = "https://api.pinata.cloud/data/testAuthentication";
 export const pinataPinListEndpoint = "https://api.pinata.cloud/data/pinList";
 export const pinataPinJobsEndpoint = "https://api.pinata.cloud/pinning/pinJobs";
 
@@ -39,7 +40,7 @@ export async function preparePinProviderRequest(
 		maxRedirects: 0,
 		maxContentLength: maxResponseLength
 	};
-	if ([pinataEndpoint, pinataPinListEndpoint, pinataPinJobsEndpoint].includes(endpoint)) {
+	if ([pinataEndpoint, pinataAuthenticationEndpoint, pinataPinListEndpoint, pinataPinJobsEndpoint].includes(endpoint)) {
 		return {endpoint, config, dispose: () => null};
 	}
 	const url = validateCustomPinProviderUrl(endpoint, options);
