@@ -86,7 +86,7 @@ describe('image composition contract integration', function () {
     const resolved = buildResolvedImageComposition({
       id: 9,
       type: IMAGE_COMPOSITION_POST_TYPE,
-      propertiesJson: JSON.stringify({microwaveGirlsComposition: composition}),
+      propertiesJson: JSON.stringify({imageComposition: composition}),
       updatedAt: new Date('2026-07-20T12:00:00Z'),
       contents: [
         {manifestStorageId: 'base-manifest', storageId: 'base-cid', mediumPreviewStorageId: 'preview-cid'},

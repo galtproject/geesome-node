@@ -61,7 +61,7 @@ export function parseStoredImageComposition(post: IPost): StoredImageComposition
   } catch (_error) {
     throw new ImageCompositionApiError('composition_invalid', 422);
   }
-  const composition = properties?.microwaveGirlsComposition;
+  const composition = properties?.imageComposition;
   if (!composition || composition.version !== IMAGE_COMPOSITION_VERSION) {
     throw new ImageCompositionApiError(
       composition ? 'composition_version_unknown' : 'composition_invalid',
@@ -76,7 +76,7 @@ export function parseStoredImageComposition(post: IPost): StoredImageComposition
 }
 
 export function getImageCompositionProperties(composition: StoredImageComposition): string {
-  return JSON.stringify({microwaveGirlsComposition: composition});
+  return JSON.stringify({imageComposition: composition});
 }
 
 export function doesStoredCompositionMatchCreate(
