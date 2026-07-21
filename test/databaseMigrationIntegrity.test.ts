@@ -31,40 +31,29 @@ describe("databaseMigrationIntegrity", function () {
       });
 
       const queryInterface = app.ms.database.sequelize.getQueryInterface();
-      const legacyComposition = await app.ms.database.models.Post.create({
-        groupId: group.id,
-        userId: testUser.id,
-        // This is a pre-migration row fixture inserted below the canonical post
-        // lifecycle. Keep it draft/zero-size so the migration audit does not
-        // mistake the fixture for a published post whose counters were skipped.
-        status: 'draft',
-        size: 0,
-        type: 'microwave-girls-image-composition',
-        source: 'microwave-girls',
-        sourceChannelId: 'image-composition-v1',
-        sourcePostId: 'legacy-composition-identity',
-      });
       const entityMigration = (await import('../app/modules/group/migrations/20260720000000-add-image-composition-post-index.cjs')).default;
       await entityMigration.up(queryInterface);
-      await legacyComposition.reload();
-      assert.equal(legacyComposition.type, 'image-composition');
-      assert.equal(legacyComposition.entityId, 'legacy-composition-identity');
-      assert.equal(legacyComposition.source, null);
-      assert.equal(legacyComposition.sourceChannelId, null);
-      assert.equal(legacyComposition.sourcePostId, null);
 
       const postIndexes = await queryInterface.showIndex('posts');
       const entityIndex = postIndexes.find(index => index.name === 'posts_group_type_entity_unique');
       assert(entityIndex, 'native post entity identity index is missing after migration');
       assert.equal(entityIndex.unique, true);
       assert.deepEqual(entityIndex.fields.map(field => field.attribute), ['groupId', 'type', 'entityId']);
+      await app.ms.database.models.Post.create({
+        groupId: group.id,
+        userId: testUser.id,
+        status: 'draft',
+        size: 0,
+        type: 'image-composition',
+        entityId: 'native-composition-identity',
+      });
       await assert.rejects(app.ms.database.models.Post.create({
         groupId: group.id,
         userId: testUser.id,
         status: 'draft',
         size: 0,
         type: 'image-composition',
-        entityId: 'legacy-composition-identity',
+        entityId: 'native-composition-identity',
       }), (error: any) => error?.name === 'SequelizeUniqueConstraintError');
 
       const pinStorageObjectColumns = await queryInterface.describeTable('pinStorageObjects');

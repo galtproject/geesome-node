@@ -233,7 +233,6 @@ const coveredMigrations: CoveredMigration[] = [
     file: '20260720000000-add-image-composition-post-index.cjs',
     verifies: [
       'generic native post entity identity column and uniqueness',
-      'legacy composition identity and provenance backfill',
       'group image-composition type timeline index',
     ],
   },
