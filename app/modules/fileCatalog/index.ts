@@ -106,141 +106,122 @@ function getModule(app: IGeesomeApp, models) {
 			return this.addContentToUserFileCatalog(userId, content, {folderId})
 		}
 
-		async getOrCreateDefaultFolderFor(userId, baseType) {
-			const folderName = upperFirst(baseType) + " Uploads";
-			while (true) {
-				const folder = await this.getFileCatalogItemByDefaultFolderFor(userId, baseType);
-				if (folder) {
-					return folder;
-				}
-
-				const name = await this.getAvailableFileCatalogItemName(userId, null, folderName);
-				try {
-					return await this.addFileCatalogItem({
-						name,
-						type: FileCatalogItemType.Folder,
-						position: (await this.getFileCatalogItemsCount(userId, null)) + 1,
-						defaultFolderFor: baseType,
-						parentItemId: null,
-						userId
-					});
-				} catch (e) {
-					if (!isFileCatalogPathUniqueError(e)) {
-						throw e;
-					}
-				}
-			}
-		}
-
 		async addContentToUserFileCatalog(userId, content: IContent, options: { groupId?, apiKey?, folderId?, path? }) {
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-			const baseType = content.mimeType ? first(content.mimeType['split']('/')) : 'other';
-
-			let parentItemId;
-
 			const groupId = (await app.ms.group.checkGroupId(options.groupId)) || null;
 
 			if (options.path) {
 				return this.saveContentByPath(content.userId, options.path, content.id);
 			}
 
-			parentItemId = options.folderId;
-
-			if (isUndefined(parentItemId) || parentItemId === 'undefined') {
-				const contentFiles = await this.getFileCatalogItemsByContent(userId, content.id, FileCatalogItemType.File);
-				if (contentFiles.length) {
-					return content;
-				}
-
-				const folder = await this.getOrCreateDefaultFolderFor(userId, baseType);
-				parentItemId = folder.id;
-			}
-
-			if (parentItemId === 'null') {
-				parentItemId = null;
-			}
-
-			if (await this.isFileCatalogItemExistWithContent(userId, parentItemId, content.id)) {
-				log(`Content ${content.id} already exists in folder`);
-				return;
-			}
-
-			const resultItem = await this.addFileCatalogItemWithAvailableName({
-				name: content.name || "Unnamed " + new Date().toISOString(),
-				type: FileCatalogItemType.File,
-				position: (await this.getFileCatalogItemsCount(userId, parentItemId)) + 1,
-				contentId: content.id,
-				size: content.size,
-				groupId,
-				parentItemId,
-				userId
+			return app.ms.database.sequelize.transaction(async transaction => {
+				await this.lockUserCatalog(userId, transaction);
+				return this.addContentToUserFileCatalogCore(userId, content, {
+					folderId: options.folderId,
+					groupId,
+					returnExistingItem: false,
+				}, transaction);
 			});
-
-			if (parentItemId) {
-				const size = await this.getFileCatalogItemsSizeSum(parentItemId);
-				await models.FileCatalogItem.update({size}, {where: {id: parentItemId}});
-			}
-
-			return resultItem;
 		}
 
 		async addContentToUserFileCatalogInTransaction(userId, content: IContent, transaction) {
+			await this.lockUserCatalog(userId, transaction);
+			return this.addContentToUserFileCatalogCore(userId, content, {
+				folderId: undefined,
+				groupId: null,
+				returnExistingItem: true,
+			}, transaction);
+		}
+
+		async lockUserCatalog(userId, transaction) {
 			await models.User.findByPk(userId, {transaction, lock: transaction.LOCK.UPDATE});
+		}
+
+		async addContentToUserFileCatalogCore(userId, content: IContent, options, transaction) {
 			const baseType = content.mimeType ? first(content.mimeType['split']('/')) : 'other';
-			let folder = await models.FileCatalogItem.findOne({
+			let parentItemId = options.folderId;
+			if (isUndefined(parentItemId) || parentItemId === 'undefined') {
+				const existingFile = await models.FileCatalogItem.findOne({
+					where: {userId, contentId: content.id, type: FileCatalogItemType.File, isDeleted: false},
+					order: [['id', 'ASC']],
+					transaction,
+				});
+				if (existingFile) {
+					return options.returnExistingItem ? existingFile : content;
+				}
+				parentItemId = (await this.getOrCreateDefaultFolderFor(userId, baseType, transaction)).id;
+			}
+			if (parentItemId === 'null') parentItemId = null;
+
+			const existingFile = await models.FileCatalogItem.findOne({
+				where: {userId, parentItemId, contentId: content.id, type: FileCatalogItemType.File, isDeleted: false},
+				transaction,
+			});
+			if (existingFile) {
+				log(`Content ${content.id} already exists in folder`);
+				return options.returnExistingItem ? existingFile : undefined;
+			}
+
+			const fileName = await this.getAvailableFileCatalogItemNameInTransaction(
+				userId,
+				parentItemId,
+				content.name || `Unnamed ${new Date().toISOString()}`,
+				transaction,
+			);
+			const item = await models.FileCatalogItem.create({
+				name: fileName,
+				type: FileCatalogItemType.File,
+				position: await models.FileCatalogItem.count({where: {userId, parentItemId, isDeleted: false}, transaction}) + 1,
+				contentId: content.id,
+				size: content.size,
+				groupId: options.groupId,
+				parentItemId,
+				userId,
+			}, {transaction});
+			if (parentItemId) {
+				const size = await models.FileCatalogItem.sum('size', {
+					where: {parentItemId, isDeleted: false}, transaction,
+				});
+				await models.FileCatalogItem.update({size}, {where: {id: parentItemId}, transaction});
+			}
+			return item;
+		}
+
+		async getOrCreateDefaultFolderFor(userId, baseType, transaction) {
+			const existing = await models.FileCatalogItem.findOne({
 				where: {userId, defaultFolderFor: baseType, type: FileCatalogItemType.Folder, isDeleted: false},
 				order: [['id', 'ASC']],
 				transaction,
 			});
-			if (!folder) {
-				const baseName = upperFirst(baseType) + ' Uploads';
-				let folderName = baseName;
-				for (let number = 1; number <= 1000; number += 1) {
-					folderName = getNumberedCatalogItemName(baseName, number);
-					const existing = await models.FileCatalogItem.findOne({
-						where: getFileCatalogPathWhere(userId, null, folderName),
-						transaction,
-					});
-					if (!existing) break;
-				}
-				folder = await models.FileCatalogItem.create({
-					name: folderName,
-					type: FileCatalogItemType.Folder,
-					position: await models.FileCatalogItem.count({where: {userId, parentItemId: null, isDeleted: false}, transaction}) + 1,
-					defaultFolderFor: baseType,
-					parentItemId: null,
-					size: 0,
-					userId,
-				}, {transaction});
-			}
-			const existingFile = await models.FileCatalogItem.findOne({
-				where: {userId, parentItemId: folder.id, contentId: content.id, type: FileCatalogItemType.File, isDeleted: false},
+			if (existing) return existing;
+			const name = await this.getAvailableFileCatalogItemNameInTransaction(
+				userId,
+				null,
+				upperFirst(baseType) + ' Uploads',
 				transaction,
-			});
-			if (existingFile) return existingFile;
-			let fileName = truncateCatalogItemName(content.name || `Unnamed ${new Date().toISOString()}`);
-			for (let number = 1; number <= 1000; number += 1) {
-				fileName = getNumberedCatalogItemName(content.name || 'Unnamed', number);
-				const existing = await models.FileCatalogItem.findOne({
-					where: getFileCatalogPathWhere(userId, folder.id, fileName),
-					transaction,
-				});
-				if (!existing) break;
-			}
-			const item = await models.FileCatalogItem.create({
-				name: fileName,
-				type: FileCatalogItemType.File,
-				position: await models.FileCatalogItem.count({where: {userId, parentItemId: folder.id, isDeleted: false}, transaction}) + 1,
-				contentId: content.id,
-				size: content.size,
-				parentItemId: folder.id,
+			);
+			return models.FileCatalogItem.create({
+				name,
+				type: FileCatalogItemType.Folder,
+				position: await models.FileCatalogItem.count({where: {userId, parentItemId: null, isDeleted: false}, transaction}) + 1,
+				defaultFolderFor: baseType,
+				parentItemId: null,
+				size: 0,
 				userId,
 			}, {transaction});
-			const size = await models.FileCatalogItem.sum('size', {
-				where: {parentItemId: folder.id, isDeleted: false}, transaction,
-			});
-			await folder.update({size}, {transaction});
-			return item;
+		}
+
+		async getAvailableFileCatalogItemNameInTransaction(userId, parentItemId, name, transaction) {
+			let number = 1;
+			while (true) {
+				const candidate = getNumberedCatalogItemName(name, number);
+				const existing = await models.FileCatalogItem.findOne({
+					where: getFileCatalogPathWhere(userId, parentItemId, candidate),
+					transaction,
+				});
+				if (!existing) return candidate;
+				number += 1;
+			}
 		}
 
 		async createUserFolder(userId, parentItemId, folderName) {

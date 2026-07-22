@@ -559,6 +559,22 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
     async getOwnedComposite(userId, manifestStorageId) {
       const content = await app.ms.database.getContentByManifestAndUserId(manifestStorageId, userId);
       if (!content) throw new ImageCompositionApiError('composition_not_found', 404);
+      // Concurrent equivalent creates can produce distinct Content rows with the
+      // same portable manifest before the identity winner is known. Always use
+      // the catalog-bound row when that manifest is the active composition.
+      const recipe = parseImageCompositionContent(content);
+      const identity = await models.ImageCompositionIdentity.findOne({
+        where: {userId, compositionId: recipe.compositionId},
+      });
+      if (identity?.fileCatalogItemId) {
+        const item = await models.FileCatalogItem.findOne({
+          where: {id: identity.fileCatalogItemId, userId, isDeleted: false},
+        });
+        const active = item
+          ? await models.Content.findOne({where: {id: item.contentId, userId, isDeleted: {[Op.ne]: true}}})
+          : null;
+        if (active?.manifestStorageId === manifestStorageId) return active;
+      }
       return content;
     }
 

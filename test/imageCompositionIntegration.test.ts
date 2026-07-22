@@ -193,10 +193,15 @@ describe('catalog-backed image composition persistence', function () {
 		]);
 		assert.equal(results[0].composite.contentManifestId, results[1].composite.contentManifestId);
 		assert.equal(results[0].fileCatalogItemId, results[1].fileCatalogItemId);
-		const content = await app.ms.database.getContentByManifestId(results[0].composite.contentManifestId);
+		const detail = await app.ms.imageComposition.getImageCompositionContent(
+			owner.id,
+			results[0].composite.contentManifestId,
+		);
+		assert.equal(detail.fileCatalogItemId, results[0].fileCatalogItemId);
+		const catalogItem = await app.ms.database.models.FileCatalogItem.findByPk(results[0].fileCatalogItemId);
 		assert.equal((await app.ms.fileCatalog.getFileCatalogItemsByContent(
 			owner.id,
-			content.id,
+			catalogItem.contentId,
 			FileCatalogItemType.File,
 		)).length, 1);
 	});
