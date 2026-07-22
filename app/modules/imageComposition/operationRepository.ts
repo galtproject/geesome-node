@@ -4,7 +4,7 @@ import {ImageCompositionOperationState} from './models/imageCompositionOperation
 
 const DEFAULT_CLAIM_TTL_MS = 5 * 60 * 1000;
 
-export type ImageCompositionOperationKind = 'create' | 'update';
+export type ImageCompositionOperationKind = 'content-create' | 'content-revision';
 
 export interface ImageCompositionOperationIdentity {
 	actorUserId: number;
@@ -20,8 +20,10 @@ export interface ImageCompositionOperationClaimInput extends ImageCompositionOpe
 }
 
 export interface ImageCompositionOperationResult {
-	postId: number;
+	fileCatalogItemId: number;
 	revision: number;
+	contentManifestId: string;
+	contentId: number;
 	response?: unknown;
 }
 
@@ -131,8 +133,11 @@ export function createImageCompositionOperationRepository(
 			const now = getNow();
 			const [updatedCount] = await ImageCompositionOperation.update({
 				state: ImageCompositionOperationState.Succeeded,
-				resultPostId: result.postId,
+				resultFileCatalogItemId: result.fileCatalogItemId,
 				resultRevision: result.revision,
+				resultContentManifestId: result.contentManifestId,
+				resultContentId: result.contentId,
+				candidateContentId: null,
 				resultJson: result.response === undefined ? null : JSON.stringify(result.response),
 				claimToken: null,
 				claimExpiresAt: null,
@@ -147,6 +152,17 @@ export function createImageCompositionOperationRepository(
 					claimToken
 				}
 			});
+			assertClaimUpdated(updatedCount);
+			return ImageCompositionOperation.findByPk(operationId);
+		},
+
+		async checkpoint(operationId: number, claimToken: string, recovery: unknown, candidateContentId?: number) {
+			const claimExpiresAt = new Date(getNow().getTime() + defaultClaimTtlMs);
+			const [updatedCount] = await ImageCompositionOperation.update({
+				recoveryJson: JSON.stringify(recovery),
+				claimExpiresAt,
+				...(candidateContentId ? {candidateContentId} : {}),
+			}, {where: {id: operationId, state: ImageCompositionOperationState.Pending, claimToken}});
 			assertClaimUpdated(updatedCount);
 			return ImageCompositionOperation.findByPk(operationId);
 		},
@@ -232,8 +248,10 @@ function assertMatchingRequestHash(operation, requestHash: string) {
 
 function getStoredResult(operation): ImageCompositionOperationResult {
 	return {
-		postId: Number(operation.resultPostId),
+		fileCatalogItemId: Number(operation.resultFileCatalogItemId),
 		revision: Number(operation.resultRevision),
+		contentManifestId: operation.resultContentManifestId,
+		contentId: Number(operation.resultContentId),
 		response: parseStoredJson(operation.resultJson)
 	};
 }
@@ -249,7 +267,7 @@ function validateClaimInput(input: ImageCompositionOperationClaimInput) {
 	if (!Number.isSafeInteger(input.actorUserId) || input.actorUserId <= 0) {
 		throw new Error('image_composition_operation_actor_required');
 	}
-	if (input.operationKind !== 'create' && input.operationKind !== 'update') {
+	if (!['content-create', 'content-revision'].includes(input.operationKind)) {
 		throw new Error('image_composition_operation_kind_invalid');
 	}
 	if (!input.targetKey || !input.idempotencyKey || !input.requestHash) {
@@ -261,8 +279,14 @@ function validateClaimInput(input: ImageCompositionOperationClaimInput) {
 }
 
 function validateResult(result: ImageCompositionOperationResult) {
-	if (!Number.isSafeInteger(result.postId) || result.postId <= 0) {
-		throw new Error('image_composition_operation_result_post_required');
+	if (!Number.isSafeInteger(result.fileCatalogItemId) || result.fileCatalogItemId <= 0) {
+		throw new Error('image_composition_operation_result_file_catalog_item_required');
+	}
+	if (!result.contentManifestId) {
+		throw new Error('image_composition_operation_result_content_required');
+	}
+	if (!Number.isSafeInteger(result.contentId) || result.contentId <= 0) {
+		throw new Error('image_composition_operation_result_content_id_required');
 	}
 	if (!Number.isSafeInteger(result.revision) || result.revision <= 0) {
 		throw new Error('image_composition_operation_result_revision_required');

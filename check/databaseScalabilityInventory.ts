@@ -54,7 +54,9 @@ function joinList(items: string[]): string {
 
 function modelRows(): ModelRow[] {
   const postSource = read('app/modules/group/models/post.ts');
-  const compositionTimelineMigrationSource = read('app/modules/group/migrations/20260720000000-add-image-composition-post-index.cjs');
+  const contentDependencySource = read('app/modules/database/models/contentDependency.ts');
+  const imageCompositionIdentitySource = read('app/modules/imageComposition/models/imageCompositionIdentity.ts');
+  const imageCompositionOperationSource = read('app/modules/imageComposition/models/imageCompositionOperation.ts');
   const postEventSource = read('app/modules/group/models/postEvent.ts');
   const groupSource = read('app/modules/group/models/group.ts');
   const groupModuleSource = read('app/modules/group/index.ts');
@@ -135,11 +137,6 @@ function modelRows(): ModelRow[] {
   const hasPostSourceUnique = has(postSource, 'posts_group_source_post_unique')
     && has(postSource, "fields: ['groupId', 'source', 'sourceChannelId', 'sourcePostId']")
     && has(postSource, 'unique: true');
-  const hasPostEntityUnique = has(compositionTimelineMigrationSource, 'posts_group_type_entity_unique')
-    && has(compositionTimelineMigrationSource, 'CREATE UNIQUE INDEX CONCURRENTLY')
-    && has(compositionTimelineMigrationSource, 'ON posts ("groupId", "type", "entityId")')
-    && has(compositionTimelineMigrationSource, 'WHERE "entityId" IS NOT NULL')
-    && !has(postSource, 'posts_group_type_entity_unique');
   const hasPostContentPositionUnique = has(postSource, 'posts_contents_post_position_unique')
     && has(postSource, "fields: ['postId', 'position']")
     && has(postSource, 'unique: true');
@@ -269,22 +266,42 @@ function modelRows(): ModelRow[] {
         'source,sourceDate',
         'source,sourceChannelId',
         'source,sourceChannelId,sourcePostId',
-        hasPostEntityUnique
-          ? 'groupId,type,entityId migration-owned unique native identity'
-          : 'missing group/type/entity native identity',
-        has(compositionTimelineMigrationSource, 'posts_group_type_timeline_idx')
-          && has(compositionTimelineMigrationSource, 'CREATE INDEX CONCURRENTLY')
-          && !has(postSource, 'posts_group_type_timeline_idx')
-          ? 'groupId,type,isDeleted,status,publishedAt,id migration-owned typed timeline index'
-          : 'missing typed group timeline index',
         hasPostSourceUnique ? 'groupId,source,sourceChannelId,sourcePostId unique source identity' : 'missing group/source unique identity',
       ],
       notes: [
         has(postSource, "fields: ['groupId'") ? 'has group index' : 'missing explicit group timeline index',
         hasPostGroupLocalUnique ? 'has group/local unique identity' : (has(postSource, "fields: ['groupId', 'localId'") ? 'has group/local lookup index' : 'missing explicit group/local lookup index'),
         hasPostSourceUnique ? 'has group/source unique import identity' : 'missing group/source unique import identity',
-        hasPostEntityUnique ? 'has group/type/entity unique native identity' : 'missing group/type/entity unique native identity',
         has(postSource, "fields: ['manifestStorageId'") ? 'has manifest lookup index' : 'missing manifest lookup index',
+      ],
+    },
+    {
+      area: 'Image composition graph',
+      source: 'app/modules/database/models/contentDependency.ts + app/modules/imageComposition/models',
+      model: 'ContentDependency / ImageCompositionIdentity / ImageCompositionOperation',
+      indexes: [
+        has(contentDependencySource, 'content_dependencies_parent_role_position_unique')
+          ? 'parentContentId,role,position unique immutable dependency slot'
+          : 'missing unique dependency slot index',
+        has(contentDependencySource, 'content_dependencies_child_role_idx')
+          ? 'childContentId,role,id reverse dependency lookup'
+          : 'missing reverse dependency lookup',
+        has(imageCompositionIdentitySource, 'image_composition_identities_user_composition_unique')
+          ? 'userId,compositionId unique root identity'
+          : 'missing composition root identity',
+        has(imageCompositionIdentitySource, 'image_composition_identities_file_catalog_item_idx')
+          ? 'stable fileCatalogItemId lineage binding lookup'
+          : 'missing composition catalog binding lookup',
+        has(imageCompositionOperationSource, 'image_composition_operations_pending_claim_idx')
+          ? 'state,claimExpiresAt,id operation claim scan'
+          : 'missing operation claim scan',
+        has(imageCompositionOperationSource, 'image_composition_operations_result_content_idx')
+          && has(imageCompositionOperationSource, 'image_composition_operations_candidate_content_idx')
+          ? 'result/candidate Content reverse-reference indexes'
+          : 'missing operation Content reverse-reference indexes',
+      ],
+      notes: [
+        'model-sync tables keep semantic recipe dependencies and idempotency identity off Post metadata; the file catalog owns listing while Content remains the immutable recipe owner',
       ],
     },
     {
@@ -825,7 +842,6 @@ function hotspotRows(): HotspotRow[] {
   const groupSource = read('app/modules/group/index.ts');
   const imageCompositionSource = read('app/modules/imageComposition/index.ts');
   const postModelSource = read('app/modules/group/models/post.ts');
-  const compositionTimelineMigrationSource = read('app/modules/group/migrations/20260720000000-add-image-composition-post-index.cjs');
   const groupModelSource = read('app/modules/group/models/group.ts');
   const postEventHelperSource = read('app/modules/group/postEventHelpers.ts');
   const postEventSource = read('app/modules/group/models/postEvent.ts');
@@ -881,11 +897,9 @@ function hotspotRows(): HotspotRow[] {
   const activityPubSource = read('app/modules/activityPub/index.ts');
   const activityPubModelSource = read('app/modules/activityPub/models.ts');
   const hasTimelineIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(postIds') && has(groupSource, "attributes: ['id', 'publishedAt']");
-  const hasIndexedCompositionTimeline = has(compositionTimelineMigrationSource, 'posts_group_type_timeline_idx')
-    && has(compositionTimelineMigrationSource, 'CREATE INDEX CONCURRENTLY')
-    && !has(postModelSource, 'posts_group_type_timeline_idx')
-    && has(imageCompositionSource, 'type: IMAGE_COMPOSITION_POST_TYPE')
-    && has(imageCompositionSource, 'async getImageCompositions');
+  const hasCatalogBackedCompositionList = has(imageCompositionSource, 'async getImageCompositionCatalogItems')
+    && has(imageCompositionSource, 'models.FileCatalogItem.findAndCountAll')
+    && has(imageCompositionSource, 'propertiesJson: {[Op.like]');
   const hasAllPostsIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(pagePosts.map')
     && (has(groupSource, "attributes: ['id']") || has(groupSource, "attributes: ['id', 'publishedAt']"));
   const hasAllPostsCursorRefs = has(groupSource, 'async getAllPostRefs')
@@ -1487,15 +1501,15 @@ function hotspotRows(): HotspotRow[] {
           : 'large offsets and eager content joins can scan/sort many rows before returning one page'),
     },
     {
-      area: 'Image composition timeline',
-      source: 'app/modules/imageComposition/index.ts + app/modules/group/models/post.ts',
-      hotspot: 'getImageCompositions',
-      observedPattern: hasIndexedCompositionTimeline
-        ? 'filters by the dedicated post type before page hydration and uses the group/type/status/publishedAt/id cursor index'
-        : 'composition listing may scan ordinary posts or lack a matching typed timeline index',
-      scalabilityRisk: hasIndexedCompositionTimeline
-        ? 'composition pages remain bounded and avoid propertiesJson scans; legacy offset callers can still request totals'
-        : 'large mixed groups could scan or hydrate unrelated ordinary posts',
+      area: 'Image composition catalog',
+      source: 'app/modules/imageComposition/index.ts + app/modules/fileCatalog/models.ts',
+      hotspot: 'getImageCompositionCatalogItems',
+      observedPattern: hasCatalogBackedCompositionList
+        ? 'filters owner file-catalog rows and joined baked Content before bounded pagination/projection'
+        : 'composition listing may filter arbitrary catalog pages in application memory',
+      scalabilityRisk: hasCatalogBackedCompositionList
+        ? 'pages are correct and bounded; the propertiesJson recipe marker remains a text predicate that may need a production expression/index if per-user catalogs become very large'
+        : 'large catalogs can return short pages or hydrate unrelated files',
     },
     {
       area: 'Global post listings',

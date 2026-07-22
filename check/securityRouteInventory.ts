@@ -97,6 +97,15 @@ function notesFor(route: RouteRow, block: string): string[] {
   if (routeLower.includes('content') || routeLower.includes('file') || routeLower.includes('ipfs')) {
     notes.add('content/storage boundary');
   }
+  if (route.moduleName === 'imageComposition') {
+    notes.add('module enforces actor-owned catalog Content and dependency authorization');
+    if (routeLower.endsWith('/image-compositions') && route.method === 'GET') {
+      notes.add('baked-only list projection; original/SVG dependency URLs omitted');
+    }
+    if (routeLower.includes('/image-compositions/:contentmanifestid')) {
+      notes.add('recipe detail restricted to the catalog owner');
+    }
+  }
   if (routeLower === '/v1/content/:contentid' && blockLower.includes('getpubliccontentmetadata')) {
     notes.add('public-safe metadata projection; private DB ids hidden');
   }

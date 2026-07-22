@@ -1,8 +1,11 @@
 export const IMAGE_COMPOSITION_CONTRACT = 'image-composition-v1';
 export const IMAGE_COMPOSITION_VERSION = 1;
-export const IMAGE_COMPOSITION_POST_TYPE = 'image-composition';
-export const IMAGE_COMPOSITION_VIEW = 'image-with-overlays';
+export const IMAGE_COMPOSITION_TYPE = 'image-composition';
 export const IMAGE_COMPOSITION_TEMPLATE = 'speech-v1';
+export const IMAGE_COMPOSITION_RENDERER = Object.freeze({
+  name: 'geesome-image-composition',
+  version: 1,
+});
 
 export const IMAGE_COMPOSITION_LIMITS = Object.freeze({
   maxStickers: 64,
@@ -10,7 +13,11 @@ export const IMAGE_COMPOSITION_LIMITS = Object.freeze({
   maxTextLines: 12,
   maxExportPixels: 64_000_000,
   maxExportDimension: 16_384,
-  fallbackExportDimension: 4_096,
+  maxDecodedBytes: 256_000_000,
+  maxInputBytes: 100_000_000,
+  maxStickerSvgBytes: 256_000,
+  maxTotalStickerSvgBytes: 4_000_000,
+  sharpTimeoutSeconds: 10,
 });
 
 export type ImageCompositionErrorCode =
@@ -23,6 +30,12 @@ export type ImageCompositionErrorCode =
   | 'composition_version_unknown'
   | 'composition_idempotency_conflict'
   | 'composition_revision_conflict'
+  | 'composition_dependency_not_found'
+  | 'composition_dependency_not_permitted'
+  | 'composition_renderer_unknown'
+  | 'composition_render_limit'
+  | 'composition_render_failed'
+  | 'composition_preview_generation_failed'
   | 'composition_svg_generation_failed'
   | 'composition_storage_failed';
 
@@ -44,19 +57,17 @@ export interface ImageCompositionStickerInput {
   zIndex: number;
 }
 
-export interface ImageCompositionCreateInput {
-  groupId: number;
+export interface ImageCompositionContentCreateInput {
   idempotencyKey: string;
   compositionId: string;
-  baseContentManifestId: string;
-  output: ImageCompositionOutput;
+  originalContentManifestId: string;
+  render?: {maxDimension: number};
   stickers: ImageCompositionStickerInput[];
 }
 
 export interface ImageCompositionUpdateInput {
   idempotencyKey: string;
   expectedRevision: number;
-  output: ImageCompositionOutput;
   stickers: ImageCompositionStickerInput[];
 }
 
@@ -67,11 +78,17 @@ export interface StoredImageCompositionSticker extends ImageCompositionStickerIn
 }
 
 export interface StoredImageComposition {
+  type: 'image-composition';
   version: number;
   compositionId: string;
   revision: number;
-  baseContentManifestId: string;
+  previousCompositeContentManifestId?: string;
+  originalContentManifestId: string;
+  render?: {maxDimension: number};
+  source: ImageCompositionOutput;
   output: ImageCompositionOutput;
+  renderer: typeof IMAGE_COMPOSITION_RENDERER;
+  recipeHash: string;
   stickers: StoredImageCompositionSticker[];
 }
 
@@ -80,13 +97,21 @@ export interface ResolvedImageCompositionSticker extends StoredImageCompositionS
 }
 
 export interface ResolvedImageComposition {
-  postId: number;
+  fileCatalogItemId: number;
   type: 'image-composition';
   version: number;
   compositionId: string;
   revision: number;
   updatedAt: string;
-  base: {
+  composite: {
+    contentManifestId: string;
+    url: string;
+    previewUrl: string;
+    mimeType: 'image/png';
+    width: number;
+    height: number;
+  };
+  original: {
     contentManifestId: string;
     url: string;
     previewUrl?: string;
@@ -96,9 +121,21 @@ export interface ResolvedImageComposition {
   stickers: ResolvedImageCompositionSticker[];
 }
 
-// Sticker SVG reuse hashes canonical UTF-8 JSON for these fields, in this order,
-// with SHA-256 hex and a `sha256:` prefix. Geometry is excluded because it is
-// applied by the composition renderer rather than embedded into the SVG.
+export interface ImageCompositionCatalogSummary {
+  fileCatalogItemId: number;
+  name: string;
+  parentItemId?: number | null;
+  position?: number;
+  type: 'image-composition';
+  version: number | null;
+  compositionId: string | null;
+  revision: number | null;
+  updatedAt: string;
+  recipeStatus: 'ready' | 'malformed' | 'unknown-version' | 'missing-dependencies';
+  editable: boolean;
+  composite: ResolvedImageComposition['composite'];
+}
+
 export const IMAGE_COMPOSITION_SEMANTIC_HASH_FIELDS = [
   'kind',
   'template',

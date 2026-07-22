@@ -771,7 +771,7 @@ function getModule(app: IGeesomeApp) {
 			return this.saveData(userId, dataToSave, fileName, options).then(c => c.storageId);
 		}
 
-		async saveData(userId: number, dataToSave, fileName, options: { view?, driver?, previews?: {content, mimeType, previewSize}, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties? } = {}) {
+		async saveData(userId: number, dataToSave, fileName, options: { view?, driver?, previews?: {content, mimeType, previewSize, driver?}[], apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties?, forceNewContentEntity?: boolean, requirePreview?: boolean, skipFileCatalog?: boolean } = {}) {
 			log('saveData');
 
 			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
@@ -839,7 +839,9 @@ function getModule(app: IGeesomeApp) {
 				storageFile = resultFile;
 				log('checkFileSizeAndSaveByStream extension', extension, 'mimeType', mimeType);
 
-				let existsContent = await app.ms.database.getContentByStorageAndUserId(storageFile.id, userId);
+				let existsContent = options.forceNewContentEntity
+					? null
+					: await app.ms.database.getContentByStorageAndUserId(storageFile.id, userId);
 				log('existsContent', !!existsContent);
 				if (existsContent) {
 					log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
@@ -963,7 +965,13 @@ function getModule(app: IGeesomeApp) {
 					log('driver raw, skip previews');
 				} else if (options.previews) {
 					await pIteration.forEachSeries(options.previews, async (p: any) => {
-						const result = await this.checkFileSizeAndSaveByStream(userId, p.content, p.mimeType, {waitForPin: options.waitForPin});
+						const previewStream = isString(p.content) || isBuffer(p.content)
+							? Readable.from([p.content])
+							: p.content;
+						const result = await this.checkFileSizeAndSaveByStream(userId, previewStream, p.mimeType, {
+							waitForPin: options.waitForPin,
+							driver: p.driver,
+						});
 						log('result', result);
 						previewData[p.previewSize + 'PreviewStorageId'] = result.resultFile.id;
 						previewData[p.previewSize + 'PreviewSize'] = result.resultFile.size;
@@ -990,6 +998,9 @@ function getModule(app: IGeesomeApp) {
 					}
 				}
 
+				if (options.requirePreview && (!previewData['mediumPreviewStorageId'] || !String(previewData['previewMimeType'] || '').startsWith('image/'))) {
+					throw new Error('content_required_preview_failed');
+				}
 				return await this.addContent(userId, {
 					...contentData,
 					...previewData

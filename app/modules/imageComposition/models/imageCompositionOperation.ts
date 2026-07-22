@@ -44,11 +44,26 @@ export default async function (sequelize: Sequelize, models) {
       allowNull: false,
       defaultValue: 1
     },
-    resultPostId: {
-      type: DataTypes.INTEGER
+	resultFileCatalogItemId: {
+	  type: DataTypes.INTEGER,
+	  references: {model: models.FileCatalogItem, key: 'id'},
+	  onDelete: 'SET NULL'
     },
     resultRevision: {
       type: DataTypes.INTEGER
+    },
+    resultContentManifestId: {
+      type: DataTypes.STRING(200)
+    },
+    resultContentId: {
+      type: DataTypes.INTEGER,
+      references: {model: models.Content, key: 'id'},
+      onDelete: 'RESTRICT'
+    },
+    candidateContentId: {
+      type: DataTypes.INTEGER,
+      references: {model: models.Content, key: 'id'},
+      onDelete: 'RESTRICT'
     },
     resultJson: {
       type: DataTypes.TEXT
@@ -77,8 +92,16 @@ export default async function (sequelize: Sequelize, models) {
         fields: ['state', 'claimExpiresAt', 'id']
       },
       {
-        name: 'image_composition_operations_result_post_idx',
-        fields: ['resultPostId', 'id']
+		name: 'image_composition_operations_result_file_catalog_item_idx',
+		fields: ['resultFileCatalogItemId', 'id']
+      },
+      {
+        name: 'image_composition_operations_result_content_idx',
+        fields: ['resultContentId', 'id']
+      },
+      {
+        name: 'image_composition_operations_candidate_content_idx',
+        fields: ['candidateContentId', 'id']
       }
     ]
   } as any);

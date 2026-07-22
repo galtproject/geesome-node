@@ -28,10 +28,6 @@ export default async function (sequelize: Sequelize, models) {
     type: {
       type: DataTypes.STRING(200)
     },
-    entityId: {
-      type: DataTypes.STRING(200),
-      allowNull: true
-    },
     view: {
       type: DataTypes.STRING(200)
     },

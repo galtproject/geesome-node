@@ -184,6 +184,65 @@ function getModule(app: IGeesomeApp, models) {
 			return resultItem;
 		}
 
+		async addContentToUserFileCatalogInTransaction(userId, content: IContent, transaction) {
+			await models.User.findByPk(userId, {transaction, lock: transaction.LOCK.UPDATE});
+			const baseType = content.mimeType ? first(content.mimeType['split']('/')) : 'other';
+			let folder = await models.FileCatalogItem.findOne({
+				where: {userId, defaultFolderFor: baseType, type: FileCatalogItemType.Folder, isDeleted: false},
+				order: [['id', 'ASC']],
+				transaction,
+			});
+			if (!folder) {
+				const baseName = upperFirst(baseType) + ' Uploads';
+				let folderName = baseName;
+				for (let number = 1; number <= 1000; number += 1) {
+					folderName = getNumberedCatalogItemName(baseName, number);
+					const existing = await models.FileCatalogItem.findOne({
+						where: getFileCatalogPathWhere(userId, null, folderName),
+						transaction,
+					});
+					if (!existing) break;
+				}
+				folder = await models.FileCatalogItem.create({
+					name: folderName,
+					type: FileCatalogItemType.Folder,
+					position: await models.FileCatalogItem.count({where: {userId, parentItemId: null, isDeleted: false}, transaction}) + 1,
+					defaultFolderFor: baseType,
+					parentItemId: null,
+					size: 0,
+					userId,
+				}, {transaction});
+			}
+			const existingFile = await models.FileCatalogItem.findOne({
+				where: {userId, parentItemId: folder.id, contentId: content.id, type: FileCatalogItemType.File, isDeleted: false},
+				transaction,
+			});
+			if (existingFile) return existingFile;
+			let fileName = truncateCatalogItemName(content.name || `Unnamed ${new Date().toISOString()}`);
+			for (let number = 1; number <= 1000; number += 1) {
+				fileName = getNumberedCatalogItemName(content.name || 'Unnamed', number);
+				const existing = await models.FileCatalogItem.findOne({
+					where: getFileCatalogPathWhere(userId, folder.id, fileName),
+					transaction,
+				});
+				if (!existing) break;
+			}
+			const item = await models.FileCatalogItem.create({
+				name: fileName,
+				type: FileCatalogItemType.File,
+				position: await models.FileCatalogItem.count({where: {userId, parentItemId: folder.id, isDeleted: false}, transaction}) + 1,
+				contentId: content.id,
+				size: content.size,
+				parentItemId: folder.id,
+				userId,
+			}, {transaction});
+			const size = await models.FileCatalogItem.sum('size', {
+				where: {parentItemId: folder.id, isDeleted: false}, transaction,
+			});
+			await folder.update({size}, {transaction});
+			return item;
+		}
+
 		async createUserFolder(userId, parentItemId, folderName) {
 			await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
 			return this.addFileCatalogItem({
@@ -646,13 +705,13 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async afterContentAdding(userId, content: IContent, options) {
-			if (await app.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
+			if (!options?.skipFileCatalog && await app.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
 				await this.addContentToUserFileCatalog(userId, content, options);
 			}
 		}
 
 		async existsContentAdding(userId, content: IContent, options) {
-			if (await app.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
+			if (!options?.skipFileCatalog && await app.isUserCan(userId, CorePermissionName.UserFileCatalogManagement)) {
 				await this.addContentToUserFileCatalog(userId, content, options);
 			}
 		}

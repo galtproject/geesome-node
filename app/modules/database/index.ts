@@ -19,6 +19,7 @@ import config from './config.js';
 import {
   ContentDeleteSafetyBlockerScope,
   IContent,
+  IContentDependencyRecord,
   IContentDeleteSafetyBlocker,
   IGeesomeDatabaseModule,
   IStorageIdReferenceOptions,
@@ -243,7 +244,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
 
   async flushDatabase() {
     await pIteration.forEachSeries([
-      'CorePermission', 'UserContentAction', 'UserLimit', 'Content', 'StorageObjectReference', 'StorageObject', 'StorageSpaceAvailabilitySample', 'StorageSpaceSnapshot', 'UserApiKey', 'User', 'Value', 'Object'
+      'CorePermission', 'UserContentAction', 'UserLimit', 'ContentDependency', 'Content', 'StorageObjectReference', 'StorageObject', 'StorageSpaceAvailabilitySample', 'StorageSpaceSnapshot', 'UserApiKey', 'User', 'Value', 'Object'
     ], (modelName) => {
       return this.models[modelName].destroy({where: {}});
     });
@@ -437,6 +438,75 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     return this.sequelize.transaction(run);
   }
 
+  async syncContentDependencies(
+    parentContentId: number,
+    dependencies: Partial<IContentDependencyRecord>[],
+    options: any = {}
+  ) {
+    if (!Number.isSafeInteger(Number(parentContentId)) || Number(parentContentId) <= 0) {
+      return [];
+    }
+    const run = async (transaction) => {
+      const expected = dependencies.map(dependency => ({
+        childContentId: Number(dependency.childContentId),
+        role: dependency.role,
+        position: Number(dependency.position),
+      })).sort(compareContentDependencies);
+      const existing = await this.models.ContentDependency.findAll({
+        where: {parentContentId},
+        order: [['role', 'ASC'], ['position', 'ASC'], ['id', 'ASC']],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (existing.length) {
+        const actual = existing.map(dependency => ({
+          childContentId: Number(dependency.childContentId),
+          role: dependency.role,
+          position: Number(dependency.position),
+        })).sort(compareContentDependencies);
+        if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+          throw new Error('content_dependency_conflict');
+        }
+        return existing;
+      }
+      if (!dependencies.length) {
+        return [];
+      }
+      await this.models.ContentDependency.bulkCreate(dependencies.map(dependency => ({
+        parentContentId,
+        childContentId: dependency.childContentId,
+        role: dependency.role,
+        position: dependency.position,
+      })), {transaction, ignoreDuplicates: true});
+      const stored = await this.models.ContentDependency.findAll({
+        where: {parentContentId},
+        order: [['role', 'ASC'], ['position', 'ASC'], ['id', 'ASC']],
+        transaction,
+      });
+      const actual = stored.map(dependency => ({
+        childContentId: Number(dependency.childContentId),
+        role: dependency.role,
+        position: Number(dependency.position),
+      })).sort(compareContentDependencies);
+      if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+        throw new Error('content_dependency_conflict');
+      }
+      return stored;
+    };
+    if (options.transaction) {
+      return run(options.transaction);
+    }
+    return this.sequelize.transaction(run);
+  }
+
+  async getContentDependencies(parentContentId: number, options: any = {}) {
+    return this.models.ContentDependency.findAll({
+      where: {parentContentId},
+      order: [['role', 'ASC'], ['position', 'ASC'], ['id', 'ASC']],
+      transaction: options.transaction,
+    });
+  }
+
   async markStorageObjectPinnedByContent(content, options: any = {}) {
     const storageObject = await this.syncStorageObjectForContent(content, options);
     if (!storageObject) {
@@ -564,15 +634,18 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   // A1 reference-count helper for a specific Content row. Used by delete paths to detect
   // attachments/avatars/covers/file-catalog references that would orphan if the row is destroyed.
   async countContentReferences(contentId) {
-    const [posts, fileCatalogItems, groupAvatars, groupCovers, userAvatars, pinnedContents] = await Promise.all([
+    const [posts, contentDependencies, imageCompositionOperations, imageCompositionIdentities, fileCatalogItems, groupAvatars, groupCovers, userAvatars, pinnedContents] = await Promise.all([
       this.models.PostsContents.count({where: {contentId}}),
+      this.models.ContentDependency.count({where: {childContentId: contentId}}),
+      this.models.ImageCompositionOperation ? this.models.ImageCompositionOperation.count({where: {[Op.or]: [{resultContentId: contentId}, {candidateContentId: contentId}]}}) : 0,
+      this.models.ImageCompositionIdentity ? this.models.ImageCompositionIdentity.count({where: {rootContentId: contentId}}) : 0,
       this.models.FileCatalogItem.count({where: {contentId}}),
       this.models.Group.count({where: {avatarImageId: contentId}}),
       this.models.Group.count({where: {coverImageId: contentId}}),
       this.models.User.count({where: {avatarImageId: contentId}}),
       this.models.Content.count({where: getActiveContentWhere({id: contentId, isPinned: true})}),
     ]);
-    return {posts, fileCatalogItems, groupAvatars, groupCovers, userAvatars, pinnedContents};
+    return {posts, contentDependencies, imageCompositionOperations, imageCompositionIdentities, fileCatalogItems, groupAvatars, groupCovers, userAvatars, pinnedContents};
   }
 
   async getContentDeleteSafety(content, options: {allowedFileCatalogItems?: number; excludeFileCatalogItemId?: number} = {}) {
@@ -1200,6 +1273,9 @@ function getStorageObjectDeleteSafety(storageId, storageRefs) {
 function getContentDeleteContentBlockers(contentRefs, options): IContentDeleteSafetyBlocker[] {
   return [
     getContentDeleteBlocker('content', 'posts', contentRefs.posts),
+    getContentDeleteBlocker('content', 'contentDependencies', contentRefs.contentDependencies),
+    getContentDeleteBlocker('content', 'imageCompositionOperations', contentRefs.imageCompositionOperations),
+    getContentDeleteBlocker('content', 'imageCompositionIdentities', contentRefs.imageCompositionIdentities),
     getContentDeleteBlocker(
       'content',
       'fileCatalogItems',
@@ -1355,6 +1431,12 @@ function getStorageObjectReferenceUpdateData(storageObjectReference, referenceDa
 
 function getUniqueStorageReferenceTargets(references: Partial<IStorageObjectReferenceRecord>[] = []) {
   return [...new Set(references.map(reference => reference.targetStorageId).filter(Boolean))];
+}
+
+function compareContentDependencies(left, right) {
+  return String(left.role).localeCompare(String(right.role))
+    || Number(left.position) - Number(right.position)
+    || Number(left.childContentId) - Number(right.childContentId);
 }
 
 export async function initializeDatabaseModels(sequelize, loadModels = loadDatabaseModels) {

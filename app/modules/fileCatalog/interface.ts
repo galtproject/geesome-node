@@ -45,6 +45,8 @@ export default interface IGeesomeFileCatalogModule {
 	getFileCatalogItemByPath(userId, path, type: FileCatalogItemType): Promise<IFileCatalogItem>;
 
 	addContentToUserFileCatalog(userId, content: IContent, options?: { groupId?, apiKey?, folderId?, path? });
+
+	addContentToUserFileCatalogInTransaction(userId, content: IContent, transaction): Promise<IFileCatalogItem>;
 }
 
 export interface IFileCatalogItem {

@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import {randomUUID} from 'node:crypto';
-import {Op, Sequelize} from 'sequelize';
+import {DataTypes, Op, Sequelize} from 'sequelize';
 import databaseConfig from '../app/modules/database/config.js';
 import defineImageCompositionOperation, {
 	ImageCompositionOperationState
@@ -25,7 +25,15 @@ describe('image composition operation persistence', function () {
 			pool: {max: 12, min: 0, acquire: 10_000, idle: 1_000},
 			logging: false
 		});
-		models = {};
+		models = {
+			Content: sequelize.define('content', {
+				name: DataTypes.STRING(200),
+				isDeleted: {type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false},
+			}),
+		};
+		await models.Content.sync({});
+		models.FileCatalogItem = sequelize.define('fileCatalogItem', {name: DataTypes.STRING(200)});
+		await models.FileCatalogItem.sync({});
 		await defineImageCompositionOperation(sequelize, models);
 		repository = createImageCompositionOperationRepository(sequelize, models);
 	});
@@ -38,6 +46,7 @@ describe('image composition operation persistence', function () {
 		await models.ImageCompositionOperation.destroy({
 			where: {targetKey: {[Op.like]: `${targetPrefix}%`}}
 		});
+		await models.Content.destroy({where: {name: {[Op.like]: `${targetPrefix}%`}}});
 	});
 
 	after(async () => {
@@ -86,28 +95,57 @@ describe('image composition operation persistence', function () {
 	it('stores a successful result and replays it without claiming again', async () => {
 		const input = getClaimInput(`${targetPrefix}-success`, {value: 'success'});
 		const claim = await repository.claim(input);
+		const content = await models.Content.create({name: `${targetPrefix}-result`});
+		const catalogItem = await models.FileCatalogItem.create({name: `${targetPrefix}-item`});
 		assert.equal(claim.disposition, 'claimed');
 
 		await repository.succeed(claim.operation.id, claim.claimToken, {
-			postId: 812,
+			fileCatalogItemId: catalogItem.id,
 			revision: 2,
+			contentManifestId: 'composite-manifest',
+			contentId: content.id,
 			response: {compositionId: 'composition-1', revision: 2}
 		});
 		const replay = await repository.claim(input);
 
 		assert.equal(replay.disposition, 'replay');
 		assert.deepEqual(replay.result, {
-			postId: 812,
+			fileCatalogItemId: catalogItem.id,
 			revision: 2,
+			contentManifestId: 'composite-manifest',
+			contentId: content.id,
 			response: {compositionId: 'composition-1', revision: 2}
 		});
 		assert.equal(replay.operation.state, ImageCompositionOperationState.Succeeded);
 		assert.equal(replay.operation.attemptCount, 1);
 	});
 
+	it('checkpoints the durable candidate and fences stale claim tokens', async () => {
+		const input = getClaimInput(`${targetPrefix}-checkpoint`, {value: 'checkpoint'});
+		const claim = await repository.claim(input);
+		const candidate = await models.Content.create({name: `${targetPrefix}-candidate`});
+		await repository.checkpoint(claim.operation.id, claim.claimToken, {
+			stickerContentManifestIds: ['sticker-manifest'],
+			compositeContentManifestId: 'candidate-manifest',
+		}, candidate.id);
+
+		const stored = await repository.find(input);
+		assert.equal(Number(stored.candidateContentId), Number(candidate.id));
+		assert.deepEqual(JSON.parse(stored.recoveryJson), {
+			stickerContentManifestIds: ['sticker-manifest'],
+			compositeContentManifestId: 'candidate-manifest',
+		});
+		await assert.rejects(
+			() => repository.checkpoint(claim.operation.id, 'stale-token', {}, candidate.id),
+			(error: Error) => error.message === 'image_composition_operation_claim_lost',
+		);
+	});
+
 	it('recovers failed work with a new guarded claim and retained recovery data', async () => {
 		const input = getClaimInput(`${targetPrefix}-failed`, {value: 'failed'});
 		const firstClaim = await repository.claim(input);
+		const staleContent = await models.Content.create({name: `${targetPrefix}-stale-result`});
+		const staleCatalogItem = await models.FileCatalogItem.create({name: `${targetPrefix}-stale-item`});
 		await repository.fail(
 			firstClaim.operation.id,
 			firstClaim.claimToken,
@@ -124,7 +162,12 @@ describe('image composition operation persistence', function () {
 		assert.notEqual(retryClaim.claimToken, firstClaim.claimToken);
 		assert.equal(retryClaim.operation.attemptCount, 2);
 		await assert.rejects(
-			() => repository.succeed(firstClaim.operation.id, firstClaim.claimToken, {postId: 812, revision: 1}),
+			() => repository.succeed(firstClaim.operation.id, firstClaim.claimToken, {
+				fileCatalogItemId: staleCatalogItem.id,
+				revision: 1,
+				contentManifestId: 'stale-manifest',
+				contentId: staleContent.id,
+			}),
 			(error: Error) => error.message === 'image_composition_operation_claim_lost'
 		);
 	});
@@ -152,7 +195,7 @@ describe('image composition operation persistence', function () {
 		const claims = await Promise.all([
 			repository.claim(base),
 			repository.claim({...base, actorUserId: base.actorUserId + 1}),
-			repository.claim({...base, operationKind: 'update'}),
+			repository.claim({...base, operationKind: 'content-revision'}),
 			repository.claim({...base, targetKey: `${targetPrefix}-scope-b`})
 		]);
 
@@ -166,7 +209,7 @@ describe('image composition operation persistence', function () {
 function getClaimInput(targetKey: string, request) {
 	return {
 		actorUserId: 12001,
-		operationKind: 'create' as const,
+		operationKind: 'content-create' as const,
 		targetKey,
 		idempotencyKey: 'idempotency-key',
 		requestHash: createImageCompositionRequestHash(request)

@@ -386,7 +386,6 @@ export interface IPost {
 	source?: string;
 	sourceChannelId?: string;
 	sourcePostId?: string;
-	entityId?: string;
 	sourceDate?;
 
 	encryptedManifestStorageId?: string;
@@ -544,7 +543,6 @@ export interface IPostApiResponse {
 	source?: string;
 	sourceChannelId?: string;
 	sourcePostId?: string;
-	entityId?: string;
 	sourceDate?: any;
 	encryptedManifestStorageId?: string;
 	createdAt: any;

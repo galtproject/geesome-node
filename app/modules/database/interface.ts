@@ -63,6 +63,10 @@ export interface IGeesomeDatabaseModule {
 
   replaceStorageObjectReferences(sourceStorageId: string, referenceType: StorageObjectReferenceType, references: Partial<IStorageObjectReferenceRecord>[], options?): Promise<IStorageObjectReferenceRecord[]>;
 
+  syncContentDependencies(parentContentId: number, dependencies: Partial<IContentDependencyRecord>[], options?): Promise<IContentDependencyRecord[]>;
+
+  getContentDependencies(parentContentId: number, options?): Promise<IContentDependencyRecord[]>;
+
   markStorageObjectPinnedByContent(content: IContent, options?): Promise<IStorageObjectRecord>;
 
   getSharedStorageMetadataByStorageId(storageId, opts?: {includePreviews?: boolean}): Promise<IStorageObjectRecord | IContent>;
@@ -318,6 +322,9 @@ export interface IStorageIdReferenceOptions {
 
 export interface IContentReferenceCounts {
   posts: number;
+  contentDependencies: number;
+  imageCompositionOperations: number;
+  imageCompositionIdentities: number;
   fileCatalogItems: number;
   groupAvatars: number;
   groupCovers: number;
@@ -398,6 +405,20 @@ export enum ContentStorageType {
 export enum StorageObjectReferenceType {
   GeneratedOutputChild = 'generated-output-child',
   Preview = 'preview'
+}
+
+export enum ContentDependencyRole {
+  ImageCompositionOriginal = 'image-composition-original',
+  ImageCompositionSticker = 'image-composition-sticker'
+}
+
+export interface IContentDependencyRecord {
+  id?: number;
+  parentContentId: number;
+  childContentId: number;
+  role: ContentDependencyRole;
+  position: number;
+  toJSON?(): any;
 }
 
 export enum ContentMimeType {

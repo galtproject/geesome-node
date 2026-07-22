@@ -1,18 +1,19 @@
+import {createHash} from 'node:crypto';
+import type {IContent} from '../database/interface.js';
 import {
   IMAGE_COMPOSITION_LIMITS,
-  IMAGE_COMPOSITION_POST_TYPE,
+  IMAGE_COMPOSITION_TYPE,
+  IMAGE_COMPOSITION_RENDERER,
   IMAGE_COMPOSITION_TEMPLATE,
   IMAGE_COMPOSITION_VERSION,
-  ImageCompositionCreateInput,
-  ImageCompositionOutput,
+  ImageCompositionContentCreateInput,
   ImageCompositionStickerInput,
   ImageCompositionUpdateInput,
   ResolvedImageComposition,
   StoredImageComposition,
 } from './contract.js';
-import {validateImageCompositionStickerSemanticInput} from './svg.js';
-import type {IContent} from '../database/interface.js';
-import type {IPost} from '../group/interface.js';
+import {canonicalizeImageCompositionRequest} from './operationRepository.js';
+import {getImageCompositionStickerSemanticHash, validateImageCompositionStickerSemanticInput} from './svg.js';
 
 export class ImageCompositionApiError extends Error {
   readonly errorCode: string;
@@ -28,16 +29,17 @@ export class ImageCompositionApiError extends Error {
   }
 }
 
-export function normalizeImageCompositionCreateInput(input: unknown): ImageCompositionCreateInput {
+export function normalizeImageCompositionContentCreateInput(input: unknown): ImageCompositionContentCreateInput {
   const value = requireObject(input);
-  const stickers = normalizeStickers(value.stickers, false);
+  if (value.source !== undefined || value.output !== undefined || value.renderer !== undefined) {
+    throw invalid('output');
+  }
   return {
-    groupId: requirePositiveInteger(value.groupId, 'groupId'),
     idempotencyKey: requireIdentifier(value.idempotencyKey, 'idempotencyKey'),
     compositionId: requireIdentifier(value.compositionId, 'compositionId'),
-    baseContentManifestId: requireIdentifier(value.baseContentManifestId, 'baseContentManifestId'),
-    output: normalizeOutput(value.output),
-    stickers,
+    originalContentManifestId: requireIdentifier(value.originalContentManifestId, 'originalContentManifestId'),
+    ...(value.render === undefined ? {} : {render: normalizeRender(value.render)}),
+    stickers: normalizeStickers(value.stickers, true),
   };
 }
 
@@ -46,98 +48,151 @@ export function normalizeImageCompositionUpdateInput(input: unknown): ImageCompo
   return {
     idempotencyKey: requireIdentifier(value.idempotencyKey, 'idempotencyKey'),
     expectedRevision: requirePositiveInteger(value.expectedRevision, 'expectedRevision'),
-    output: normalizeOutput(value.output),
     stickers: normalizeStickers(value.stickers, true),
   };
 }
 
-export function parseStoredImageComposition(post: IPost): StoredImageComposition {
-  if (!post || post.type !== IMAGE_COMPOSITION_POST_TYPE) {
+export function parseImageCompositionContent(content: IContent): StoredImageComposition {
+  if (!content || content.isDeleted || content.mimeType !== 'image/png') {
     throw new ImageCompositionApiError('composition_not_found', 404);
   }
   let properties: any;
   try {
-    properties = post.propertiesJson ? JSON.parse(post.propertiesJson) : null;
+    properties = content.propertiesJson ? JSON.parse(content.propertiesJson) : null;
   } catch (_error) {
     throw new ImageCompositionApiError('composition_invalid', 422);
   }
-  const composition = properties?.imageComposition;
-  if (!composition || composition.version !== IMAGE_COMPOSITION_VERSION) {
-    throw new ImageCompositionApiError(
-      composition ? 'composition_version_unknown' : 'composition_invalid',
-      422,
-      composition?.version === undefined ? undefined : {version: composition.version},
-    );
-  }
-  if (!Array.isArray(composition.stickers)) {
+  const recipe = properties?.imageComposition;
+  if (!recipe || recipe.type !== IMAGE_COMPOSITION_TYPE) {
     throw new ImageCompositionApiError('composition_invalid', 422);
   }
-  return composition as StoredImageComposition;
-}
-
-export function getImageCompositionProperties(composition: StoredImageComposition): string {
-  return JSON.stringify({imageComposition: composition});
-}
-
-export function doesStoredCompositionMatchCreate(
-  composition: StoredImageComposition,
-  input: ImageCompositionCreateInput,
-): boolean {
-  if (composition.compositionId !== input.compositionId
-    || composition.baseContentManifestId !== input.baseContentManifestId
-    || composition.output.width !== input.output.width
-    || composition.output.height !== input.output.height
-    || composition.stickers.length !== input.stickers.length) {
-    return false;
+  if (recipe.version !== IMAGE_COMPOSITION_VERSION) {
+    throw new ImageCompositionApiError('composition_version_unknown', 422, {version: recipe.version});
   }
-  const inputFields = ['id', 'kind', 'template', 'text', 'x', 'y', 'width', 'height', 'rotationDeg', 'zIndex'];
-  return input.stickers.every((sticker, index) => {
-    const stored = composition.stickers[index];
-    return inputFields.every(field => stored?.[field] === sticker[field]);
-  });
-}
-
-export function canViewImageCompositionGroup(group: {isPublic?: boolean} | null, isMember: boolean, isAdmin: boolean) {
-  return Boolean(group && (group.isPublic || isMember || isAdmin));
-}
-
-export function buildResolvedImageComposition(post: IPost, composition = parseStoredImageComposition(post)): ResolvedImageComposition {
-  const contentsByManifest = new Map<string, IContent>();
-  for (const content of post.contents || []) {
-    if (content.manifestStorageId) {
-      contentsByManifest.set(content.manifestStorageId, content);
-    }
+  if (recipe.renderer?.name !== IMAGE_COMPOSITION_RENDERER.name
+    || recipe.renderer?.version !== IMAGE_COMPOSITION_RENDERER.version) {
+    throw new ImageCompositionApiError('composition_renderer_unknown', 422, {renderer: recipe.renderer});
   }
-  const base = requireAttachedContent(contentsByManifest, composition.baseContentManifestId);
+  if (!isIdentifier(recipe.compositionId) || !isPositiveInteger(recipe.revision)
+    || (recipe.previousCompositeContentManifestId !== undefined && !isIdentifier(recipe.previousCompositeContentManifestId))
+    || !isIdentifier(recipe.originalContentManifestId) || !isDimensions(recipe.source) || !isDimensions(recipe.output)
+    || (recipe.render !== undefined && !isRender(recipe.render))
+    || !Array.isArray(recipe.stickers) || recipe.stickers.length > IMAGE_COMPOSITION_LIMITS.maxStickers
+    || !isSha256(recipe.recipeHash) || !isStoredStickerList(recipe.stickers)) {
+    throw new ImageCompositionApiError('composition_invalid', 422);
+  }
+  if ((recipe.revision === 1 && recipe.previousCompositeContentManifestId !== undefined)
+    || (recipe.revision > 1 && !isIdentifier(recipe.previousCompositeContentManifestId))
+    || (recipe.render === undefined && (recipe.output.width !== recipe.source.width || recipe.output.height !== recipe.source.height))
+    || (recipe.render && Math.max(recipe.output.width, recipe.output.height) > recipe.render.maxDimension)
+    || recipe.output.width > recipe.source.width || recipe.output.height > recipe.source.height) {
+    throw new ImageCompositionApiError('composition_invalid', 422);
+  }
+  const expectedHash = getImageCompositionRecipeHash({...recipe, recipeHash: undefined});
+  if (recipe.recipeHash !== expectedHash) {
+    throw new ImageCompositionApiError('composition_invalid', 422, {field: 'recipeHash'});
+  }
+  return recipe as StoredImageComposition;
+}
+
+export function getImageCompositionRecipeHash(recipe: Omit<StoredImageComposition, 'recipeHash'> | any) {
+  const canonical = {...recipe};
+  delete canonical.recipeHash;
+  return `sha256:${createHash('sha256').update(canonicalizeImageCompositionRequest(canonical), 'utf8').digest('hex')}`;
+}
+
+export function doesRecipeMatchCreate(recipe: StoredImageComposition, input: ImageCompositionContentCreateInput) {
+  return recipe.revision === 1
+    && recipe.compositionId === input.compositionId
+    && recipe.originalContentManifestId === input.originalContentManifestId
+    && (recipe.render?.maxDimension ?? null) === (input.render?.maxDimension ?? null)
+    && semanticStickersEqual(recipe.stickers, input.stickers);
+}
+
+export function doesRecipeMatchUpdate(recipe: StoredImageComposition, input: ImageCompositionUpdateInput) {
+  return recipe.revision === input.expectedRevision + 1 && semanticStickersEqual(recipe.stickers, input.stickers);
+}
+
+export function buildResolvedImageComposition(
+  composite: IContent,
+  recipe: StoredImageComposition,
+  original: IContent,
+  stickerContents: IContent[],
+  fileCatalogItem: any,
+): ResolvedImageComposition {
+  const stickersByManifest = new Map(stickerContents.map(content => [content.manifestStorageId, content]));
   return {
-    postId: Number(post.id),
-    type: 'image-composition',
-    version: composition.version,
-    compositionId: composition.compositionId,
-    revision: composition.revision,
-    updatedAt: new Date(post.updatedAt).toISOString(),
-    base: {
-      contentManifestId: composition.baseContentManifestId,
-      url: contentUrl(base.storageId),
-      ...(base.mediumPreviewStorageId ? {previewUrl: contentUrl(base.mediumPreviewStorageId)} : {}),
-      width: composition.output.width,
-      height: composition.output.height,
-    },
-    stickers: composition.stickers.map(sticker => {
-      const content = requireAttachedContent(contentsByManifest, sticker.contentManifestId);
+    fileCatalogItemId: Number(fileCatalogItem.id),
+    type: IMAGE_COMPOSITION_TYPE,
+    version: recipe.version,
+    compositionId: recipe.compositionId,
+    revision: recipe.revision,
+    updatedAt: new Date(fileCatalogItem.updatedAt || composite.updatedAt).toISOString(),
+    composite: contentProjection(composite, recipe.output, true),
+    original: contentProjection(original, recipe.source, false),
+    stickers: recipe.stickers.map(sticker => {
+      const content = stickersByManifest.get(sticker.contentManifestId);
+      if (!content) {
+        throw new ImageCompositionApiError('composition_dependency_not_found', 422, {contentManifestId: sticker.contentManifestId});
+      }
       return {...sticker, url: contentUrl(content.storageId)};
     }),
   };
 }
 
-export function assertRasterBaseContent(content: IContent | null): asserts content is IContent {
+export function buildImageCompositionCatalogSummary(item: any, dependenciesReady = true) {
+  const composite = item?.content;
+  if (!composite || composite.mimeType !== 'image/png' || !composite.manifestStorageId || !composite.storageId) {
+    return null;
+  }
+  let recipe: StoredImageComposition | null = null;
+  let recipeStatus: 'ready' | 'malformed' | 'unknown-version' | 'missing-dependencies' = 'malformed';
+  try {
+    recipe = parseImageCompositionContent(composite);
+    recipeStatus = dependenciesReady ? 'ready' : 'missing-dependencies';
+  } catch (error) {
+    recipeStatus = error instanceof ImageCompositionApiError && error.errorCode === 'composition_version_unknown'
+      ? 'unknown-version'
+      : 'malformed';
+  }
+  const dimensions = getCompositeAssetDimensions(composite, recipe);
+  return {
+    fileCatalogItemId: Number(item.id),
+    name: item.name,
+    parentItemId: item.parentItemId == null ? null : Number(item.parentItemId),
+    position: item.position == null ? undefined : Number(item.position),
+    type: IMAGE_COMPOSITION_TYPE,
+    updatedAt: new Date(item.updatedAt || composite.updatedAt).toISOString(),
+    version: recipeStatus === 'ready' ? recipe.version : null,
+    compositionId: recipeStatus === 'ready' ? recipe.compositionId : null,
+    revision: recipeStatus === 'ready' ? recipe.revision : null,
+    recipeStatus,
+    editable: recipeStatus === 'ready',
+    composite: {
+      contentManifestId: composite.manifestStorageId,
+      url: contentUrl(composite.storageId),
+      previewUrl: contentUrl(composite.mediumPreviewStorageId || composite.storageId),
+      mimeType: 'image/png',
+      width: dimensions.width,
+      height: dimensions.height,
+    },
+  };
+}
+
+export function assertRasterOriginalContent(content: IContent | null): asserts content is IContent {
   if (!content) {
     throw new ImageCompositionApiError('composition_content_not_found', 404);
   }
   const mimeType = String(content.mimeType || '').toLowerCase();
   if (!mimeType.startsWith('image/') || mimeType === 'image/svg+xml') {
-    throw new ImageCompositionApiError('composition_invalid', 422, {field: 'baseContentManifestId'});
+    throw new ImageCompositionApiError('composition_invalid', 422, {field: 'originalContentManifestId'});
   }
+}
+
+function semanticStickersEqual(stored, input) {
+  if (stored.length !== input.length) return false;
+  const fields = ['id', 'kind', 'template', 'text', 'x', 'y', 'width', 'height', 'rotationDeg', 'zIndex'];
+  return input.every((sticker, index) => fields.every(field => stored[index]?.[field] === sticker[field]));
 }
 
 function normalizeStickers(input: unknown, allowEmpty: boolean): ImageCompositionStickerInput[] {
@@ -148,15 +203,10 @@ function normalizeStickers(input: unknown, allowEmpty: boolean): ImageCompositio
   const zIndexes = new Set<number>();
   const stickers = input.map((raw, index) => {
     const value = requireObject(raw);
-    const id = requireIdentifier(value.id, `stickers[${index}].id`);
-    if (ids.has(id)) {
-      throw invalid(`stickers[${index}].id`);
-    }
-    ids.add(id);
     const sticker: ImageCompositionStickerInput = {
-      id,
-      kind: value.kind as any,
-      template: value.template as any,
+      id: requireIdentifier(value.id, `stickers[${index}].id`),
+      kind: value.kind,
+      template: value.template,
       text: typeof value.text === 'string' ? value.text : '',
       x: requireUnitNumber(value.x, `stickers[${index}].x`),
       y: requireUnitNumber(value.y, `stickers[${index}].y`),
@@ -165,9 +215,11 @@ function normalizeStickers(input: unknown, allowEmpty: boolean): ImageCompositio
       rotationDeg: requireFiniteNumber(value.rotationDeg, `stickers[${index}].rotationDeg`),
       zIndex: requirePositiveInteger(value.zIndex, `stickers[${index}].zIndex`),
     };
-    if (sticker.rotationDeg !== 0 || sticker.x + sticker.width > 1 || sticker.y + sticker.height > 1 || zIndexes.has(sticker.zIndex)) {
+    if (ids.has(sticker.id) || zIndexes.has(sticker.zIndex) || sticker.rotationDeg !== 0
+      || sticker.x + sticker.width > 1 || sticker.y + sticker.height > 1) {
       throw invalid(`stickers[${index}]`);
     }
+    ids.add(sticker.id);
     zIndexes.add(sticker.zIndex);
     try {
       validateImageCompositionStickerSemanticInput(sticker);
@@ -182,66 +234,124 @@ function normalizeStickers(input: unknown, allowEmpty: boolean): ImageCompositio
   return stickers.sort((left, right) => left.zIndex - right.zIndex || left.id.localeCompare(right.id));
 }
 
-function normalizeOutput(input: unknown): ImageCompositionOutput {
-  const value = requireObject(input);
-  const width = requirePositiveInteger(value.width, 'output.width');
-  const height = requirePositiveInteger(value.height, 'output.height');
-  return {width, height};
+function contentProjection(content: IContent, dimensions, composite: boolean): any {
+  if (!content.manifestStorageId || !content.storageId) {
+    throw new ImageCompositionApiError('composition_content_not_found', 404);
+  }
+  return {
+    contentManifestId: content.manifestStorageId,
+    url: contentUrl(content.storageId),
+    ...(content.mediumPreviewStorageId ? {previewUrl: contentUrl(content.mediumPreviewStorageId)} : {}),
+    ...(composite ? {mimeType: 'image/png'} : {}),
+    width: dimensions.width,
+    height: dimensions.height,
+  };
+}
+
+function contentUrl(storageId: string) {
+  return `/ipfs/${storageId}`;
 }
 
 function requireObject(value: unknown): Record<string, any> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw invalid();
-  }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid();
   return value as Record<string, any>;
 }
 
-function requireIdentifier(value: unknown, field: string): string {
-  if (typeof value !== 'string' || !value.trim() || value.length > 200) {
-    throw invalid(field);
+function normalizeRender(value: unknown) {
+  const render = requireObject(value);
+  if (Object.keys(render).some(key => key !== 'maxDimension')) {
+    throw invalid('render');
   }
+  const maxDimension = requirePositiveInteger(render.maxDimension, 'render.maxDimension');
+  if (maxDimension > IMAGE_COMPOSITION_LIMITS.maxExportDimension) throw invalid('render.maxDimension');
+  return {maxDimension};
+}
+
+function requireIdentifier(value: unknown, field: string): string {
+  if (typeof value !== 'string' || !value.trim() || value !== value.trim() || value.length > 200) throw invalid(field);
   return value;
 }
 
 function requirePositiveInteger(value: unknown, field: string): number {
   const number = Number(value);
-  if (!Number.isSafeInteger(number) || number < 1) {
-    throw invalid(field);
-  }
+  if (!Number.isSafeInteger(number) || number < 1) throw invalid(field);
   return number;
 }
 
 function requireFiniteNumber(value: unknown, field: string): number {
   const number = Number(value);
-  if (!Number.isFinite(number)) {
-    throw invalid(field);
-  }
+  if (!Number.isFinite(number)) throw invalid(field);
   return number;
 }
 
 function requireUnitNumber(value: unknown, field: string, allowZero = true): number {
   const number = requireFiniteNumber(value, field);
-  if (number < 0 || number > 1 || (!allowZero && number === 0)) {
-    throw invalid(field);
-  }
+  if (number < 0 || number > 1 || (!allowZero && number === 0)) throw invalid(field);
   return number;
 }
 
-function requireAttachedContent(contents: Map<string, IContent>, manifestId: string): IContent {
-  const content = contents.get(manifestId);
-  if (!content) {
-    throw new ImageCompositionApiError('composition_content_not_found', 404, {contentManifestId: manifestId});
-  }
-  return content;
-}
-
-function contentUrl(storageId?: string): string {
-  if (!storageId) {
-    throw new ImageCompositionApiError('composition_content_not_found', 404);
-  }
-  return `/ipfs/${storageId}`;
-}
-
-function invalid(field?: string): ImageCompositionApiError {
+function invalid(field?: string) {
   return new ImageCompositionApiError('composition_invalid', 422, field ? {field} : undefined);
+}
+
+function isIdentifier(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= 200;
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && Number(value) > 0;
+}
+
+function isDimensions(value: any): value is {width: number; height: number} {
+  return value && isPositiveInteger(value.width) && isPositiveInteger(value.height)
+    && value.width <= IMAGE_COMPOSITION_LIMITS.maxExportDimension
+    && value.height <= IMAGE_COMPOSITION_LIMITS.maxExportDimension
+    && value.width * value.height <= IMAGE_COMPOSITION_LIMITS.maxExportPixels;
+}
+
+function isRender(value: any): value is {maxDimension: number} {
+  return value && isPositiveInteger(value.maxDimension)
+    && value.maxDimension <= IMAGE_COMPOSITION_LIMITS.maxExportDimension
+    && Object.keys(value).every(key => key === 'maxDimension');
+}
+
+function isSha256(value: unknown): value is string {
+  return typeof value === 'string' && /^sha256:[a-f0-9]{64}$/.test(value);
+}
+
+function isStoredStickerList(stickers: any[]) {
+  const ids = new Set<string>();
+  const zIndexes = new Set<number>();
+  return stickers.every((sticker, index) => {
+    if (!sticker || !isIdentifier(sticker.contentManifestId) || !isSha256(sticker.semanticHash)
+      || !isPositiveInteger(sticker.templateVersion) || sticker.templateVersion !== 1) return false;
+    let normalized: ImageCompositionStickerInput;
+    try {
+      normalized = normalizeStickers([sticker], true)[0];
+    } catch (_error) {
+      return false;
+    }
+    if (getImageCompositionStickerSemanticHash(sticker) !== sticker.semanticHash) return false;
+    if (ids.has(normalized.id) || zIndexes.has(normalized.zIndex)) return false;
+    if (index > 0) {
+      const previous = stickers[index - 1];
+      if (Number(previous.zIndex) > normalized.zIndex
+        || (Number(previous.zIndex) === normalized.zIndex && String(previous.id).localeCompare(normalized.id) > 0)) return false;
+    }
+    ids.add(normalized.id);
+    zIndexes.add(normalized.zIndex);
+    return true;
+  });
+}
+
+function getCompositeAssetDimensions(composite: IContent, recipe: StoredImageComposition | null) {
+  if (recipe && isDimensions(recipe.output)) return recipe.output;
+  try {
+    const properties = composite.propertiesJson ? JSON.parse(composite.propertiesJson) : null;
+    if (isDimensions(properties?.imageCompositionAsset)) return properties.imageCompositionAsset;
+    if (isDimensions(properties?.imageComposition?.output)) return properties.imageComposition.output;
+  } catch (_error) {}
+  // Corrupt metadata must not make the baked asset disappear from a list. The
+  // actual raster remains the rendering source and is used by the browser.
+  return {width: 1, height: 1};
 }

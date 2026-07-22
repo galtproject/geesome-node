@@ -25,37 +25,7 @@ describe("databaseMigrationIntegrity", function () {
         permissions: [CorePermissionName.UserAll]
       });
 
-      const group = await app.ms.group.createGroup(testUser.id, {
-        name: 'test',
-        title: 'Test'
-      });
-
       const queryInterface = app.ms.database.sequelize.getQueryInterface();
-      const entityMigration = (await import('../app/modules/group/migrations/20260720000000-add-image-composition-post-index.cjs')).default;
-      await entityMigration.up(queryInterface);
-
-      const postIndexes = await queryInterface.showIndex('posts');
-      const entityIndex = postIndexes.find(index => index.name === 'posts_group_type_entity_unique');
-      assert(entityIndex, 'native post entity identity index is missing after migration');
-      assert.equal(entityIndex.unique, true);
-      assert.deepEqual(entityIndex.fields.map(field => field.attribute), ['groupId', 'type', 'entityId']);
-      await app.ms.database.models.Post.create({
-        groupId: group.id,
-        userId: testUser.id,
-        status: 'draft',
-        size: 0,
-        type: 'image-composition',
-        entityId: 'native-composition-identity',
-      });
-      await assert.rejects(app.ms.database.models.Post.create({
-        groupId: group.id,
-        userId: testUser.id,
-        status: 'draft',
-        size: 0,
-        type: 'image-composition',
-        entityId: 'native-composition-identity',
-      }), (error: any) => error?.name === 'SequelizeUniqueConstraintError');
-
       const pinStorageObjectColumns = await queryInterface.describeTable('pinStorageObjects');
       for (const column of [
         'attemptId',

@@ -1,24 +1,25 @@
 import assert from 'node:assert';
 import {randomUUID} from 'node:crypto';
-import {ContentView, CorePermissionName} from '../app/modules/database/interface.js';
+import sharp from 'sharp';
+import {ContentDependencyRole, ContentView, CorePermissionName} from '../app/modules/database/interface.js';
 import {ImageCompositionApiError} from '../app/modules/imageComposition/helpers.js';
-import {IMAGE_COMPOSITION_POST_TYPE} from '../app/modules/imageComposition/contract.js';
-import {PostStatus} from '../app/modules/group/interface.js';
+import {FileCatalogItemType} from '../app/modules/fileCatalog/interface.js';
 import {IGeesomeApp} from '../app/interface.js';
 
-const tinyPng = Buffer.from(
-	'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
-	'base64',
-);
-
-describe('image composition persistence and authorization', function () {
-	this.timeout(60000);
+describe('catalog-backed image composition persistence', function () {
+	this.timeout(90_000);
 
 	let app: IGeesomeApp;
 	let owner;
 	let outsider;
-	let group;
-	let baseContent;
+	let originalContent;
+	let originalPng: Buffer;
+
+	before(async () => {
+		originalPng = await sharp({
+			create: {width: 160, height: 100, channels: 4, background: {r: 245, g: 245, b: 245, alpha: 1}},
+		}).png().toBuffer();
+	});
 
 	beforeEach(async () => {
 		const appConfig: any = (await import('../app/config.js')).default;
@@ -27,232 +28,201 @@ describe('image composition persistence and authorization', function () {
 		await app.flushDatabase();
 		await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
 		owner = await app.registerUser({
-			email: 'composition-owner@example.com',
-			name: 'composition-owner',
-			password: 'owner',
+			email: 'composition-owner@example.com', name: 'composition-owner', password: 'owner',
 			permissions: [CorePermissionName.UserAll],
 		});
 		outsider = await app.registerUser({
-			email: 'composition-outsider@example.com',
-			name: 'composition-outsider',
-			password: 'outsider',
+			email: 'composition-outsider@example.com', name: 'composition-outsider', password: 'outsider',
 			permissions: [CorePermissionName.UserAll],
 		});
-		group = await app.ms.group.createGroup(owner.id, {
-			name: `composition_${randomUUID().replace(/-/g, '').slice(0, 12)}`,
-			title: 'Private compositions',
-			isPublic: false,
-			isOpen: false,
-		});
-		baseContent = await app.ms.content.saveData(owner.id, tinyPng, 'base.png', {
-			mimeType: 'image/png',
-			view: ContentView.Media,
+		originalContent = await app.ms.content.saveData(owner.id, originalPng, 'original.png', {
+			mimeType: 'image/png', view: ContentView.Media, driver: {raw: true}, skipFileCatalog: true,
 		});
 	});
 
-	afterEach(async () => {
-		await app.stop();
-	});
+	afterEach(async () => app.stop());
 
 	function createInput(overrides: any = {}) {
 		return {
-			groupId: group.id,
 			idempotencyKey: `create-${randomUUID()}`,
 			compositionId: `composition-${randomUUID()}`,
-			baseContentManifestId: baseContent.manifestStorageId,
-			output: {width: 1200, height: 800},
+			originalContentManifestId: originalContent.manifestStorageId,
 			stickers: [{
-				id: 'bubble-1',
-				kind: 'text-bubble',
-				template: 'speech-v1',
-				text: 'Hello',
-				x: 0.1,
-				y: 0.2,
-				width: 0.3,
-				height: 0.2,
-				rotationDeg: 0,
-				zIndex: 1,
+				id: 'bubble-1', kind: 'text-bubble', template: 'speech-v1', text: 'Hello',
+				x: 0.1, y: 0.2, width: 0.3, height: 0.2, rotationDeg: 0, zIndex: 1,
 			}],
 			...overrides,
 		};
 	}
 
-	it('creates, replays, lists, and updates compositions without affecting ordinary posts', async () => {
+	it('creates one stable catalog item for the baked Content and replays idempotently', async () => {
 		const input = createInput();
-		const created = await app.ms.imageComposition.createImageComposition(owner.id, input);
-		const replayed = await app.ms.imageComposition.createImageComposition(owner.id, input);
+		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, input);
+		const replayed = await app.ms.imageComposition.createImageCompositionContent(owner.id, input);
 		assert.deepEqual(replayed, created);
-		assert.equal(created.revision, 1);
-		assert.equal(created.stickers.length, 1);
-		const compositionPost = await app.ms.group.getPostPure(created.postId);
-		assert.equal(compositionPost.type, 'image-composition');
-		assert.equal((compositionPost as any).entityId, input.compositionId);
-		assert.equal(compositionPost.source, null);
-		assert.equal(compositionPost.sourceChannelId, null);
-		assert.equal(compositionPost.sourcePostId, null);
-		const compositionManifest = await app.ms.storage.getObject(compositionPost.manifestStorageId);
-		assert.equal(compositionManifest.entityId, input.compositionId);
-		assert.equal(compositionManifest.source, undefined);
+		assert(Number.isSafeInteger(created.fileCatalogItemId));
+		assert.equal((created as any).postId, undefined);
 
-		const ordinary = await app.ms.group.createPost(owner.id, {
-			groupId: group.id,
-			status: PostStatus.Published,
-			name: 'ordinary post',
-		});
-		const listed = await app.ms.imageComposition.getImageCompositions(owner.id, group.id, {}, {limit: 10});
-		assert.deepEqual(listed.list.map(item => item.postId), [created.postId]);
-		assert.equal((await app.ms.group.getPostPure(ordinary.id)).type, null);
+		const item = await app.ms.fileCatalog.getFileCatalogItem(created.fileCatalogItemId);
+		assert.equal(item.userId, owner.id);
+		assert.equal(item.content.manifestStorageId, created.composite.contentManifestId);
+		const composite = item.content;
+		const properties = JSON.parse(composite.propertiesJson);
+		assert.equal(properties.imageComposition.originalContentManifestId, originalContent.manifestStorageId);
+		assert.equal(properties.imageComposition.output.width, 160);
+		assert(composite.mediumPreviewStorageId);
 
-		const update = {
-			idempotencyKey: `update-${randomUUID()}`,
-			expectedRevision: 1,
-			output: input.output,
-			stickers: [{...input.stickers[0], text: 'Edited'}],
-		};
-		const updated = await app.ms.imageComposition.updateImageComposition(owner.id, created.postId, update);
-		assert.equal(updated.revision, 2);
-		assert.equal(updated.stickers[0].text, 'Edited');
-		assert.deepEqual(await app.ms.imageComposition.updateImageComposition(owner.id, created.postId, update), updated);
-
-		const updatedOrdinary = await app.ms.group.updatePost(owner.id, ordinary.id, {name: 'ordinary post edited'});
-		assert.equal(updatedOrdinary.name, 'ordinary post edited');
-		assert.notEqual(updatedOrdinary.type, IMAGE_COMPOSITION_POST_TYPE);
+		const dependencies = await app.ms.database.getContentDependencies(composite.id);
+		assert.equal(dependencies.filter(edge => edge.role === ContentDependencyRole.ImageCompositionOriginal).length, 1);
+		assert.equal(dependencies.filter(edge => edge.role === ContentDependencyRole.ImageCompositionSticker).length, 1);
+		const stickerCatalogItems = await app.ms.fileCatalog.getFileCatalogItemsByContent(
+			owner.id,
+			(await app.ms.database.getContentByManifestId(created.stickers[0].contentManifestId)).id,
+			FileCatalogItemType.File,
+		);
+		assert.equal(stickerCatalogItems.length, 0, 'generated SVG dependencies stay out of the file catalog');
 	});
 
-	it('returns a cursor on the first full page and continues in stable timeline order', async () => {
-		const created = [];
-		for (let index = 0; index < 3; index += 1) {
-			created.push(await app.ms.imageComposition.createImageComposition(owner.id, createInput()));
-		}
-
-		const first = await app.ms.imageComposition.getImageCompositions(owner.id, group.id, {}, {limit: 2});
-		assert.equal(first.list.length, 2);
-		assert(first.nextCursor);
-		assert(first.nextCursor.publishedAt);
-		assert(Number.isSafeInteger(Number(first.nextCursor.id)));
-
-		const second = await app.ms.imageComposition.getImageCompositions(owner.id, group.id, {
-			cursorPublishedAt: first.nextCursor.publishedAt,
-			cursorId: first.nextCursor.id,
-		}, {limit: 2});
-		assert.equal(second.list.length, 1);
-		assert.equal(second.nextCursor, null);
-
-		const listedIds = [...first.list, ...second.list].map(item => item.postId);
-		assert.equal(new Set(listedIds).size, 3);
-		assert.deepEqual(listedIds, created.map(item => item.postId).reverse());
+	it('revises immutable Content and atomically swaps the same catalog item', async () => {
+		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput({stickers: []}));
+		const oldContent = await app.ms.database.getContentByManifestId(created.composite.contentManifestId);
+		const revised = await app.ms.imageComposition.createImageCompositionContentRevision(
+			owner.id,
+			created.composite.contentManifestId,
+			{idempotencyKey: `revision-${randomUUID()}`, expectedRevision: 1, stickers: []},
+		);
+		assert.equal(revised.revision, 2);
+		assert.equal(revised.fileCatalogItemId, created.fileCatalogItemId);
+		assert.notEqual(revised.composite.contentManifestId, created.composite.contentManifestId);
+		const item = await app.ms.fileCatalog.getFileCatalogItem(created.fileCatalogItemId);
+		assert.equal(item.content.manifestStorageId, revised.composite.contentManifestId);
+		assert(await app.ms.database.models.Content.findByPk(oldContent.id), 'old immutable revision remains stored');
+		await assert.rejects(
+			() => app.ms.imageComposition.getImageCompositionContent(owner.id, created.composite.contentManifestId),
+			(error: ImageCompositionApiError) => error.errorCode === 'composition_revision_conflict',
+		);
 	});
 
-	it('rejects reused identities with mismatched payloads and stale revisions', async () => {
+	it('returns the current catalog revision when matching create is retried after editing', async () => {
 		const input = createInput();
-		const created = await app.ms.imageComposition.createImageComposition(owner.id, input);
-		await assert.rejects(
-			() => app.ms.imageComposition.createImageComposition(owner.id, {
-				...input,
-				stickers: [{...input.stickers[0], text: 'Changed under the same key'}],
-			}),
-			(error: ImageCompositionApiError) => error.errorCode === 'composition_idempotency_conflict',
-		);
-		await assert.rejects(
-			() => app.ms.imageComposition.createImageComposition(owner.id, {
-				...input,
-				idempotencyKey: `new-key-${randomUUID()}`,
-				stickers: [{...input.stickers[0], text: 'Changed under a new key'}],
-			}),
-			(error: ImageCompositionApiError) => error.errorCode === 'composition_idempotency_conflict',
-		);
-
-		await app.ms.imageComposition.updateImageComposition(owner.id, created.postId, {
-			idempotencyKey: `update-${randomUUID()}`,
-			expectedRevision: 1,
-			output: input.output,
-			stickers: [],
-		});
-		await assert.rejects(
-			() => app.ms.imageComposition.updateImageComposition(owner.id, created.postId, {
-				idempotencyKey: `stale-${randomUUID()}`,
+		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, input);
+		const revised = await app.ms.imageComposition.createImageCompositionContentRevision(
+			owner.id,
+			created.composite.contentManifestId,
+			{
+				idempotencyKey: `revision-${randomUUID()}`,
 				expectedRevision: 1,
-				output: input.output,
-				stickers: [],
-			}),
-			(error: ImageCompositionApiError) => {
-				return error.errorCode === 'composition_revision_conflict' && error.details?.currentRevision === 2;
+				stickers: [{...input.stickers[0], text: 'Edited'}],
 			},
 		);
+		const retriedCreate = await app.ms.imageComposition.createImageCompositionContent(owner.id, {
+			...input,
+			idempotencyKey: `create-again-${randomUUID()}`,
+		});
+		assert.equal(retriedCreate.fileCatalogItemId, created.fileCatalogItemId);
+		assert.equal(retriedCreate.revision, 2);
+		assert.equal(retriedCreate.composite.contentManifestId, revised.composite.contentManifestId);
 	});
 
-	it('recovers matching concurrent creates and returns a structured conflict for mismatched payloads', async () => {
-		const matchingInput = createInput();
-		const matchingResults = await Promise.all([
-			app.ms.imageComposition.createImageComposition(owner.id, matchingInput),
-			app.ms.imageComposition.createImageComposition(owner.id, {
-				...matchingInput,
-				idempotencyKey: `concurrent-${randomUUID()}`,
-			}),
-		]);
-		assert.equal(matchingResults[0].postId, matchingResults[1].postId);
-		assert.equal(await app.ms.database.models.Post.count({where: {
-			groupId: group.id,
-			type: IMAGE_COMPOSITION_POST_TYPE,
-			entityId: matchingInput.compositionId,
-		}}), 1);
-
-		const mismatchedInput = createInput();
-		const mismatchedResults = await Promise.allSettled([
-			app.ms.imageComposition.createImageComposition(owner.id, mismatchedInput),
-			app.ms.imageComposition.createImageComposition(owner.id, {
-				...mismatchedInput,
-				idempotencyKey: `concurrent-${randomUUID()}`,
-				stickers: [{...mismatchedInput.stickers[0], text: 'Different concurrent payload'}],
-			}),
-		]);
-		assert.equal(mismatchedResults.filter(result => result.status === 'fulfilled').length, 1);
-		const rejected = mismatchedResults.find(result => result.status === 'rejected') as PromiseRejectedResult;
-		assert(rejected);
-		assert.equal(rejected.reason.name, 'ImageCompositionApiError');
-		assert.equal(rejected.reason.errorCode, 'composition_idempotency_conflict');
-		assert.equal(rejected.reason.statusCode, 409);
-		assert.equal(await app.ms.database.models.Post.count({where: {
-			groupId: group.id,
-			type: IMAGE_COMPOSITION_POST_TYPE,
-			entityId: mismatchedInput.compositionId,
-		}}), 1);
+	it('lists only matching owner catalog items with pagination before projection', async () => {
+		await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput());
+		await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput());
+		await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput());
+		const first = await app.ms.imageComposition.getImageCompositionCatalogItems(owner.id, {limit: 2, offset: 0});
+		const second = await app.ms.imageComposition.getImageCompositionCatalogItems(owner.id, {limit: 2, offset: 2});
+		assert.equal(first.total, 3);
+		assert.equal(first.list.length, 2);
+		assert.equal(second.list.length, 1);
+		assert(first.list.every(item => item.fileCatalogItemId && item.composite?.contentManifestId));
+		assert.equal((await app.ms.imageComposition.getImageCompositionCatalogItems(outsider.id, {})).total, 0);
 	});
 
-	it('returns a structured conflict when a deleted post retains its native composition identity', async () => {
+	it('reconciles an entirely absent dependency graph from verified local manifests', async () => {
+		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput());
+		const composite = await app.ms.database.getContentByManifestId(created.composite.contentManifestId);
+		await app.ms.database.models.ContentDependency.destroy({where: {parentContentId: composite.id}});
+		const beforeRepair = await app.ms.imageComposition.getImageCompositionCatalogItems(owner.id, {});
+		assert.equal(beforeRepair.list[0].recipeStatus, 'missing-dependencies');
+		assert.equal(beforeRepair.list[0].editable, false);
+		const detail = await app.ms.imageComposition.getImageCompositionContent(owner.id, created.composite.contentManifestId);
+		assert.equal(detail.original.contentManifestId, originalContent.manifestStorageId);
+		assert.equal((await app.ms.database.getContentDependencies(composite.id)).length, 2);
+	});
+
+	it('returns the active manifest with stale revision conflicts', async () => {
+		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput({stickers: []}));
+		const revised = await app.ms.imageComposition.createImageCompositionContentRevision(
+			owner.id,
+			created.composite.contentManifestId,
+			{idempotencyKey: `revision-${randomUUID()}`, expectedRevision: 1, stickers: []},
+		);
+		await assert.rejects(
+			() => app.ms.imageComposition.createImageCompositionContentRevision(
+				owner.id,
+				created.composite.contentManifestId,
+				{idempotencyKey: `stale-${randomUUID()}`, expectedRevision: 1, stickers: []},
+			),
+			(error: ImageCompositionApiError) => error.errorCode === 'composition_revision_conflict'
+				&& error.details?.currentRevision === 2
+				&& error.details?.currentContentManifestId === revised.composite.contentManifestId,
+		);
+	});
+
+	it('keeps detail owner-only even when the original Content is public', async () => {
+		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput());
+		await assert.rejects(
+			() => app.ms.imageComposition.getImageCompositionContent(outsider.id, created.composite.contentManifestId),
+			(error: ImageCompositionApiError) => error.errorCode === 'composition_not_found',
+		);
+	});
+
+	it('creates distinct Content entities for distinct recipes even when bytes deduplicate', async () => {
+		const first = await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput({stickers: []}));
+		const second = await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput({stickers: []}));
+		const firstContent = await app.ms.database.getContentByManifestId(first.composite.contentManifestId);
+		const secondContent = await app.ms.database.getContentByManifestId(second.composite.contentManifestId);
+		assert.notEqual(firstContent.id, secondContent.id);
+		assert.equal(firstContent.storageId, secondContent.storageId);
+	});
+
+	it('converges concurrent matching roots and creates one catalog item', async () => {
 		const input = createInput();
-		const created = await app.ms.imageComposition.createImageComposition(owner.id, input);
-		await app.ms.database.models.Post.update({isDeleted: true}, {where: {id: created.postId}});
-
-		await assert.rejects(
-			() => app.ms.imageComposition.createImageComposition(owner.id, {
-				...input,
-				idempotencyKey: `deleted-${randomUUID()}`,
-			}),
-			(error: ImageCompositionApiError) => {
-				return error.errorCode === 'composition_idempotency_conflict' && error.statusCode === 409;
-			},
-		);
+		const results = await Promise.all([
+			app.ms.imageComposition.createImageCompositionContent(owner.id, input),
+			app.ms.imageComposition.createImageCompositionContent(owner.id, {...input, idempotencyKey: `other-${randomUUID()}`}),
+		]);
+		assert.equal(results[0].composite.contentManifestId, results[1].composite.contentManifestId);
+		assert.equal(results[0].fileCatalogItemId, results[1].fileCatalogItemId);
+		const content = await app.ms.database.getContentByManifestId(results[0].composite.contentManifestId);
+		assert.equal((await app.ms.fileCatalog.getFileCatalogItemsByContent(
+			owner.id,
+			content.id,
+			FileCatalogItemType.File,
+		)).length, 1);
 	});
 
-	it('prevents outsiders from reading or creating in private composition groups', async () => {
-		const input = createInput();
-		const created = await app.ms.imageComposition.createImageComposition(owner.id, input);
-		await assert.rejects(
-			() => app.ms.imageComposition.getImageComposition(outsider.id, created.postId),
-			(error: ImageCompositionApiError) => error.errorCode === 'composition_not_permitted',
-		);
-		await assert.rejects(
-			() => app.ms.imageComposition.getImageCompositions(outsider.id, group.id, {}, {limit: 10}),
-			(error: ImageCompositionApiError) => error.errorCode === 'composition_not_permitted',
-		);
-		await assert.rejects(
-			() => app.ms.imageComposition.createImageComposition(outsider.id, {
-				...input,
-				idempotencyKey: `outsider-${randomUUID()}`,
-				compositionId: `outsider-${randomUUID()}`,
-			}),
-			(error: ImageCompositionApiError) => error.errorCode === 'composition_not_permitted',
-		);
+	it('lets only one concurrent catalog CAS revision win', async () => {
+		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput());
+		const updates = await Promise.allSettled(['A', 'B'].map(text => {
+			return app.ms.imageComposition.createImageCompositionContentRevision(owner.id, created.composite.contentManifestId, {
+				idempotencyKey: `update-${text}-${randomUUID()}`,
+				expectedRevision: 1,
+				stickers: [{...created.stickers[0], text: `Winner ${text}`}],
+			});
+		}));
+		assert.equal(updates.filter(result => result.status === 'fulfilled').length, 1);
+		const rejected = updates.find(result => result.status === 'rejected') as PromiseRejectedResult;
+		assert.equal(rejected.reason.errorCode, 'composition_revision_conflict');
+		const winner = updates.find(result => result.status === 'fulfilled') as PromiseFulfilledResult<any>;
+		const item = await app.ms.fileCatalog.getFileCatalogItem(created.fileCatalogItemId);
+		assert.equal(item.content.manifestStorageId, winner.value.composite.contentManifestId);
+	});
+
+	it('blocks deleting original and SVG children while referenced', async () => {
+		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput());
+		const original = await app.ms.database.getContentByManifestId(created.original.contentManifestId);
+		const stickerContent = await app.ms.database.getContentByManifestId(created.stickers[0].contentManifestId);
+		assert.equal((await app.ms.database.getContentDeleteSafety(original)).contentRefs.contentDependencies, 1);
+		assert.equal((await app.ms.database.getContentDeleteSafety(stickerContent)).contentRefs.contentDependencies, 1);
 	});
 });
