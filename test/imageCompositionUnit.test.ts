@@ -45,9 +45,12 @@ describe('image composition contract integration', function () {
 			originalContentManifestId: 'original-manifest',
 			render: {maxDimension: 2048},
 			stickers: [],
+			folderId: 42,
 		});
 		assert.deepEqual(contentCreate.stickers, []);
 		assert.deepEqual(contentCreate.render, {maxDimension: 2048});
+		assert.equal(contentCreate.folderId, 42);
+		assert.equal(normalizeImageCompositionContentCreateInput({...contentCreate, folderId: undefined}).folderId, undefined);
 		assert.deepEqual(normalizeImageCompositionUpdateInput({
 			idempotencyKey: 'update-key', expectedRevision: 1, stickers: [],
 		}).stickers, []);
@@ -55,6 +58,21 @@ describe('image composition contract integration', function () {
 			...contentCreate,
 			output: {width: 1, height: 1},
 		}), (error: ImageCompositionApiError) => error.errorCode === 'composition_invalid');
+	});
+
+	it('returns a valid standalone composition without catalog identity', function () {
+		const resolved = buildResolvedImageComposition(
+			{
+				manifestStorageId: 'composite-manifest', storageId: 'composite-cid',
+				mediumPreviewStorageId: 'composite-preview-cid', mimeType: 'image/png',
+				updatedAt: new Date('2026-07-20T12:00:00Z'),
+			} as any,
+			storedRecipe() as any,
+			{manifestStorageId: 'original-manifest', storageId: 'original-cid'} as any,
+			[{manifestStorageId: 'sticker-manifest', storageId: 'sticker-cid'}] as any,
+		);
+		assert.equal(resolved.fileCatalogItemId, undefined);
+		assert.equal(resolved.updatedAt, '2026-07-20T12:00:00.000Z');
 	});
 
 	it('accepts only a bounded optional maxDimension render hint', function () {

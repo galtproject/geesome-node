@@ -20,7 +20,7 @@ export interface ImageCompositionOperationClaimInput extends ImageCompositionOpe
 }
 
 export interface ImageCompositionOperationResult {
-	fileCatalogItemId: number;
+	fileCatalogItemId?: number;
 	revision: number;
 	contentManifestId: string;
 	contentId: number;
@@ -133,7 +133,7 @@ export function createImageCompositionOperationRepository(
 			const now = getNow();
 			const [updatedCount] = await ImageCompositionOperation.update({
 				state: ImageCompositionOperationState.Succeeded,
-				resultFileCatalogItemId: result.fileCatalogItemId,
+				resultFileCatalogItemId: result.fileCatalogItemId ?? null,
 				resultRevision: result.revision,
 				resultContentManifestId: result.contentManifestId,
 				resultContentId: result.contentId,
@@ -248,7 +248,7 @@ function assertMatchingRequestHash(operation, requestHash: string) {
 
 function getStoredResult(operation): ImageCompositionOperationResult {
 	return {
-		fileCatalogItemId: Number(operation.resultFileCatalogItemId),
+		...(operation.resultFileCatalogItemId == null ? {} : {fileCatalogItemId: Number(operation.resultFileCatalogItemId)}),
 		revision: Number(operation.resultRevision),
 		contentManifestId: operation.resultContentManifestId,
 		contentId: Number(operation.resultContentId),
@@ -279,8 +279,9 @@ function validateClaimInput(input: ImageCompositionOperationClaimInput) {
 }
 
 function validateResult(result: ImageCompositionOperationResult) {
-	if (!Number.isSafeInteger(result.fileCatalogItemId) || result.fileCatalogItemId <= 0) {
-		throw new Error('image_composition_operation_result_file_catalog_item_required');
+	if (result.fileCatalogItemId !== undefined
+		&& (!Number.isSafeInteger(result.fileCatalogItemId) || result.fileCatalogItemId <= 0)) {
+		throw new Error('image_composition_operation_result_file_catalog_item_invalid');
 	}
 	if (!result.contentManifestId) {
 		throw new Error('image_composition_operation_result_content_required');

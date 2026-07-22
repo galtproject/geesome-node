@@ -638,7 +638,9 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       this.models.PostsContents.count({where: {contentId}}),
       this.models.ContentDependency.count({where: {childContentId: contentId}}),
       this.models.ImageCompositionOperation ? this.models.ImageCompositionOperation.count({where: {[Op.or]: [{resultContentId: contentId}, {candidateContentId: contentId}]}}) : 0,
-      this.models.ImageCompositionIdentity ? this.models.ImageCompositionIdentity.count({where: {rootContentId: contentId}}) : 0,
+      this.models.ImageCompositionIdentity ? this.models.ImageCompositionIdentity.count({
+        where: {[Op.or]: [{rootContentId: contentId}, {currentContentId: contentId}]},
+      }) : 0,
       this.models.FileCatalogItem.count({where: {contentId}}),
       this.models.Group.count({where: {avatarImageId: contentId}}),
       this.models.Group.count({where: {coverImageId: contentId}}),

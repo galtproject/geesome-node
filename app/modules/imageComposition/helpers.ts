@@ -38,6 +38,7 @@ export function normalizeImageCompositionContentCreateInput(input: unknown): Ima
     idempotencyKey: requireIdentifier(value.idempotencyKey, 'idempotencyKey'),
     compositionId: requireIdentifier(value.compositionId, 'compositionId'),
     originalContentManifestId: requireIdentifier(value.originalContentManifestId, 'originalContentManifestId'),
+    ...(value.folderId === undefined ? {} : {folderId: requirePositiveInteger(value.folderId, 'folderId')}),
     ...(value.render === undefined ? {} : {render: normalizeRender(value.render)}),
     stickers: normalizeStickers(value.stickers, true),
   };
@@ -118,16 +119,16 @@ export function buildResolvedImageComposition(
   recipe: StoredImageComposition,
   original: IContent,
   stickerContents: IContent[],
-  fileCatalogItem: any,
+  fileCatalogItem?: any,
 ): ResolvedImageComposition {
   const stickersByManifest = new Map(stickerContents.map(content => [content.manifestStorageId, content]));
   return {
-    fileCatalogItemId: Number(fileCatalogItem.id),
+    ...(fileCatalogItem ? {fileCatalogItemId: Number(fileCatalogItem.id)} : {}),
     type: IMAGE_COMPOSITION_TYPE,
     version: recipe.version,
     compositionId: recipe.compositionId,
     revision: recipe.revision,
-    updatedAt: new Date(fileCatalogItem.updatedAt || composite.updatedAt).toISOString(),
+    updatedAt: new Date(fileCatalogItem?.updatedAt || composite.updatedAt).toISOString(),
     composite: contentProjection(composite, recipe.output, true),
     original: contentProjection(original, recipe.source, false),
     stickers: recipe.stickers.map(sticker => {

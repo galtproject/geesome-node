@@ -120,6 +120,22 @@ describe('image composition operation persistence', function () {
 		assert.equal(replay.operation.attemptCount, 1);
 	});
 
+	it('stores and replays a standalone content result without catalog identity', async () => {
+		const input = getClaimInput(`${targetPrefix}-standalone-success`, {value: 'standalone'});
+		const claim = await repository.claim(input);
+		const content = await models.Content.create({name: `${targetPrefix}-standalone-result`});
+		await repository.succeed(claim.operation.id, claim.claimToken, {
+			revision: 1,
+			contentManifestId: 'standalone-composite-manifest',
+			contentId: content.id,
+			response: {compositionId: 'standalone-composition', revision: 1},
+		});
+		const replay = await repository.claim(input);
+		assert.equal(replay.disposition, 'replay');
+		assert.equal(replay.result.fileCatalogItemId, undefined);
+		assert.equal(replay.result.contentId, content.id);
+	});
+
 	it('checkpoints the durable candidate and fences stale claim tokens', async () => {
 		const input = getClaimInput(`${targetPrefix}-checkpoint`, {value: 'checkpoint'});
 		const claim = await repository.claim(input);

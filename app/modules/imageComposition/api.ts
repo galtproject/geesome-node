@@ -8,7 +8,7 @@ export default function registerImageCompositionApi(app: IGeesomeApp, module: IG
 	 * @apiError (403) composition_not_permitted The actor cannot view or edit this composition.
 	 * @apiError (403) composition_content_not_permitted The original Content is private to another user.
 	 * @apiError (403) composition_dependency_not_permitted A stored dependency crosses an unauthorized ownership boundary.
-	 * @apiError (404) composition_not_found The catalog-backed composite Content does not exist.
+	 * @apiError (404) composition_not_found The composite Content does not exist.
 	 * @apiError (404) composition_content_not_found The requested original Content does not exist.
 	 * @apiError (422) composition_invalid The request or stored version-1 recipe is malformed.
 	 * @apiError (422) composition_dependency_not_found A recipe dependency is missing or inconsistent.
@@ -36,10 +36,11 @@ export default function registerImageCompositionApi(app: IGeesomeApp, module: IG
 	 * @apiBody {String} idempotencyKey Stable retry key.
 	 * @apiBody {String} compositionId Stable composition lineage id.
 	 * @apiBody {String} originalContentManifestId Original raster Content manifest id.
+	 * @apiBody {Number} [folderId] Optional owned file-catalog folder for placing the composite.
 	 * @apiBody {Object} [render] Optional bounded server render hint.
 	 * @apiBody {Number} [render.maxDimension] Maximum output width or height.
 	 * @apiBody {Object[]} stickers Complete semantic text-bubble list; may be empty.
-	 * @apiSuccess {Object} composition Resolved composite, original, generated stickers, and stable fileCatalogItemId.
+	 * @apiSuccess {Object} composition Resolved composite and dependencies; fileCatalogItemId is present only for catalog-placed content.
 	 * @apiExample {curl} Create content-only composition
 	 *   curl -X POST http://localhost:2052/v1/user/image-compositions -H "Authorization: Bearer geesome-api-key" -H "Content-Type: application/json" -d '{"idempotencyKey":"request-1","compositionId":"card-1","originalContentManifestId":"manifest-cid","stickers":[]}'
 	 */
@@ -57,7 +58,7 @@ export default function registerImageCompositionApi(app: IGeesomeApp, module: IG
 	 * @apiUse AuthErrors
 	 * @apiUse ImageCompositionErrors
 	 * @apiParam {String} contentManifestId Baked composite Content manifest id.
-	 * @apiSuccess {Object} composition Resolved composite, original, generated stickers, and stable fileCatalogItemId.
+	 * @apiSuccess {Object} composition Resolved composite and dependencies with an optional fileCatalogItemId.
 	 */
 	app.ms.api.onAuthorizedGet('user/image-compositions/:contentManifestId', async (req, res) => {
 		await withImageCompositionErrorResponse(res, async () => {
@@ -76,7 +77,7 @@ export default function registerImageCompositionApi(app: IGeesomeApp, module: IG
 	 * @apiBody {String} idempotencyKey Stable retry key.
 	 * @apiBody {Number} expectedRevision Optimistic concurrency revision.
 	 * @apiBody {Object[]} stickers Complete next semantic text-bubble list; may be empty.
-	 * @apiSuccess {Object} composition Resolved immutable successor and the unchanged fileCatalogItemId.
+	 * @apiSuccess {Object} composition Resolved immutable successor and the optional unchanged fileCatalogItemId.
 	 */
 	app.ms.api.onAuthorizedPost('user/image-compositions/:contentManifestId/revisions', async (req, res) => {
 		await withImageCompositionErrorResponse(res, async () => {

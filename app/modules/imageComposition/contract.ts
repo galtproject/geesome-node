@@ -61,6 +61,7 @@ export interface ImageCompositionContentCreateInput {
   idempotencyKey: string;
   compositionId: string;
   originalContentManifestId: string;
+  folderId?: number;
   render?: {maxDimension: number};
   stickers: ImageCompositionStickerInput[];
 }
@@ -97,7 +98,7 @@ export interface ResolvedImageCompositionSticker extends StoredImageCompositionS
 }
 
 export interface ResolvedImageComposition {
-  fileCatalogItemId: number;
+  fileCatalogItemId?: number;
   type: 'image-composition';
   version: number;
   compositionId: string;

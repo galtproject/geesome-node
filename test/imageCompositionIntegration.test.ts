@@ -6,14 +6,16 @@ import {ImageCompositionApiError} from '../app/modules/imageComposition/helpers.
 import {FileCatalogItemType} from '../app/modules/fileCatalog/interface.js';
 import {IGeesomeApp} from '../app/interface.js';
 
-describe('catalog-backed image composition persistence', function () {
+describe('image composition content persistence', function () {
 	this.timeout(90_000);
 
 	let app: IGeesomeApp;
 	let owner;
 	let outsider;
+	let contentOnlyUser;
 	let originalContent;
 	let originalPng: Buffer;
+	let catalogFolder;
 
 	before(async () => {
 		originalPng = await sharp({
@@ -35,9 +37,25 @@ describe('catalog-backed image composition persistence', function () {
 			email: 'composition-outsider@example.com', name: 'composition-outsider', password: 'outsider',
 			permissions: [CorePermissionName.UserAll],
 		});
+		contentOnlyUser = await app.registerUser({
+			email: 'composition-content-only@example.com', name: 'composition-content-only', password: 'content-only',
+			permissions: [CorePermissionName.UserSaveData],
+		});
 		originalContent = await app.ms.content.saveData(owner.id, originalPng, 'original.png', {
 			mimeType: 'image/png', view: ContentView.Media, driver: {raw: true}, skipFileCatalog: true,
 		});
+		catalogFolder = await app.ms.fileCatalog.createUserFolder(owner.id, null, 'Compositions');
+	});
+
+	it('does not require file-catalog permission for standalone composition Content', async () => {
+		const limitedOriginal = await app.ms.content.saveData(contentOnlyUser.id, originalPng, 'limited-original.png', {
+			mimeType: 'image/png', view: ContentView.Media, driver: {raw: true}, skipFileCatalog: true,
+		});
+		const created = await app.ms.imageComposition.createImageCompositionContent(contentOnlyUser.id, createInput({
+			originalContentManifestId: limitedOriginal.manifestStorageId,
+		}));
+		assert.equal(created.fileCatalogItemId, undefined);
+		assert.equal(created.original.contentManifestId, limitedOriginal.manifestStorageId);
 	});
 
 	afterEach(async () => app.stop());
@@ -55,18 +73,22 @@ describe('catalog-backed image composition persistence', function () {
 		};
 	}
 
-	it('creates one stable catalog item for the baked Content and replays idempotently', async () => {
+	function catalogInput(overrides: any = {}) {
+		return createInput({folderId: catalogFolder.id, ...overrides});
+	}
+
+	it('stores baked Content without a catalog item by default and replays idempotently', async () => {
 		const input = createInput();
 		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, input);
 		const replayed = await app.ms.imageComposition.createImageCompositionContent(owner.id, input);
 		assert.deepEqual(replayed, created);
-		assert(Number.isSafeInteger(created.fileCatalogItemId));
+		assert.equal(created.fileCatalogItemId, undefined);
 		assert.equal((created as any).postId, undefined);
 
-		const item = await app.ms.fileCatalog.getFileCatalogItem(created.fileCatalogItemId);
-		assert.equal(item.userId, owner.id);
-		assert.equal(item.content.manifestStorageId, created.composite.contentManifestId);
-		const composite = item.content;
+		const composite = await app.ms.database.getContentByManifestAndUserId(created.composite.contentManifestId, owner.id);
+		assert.equal((await app.ms.fileCatalog.getFileCatalogItemsByContent(
+			owner.id, composite.id, FileCatalogItemType.File,
+		)).length, 0);
 		const properties = JSON.parse(composite.propertiesJson);
 		assert.equal(properties.imageComposition.originalContentManifestId, originalContent.manifestStorageId);
 		assert.equal(properties.imageComposition.output.width, 160);
@@ -83,7 +105,7 @@ describe('catalog-backed image composition persistence', function () {
 		assert.equal(stickerCatalogItems.length, 0, 'generated SVG dependencies stay out of the file catalog');
 	});
 
-	it('revises immutable Content and atomically swaps the same catalog item', async () => {
+	it('revises standalone immutable Content without requiring a catalog item', async () => {
 		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput({stickers: []}));
 		const oldContent = await app.ms.database.getContentByManifestId(created.composite.contentManifestId);
 		const revised = await app.ms.imageComposition.createImageCompositionContentRevision(
@@ -92,10 +114,8 @@ describe('catalog-backed image composition persistence', function () {
 			{idempotencyKey: `revision-${randomUUID()}`, expectedRevision: 1, stickers: []},
 		);
 		assert.equal(revised.revision, 2);
-		assert.equal(revised.fileCatalogItemId, created.fileCatalogItemId);
+		assert.equal(revised.fileCatalogItemId, undefined);
 		assert.notEqual(revised.composite.contentManifestId, created.composite.contentManifestId);
-		const item = await app.ms.fileCatalog.getFileCatalogItem(created.fileCatalogItemId);
-		assert.equal(item.content.manifestStorageId, revised.composite.contentManifestId);
 		assert(await app.ms.database.models.Content.findByPk(oldContent.id), 'old immutable revision remains stored');
 		await assert.rejects(
 			() => app.ms.imageComposition.getImageCompositionContent(owner.id, created.composite.contentManifestId),
@@ -103,7 +123,7 @@ describe('catalog-backed image composition persistence', function () {
 		);
 	});
 
-	it('returns the current catalog revision when matching create is retried after editing', async () => {
+	it('returns the current Content revision when matching create is retried after editing', async () => {
 		const input = createInput();
 		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, input);
 		const revised = await app.ms.imageComposition.createImageCompositionContentRevision(
@@ -119,15 +139,15 @@ describe('catalog-backed image composition persistence', function () {
 			...input,
 			idempotencyKey: `create-again-${randomUUID()}`,
 		});
-		assert.equal(retriedCreate.fileCatalogItemId, created.fileCatalogItemId);
+		assert.equal(retriedCreate.fileCatalogItemId, undefined);
 		assert.equal(retriedCreate.revision, 2);
 		assert.equal(retriedCreate.composite.contentManifestId, revised.composite.contentManifestId);
 	});
 
 	it('lists only matching owner catalog items with pagination before projection', async () => {
-		await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput());
-		await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput());
-		await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput());
+		await app.ms.imageComposition.createImageCompositionContent(owner.id, catalogInput());
+		await app.ms.imageComposition.createImageCompositionContent(owner.id, catalogInput());
+		await app.ms.imageComposition.createImageCompositionContent(owner.id, catalogInput());
 		const first = await app.ms.imageComposition.getImageCompositionCatalogItems(owner.id, {limit: 2, offset: 0});
 		const second = await app.ms.imageComposition.getImageCompositionCatalogItems(owner.id, {limit: 2, offset: 2});
 		assert.equal(first.total, 3);
@@ -138,7 +158,7 @@ describe('catalog-backed image composition persistence', function () {
 	});
 
 	it('reconciles an entirely absent dependency graph from verified local manifests', async () => {
-		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput());
+		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, catalogInput());
 		const composite = await app.ms.database.getContentByManifestId(created.composite.contentManifestId);
 		await app.ms.database.models.ContentDependency.destroy({where: {parentContentId: composite.id}});
 		const beforeRepair = await app.ms.imageComposition.getImageCompositionCatalogItems(owner.id, {});
@@ -185,29 +205,30 @@ describe('catalog-backed image composition persistence', function () {
 		assert.equal(firstContent.storageId, secondContent.storageId);
 	});
 
-	it('converges concurrent matching roots and creates one catalog item', async () => {
+	it('converges concurrent matching standalone roots without creating catalog items', async () => {
 		const input = createInput();
 		const results = await Promise.all([
 			app.ms.imageComposition.createImageCompositionContent(owner.id, input),
 			app.ms.imageComposition.createImageCompositionContent(owner.id, {...input, idempotencyKey: `other-${randomUUID()}`}),
 		]);
 		assert.equal(results[0].composite.contentManifestId, results[1].composite.contentManifestId);
-		assert.equal(results[0].fileCatalogItemId, results[1].fileCatalogItemId);
+		assert.equal(results[0].fileCatalogItemId, undefined);
+		assert.equal(results[1].fileCatalogItemId, undefined);
 		const detail = await app.ms.imageComposition.getImageCompositionContent(
 			owner.id,
 			results[0].composite.contentManifestId,
 		);
-		assert.equal(detail.fileCatalogItemId, results[0].fileCatalogItemId);
-		const catalogItem = await app.ms.database.models.FileCatalogItem.findByPk(results[0].fileCatalogItemId);
+		assert.equal(detail.fileCatalogItemId, undefined);
+		const content = await app.ms.database.getContentByManifestAndUserId(results[0].composite.contentManifestId, owner.id);
 		assert.equal((await app.ms.fileCatalog.getFileCatalogItemsByContent(
 			owner.id,
-			catalogItem.contentId,
+			content.id,
 			FileCatalogItemType.File,
-		)).length, 1);
+		)).length, 0);
 	});
 
 	it('lets only one concurrent catalog CAS revision win', async () => {
-		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput());
+		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, catalogInput());
 		const updates = await Promise.allSettled(['A', 'B'].map(text => {
 			return app.ms.imageComposition.createImageCompositionContentRevision(owner.id, created.composite.contentManifestId, {
 				idempotencyKey: `update-${text}-${randomUUID()}`,
@@ -221,6 +242,22 @@ describe('catalog-backed image composition persistence', function () {
 		const winner = updates.find(result => result.status === 'fulfilled') as PromiseFulfilledResult<any>;
 		const item = await app.ms.fileCatalog.getFileCatalogItem(created.fileCatalogItemId);
 		assert.equal(item.content.manifestStorageId, winner.value.composite.contentManifestId);
+	});
+
+	it('continues as standalone Content after its optional catalog placement is hidden', async () => {
+		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, catalogInput({stickers: []}));
+		await app.ms.fileCatalog.updateFileCatalogList(owner.id, [created.fileCatalogItemId], {isDeleted: true});
+		const revised = await app.ms.imageComposition.createImageCompositionContentRevision(
+			owner.id,
+			created.composite.contentManifestId,
+			{idempotencyKey: `hidden-${randomUUID()}`, expectedRevision: 1, stickers: []},
+		);
+		assert.equal(revised.revision, 2);
+		assert.equal(revised.fileCatalogItemId, undefined);
+		const identity = await app.ms.database.models.ImageCompositionIdentity.findOne({
+			where: {userId: owner.id, compositionId: revised.compositionId},
+		});
+		assert.equal(identity.fileCatalogItemId, null);
 	});
 
 	it('blocks deleting original and SVG children while referenced', async () => {

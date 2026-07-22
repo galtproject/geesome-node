@@ -2,50 +2,45 @@
 
 ## Purpose
 
-`imageComposition` owns versioned image posts whose base raster remains immutable
-and whose overlays are stored as safe, backend-generated SVG contents. It is a
-separate feature module; `group` supplies generic post, permission, manifest,
-timeline, and atomic-update primitives.
+`imageComposition` owns versioned baked image Contents whose base raster remains
+immutable and whose overlays are stored as safe, backend-generated SVG Contents.
+It has no Post, Group, publication, or client-specific source dependency.
 
 ## Public API
 
-For compatibility, the module registers the existing authenticated routes:
+- `POST /v1/user/image-compositions`
+- `GET /v1/user/image-compositions/:contentManifestId`
+- `POST /v1/user/image-compositions/:contentManifestId/revisions`
+- `GET /v1/user/image-compositions` for catalog-placed composition summaries
 
-- `POST /v1/user/group/create-image-composition`
-- `POST /v1/user/group/update-image-composition/:postId`
-- `GET /v1/user/group/image-composition/:postId`
-- `GET /v1/user/group/:groupId/image-compositions`
+Create stores standalone Content by default. An optional owned `folderId` uses
+the normal file-catalog placement flow. Resolved detail includes
+`fileCatalogItemId` only when such a placement exists.
 
-The resolved DTO uses `type: image-composition`, numeric post IDs, normalized
-geometry, portable content manifest IDs, canonical asset URLs, and an object
-cursor containing `publishedAt` and `id`.
+## Identity And Revisions
 
-## Ownership And Dependencies
+`ImageCompositionIdentity(userId, compositionId)` converges initial creates and
+tracks both the immutable root and current Content rows. Revisions compare and
+swap `currentContentId`; if the identity has a catalog placement, the same
+transaction advances that FileCatalogItem to the new Content.
 
-The module owns semantic validation, `speech-v1` SVG rendering, operation
-idempotency, optimistic revision handling, API error translation, and the
-`ImageCompositionOperation` model. It depends on `database`, `api`, `content`,
-`group`, and `asyncOperation`, and must load after `group`.
-
-Composition posts are native GeeSome entities. Their raw Post rows use the
-generic `(groupId, type, entityId)` identity and leave `source`,
-`sourceChannelId`, and `sourcePostId` empty because those fields represent
-remote/import provenance. `entityId` is preserved in post manifests.
+Operation records provide durable idempotency and recovery without making a
+catalog item mandatory.
 
 ## Storage And Safety
 
-- The base raster is referenced by its existing content manifest ID.
+- The baked PNG is the default renderable Content and carries the versioned
+  semantic recipe in `properties.imageComposition`.
+- The base raster and generated SVG stickers are referenced through durable
+  `ContentDependency` edges.
 - Sticker text is validated semantic input; clients never submit SVG markup.
 - Generated SVGs are escaped, deterministic, self-contained, and stored as raw
-  immutable contents with restrictive serving headers.
-- Updates reuse unchanged sticker contents and atomically compare the previous
-  post properties before increasing the composition revision.
-- Create and update operations persist idempotency state so retries do not
-  duplicate posts.
+  immutable Contents with restrictive serving headers.
+- Previews are baked from the final PNG, so ordinary clients show stickers
+  without composition-specific preview logic.
 
 ## Verification
 
-Primary coverage lives in `test/imageComposition*.test.ts`. Schema/backfill
-coverage lives in `test/postEntityIdentityMigration.test.ts` and
-`test/databaseMigrationIntegrity.test.ts`. Run the focused tests first, then
-`npm run test:docker` for PostgreSQL/IPFS integration.
+Primary coverage lives in `test/imageComposition*.test.ts`, including
+standalone creation/revision, optional catalog placement, concurrency,
+idempotency, dependency integrity, preview generation, and authorization.

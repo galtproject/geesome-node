@@ -119,18 +119,8 @@ function getModule(app: IGeesomeApp, models) {
 				return this.addContentToUserFileCatalogCore(userId, content, {
 					folderId: options.folderId,
 					groupId,
-					returnExistingItem: false,
 				}, transaction);
 			});
-		}
-
-		async addContentToUserFileCatalogInTransaction(userId, content: IContent, transaction) {
-			await this.lockUserCatalog(userId, transaction);
-			return this.addContentToUserFileCatalogCore(userId, content, {
-				folderId: undefined,
-				groupId: null,
-				returnExistingItem: true,
-			}, transaction);
 		}
 
 		async lockUserCatalog(userId, transaction) {
@@ -147,7 +137,7 @@ function getModule(app: IGeesomeApp, models) {
 					transaction,
 				});
 				if (existingFile) {
-					return options.returnExistingItem ? existingFile : content;
+					return content;
 				}
 				parentItemId = (await this.getOrCreateDefaultFolderFor(userId, baseType, transaction)).id;
 			}
@@ -159,7 +149,7 @@ function getModule(app: IGeesomeApp, models) {
 			});
 			if (existingFile) {
 				log(`Content ${content.id} already exists in folder`);
-				return options.returnExistingItem ? existingFile : undefined;
+				return;
 			}
 
 			const fileName = await this.getAvailableFileCatalogItemNameInTransaction(
