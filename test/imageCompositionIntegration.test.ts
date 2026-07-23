@@ -278,7 +278,11 @@ describe('image composition content persistence', function () {
 			return app.ms.imageComposition.createImageCompositionContentRevision(owner.id, created.composite.contentManifestId, {
 				idempotencyKey: `update-${text}-${randomUUID()}`,
 				expectedRevision: 1,
-				stickers: [{...created.stickers[0], text: `Winner ${text}`}],
+				stickers: [{
+					...created.stickers[0],
+					svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><text x="1" y="5">Winner ${text}</text></svg>`,
+					editorData: {...created.stickers[0].editorData, text: `Winner ${text}`},
+				}],
 			});
 		}));
 		assert.equal(updates.filter(result => result.status === 'fulfilled').length, 1);
