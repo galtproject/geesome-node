@@ -49,14 +49,17 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
     async createImageCompositionContent(userId: number, rawInput) {
       await app.checkUserCan(userId, CorePermissionName.UserSaveData);
       const input = normalizeImageCompositionContentCreateInput(rawInput);
+      if (input.folderId !== undefined) {
+        await this.assertCatalogFolderAvailable(userId, input.folderId);
+      }
       const operation = await this.claimOperation(userId, 'content-create', input.compositionId, input);
       if (operation.replay) return operation.response;
       try {
         const result = await this.createRootComposite(userId, input, operation);
-        const catalogItem = input.folderId
-          ? await this.ensureCatalogItem(userId, result.identity, result.composite, input.folderId)
+        const optionalCatalogPlacement = input.folderId !== undefined
+          ? await this.ensureCatalogPlacement(userId, result.identity, result.composite, input.folderId)
           : undefined;
-        const response = await this.resolveComposite(result.composite, catalogItem);
+        const response = await this.resolveComposite(result.composite, optionalCatalogPlacement);
         await this.succeedOperation(operation, result.composite, response);
         return response;
       } catch (error) {
@@ -73,17 +76,16 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
       const identity = await this.getCompositionIdentity(userId, currentRecipe.compositionId);
       const operation = await this.claimOperation(userId, 'content-revision', contentManifestId, input);
       if (operation.replay) return operation.response;
-      let currentCatalogItem;
       try {
         await this.assertCurrentComposite(userId, identity, current);
-        currentCatalogItem = await this.getBoundCatalogItem(userId, identity);
       } catch (error) {
-        const item = await this.getBoundCatalogItem(userId, identity);
-        const activeContentId = identity.currentContentId || identity.rootContentId;
+        const refreshedIdentity = await this.getCompositionIdentity(userId, currentRecipe.compositionId);
+        const activeContentId = refreshedIdentity.currentContentId || refreshedIdentity.rootContentId;
         const active = activeContentId ? await models.Content.findByPk(activeContentId) : null;
         if (active && operation.recovery?.compositeContentManifestId === active.manifestStorageId
           && doesRecipeMatchUpdate(parseImageCompositionContent(active), input)) {
-          const response = await this.resolveComposite(active, item);
+          const optionalCatalogPlacement = await this.getOptionalCatalogPlacement(userId, refreshedIdentity);
+          const response = await this.resolveComposite(active, optionalCatalogPlacement);
           await this.succeedOperation(operation, active, response);
           return response;
         }
@@ -97,8 +99,8 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
       }
       try {
         const result = await this.createCompositeRevision(userId, current, currentRecipe, input, operation);
-        const catalogItem = await this.advanceComposite(userId, identity, currentCatalogItem, current, result.composite);
-        const response = await this.resolveComposite(result.composite, catalogItem);
+        const optionalCatalogPlacement = await this.advanceComposite(userId, identity, current, result.composite);
+        const response = await this.resolveComposite(result.composite, optionalCatalogPlacement);
         await this.succeedOperation(operation, result.composite, response);
         return response;
       } catch (error) {
@@ -113,7 +115,8 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
       const recipe = parseImageCompositionContent(composite);
       const identity = await this.getCompositionIdentity(userId, recipe.compositionId);
       await this.assertCurrentComposite(userId, identity, composite);
-      return this.resolveComposite(composite, await this.getBoundCatalogItem(userId, identity));
+      const optionalCatalogPlacement = await this.getOptionalCatalogPlacement(userId, identity);
+      return this.resolveComposite(composite, optionalCatalogPlacement);
     }
 
     async getImageCompositionCatalogItems(userId: number, listParams: any = {}) {
@@ -387,13 +390,19 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
       return {composite};
     }
 
-    async resolveComposite(composite, fileCatalogItem) {
+    async resolveComposite(composite, optionalCatalogPlacement?) {
       if (!composite.mediumPreviewStorageId || !String(composite.previewMimeType || '').startsWith('image/')) {
         throw new ImageCompositionApiError('composition_invalid', 422, {field: 'preview'});
       }
       const recipe = parseImageCompositionContent(composite);
       const dependencies = await this.resolveDependencies(composite, recipe);
-      return buildResolvedImageComposition(composite, recipe, dependencies.original, dependencies.stickers, fileCatalogItem);
+      return buildResolvedImageComposition(
+        composite,
+        recipe,
+        dependencies.original,
+        dependencies.stickers,
+        optionalCatalogPlacement,
+      );
     }
 
     async resolveDependencies(composite, recipe: StoredImageComposition) {
@@ -472,41 +481,49 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
       return identity;
     }
 
-    async ensureCatalogItem(userId: number, identity, composite, folderId: number) {
-      await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
-      const folder = await models.FileCatalogItem.findOne({
-        where: {id: folderId, userId, type: FileCatalogItemType.Folder, isDeleted: false},
-      });
-      if (!folder) throw new ImageCompositionApiError('composition_invalid', 422, {field: 'folderId'});
-      const bound = await this.getBoundCatalogItem(userId, identity);
-      if (bound) {
-        if (Number(bound.parentItemId) !== Number(folderId) || Number(bound.contentId) !== Number(composite.id)) {
+    async ensureCatalogPlacement(userId: number, identity, composite, folderId: number) {
+      // Recheck after rendering because the folder can be removed while the
+      // immutable composite is being generated.
+      await this.assertCatalogFolderAvailable(userId, folderId);
+      const existingPlacement = await this.getOptionalCatalogPlacement(userId, identity);
+      if (existingPlacement) {
+        if (Number(existingPlacement.parentItemId) !== Number(folderId)
+          || Number(existingPlacement.contentId) !== Number(composite.id)) {
           throw new ImageCompositionApiError('composition_idempotency_conflict', 409);
         }
-        return bound;
+        return existingPlacement;
       }
       await app.ms.fileCatalog.addContentToUserFileCatalog(userId, composite, {folderId});
-      const item = await models.FileCatalogItem.findOne({
+      const createdPlacement = await models.FileCatalogItem.findOne({
         where: {userId, parentItemId: folderId, contentId: composite.id, type: FileCatalogItemType.File, isDeleted: false},
         order: [['id', 'ASC']],
       });
-      if (!item) throw new ImageCompositionApiError('composition_storage_failed', 500);
+      if (!createdPlacement) throw new ImageCompositionApiError('composition_storage_failed', 500);
       return app.ms.database.sequelize.transaction(async transaction => {
         const lockedIdentity = await models.ImageCompositionIdentity.findByPk(identity.id, {
           transaction,
           lock: transaction.LOCK.UPDATE,
         });
-        if (lockedIdentity.fileCatalogItemId && Number(lockedIdentity.fileCatalogItemId) !== Number(item.id)) {
+        if (lockedIdentity.fileCatalogItemId
+          && Number(lockedIdentity.fileCatalogItemId) !== Number(createdPlacement.id)) {
           const activeBinding = await models.FileCatalogItem.findOne({
             where: {id: lockedIdentity.fileCatalogItemId, userId, isDeleted: false}, transaction,
           });
           if (activeBinding) throw new ImageCompositionApiError('composition_idempotency_conflict', 409);
         }
-        if (Number(lockedIdentity.fileCatalogItemId) !== Number(item.id)) {
-          await lockedIdentity.update({fileCatalogItemId: item.id}, {transaction});
+        if (Number(lockedIdentity.fileCatalogItemId) !== Number(createdPlacement.id)) {
+          await lockedIdentity.update({fileCatalogItemId: createdPlacement.id}, {transaction});
         }
-        return item;
+        return createdPlacement;
       });
+    }
+
+    async assertCatalogFolderAvailable(userId: number, folderId: number) {
+      await app.checkUserCan(userId, CorePermissionName.UserFileCatalogManagement);
+      const folder = await models.FileCatalogItem.findOne({
+        where: {id: folderId, userId, type: FileCatalogItemType.Folder, isDeleted: false},
+      });
+      if (!folder) throw new ImageCompositionApiError('composition_invalid', 422, {field: 'folderId'});
     }
 
     async assertCurrentComposite(userId: number, identity, composite) {
@@ -521,13 +538,16 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
       }
     }
 
-    async getBoundCatalogItem(userId: number, identity) {
-      return identity.fileCatalogItemId
-        ? models.FileCatalogItem.findOne({where: {id: identity.fileCatalogItemId, userId, isDeleted: false}})
-        : null;
+    async getOptionalCatalogPlacement(userId: number, identity, options: {transaction?, lock?} = {}) {
+      if (!identity.fileCatalogItemId) return null;
+      return models.FileCatalogItem.findOne({
+        where: {id: identity.fileCatalogItemId, userId, isDeleted: false},
+        ...(options.transaction ? {transaction: options.transaction} : {}),
+        ...(options.lock && options.transaction ? {lock: options.transaction.LOCK.UPDATE} : {}),
+      });
     }
 
-    async advanceComposite(userId: number, identity, currentCatalogItem, currentComposite, nextComposite) {
+    async advanceComposite(userId: number, identity, currentComposite, nextComposite) {
       return app.ms.database.sequelize.transaction(async transaction => {
         const lockedIdentity = await models.ImageCompositionIdentity.findByPk(identity.id, {
           transaction,
@@ -535,7 +555,7 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
         });
         const activeContentId = lockedIdentity.currentContentId || lockedIdentity.rootContentId;
         if (Number(activeContentId) === Number(nextComposite.id)) {
-          return this.getBoundCatalogItem(userId, lockedIdentity);
+          return this.getOptionalCatalogPlacement(userId, lockedIdentity, {transaction});
         }
         if (Number(activeContentId) !== Number(currentComposite.id)) {
           const activeContent = await models.Content.findByPk(activeContentId, {transaction});
@@ -543,39 +563,46 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
           try { currentRevision = parseImageCompositionContent(activeContent).revision; } catch (_error) {}
           throw revisionConflict(currentRevision, activeContent?.manifestStorageId);
         }
-        let item = null;
+        let optionalCatalogPlacement = null;
         let clearCatalogBinding = false;
         if (lockedIdentity.fileCatalogItemId) {
-          item = await models.FileCatalogItem.findOne({
-            where: {id: lockedIdentity.fileCatalogItemId, userId, isDeleted: false},
-            transaction,
-            lock: transaction.LOCK.UPDATE,
-          });
-          if (!item) {
+          optionalCatalogPlacement = await this.getOptionalCatalogPlacement(
+            userId,
+            lockedIdentity,
+            {transaction, lock: true},
+          );
+          if (!optionalCatalogPlacement) {
             clearCatalogBinding = true;
-          } else if (!currentCatalogItem || Number(item.id) !== Number(currentCatalogItem.id)) {
-            throw new ImageCompositionApiError('composition_not_found', 404);
           }
-          if (item && Number(item.contentId) !== Number(currentComposite.id)) {
-            const catalogContent = await models.Content.findByPk(item.contentId, {transaction});
+          if (optionalCatalogPlacement
+            && Number(optionalCatalogPlacement.contentId) !== Number(currentComposite.id)) {
+            const catalogContent = await models.Content.findByPk(optionalCatalogPlacement.contentId, {transaction});
             let currentRevision = parseImageCompositionContent(currentComposite).revision + 1;
             try { currentRevision = parseImageCompositionContent(catalogContent).revision; } catch (_error) {}
             throw revisionConflict(currentRevision, catalogContent?.manifestStorageId);
           }
-          if (item) await item.update({contentId: nextComposite.id, size: nextComposite.size}, {transaction});
+          if (optionalCatalogPlacement) {
+            await optionalCatalogPlacement.update(
+              {contentId: nextComposite.id, size: nextComposite.size},
+              {transaction},
+            );
+          }
         }
         await lockedIdentity.update({
           currentContentId: nextComposite.id,
           ...(clearCatalogBinding ? {fileCatalogItemId: null} : {}),
         }, {transaction});
-        if (item?.parentItemId) {
+        if (optionalCatalogPlacement?.parentItemId) {
           const size = await models.FileCatalogItem.sum('size', {
-            where: {parentItemId: item.parentItemId, isDeleted: false},
+            where: {parentItemId: optionalCatalogPlacement.parentItemId, isDeleted: false},
             transaction,
           });
-          await models.FileCatalogItem.update({size}, {where: {id: item.parentItemId}, transaction});
+          await models.FileCatalogItem.update(
+            {size},
+            {where: {id: optionalCatalogPlacement.parentItemId}, transaction},
+          );
         }
-        return item;
+        return optionalCatalogPlacement;
       });
     }
 

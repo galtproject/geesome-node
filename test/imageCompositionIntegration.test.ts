@@ -58,6 +58,21 @@ describe('image composition content persistence', function () {
 		assert.equal(created.original.contentManifestId, limitedOriginal.manifestStorageId);
 	});
 
+	it('rejects an invalid optional folder before creating composition state', async () => {
+		const input = createInput({folderId: Number.MAX_SAFE_INTEGER});
+		await assert.rejects(
+			() => app.ms.imageComposition.createImageCompositionContent(owner.id, input),
+			(error: ImageCompositionApiError) => error.errorCode === 'composition_invalid'
+				&& error.details?.field === 'folderId',
+		);
+		assert.equal(await app.ms.database.models.ImageCompositionIdentity.count({
+			where: {userId: owner.id, compositionId: input.compositionId},
+		}), 0);
+		assert.equal(await app.ms.database.models.ImageCompositionOperation.count({
+			where: {actorUserId: owner.id, targetKey: input.compositionId},
+		}), 0);
+	});
+
 	afterEach(async () => app.stop());
 
 	function createInput(overrides: any = {}) {
@@ -108,13 +123,26 @@ describe('image composition content persistence', function () {
 	it('revises standalone immutable Content without requiring a catalog item', async () => {
 		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, createInput({stickers: []}));
 		const oldContent = await app.ms.database.getContentByManifestId(created.composite.contentManifestId);
-		const revised = await app.ms.imageComposition.createImageCompositionContentRevision(
-			owner.id,
-			created.composite.contentManifestId,
-			{idempotencyKey: `revision-${randomUUID()}`, expectedRevision: 1, stickers: []},
-		);
+		const FileCatalogItem = app.ms.database.models.FileCatalogItem;
+		const originalFindOne = FileCatalogItem.findOne;
+		let catalogPlacementQueries = 0;
+		FileCatalogItem.findOne = function (...args) {
+			catalogPlacementQueries += 1;
+			return originalFindOne.apply(this, args);
+		};
+		let revised;
+		try {
+			revised = await app.ms.imageComposition.createImageCompositionContentRevision(
+				owner.id,
+				created.composite.contentManifestId,
+				{idempotencyKey: `revision-${randomUUID()}`, expectedRevision: 1, stickers: []},
+			);
+		} finally {
+			FileCatalogItem.findOne = originalFindOne;
+		}
 		assert.equal(revised.revision, 2);
 		assert.equal(revised.fileCatalogItemId, undefined);
+		assert.equal(catalogPlacementQueries, 0);
 		assert.notEqual(revised.composite.contentManifestId, created.composite.contentManifestId);
 		assert(await app.ms.database.models.Content.findByPk(oldContent.id), 'old immutable revision remains stored');
 		await assert.rejects(
