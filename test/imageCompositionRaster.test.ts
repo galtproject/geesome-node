@@ -4,7 +4,6 @@ import sharp from 'sharp';
 import {IMAGE_COMPOSITION_LIMITS} from '../app/modules/imageComposition/contract.js';
 import {ImageCompositionApiError} from '../app/modules/imageComposition/helpers.js';
 import {bakeImageComposition} from '../app/modules/imageComposition/raster.js';
-import {generateImageCompositionStickerSvg} from '../app/modules/imageComposition/svg.js';
 
 describe('image composition raster baking', function () {
 	it('auto-orients the original and derives source/output dimensions from decoded pixels', async () => {
@@ -49,16 +48,13 @@ describe('image composition raster baking', function () {
 		);
 	});
 
-	it('bakes semantic SVG stickers deterministically in stable z-index order', async () => {
+	it('bakes client SVG stickers deterministically in stable z-index order', async () => {
 		const original = await sharp({
 			create: {width: 120, height: 80, channels: 4, background: {r: 240, g: 240, b: 240, alpha: 1}},
 		}).png().toBuffer();
 		const first = sticker('first', 'First', 2, 0.35);
 		const second = sticker('second', 'Second', 1, 0.05);
-		const withSvg = [first, second].map(value => ({
-			...value,
-			svg: generateImageCompositionStickerSvg(value).svg,
-		}));
+		const withSvg = [first, second];
 
 		const forward = await bakeImageComposition(original, withSvg);
 		const reversed = await bakeImageComposition(original, [...withSvg].reverse());
@@ -105,9 +101,7 @@ describe('image composition raster baking', function () {
 function sticker(id: string, text: string, zIndex: number, x: number) {
 	return {
 		id,
-		kind: 'text-bubble' as const,
-		template: 'speech-v1' as const,
-		text,
+		svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60"><rect x="1" y="1" width="98" height="58" fill="#fff" stroke="#111"/><text x="50" y="32" text-anchor="middle">${text}</text></svg>`,
 		x,
 		y: 0.1,
 		width: 0.35,

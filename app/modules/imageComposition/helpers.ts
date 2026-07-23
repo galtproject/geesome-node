@@ -4,7 +4,6 @@ import {
   IMAGE_COMPOSITION_LIMITS,
   IMAGE_COMPOSITION_TYPE,
   IMAGE_COMPOSITION_RENDERER,
-  IMAGE_COMPOSITION_TEMPLATE,
   IMAGE_COMPOSITION_VERSION,
   ImageCompositionContentCreateInput,
   ImageCompositionStickerInput,
@@ -13,7 +12,7 @@ import {
   StoredImageComposition,
 } from './contract.js';
 import {canonicalizeImageCompositionRequest} from './operationRepository.js';
-import {getImageCompositionStickerSemanticHash, validateImageCompositionStickerSemanticInput} from './svg.js';
+import {validateAndNormalizeImageCompositionStickerSvg} from './svg.js';
 
 export class ImageCompositionApiError extends Error {
   readonly errorCode: string;
@@ -107,11 +106,11 @@ export function doesRecipeMatchCreate(recipe: StoredImageComposition, input: Ima
     && recipe.compositionId === input.compositionId
     && recipe.originalContentManifestId === input.originalContentManifestId
     && (recipe.render?.maxDimension ?? null) === (input.render?.maxDimension ?? null)
-    && semanticStickersEqual(recipe.stickers, input.stickers);
+    && stickersEqual(recipe.stickers, input.stickers);
 }
 
 export function doesRecipeMatchUpdate(recipe: StoredImageComposition, input: ImageCompositionUpdateInput) {
-  return recipe.revision === input.expectedRevision + 1 && semanticStickersEqual(recipe.stickers, input.stickers);
+  return recipe.revision === input.expectedRevision + 1 && stickersEqual(recipe.stickers, input.stickers);
 }
 
 export function buildResolvedImageComposition(
@@ -190,10 +189,16 @@ export function assertRasterOriginalContent(content: IContent | null): asserts c
   }
 }
 
-function semanticStickersEqual(stored, input) {
+function stickersEqual(stored, input) {
   if (stored.length !== input.length) return false;
-  const fields = ['id', 'kind', 'template', 'text', 'x', 'y', 'width', 'height', 'rotationDeg', 'zIndex'];
-  return input.every((sticker, index) => fields.every(field => stored[index]?.[field] === sticker[field]));
+  const fields = ['id', 'x', 'y', 'width', 'height', 'rotationDeg', 'zIndex'];
+  return input.every((sticker, index) => {
+    const candidate = stored[index];
+    return fields.every(field => candidate?.[field] === sticker[field])
+      && candidate?.svgHash === validateAndNormalizeImageCompositionStickerSvg(sticker.svg).svgHash
+      && canonicalizeImageCompositionRequest(candidate?.editorData ?? null)
+        === canonicalizeImageCompositionRequest(sticker.editorData ?? null);
+  });
 }
 
 function normalizeStickers(input: unknown, allowEmpty: boolean): ImageCompositionStickerInput[] {
@@ -204,11 +209,17 @@ function normalizeStickers(input: unknown, allowEmpty: boolean): ImageCompositio
   const zIndexes = new Set<number>();
   const stickers = input.map((raw, index) => {
     const value = requireObject(raw);
+    let validatedSvg;
+    try {
+      validatedSvg = validateAndNormalizeImageCompositionStickerSvg(value.svg);
+    } catch (_error) {
+      throw invalid(`stickers[${index}].svg`);
+    }
+    const editorData = normalizeEditorData(value.editorData, `stickers[${index}].editorData`);
     const sticker: ImageCompositionStickerInput = {
       id: requireIdentifier(value.id, `stickers[${index}].id`),
-      kind: value.kind,
-      template: value.template,
-      text: typeof value.text === 'string' ? value.text : '',
+      svg: validatedSvg.svg,
+      ...(editorData === undefined ? {} : {editorData}),
       x: requireUnitNumber(value.x, `stickers[${index}].x`),
       y: requireUnitNumber(value.y, `stickers[${index}].y`),
       width: requireUnitNumber(value.width, `stickers[${index}].width`, false),
@@ -222,16 +233,12 @@ function normalizeStickers(input: unknown, allowEmpty: boolean): ImageCompositio
     }
     ids.add(sticker.id);
     zIndexes.add(sticker.zIndex);
-    try {
-      validateImageCompositionStickerSemanticInput(sticker);
-    } catch (error) {
-      if ((error as Error).message.includes('template')) {
-        throw new ImageCompositionApiError('composition_template_unknown', 422);
-      }
-      throw invalid(`stickers[${index}]`);
-    }
     return sticker;
   });
+  if (stickers.reduce((bytes, sticker) => bytes + Buffer.byteLength(sticker.svg, 'utf8'), 0)
+    > IMAGE_COMPOSITION_LIMITS.maxTotalStickerSvgBytes) {
+    throw invalid('stickers');
+  }
   return stickers.sort((left, right) => left.zIndex - right.zIndex || left.id.localeCompare(right.id));
 }
 
@@ -291,6 +298,21 @@ function requireUnitNumber(value: unknown, field: string, allowZero = true): num
   return number;
 }
 
+function normalizeEditorData(value: unknown, field: string): Record<string, unknown> | undefined {
+  if (value === undefined) return undefined;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid(field);
+  let canonical: string;
+  try {
+    canonical = canonicalizeImageCompositionRequest(value);
+  } catch (_error) {
+    throw invalid(field);
+  }
+  if (Buffer.byteLength(canonical, 'utf8') > IMAGE_COMPOSITION_LIMITS.maxStickerEditorDataBytes) {
+    throw invalid(field);
+  }
+  return JSON.parse(canonical);
+}
+
 function invalid(field?: string) {
   return new ImageCompositionApiError('composition_invalid', 422, field ? {field} : undefined);
 }
@@ -324,23 +346,32 @@ function isStoredStickerList(stickers: any[]) {
   const ids = new Set<string>();
   const zIndexes = new Set<number>();
   return stickers.every((sticker, index) => {
-    if (!sticker || !isIdentifier(sticker.contentManifestId) || !isSha256(sticker.semanticHash)
-      || !isPositiveInteger(sticker.templateVersion) || sticker.templateVersion !== 1) return false;
-    let normalized: ImageCompositionStickerInput;
+    if (!sticker || !isIdentifier(sticker.id) || !isIdentifier(sticker.contentManifestId) || !isSha256(sticker.svgHash)) return false;
+    let editorData;
     try {
-      normalized = normalizeStickers([sticker], true)[0];
+      editorData = normalizeEditorData(sticker.editorData, `stickers[${index}].editorData`);
     } catch (_error) {
       return false;
     }
-    if (getImageCompositionStickerSemanticHash(sticker) !== sticker.semanticHash) return false;
-    if (ids.has(normalized.id) || zIndexes.has(normalized.zIndex)) return false;
+    const x = Number(sticker.x);
+    const y = Number(sticker.y);
+    const width = Number(sticker.width);
+    const height = Number(sticker.height);
+    const rotationDeg = Number(sticker.rotationDeg);
+    const zIndex = Number(sticker.zIndex);
+    if (![x, y, width, height].every(value => Number.isFinite(value) && value >= 0 && value <= 1)
+      || width === 0 || height === 0 || x + width > 1 || y + height > 1
+      || !Number.isFinite(rotationDeg) || rotationDeg !== 0 || !isPositiveInteger(zIndex)
+      || canonicalizeImageCompositionRequest(editorData ?? null)
+        !== canonicalizeImageCompositionRequest(sticker.editorData ?? null)) return false;
+    if (ids.has(sticker.id) || zIndexes.has(zIndex)) return false;
     if (index > 0) {
       const previous = stickers[index - 1];
-      if (Number(previous.zIndex) > normalized.zIndex
-        || (Number(previous.zIndex) === normalized.zIndex && String(previous.id).localeCompare(normalized.id) > 0)) return false;
+      if (Number(previous.zIndex) > zIndex
+        || (Number(previous.zIndex) === zIndex && String(previous.id).localeCompare(sticker.id) > 0)) return false;
     }
-    ids.add(normalized.id);
-    zIndexes.add(normalized.zIndex);
+    ids.add(sticker.id);
+    zIndexes.add(zIndex);
     return true;
   });
 }

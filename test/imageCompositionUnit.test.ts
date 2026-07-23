@@ -8,11 +8,17 @@ import {
 	normalizeImageCompositionContentCreateInput,
 	normalizeImageCompositionUpdateInput,
 } from '../app/modules/imageComposition/helpers.js';
-import {IMAGE_COMPOSITION_RENDERER, IMAGE_COMPOSITION_TYPE} from '../app/modules/imageComposition/contract.js';
-import {generateImageCompositionStickerSvg} from '../app/modules/imageComposition/svg.js';
+import {
+	IMAGE_COMPOSITION_LIMITS,
+	IMAGE_COMPOSITION_RENDERER,
+	IMAGE_COMPOSITION_TYPE,
+} from '../app/modules/imageComposition/contract.js';
+import {validateAndNormalizeImageCompositionStickerSvg} from '../app/modules/imageComposition/svg.js';
 
 const sticker = {
-	id: 'bubble-1', kind: 'text-bubble' as const, template: 'speech-v1' as const, text: 'Hello',
+	id: 'bubble-1',
+	svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><text x="1" y="5">Hello</text></svg>',
+	editorData: {kind: 'text-bubble', text: 'Hello'},
 	x: 0.1, y: 0.2, width: 0.3, height: 0.2, rotationDeg: 0, zIndex: 1,
 };
 
@@ -27,10 +33,9 @@ function storedRecipe(overrides: any = {}) {
 		output: {width: 1200, height: 800},
 		renderer: IMAGE_COMPOSITION_RENDERER,
 		stickers: [{
-			...sticker,
-			templateVersion: 1,
+			...(({svg: _svg, ...value}) => value)(sticker),
 			contentManifestId: 'sticker-manifest',
-			semanticHash: generateImageCompositionStickerSvg(sticker).semanticHash,
+			svgHash: validateAndNormalizeImageCompositionStickerSvg(sticker.svg).svgHash,
 		}],
 		...overrides,
 	};
@@ -84,6 +89,25 @@ describe('image composition contract integration', function () {
 		}
 	});
 
+	it('rejects aggregate client SVG bytes before storing any sticker content', function () {
+		const body = 'x'.repeat(IMAGE_COMPOSITION_LIMITS.maxStickerSvgBytes - 200);
+		const stickers = Array.from({
+			length: Math.ceil(IMAGE_COMPOSITION_LIMITS.maxTotalStickerSvgBytes / body.length) + 1,
+		}, (_, index) => ({
+			...sticker,
+			id: `sticker-${index}`,
+			zIndex: index + 1,
+			svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><desc>${body}</desc></svg>`,
+		}));
+		assert.throws(() => normalizeImageCompositionContentCreateInput({
+			idempotencyKey: 'key',
+			compositionId: 'composition-id',
+			originalContentManifestId: 'original-manifest',
+			stickers,
+		}), (error: ImageCompositionApiError) => error.errorCode === 'composition_invalid'
+			&& error.details?.field === 'stickers');
+	});
+
 	it('returns catalog identity and authorized recipe children', function () {
 		const resolved = buildResolvedImageComposition(
 			{
@@ -111,7 +135,11 @@ describe('image composition contract integration', function () {
 		const recipe: any = storedRecipe();
 		assert.equal(doesRecipeMatchCreate(recipe, input), true);
 		assert.equal(doesRecipeMatchCreate(recipe, {
-			...input, stickers: [{...input.stickers[0], text: 'Different'}],
+			...input, stickers: [{
+				...input.stickers[0],
+				svg: input.stickers[0].svg.replace('Hello', 'Different'),
+				editorData: {kind: 'text-bubble', text: 'Different'},
+			}],
 		}), false);
 	});
 
