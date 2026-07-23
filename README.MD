@@ -327,8 +327,11 @@ Existing services:
 
 ## Minimal requirements
 - System: Ubuntu 22.04 (Jammy) or newer
-- RAM: **2 GB minimum (with swap), 4 GB recommended.** Swap is required — the Docker image build and video transcoding spike memory; initialize it with `bash/ubuntu-init-swapfile.sh`. Measured footprint: the node process peaks ~350 MB at startup and settles to ~300 MB; the whole stack (node + IPFS + Postgres) stayed under ~1.75 GB in light use. Concurrent video transcoding needs more headroom — prefer 4 GB. You can profile your own load with the memory tooling in [DEBUG.md](DEBUG.md).
-- Disk: 1 GB free + space for your files (plus ~3–4 GB for Docker images)
+- RAM for running the node: **2 GB minimum with swap**, **4 GB recommended**. The app process itself is comparatively small: measured startup peaks around 350 MB and settles around 300 MB, while the light-use stack (node + IPFS + Postgres) stayed under about 1.75 GB.
+- RAM for Docker install/upgrade builds: **4 GB RAM with 8 GB swap recommended**. Building the Docker image can rebuild native packages, bundle the frontend, and minify large JavaScript chunks; these phases can temporarily use more than 1 GB in one Node process while IPFS/Postgres are still running. Initialize swap with `bash/ubuntu-init-swapfile.sh`.
+- CPU: **2 cores recommended** for Docker builds and media processing. A single-core server can run the node, but frontend builds, native dependency rebuilds, and video transcoding will be slow.
+- Disk: **10 GB free minimum for Docker image/build cache**, **20 GB+ recommended**, plus space for your files, IPFS repo, and Postgres data. Existing Docker images and warm build caches can exceed the old 3-4 GB estimate.
+- Concurrent video transcoding or large imports need extra headroom. You can profile your own load with the memory tooling in [DEBUG.md](DEBUG.md).
 
 ## Dependencies
 - GO IPFS or IPFS JS
