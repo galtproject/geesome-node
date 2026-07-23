@@ -25,10 +25,35 @@ describe("databaseMigrationIntegrity", function () {
         permissions: [CorePermissionName.UserAll]
       });
 
-      await app.ms.group.createGroup(testUser.id, {
-        name: 'test',
-        title: 'Test'
-      });
+      const queryInterface = app.ms.database.sequelize.getQueryInterface();
+      const pinStorageObjectColumns = await queryInterface.describeTable('pinStorageObjects');
+      for (const column of [
+        'attemptId',
+        'attemptCount',
+        'requestedAt',
+        'acceptedAt',
+        'confirmedAt',
+        'failedAt',
+        'lastAttemptAt',
+        'nextCheckAt',
+        'lastErrorCode',
+        'lastErrorMessage',
+        'reconcileClaimId',
+        'reconcileClaimExpiresAt',
+        'reconcileAttemptCount',
+        'lastReconcileAt'
+      ]) {
+        assert(pinStorageObjectColumns[column], `pinStorageObjects.${column} is missing after model sync`);
+      }
+      const pinStorageObjectIndexes = await queryInterface.showIndex('pinStorageObjects');
+      assert(
+        pinStorageObjectIndexes.some(index => index.name === 'pin_storage_objects_status_check_idx'),
+        'pinStorageObjects reconciliation scan index is missing after model sync'
+      );
+      assert(
+        pinStorageObjectIndexes.some(index => index.name === 'pin_storage_objects_reconcile_claim_idx'),
+        'pinStorageObjects reconciliation claim index is missing after model sync'
+      );
 
       const results = await runMigrationIntegrityAudit({requireMigrationMeta: false});
       const failures = results.filter((result) => result.status === 'fail');

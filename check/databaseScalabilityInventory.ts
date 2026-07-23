@@ -54,6 +54,9 @@ function joinList(items: string[]): string {
 
 function modelRows(): ModelRow[] {
   const postSource = read('app/modules/group/models/post.ts');
+  const contentDependencySource = read('app/modules/database/models/contentDependency.ts');
+  const imageCompositionIdentitySource = read('app/modules/imageComposition/models/imageCompositionIdentity.ts');
+  const imageCompositionOperationSource = read('app/modules/imageComposition/models/imageCompositionOperation.ts');
   const postEventSource = read('app/modules/group/models/postEvent.ts');
   const groupSource = read('app/modules/group/models/group.ts');
   const groupModuleSource = read('app/modules/group/index.ts');
@@ -81,6 +84,7 @@ function modelRows(): ModelRow[] {
   const staticIdIndexSource = read('app/modules/staticId/index.ts');
   const databaseModuleSource = read('app/modules/database/index.ts');
   const appSource = read('app/index.ts');
+  const appConfigSource = read('app/config.ts');
   const userContentActionSource = read('app/modules/database/models/userContentAction.ts');
   const userLimitSource = read('app/modules/database/models/userLimit.ts');
   const asyncOperationSource = read('app/modules/asyncOperation/models.ts');
@@ -90,6 +94,8 @@ function modelRows(): ModelRow[] {
   const autoActionCronSource = read('app/modules/autoActions/cronService.ts');
   const pinSource = read('app/modules/pin/models.ts');
   const pinIndexSource = read('app/modules/pin/index.ts');
+  const pinCronSource = read('app/modules/pin/cron.ts');
+  const pinCronServiceSource = read('app/modules/pin/cronService.ts');
   const foreignAccountSource = read('app/modules/foreignAccounts/models.ts');
   const foreignAccountIndexSource = read('app/modules/foreignAccounts/index.ts');
   const socNetAccountSource = read('app/modules/socNetAccount/models.ts');
@@ -99,6 +105,24 @@ function modelRows(): ModelRow[] {
   const tagSource = read('app/modules/group/models/tag.ts');
   const mentionSource = read('app/modules/group/models/mention.ts');
   const autoTagSource = read('app/modules/group/models/autoTag.ts');
+  const activityPubModelSource = read('app/modules/activityPub/models.ts');
+  const activityPubIndexSource = read('app/modules/activityPub/index.ts');
+  const hasActivityPubSourceSubscriptionUnique = has(activityPubModelSource, 'activity_pub_source_subscriptions_user_remote_unique')
+    && has(activityPubModelSource, "fields: ['userId', 'remoteActorId']")
+    && has(activityPubModelSource, 'unique: true');
+  const hasActivityPubSourceSubscriptionUserStatusIndex = has(activityPubModelSource, 'activity_pub_source_subscriptions_user_status_idx')
+    && has(activityPubModelSource, "fields: ['userId', 'status', 'updatedAt']");
+  const hasActivityPubSourceSubscriptionRemoteStatusIndex = has(activityPubModelSource, 'activity_pub_source_subscriptions_remote_status_idx')
+    && has(activityPubModelSource, "fields: ['remoteActorId', 'status']");
+  const hasActivityPubSourceSubscriptionStatusRefreshIndex = has(activityPubModelSource, 'activity_pub_source_subscriptions_status_refresh_idx')
+    && has(activityPubModelSource, "fields: ['status', 'lastRefreshRequestedAt', 'id']");
+  const hasActivityPubObjectLocalActorListIndex = has(activityPubModelSource, 'activity_pub_objects_local_actor_origin_published_idx')
+    && has(activityPubModelSource, "fields: ['localActorId', 'origin', 'publishedAt', 'id']");
+  const hasActivityPubObjectRemoteActorListIndex = has(activityPubModelSource, 'activity_pub_objects_remote_actor_origin_published_idx')
+    && has(activityPubModelSource, "fields: ['remoteActorId', 'origin', 'publishedAt', 'id']");
+  const hasActivityPubSourceFeedRemoteActorFilter = has(activityPubIndexSource, 'getActivityPubSourceFeedWhere')
+    && has(activityPubIndexSource, 'remoteActorId: subscription.remoteActorId')
+    && has(activityPubIndexSource, 'origin: ActivityPubObjectOrigin.Remote');
   const hasStaticIdCurrentBinding = has(staticIdSource, 'StaticIdBinding')
     && has(staticIdSource, 'static_id_bindings_static_unique')
     && has(staticIdSource, "fields: ['staticId']")
@@ -168,12 +192,25 @@ function modelRows(): ModelRow[] {
   const hasStorageObjectPinState = has(storageObjectSource, 'isPinned')
     && has(databaseModuleSource, 'markStorageObjectPinnedByContent')
     && has(databaseModuleSource, 'pinnedStorageObjects')
-    && has(databaseModuleSource, "getContentDeleteBlocker('storage', 'pinnedStorageObjects'")
-    && has(pinIndexSource, 'markStorageObjectPinnedByContent');
+    && has(databaseModuleSource, "getContentDeleteBlocker('storage', 'pinnedStorageObjects'");
   const hasPinStorageObjectLedger = has(pinSource, 'PinStorageObject')
     && has(pinSource, 'pin_storage_objects_account_storage_unique')
+    && has(pinSource, 'pin_storage_objects_status_check_idx')
     && has(pinIndexSource, 'recordPinnedStorageObject')
+    && has(pinIndexSource, 'beginPinStorageObjectAttempt')
+    && has(pinIndexSource, 'PinStorageObjectStatus.Accepted')
     && has(databaseModuleSource, 'remotePinRefs');
+  const hasPinProviderReconciliation = has(pinSource, 'pin_storage_objects_reconcile_claim_idx')
+    && has(pinSource, 'claimForReconciliation')
+    && has(pinIndexSource, 'queueDuePinReconciliations')
+    && has(pinIndexSource, 'processPinReconciliationQueue')
+    && has(pinIndexSource, 'retryablePinReconciliationMaxDelayMs');
+  const hasPinProviderReconciliationWorker = hasPinProviderReconciliation
+    && has(appConfigSource, 'PIN_RECONCILIATION_WORKER')
+    && has(pinCronSource, 'runImmediately: true')
+    && has(pinCronServiceSource, 'sweepInProcess')
+    && has(pinCronServiceSource, 'queueDuePinReconciliations')
+    && has(pinCronServiceSource, 'processPinReconciliationQueue');
   const hasStorageObjectReconciliation = has(storageObjectIntegritySource, 'getCanonicalStorageObjectSql')
     && has(storageObjectIntegritySource, 'repairStorageObjects')
     && has(storageObjectIntegritySource, 'CONFIRM_STORAGE_OBJECT_REPAIR')
@@ -239,6 +276,35 @@ function modelRows(): ModelRow[] {
       ],
     },
     {
+      area: 'Image composition graph',
+      source: 'app/modules/database/models/contentDependency.ts + app/modules/imageComposition/models',
+      model: 'ContentDependency / ImageCompositionIdentity / ImageCompositionOperation',
+      indexes: [
+        has(contentDependencySource, 'content_dependencies_parent_role_position_unique')
+          ? 'parentContentId,role,position unique immutable dependency slot'
+          : 'missing unique dependency slot index',
+        has(contentDependencySource, 'content_dependencies_child_role_idx')
+          ? 'childContentId,role,id reverse dependency lookup'
+          : 'missing reverse dependency lookup',
+        has(imageCompositionIdentitySource, 'image_composition_identities_user_composition_unique')
+          ? 'userId,compositionId unique root identity'
+          : 'missing composition root identity',
+        has(imageCompositionIdentitySource, 'image_composition_identities_file_catalog_item_idx')
+          ? 'stable fileCatalogItemId lineage binding lookup'
+          : 'missing composition catalog binding lookup',
+        has(imageCompositionOperationSource, 'image_composition_operations_pending_claim_idx')
+          ? 'state,claimExpiresAt,id operation claim scan'
+          : 'missing operation claim scan',
+        has(imageCompositionOperationSource, 'image_composition_operations_result_content_idx')
+          && has(imageCompositionOperationSource, 'image_composition_operations_candidate_content_idx')
+          ? 'result/candidate Content reverse-reference indexes'
+          : 'missing operation Content reverse-reference indexes',
+      ],
+      notes: [
+        'model-sync tables keep semantic recipe dependencies and idempotency identity off Post metadata; the file catalog owns listing while Content remains the immutable recipe owner',
+      ],
+    },
+    {
       area: 'Post contents join',
       source: 'app/modules/group/models/post.ts',
       model: 'PostsContents',
@@ -274,7 +340,39 @@ function modelRows(): ModelRow[] {
       notes: [
         hasPostEventSourceIdentityIndex
           ? 'model-sync-created append-only post event table is ready for source-identity import audit/replay rows'
-          : 'source import lifecycle remains represented only by mutable Post rows',
+        : 'source import lifecycle remains represented only by mutable Post rows',
+      ],
+    },
+    {
+      area: 'ActivityPub source subscriptions',
+      source: 'app/modules/activityPub/models.ts',
+      model: 'ActivityPubSourceSubscription',
+      indexes: [
+        hasActivityPubSourceSubscriptionUnique ? 'userId,remoteActorId unique subscription identity' : 'missing user/remote source identity',
+        hasActivityPubSourceSubscriptionUserStatusIndex ? 'userId,status,updatedAt list index' : 'missing user/status list index',
+        hasActivityPubSourceSubscriptionRemoteStatusIndex ? 'remoteActorId,status reverse lookup' : 'missing remote/status lookup index',
+        hasActivityPubSourceSubscriptionStatusRefreshIndex ? 'status,lastRefreshRequestedAt,id poller index' : 'missing source refresh poller index',
+      ],
+      notes: [
+        hasActivityPubSourceSubscriptionUnique && hasActivityPubSourceSubscriptionUserStatusIndex && hasActivityPubSourceSubscriptionStatusRefreshIndex && hasActivityPubSourceFeedRemoteActorFilter
+          ? 'source subscriptions are model-sync-created, duplicate-resistant per user/remote actor, feed reads join through cached remote ActivityPub objects by remoteActorId, and refresh polling scans stale active subscriptions by indexed refresh time'
+        : 'source subscription/feed scalability should be reviewed before broad frontend rollout',
+      ],
+    },
+    {
+      area: 'ActivityPub remote object cache',
+      source: 'app/modules/activityPub/models.ts',
+      model: 'ActivityPubObject',
+      indexes: [
+        'objectId unique canonical object identity',
+        'activityId unique activity identity',
+        hasActivityPubObjectLocalActorListIndex ? 'localActorId,origin,publishedAt,id group review list' : 'missing local actor remote-object review list index',
+        hasActivityPubObjectRemoteActorListIndex ? 'remoteActorId,origin,publishedAt,id source feed list' : 'missing remote actor source feed list index',
+      ],
+      notes: [
+        hasActivityPubObjectLocalActorListIndex && hasActivityPubObjectRemoteActorListIndex
+          ? 'group-scoped remote-object review and source-feed reads have actor/origin/publishedAt list indexes for default sort order'
+          : 'ActivityPub cached object list queries can scan the growing object cache without actor/origin list indexes',
       ],
     },
     {
@@ -351,7 +449,7 @@ function modelRows(): ModelRow[] {
                 ? (hasStorageObjectIdentity
                   ? (hasContentManifestStorageObjectIdentityProducer
                     ? (hasStorageObjectIdentityLookup
-                      ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes plus nullable ownerless/federated identity metadata; GeeSome content manifest imports seed that identity on the canonical storage object, database callers can resolve canonical rows by identity pair, public shared metadata reads prefer storageId metadata, successful pins and legacy pinned rows mark canonical storage-object state, remote pin refs are recorded separately, delete safety checks both the canonical pin bit and remote-pin ledger, and restored-backup rehearsal repairs missing/mismatched canonical rows'
+                      ? 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes plus nullable ownerless/federated identity metadata; GeeSome content manifest imports seed that identity on the canonical storage object, database callers can resolve canonical rows by identity pair, public shared metadata reads prefer storageId metadata, local and restored legacy pin state remains canonical, per-account remote pin attempts are recorded separately, delete safety checks both the canonical local pin bit and protected remote-pin states, and restored-backup rehearsal repairs missing/mismatched canonical rows'
                       : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes plus nullable ownerless/federated identity metadata; GeeSome content manifest imports seed that identity on the canonical storage object, public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, remote pin refs are recorded separately, delete safety checks both the canonical pin bit and remote-pin ledger, and restored-backup rehearsal repairs missing/mismatched canonical rows')
                     : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes plus nullable ownerless/federated identity metadata; public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, remote pin refs are recorded separately, delete safety checks both the canonical pin bit and remote-pin ledger, and restored-backup rehearsal repairs missing/mismatched canonical rows')
                   : 'model-sync-created A2 on-ramp records one physical storage metadata row per storageId from content writes; public shared metadata reads prefer it, successful pins and legacy pinned rows mark canonical storage-object state, remote pin refs are recorded separately, delete safety checks both the canonical pin bit and remote-pin ledger, and restored-backup rehearsal repairs missing/mismatched canonical rows')
@@ -560,11 +658,21 @@ function modelRows(): ModelRow[] {
         has(pinSource, 'pin_storage_objects_storage_status_idx')
           ? 'storageId,status cleanup blocker lookup'
           : 'missing storage/status lookup',
+        has(pinSource, 'pin_storage_objects_status_check_idx')
+          ? 'status,nextCheckAt,id reconciliation scan'
+          : 'missing reconciliation scan index',
+        has(pinSource, 'pin_storage_objects_reconcile_claim_idx')
+          ? 'pinAccountId,reconcileClaimExpiresAt,id account claim scan'
+          : 'missing account claim scan index',
       ],
       notes: [
         hasPinStorageObjectLedger
-          ? 'model-sync remote-pin ledger records successful remote pins independently from the canonical StorageObject.isPinned flag'
-          : 'successful remote pins are only represented by Content/StorageObject pin booleans',
+          ? (hasPinProviderReconciliation
+            ? (hasPinProviderReconciliationWorker
+              ? 'model-sync per-account state machine has opt-in restart and periodic provider reconciliation, expiring due-row claims, and cross-process account concurrency caps independently from local pin flags'
+              : 'model-sync per-account state machine has bounded durable provider reconciliation, expiring row claims, and cross-process account concurrency caps independently from local pin flags')
+            : 'model-sync per-account state machine records requested, accepted, confirmed, missing, and failed remote-pin state independently from local pin flags')
+          : 'remote pins are only represented by Content/StorageObject pin booleans',
       ],
     },
     {
@@ -732,6 +840,8 @@ function modelRows(): ModelRow[] {
 function hotspotRows(): HotspotRow[] {
   const appSource = read('app/index.ts');
   const groupSource = read('app/modules/group/index.ts');
+  const imageCompositionSource = read('app/modules/imageComposition/index.ts');
+  const postModelSource = read('app/modules/group/models/post.ts');
   const groupModelSource = read('app/modules/group/models/group.ts');
   const postEventHelperSource = read('app/modules/group/postEventHelpers.ts');
   const postEventSource = read('app/modules/group/models/postEvent.ts');
@@ -784,7 +894,12 @@ function hotspotRows(): HotspotRow[] {
   const generatedOutputPressureSource = read('check/databaseGeneratedOutputPressure.ts');
   const storageSpaceReportSource = read('check/databaseStorageSpaceReport.ts');
   const databaseValuesTestSource = read('test/databaseValues.test.ts');
+  const activityPubSource = read('app/modules/activityPub/index.ts');
+  const activityPubModelSource = read('app/modules/activityPub/models.ts');
   const hasTimelineIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(postIds') && has(groupSource, "attributes: ['id', 'publishedAt']");
+  const hasCatalogBackedCompositionList = has(imageCompositionSource, 'async getImageCompositionCatalogItems')
+    && has(imageCompositionSource, 'models.FileCatalogItem.findAndCountAll')
+    && has(imageCompositionSource, 'propertiesJson: {[Op.like]');
   const hasAllPostsIdFirstHydration = has(groupSource, 'getHydratedPostListByIds(pagePosts.map')
     && (has(groupSource, "attributes: ['id']") || has(groupSource, "attributes: ['id', 'publishedAt']"));
   const hasAllPostsCursorRefs = has(groupSource, 'async getAllPostRefs')
@@ -831,18 +946,19 @@ function hotspotRows(): HotspotRow[] {
   const hasStorageObjectPinState = has(storageObjectModelSource, 'isPinned')
     && has(databaseSource, 'markStorageObjectPinnedByContent')
     && has(databaseSource, 'pinnedStorageObjects')
-    && has(databaseSource, "getContentDeleteBlocker('storage', 'pinnedStorageObjects'")
-    && has(pinSource, 'markStorageObjectPinnedByContent');
+    && has(databaseSource, "getContentDeleteBlocker('storage', 'pinnedStorageObjects'");
   const hasPinStorageObjectLedger = has(pinModelSource, 'PinStorageObject')
     && has(pinModelSource, 'pin_storage_objects_account_storage_unique')
     && has(pinModelSource, 'pin_storage_objects_storage_status_idx')
+    && has(pinModelSource, 'pin_storage_objects_status_check_idx')
     && has(pinSource, 'recordPinnedStorageObject')
+    && has(pinSource, 'beginPinStorageObjectAttempt')
+    && has(pinSource, 'PinStorageObjectStatus.Accepted')
     && has(storageReferenceHelpersSource, 'countRemotePinReferences')
     && has(databaseSource, 'remotePinRefs')
     && has(databaseSource, "getContentDeleteBlocker('storage', 'remotePinRefs'");
   const hasPinnedContentDeleteGuard = has(databaseSource, 'pinnedContents')
     && has(databaseSource, "getContentDeleteBlocker('content', 'pinnedContents'")
-    && has(pinSource, 'isPinned: true')
     && hasStorageObjectPinState
     && hasContentDeleteSafetyHelper;
   const hasDerivedStorageDeleteGuard = has(storageReferenceHelpersSource, 'derivedStorageReferenceSources')
@@ -973,7 +1089,7 @@ function hotspotRows(): HotspotRow[] {
     && has(storageSpaceSource, 'processStorageSpaceSnapshotRefreshQueue')
     && has(storageSpaceSource, 'storageSpaceSnapshotQueueModuleName')
     && has(asyncOperationSource, 'processModuleOperationQueue')
-    && has(asyncOperationSource, 'moduleOperationQueuesInProcess')
+    && has(asyncOperationSource, 'moduleOperationQueuePromises')
     && has(storageSpaceApiSource, 'admin/storage-space/snapshot')
     && has(storageSpaceApiSource, 'admin/storage-space/snapshot/refresh')
     && has(storageSpaceApiSource, 'admin/storage-space/snapshot/refresh-async');
@@ -1319,6 +1435,14 @@ function hotspotRows(): HotspotRow[] {
     && has(scalabilityExplainSource, 'findTargetCategory')
     && has(scalabilityExplainSource, 'findSampleStaticBinding')
     && has(scalabilityExplainSource, 'findSampleContent');
+  const hasActivityPubSourceFeed = has(activityPubSource, 'async function getActivityPubSourceFeed')
+    && has(activityPubSource, 'getActivityPubSourceFeedWhere')
+    && has(activityPubSource, 'remoteActorId: subscription.remoteActorId')
+    && has(activityPubSource, 'helpers.getCursorListOrder(cursor, preparedListParams)')
+    && has(activityPubSource, 'helpers.getCursorListOffset(cursor, preparedListParams.offset)')
+    && has(activityPubSource, 'helpers.getNextListCursor(cursor, objectRows, preparedListParams.limit)');
+  const hasActivityPubSourceFeedIndex = has(activityPubModelSource, 'activity_pub_objects_remote_actor_origin_published_idx')
+    && has(activityPubModelSource, "fields: ['remoteActorId', 'origin', 'publishedAt', 'id']");
 
   return [
     {
@@ -1375,6 +1499,17 @@ function hotspotRows(): HotspotRow[] {
         : (has(groupSource, 'nextCursor')
           ? 'cursor avoids large offsets, but eager content/repost hydration can still fan out per page'
           : 'large offsets and eager content joins can scan/sort many rows before returning one page'),
+    },
+    {
+      area: 'Image composition catalog',
+      source: 'app/modules/imageComposition/index.ts + app/modules/fileCatalog/models.ts',
+      hotspot: 'getImageCompositionCatalogItems',
+      observedPattern: hasCatalogBackedCompositionList
+        ? 'filters owner file-catalog rows and joined baked Content before bounded pagination/projection'
+        : 'composition listing may filter arbitrary catalog pages in application memory',
+      scalabilityRisk: hasCatalogBackedCompositionList
+        ? 'pages are correct and bounded; the propertiesJson recipe marker remains a text predicate that may need a production expression/index if per-user catalogs become very large'
+        : 'large catalogs can return short pages or hydrate unrelated files',
     },
     {
       area: 'Global post listings',
@@ -1513,6 +1648,17 @@ function hotspotRows(): HotspotRow[] {
         : (hasSourceImportPostEvents
           ? 'remote import tombstone replay/audit risk is reduced for source-identity upserts; the broader post revision/event model and derived manifest jobs remain future work'
           : 'remote import deletes and edits cannot be replayed or audited beyond current mutable row state'),
+    },
+    {
+      area: 'ActivityPub source feed',
+      source: 'app/modules/activityPub/index.ts',
+      hotspot: 'getActivityPubSourceFeed',
+      observedPattern: hasActivityPubSourceFeed
+        ? 'selects cached remote ActivityPub objects by subscribed remoteActorId/origin with cursor-aware bounded pagination, deterministic id tiebreaker, optional count skipping, and sanitized preview projection reuse'
+        : 'review source feed implementation',
+      scalabilityRisk: hasActivityPubSourceFeedIndex
+        ? 'default source feed pages can use the remoteActorId/origin/publishedAt/id index and cursor pages avoid large offsets/counts; future live timeline backfill still needs bounded fetch/queue policy'
+        : 'source feeds can scan the growing ActivityPub object cache without a remote actor list index',
     },
     {
       area: 'Static site rendering',
@@ -1857,10 +2003,12 @@ function hotspotRows(): HotspotRow[] {
       area: 'Pin account lookup/list',
       source: 'app/modules/pin/index.ts',
       hotspot: 'getUserAccount / getGroupAccount / getUserAccountsList / getGroupAccountsList',
-      observedPattern: has(pinSource, 'findOne({where: {userId, name}}') && has(pinSource, 'findOne({where: {groupId, name}}')
+      observedPattern: has(pinSource, 'where: {userId, groupId: null, name}') && has(pinSource, 'findOne({where: {groupId, name}}')
         ? (hasPinAccountListLimits
-          ? 'looks up pin accounts by owner id plus name and lists owner-scoped accounts with allowlisted sort fields, default pages, and a lower cap'
-          : 'looks up pin accounts by owner id plus name')
+          ? (has(pinSource, 'getAutoPinAccountsInBatches')
+            ? 'separates direct-user and group-scoped account lookups, caps public list pages, and discovers automatic policies through stable cursor batches'
+            : 'separates direct-user and group-scoped account lookups and caps public list pages')
+          : 'separates direct-user and group-scoped account lookups by owner id plus name')
         : 'review pin account lookup implementation',
       scalabilityRisk: has(pinModelSource, 'pin_accounts_user_name_unique') && has(pinModelSource, 'pin_accounts_group_name_unique')
         ? (hasPinAccountListLimits
@@ -2030,7 +2178,6 @@ function render(): string {
     lines.push(`| ${escapeCell(row.area)} | ${escapeCell(row.hotspot)} | ${escapeCell(row.observedPattern)} | ${escapeCell(row.scalabilityRisk)} | \`${escapeCell(row.source)}\` |`);
   }
 
-  lines.push('');
   return `${lines.join('\n')}\n`;
 }
 

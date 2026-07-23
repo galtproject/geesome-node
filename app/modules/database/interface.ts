@@ -7,6 +7,9 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import type {DatabaseConnectionDiagnosticsSnapshot} from './connectionDiagnostics.js';
+import type {DatabaseConnectionBudget} from './connectionBudget.js';
+
 export interface IGeesomeDatabaseModule {
   sequelize: any;
   models: any;
@@ -15,6 +18,12 @@ export interface IGeesomeDatabaseModule {
   getDriver():  Promise<any>;
 
   getSessionStore(): any;
+
+  stop(): Promise<void>;
+
+  getConnectionDiagnostics(): Promise<DatabaseConnectionDiagnosticsSnapshot>;
+
+  getConnectionBudget(): DatabaseConnectionBudget | null;
 
   flushDatabase(): Promise<void>;
 
@@ -54,6 +63,10 @@ export interface IGeesomeDatabaseModule {
 
   replaceStorageObjectReferences(sourceStorageId: string, referenceType: StorageObjectReferenceType, references: Partial<IStorageObjectReferenceRecord>[], options?): Promise<IStorageObjectReferenceRecord[]>;
 
+  syncContentDependencies(parentContentId: number, dependencies: Partial<IContentDependencyRecord>[], options?): Promise<IContentDependencyRecord[]>;
+
+  getContentDependencies(parentContentId: number, options?): Promise<IContentDependencyRecord[]>;
+
   markStorageObjectPinnedByContent(content: IContent, options?): Promise<IStorageObjectRecord>;
 
   getSharedStorageMetadataByStorageId(storageId, opts?: {includePreviews?: boolean}): Promise<IStorageObjectRecord | IContent>;
@@ -71,6 +84,8 @@ export interface IGeesomeDatabaseModule {
   getSharedContentByManifestId(manifestId): Promise<IContent>;
 
   countStorageIdReferences(storageId, excludeContentId?, options?: IStorageIdReferenceOptions): Promise<IStorageIdReferenceCounts>;
+
+  getStorageObjectPinProvenance(storageId: string): Promise<IStorageObjectPinProvenance>;
 
   countContentReferences(contentId): Promise<IContentReferenceCounts>;
 
@@ -282,6 +297,22 @@ export interface IStorageIdReferenceCounts {
   remotePinRefs: number;
   derivedStorageRefs: number;
   storageObjectChildRefs: number;
+  pinProvenance: IStorageObjectPinProvenance;
+}
+
+export interface IStorageObjectPinProvenance {
+  // Current writes use StorageObject for local intent, but historical rows may
+  // contain remote-derived state and remain explicitly ambiguous until audited.
+  storageObjectPinRefs: number;
+  contentPinRefs: number;
+  // Confirmed claims prove remote availability; protected claims additionally
+  // include uncertain nonterminal attempts that must fail closed for deletion.
+  confirmedRemotePinRefs: number;
+  protectedRemotePinRefs: number;
+  hasLocalOrLegacyPin: boolean;
+  hasConfirmedRemotePin: boolean;
+  isConfirmedPinned: boolean;
+  isDeletionProtected: boolean;
 }
 
 export interface IStorageIdReferenceOptions {
@@ -291,6 +322,9 @@ export interface IStorageIdReferenceOptions {
 
 export interface IContentReferenceCounts {
   posts: number;
+  contentDependencies: number;
+  imageCompositionOperations: number;
+  imageCompositionIdentities: number;
   fileCatalogItems: number;
   groupAvatars: number;
   groupCovers: number;
@@ -333,6 +367,8 @@ export interface IStorageObjectDeleteSafety {
 export interface IContentData {
   id;
   type;
+  name?;
+  description?;
   text?;
   json?;
   storageId;
@@ -340,6 +376,7 @@ export interface IContentData {
   previewExtension;
   extension;
   mimeType;
+  size?;
   view;
   manifestId;
   url?;
@@ -368,6 +405,20 @@ export enum ContentStorageType {
 export enum StorageObjectReferenceType {
   GeneratedOutputChild = 'generated-output-child',
   Preview = 'preview'
+}
+
+export enum ContentDependencyRole {
+  ImageCompositionOriginal = 'image-composition-original',
+  ImageCompositionSticker = 'image-composition-sticker'
+}
+
+export interface IContentDependencyRecord {
+  id?: number;
+  parentContentId: number;
+  childContentId: number;
+  role: ContentDependencyRole;
+  position: number;
+  toJSON?(): any;
 }
 
 export enum ContentMimeType {

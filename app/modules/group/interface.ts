@@ -5,8 +5,10 @@ import {
 	IUser
 } from "../database/interface.js";
 import {IUserListResponse} from "../../interface.js";
+import type {RichTextDocument} from "../../richText.js";
 
 export default interface IGeesomeGroupModule {
+	stop(): Promise<void>;
 
 	checkGroupId(groupId, createIfNotExist?): Promise<number>;
 
@@ -25,6 +27,8 @@ export default interface IGeesomeGroupModule {
 	getUserFriends(userId, search?, listParams?: IListParams): Promise<IUserListResponse>;
 
 	canCreatePostInGroup(userId, groupId);
+
+	canEditPostInGroup(userId, groupId, postId): Promise<boolean>;
 
 	canEditGroup(userId, groupId);
 
@@ -54,11 +58,22 @@ export default interface IGeesomeGroupModule {
 
 	getGroupPostPath(postId);
 
-	createPost(userId, postData);
+	createPost(userId, postData, options?: {asyncDerivedState?: boolean; [key: string]: any});
 
 	createRemotePostByObject(userId, postData, options?);
 
+	updateRemotePostByObject(userId, postId, postData, options?);
+
 	updatePost(userId, postId, postData);
+
+	updatePostPure(userId, postId, postData, options?: {
+		oldPost?: IPost;
+		expectedPropertiesJson?: string | null;
+		createPropertiesConflictError?: (lockedPost: IPost) => Error;
+		[key: string]: any;
+	});
+
+	applyPostManifestUpdate(userId, post: IPost, group?, options?): Promise<IPost>;
 
 	deletePosts(userId, postIds, options?): Promise<any>;
 
@@ -88,7 +103,7 @@ export default interface IGeesomeGroupModule {
 
 	startDerivedStateQueueWorker(): void;
 
-	stopDerivedStateQueueWorker(): void;
+	stopDerivedStateQueueWorker(): Promise<void>;
 
 	processDerivedStateQueue(options?): Promise<any>;
 
@@ -102,7 +117,7 @@ export default interface IGeesomeGroupModule {
 
 	getPostContentDataWithUrl(post: IPost, baseStorageUri: string, options?: IContentDataProjectionOptions): Promise<IContentData[]>;
 
-	getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
+	getGroupPosts(groupId, filters?, listParams?: IListParams, options?: {emitInitialCursor?: boolean}): Promise<IPostListResponse>;
 
 	getGroupPostRefs(groupId, filters?, listParams?: IListParams, options?): Promise<IPost[]>;
 
@@ -414,6 +429,9 @@ export interface IPostInput {
 	groupId: number;
 	contentIds?: number[];
 	contentsIds?: number[];
+	contents?: IContent[];
+	contentRichText?: RichTextDocument;
+	contentRichTextFileName?: string;
 	view?: string;
 	type?: string;
 	size?: string;
@@ -428,6 +446,9 @@ export interface IPostInput {
 export interface IPostUpdateInput {
 	contentIds?: number[];
 	contentsIds?: number[];
+	contents?: IContent[];
+	contentRichText?: RichTextDocument;
+	contentRichTextFileName?: string;
 	view?: string;
 	type?: string;
 	size?: string;

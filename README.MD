@@ -32,6 +32,17 @@ Node provides an UI and API for storing and accessing your saved data or remote 
 
 ![GeeSome Main Page](https://github.com/galtproject/geesome-node/assets/4842007/6779b4a3-cca5-4da6-815f-c5c14d9be0b9)
 
+## Documentation
+
+- [Docs portal](./docs/README.md)
+- [Generated API reference](./docs/index.html)
+- [Module docs index](./docs/modules.md)
+- [Agent docs map](./docs/agent-map.md)
+
+A running node also exposes docs discovery for tools and agents: `GET /v1`,
+`GET /v1/openapi.json`, `GET /v1/apidoc.json`, and conventional OpenAPI paths
+such as `/.well-known/openapi.json`.
+
 ## About GeeSome Project
 GeeSome protocol created to provide communication tool between communities of property owners in Galt Project. 
 
@@ -158,6 +169,8 @@ This runs `bash/docker-rebuild-and-upgrade.sh`: it pulls the latest source, rebu
 The Docker rebuild keeps dependency and BuildKit caches warm, so source-only updates should not redownload packages. When the Docker builder supports external cache exports, the build also imports/exports `.docker-build-cache`; otherwise it falls back to normal Docker layer caching. If the first build fails, the script prunes Docker caches and retries once.
 
 Warning: the upgrade script refuses to run with uncommitted local git changes. Commit or stash server-side edits before running it.
+
+GeeSome handles `SIGTERM` and `SIGINT` by closing public HTTP ingress, draining module workers, and closing the database last. The default application shutdown deadline is 30 seconds. Set `GEESOME_SHUTDOWN_TIMEOUT_MS` to change it, and keep `GEESOME_DOCKER_STOP_GRACE_PERIOD` longer than that deadline when running through Docker Compose; the included Compose defaults are `30000` milliseconds and `35s` respectively.
 
 # Optional media tools
 YouTube thumbnail and video import drivers use the local `yt-dlp` binary. Install `yt-dlp` on hosts that need YouTube imports, or set `YT_DLP_BINARY=/path/to/yt-dlp` before starting GeeSome Node.
@@ -289,14 +302,13 @@ geesomeClient.init().then(async () => {
 - Auto-backup social networks channels(Telegram)
 
 ## TODO:
-- Stabilize content serving, upload limits, client-disconnect stream cleanup, and high-CPU paths reported in open operational issues.
-- Finish the existing Pinata/pinning path with manual and auto pin flows exposed cleanly in API/UI.
+- Stabilize content serving, upload limits, client-disconnect stream cleanup, high-CPU paths, and background-worker database connection pressure reported in operational/test evidence. Opt-in runtime diagnostics correlate process CPU/event-loop pressure with bounded API/gateway request counters, while dedicated database diagnostics report scalar Sequelize pool gauges and aggregate PostgreSQL connection states without per-query logging.
 - API key permissions and expiration are enforced; keep extending scoped service-token tests as new integrations land.
 - Run a focused security review of API authorization and encryption boundaries before expanding integrations and production E2EE.
 - Keep shared package versions aligned across `geesome-node`, `geesome-libs`, and `geesome-ui`, while treating Vue/ethers/mime major-line differences as separate migrations.
 - Improve static-site generation options, favicon handling, and frontend build delivery by IPFS.
 - Design real frontend E2EE for chat groups using user-held private keys, recipient/device public keys, and group key rotation.
-- Integrate ActivityPub/Fediverse so GeeSome groups and posts can federate with compatible servers; the current MVP has public actor/outbox/post/follower/following/follow routes, signed inbound follow acceptance/cancellation/block handling, signed inbound flag-report storage plus admin listing/state updates, outbound follow request/follow-accept delivery queues, signed remote accept/reject response handling for outbound follows, local post ActivityPub object records, publish-time `Create(Note)` delivery queues, shared-inbox remote object records for replies to known local objects and mentions of known local group actors, admin remote-object review with sanitized preview fields, accepted-review-gated post-draft projection and manual native-post creation from accepted public Notes with local reply threading, persistent review-state decisions, and review-state filtering, shared-inbox `Update(Note)`, `Delete`, and `Undo(Create)` handling for cached remote objects, and a planned canonical rich-text format so raw HTML stays adapter output rather than native post source, with broader remote post update/delete handling still to finish.
+- Integrate ActivityPub/Fediverse so GeeSome groups and posts can federate with compatible servers; the current MVP includes discovery, signed inbox/outbox exchange, queued delivery, moderation-gated remote import, source feeds and migration, canonical rich text, native Bluesky import/cross-post/account flows, and simplified user/admin UI. Deterministic and public live-read interoperability checks cover Mastodon, Bridgy Fed, native ATProto, and independent Fedify CLI parsing. Credentialed Bluesky writes and full public staging-node federation exchange remain operator release gates because they require disposable accounts and a reachable node; see the [live interoperability runbook](./app/modules/activityPub/docs/live-interoperability.md).
 - Expand group views toward thread/feed use cases while preserving existing post/group APIs.
 - Improve social backup/import workflows for Telegram and Twitter-compatible sources.
 - Keep the completed large-group/database scalability baseline healthy with measured migrations, cursor/page-scoped reads, generated-output batching, migration-integrity verification, conservative content tombstone restore/purge routes, and canonical storage-object identity seeded by real producers such as GeeSome content manifests.
@@ -362,7 +374,7 @@ When a Docker image has already been built and you need to rerun the exact same 
 npm run test:docker:no-build
 ```
 
-The Docker test flow builds a Node 22 test image with `ffmpeg`, starts PostgreSQL and IPFS through `test/docker-compose.yml`, waits for those services, generates deterministic media/archive fixtures under `test/resources`, then runs `yarn test` inside the test container. It sets `STORAGE_SKIP_REMOTE_STOP=1` so app teardown between test cases does not shut down the shared Kubo test service.
+The Docker test flow builds a Node 22 test image with `ffmpeg`, starts PostgreSQL and IPFS through `test/docker-compose.yml`, waits for those services, generates deterministic media/archive fixtures under `test/resources`, then runs `yarn test` inside the test container. A Kubo RPC storage service is treated as externally owned and is not stopped during app teardown. Set `STORAGE_STOP_REMOTE_NODE=1` only when the GeeSome process intentionally owns that Kubo daemon and should stop it with the app.
 
 ## Links
 - [Manifests example](./docs/manifests-example.md)

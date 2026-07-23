@@ -20,6 +20,7 @@ export default async function (sequelize) {
   models.StorageSpaceSnapshot = await (await import('./storageSpaceSnapshot.js')).default(sequelize, models);
   models.StorageSpaceAvailabilitySample = await (await import('./storageSpaceAvailabilitySample.js')).default(sequelize, models);
   models.Content = await (await import('./content.js')).default(sequelize, models);
+  models.ContentDependency = await (await import('./contentDependency.js')).default(sequelize, models);
   models.Object = await (await import('./object.js')).default(sequelize, models);
 
   models.UserContentAction = await (await import('./userContentAction.js')).default(sequelize, models);

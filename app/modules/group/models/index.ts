@@ -15,7 +15,6 @@ export default async function (sequelize: Sequelize, appModels) {
   appModels.GroupRead = await (await import('./groupRead.js')).default(sequelize, appModels);
   appModels.Post = await (await import('./post.js')).default(sequelize, appModels);
   appModels.PostEvent = await (await import('./postEvent.js')).default(sequelize, appModels);
-
   appModels.Mention = await (await import('./mention.js')).default(sequelize, appModels);
 
   appModels.Tag = await (await import('./tag.js')).default(sequelize, appModels);

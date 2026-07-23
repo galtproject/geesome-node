@@ -1,7 +1,15 @@
 export default interface IGeesomeAutoActionsModule {
+	stop(): Promise<void>;
+
 	addSerialAutoActions(userId: number, autoActions: IAutoAction[]): Promise<IAutoAction[]>;
 
 	addAutoAction(userId: number, autoAction: IAutoAction): Promise<IAutoAction>;
+
+	addUniqueAutoAction(userId: number, identityKey: string, autoAction: IAutoAction): Promise<IAutoAction>;
+
+	deactivateUniqueAutoActionsByIdentityPrefix(userId: number, identityPrefix: string): Promise<number>;
+
+	cleanupStaleAutoActionDedupeKeys(options?: IAutoActionDedupeCleanupOptions): Promise<number>;
 
 	updateAutoAction(userId: number, id: number, autoAction: IAutoAction): Promise<IAutoAction>;
 
@@ -45,6 +53,12 @@ export interface IAutoAction {
 export interface IAutoActionClaimOptions {
 	now?: Date;
 	claimTtlMs?: number;
+}
+
+export interface IAutoActionDedupeCleanupOptions {
+	before?: Date;
+	retentionMs?: number;
+	limit?: number;
 }
 
 export interface IAutoActionListResponse {

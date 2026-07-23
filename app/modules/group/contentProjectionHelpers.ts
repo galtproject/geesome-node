@@ -1,4 +1,10 @@
 import type {IContent, IContentDataProjectionOptions} from '../database/interface.js';
+import type {RichTextDocument} from '../../richText.js';
+import {
+	RICH_TEXT_MIME_TYPE,
+	contentTextToRichText,
+	richTextToPlainText
+} from '../../richText.js';
 
 type ContentTextStorage = {
 	getFileDataText(storageId: string): Promise<string>;
@@ -57,4 +63,26 @@ export async function getProjectedContentText(
 	const text = await storage.getFileDataText(storageId);
 	setBodyTextCache(options, storageId, text);
 	return text;
+}
+
+export async function getProjectedContentRichText(
+	storage: ContentTextStorage,
+	content: IContent,
+	options: IContentDataProjectionOptions = {}
+): Promise<RichTextDocument | null> {
+	if (!isProjectedRichTextContent(content)) {
+		return null;
+	}
+	return contentTextToRichText(await getProjectedContentText(storage, content, options), String(content.mimeType || ''));
+}
+
+export function getProjectedContentRichTextPlainText(document: RichTextDocument | null): string {
+	if (!document) {
+		return '';
+	}
+	return richTextToPlainText(document);
+}
+
+export function isProjectedRichTextContent(content: IContent): boolean {
+	return String(content?.mimeType || '').toLowerCase() === RICH_TEXT_MIME_TYPE;
 }

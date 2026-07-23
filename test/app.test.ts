@@ -111,6 +111,62 @@ describe("app", function () {
 		// assert.notEqual(contentObj.storageAccountId, null);
 	});
 
+	it('closes the database pool once during repeated shutdown', async () => {
+		await app.stop();
+		await app.stop();
+
+		await assert.rejects(
+			() => app.ms.database.sequelize.authenticate(),
+			/closed/i
+		);
+	});
+
+	it('releases runtime resources before starting another app on the same port', async () => {
+		const firstApp = app;
+		await firstApp.stop();
+		await assert.rejects(
+			() => firstApp.ms.database.sequelize.authenticate(),
+			/closed/i
+		);
+
+		const appConfig = (await import('../app/config.js')).default;
+		app = await (await import('../app/index.js')).default({
+			storageConfig: appConfig.storageConfig,
+			port: 7771
+		});
+		await app.stop();
+		await assert.rejects(
+			() => app.ms.database.sequelize.authenticate(),
+			/closed/i
+		);
+	});
+
+	it('reports bounded aggregate database connection diagnostics on demand', async () => {
+		const snapshot = await app.ms.database.getConnectionDiagnostics();
+
+		assert.equal(snapshot.configuredPool.max > 0, true);
+		assert.equal(typeof snapshot.runtimePool.size, 'number');
+		assert.equal(Array.isArray(snapshot.activity), true);
+		assert.equal(snapshot.activity.length <= 20, true);
+		assert.equal(snapshot.activity.some(activity => {
+			return activity.applicationName === 'geesome-node' && activity.count >= 1;
+		}), true);
+		assert.deepEqual(Object.keys(snapshot.activity[0]).sort(), [
+			'applicationName',
+			'count',
+			'state'
+		]);
+	});
+
+	it('caches a valid startup database connection budget', () => {
+		const budget = app.ms.database.getConnectionBudget();
+
+		assert.equal(budget.isPossible, true);
+		assert.equal(budget.poolMax > 0, true);
+		assert.equal(budget.serverMaxConnections > 0, true);
+		assert.equal(budget.plannedConnections <= budget.usableConnections, true);
+	});
+
 	it('keeps one user limit row per user and name', async () => {
 		const adminUser = (await app.ms.database.getAllUserList('admin'))[0];
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];

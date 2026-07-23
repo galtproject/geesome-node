@@ -1,6 +1,10 @@
 import type {IGroup, IPost} from '../group/interface.js';
 import type {IContentData, IListParams} from '../database/interface.js';
+import type {IUserOperationQueue} from '../asyncOperation/interface.js';
 import type {RichTextDocument} from '../../richText.js';
+import type {IBackgroundWorker} from '../../backgroundWorker.js';
+import type {IActivityPubMigrationPreview} from './migration.js';
+import type {IRemoteContentModerationPolicyInput, IRemoteContentModerationSummary} from '../remoteContentModeration/helpers.js';
 
 export interface IActivityPubConfig {
 	enabled?: boolean | string;
@@ -10,6 +14,13 @@ export interface IActivityPubConfig {
 	deliveryWorkerIntervalMs?: number | string;
 	deliveryWorkerLimit?: number | string;
 	deliveryClaimTtlMs?: number | string;
+	sourceRefreshWorker?: boolean | string;
+	sourceRefreshWorkerIntervalMs?: number | string;
+	sourceRefreshWorkerLimit?: number | string;
+	sourceRefreshPoller?: boolean | string;
+	sourceRefreshPollerIntervalMs?: number | string;
+	sourceRefreshPollerLimit?: number | string;
+	sourceRefreshPollerStaleMs?: number | string;
 }
 
 export interface IResolvedActivityPubConfig {
@@ -37,6 +48,32 @@ export interface IActivityPubWebFingerResponse {
 	subject: string;
 	aliases: string[];
 	links: IActivityPubWebFingerLink[];
+}
+
+export interface IActivityPubNodeInfoDiscoveryResponse {
+	links: IActivityPubWebFingerLink[];
+}
+
+export interface IActivityPubNodeInfoResponse {
+	version: '2.1';
+	software: {
+		name: string;
+		version: string;
+		repository?: string;
+		homepage?: string;
+	};
+	protocols: string[];
+	services: {
+		inbound: string[];
+		outbound: string[];
+	};
+	openRegistrations: boolean;
+	usage: {
+		users: Record<string, number>;
+		localPosts: number;
+		localComments: number;
+	};
+	metadata: Record<string, any>;
 }
 
 export type IActivityPubGroupInput = IGroup | string;
@@ -140,6 +177,12 @@ export enum ActivityPubObjectReviewState {
 	Rejected = 'rejected'
 }
 
+export enum ActivityPubSourceSubscriptionStatus {
+	Active = 'active',
+	Paused = 'paused',
+	Removed = 'removed'
+}
+
 export interface IActivityPubFollow {
 	localActorId: number;
 	remoteActorId: number;
@@ -187,6 +230,16 @@ export interface IActivityPubRemoteActorReport {
 }
 
 export type IActivityPubFlagReportRemoteActor = IActivityPubRemoteActorReport;
+export type ActivityPubFlagReportTargetType = 'localActor' | 'localObject' | 'unknown';
+
+export interface IActivityPubFlagReportTarget {
+	objectId: string;
+	type: ActivityPubFlagReportTargetType;
+	localActorId?: number;
+	activityPubObjectId?: number;
+	localPostId?: number;
+	objectType?: string;
+}
 
 export interface IActivityPubFlagReport {
 	id?: number;
@@ -195,6 +248,7 @@ export interface IActivityPubFlagReport {
 	remoteActor?: IActivityPubFlagReportRemoteActor;
 	activityId: string;
 	objectId: string;
+	target: IActivityPubFlagReportTarget;
 	state: ActivityPubFlagState;
 	activity?: Record<string, any> | null;
 	createdAt?: Date;
@@ -245,6 +299,47 @@ export interface IActivityPubRemoteObjectPreview {
 	summaryHtml?: string;
 	summaryText?: string;
 	url?: string;
+	attachments?: IActivityPubRemoteObjectAttachmentPreview[];
+}
+
+export type ActivityPubRemoteAttachmentBackupUnsupportedReason =
+	'activitypub_remote_attachment_backup_unsupported_category'
+	| 'activitypub_remote_attachment_backup_unsupported_url_scheme';
+
+export type ActivityPubRemoteAttachmentEmbedMode =
+	'inlineMedia'
+	| 'documentLink'
+	| 'externalLink'
+	| 'provenanceOnly';
+
+export type ActivityPubRemoteAttachmentEmbedUnsupportedReason =
+	'activitypub_remote_attachment_embed_sensitive'
+	| 'activitypub_remote_attachment_embed_unsupported_category'
+	| 'activitypub_remote_attachment_embed_unsupported_url_scheme';
+
+export interface IActivityPubRemoteAttachmentEmbedPolicy {
+	mode: ActivityPubRemoteAttachmentEmbedMode;
+	canEmbedInline: boolean;
+	requiresUserAction: boolean;
+	unsupportedReason?: ActivityPubRemoteAttachmentEmbedUnsupportedReason;
+}
+
+export interface IActivityPubRemoteObjectAttachmentPreview {
+	url: string;
+	type?: string;
+	mediaType?: string;
+	mediaCategory?: 'image' | 'video' | 'audio' | 'link' | 'document';
+	name?: string;
+	altText?: string;
+	summaryText?: string;
+	width?: number;
+	height?: number;
+	durationSeconds?: number;
+	blurhash?: string;
+	sensitive?: boolean;
+	canBackupRemoteBytes?: boolean;
+	backupUnsupportedReason?: ActivityPubRemoteAttachmentBackupUnsupportedReason;
+	embedPolicy?: IActivityPubRemoteAttachmentEmbedPolicy;
 }
 
 export interface IActivityPubRemoteObjectFilters {
@@ -260,12 +355,298 @@ export interface IActivityPubRemoteObjectListResponse {
 	total: number;
 }
 
+export interface IActivityPubSourceResolveInput {
+	actorUrl?: string;
+	resource?: string;
+	handle?: string;
+	bridgeProvider?: string;
+	preset?: string;
+}
+
+export interface IActivityPubSourceResolveResult {
+	sourceResource?: string;
+	sourceActorUrl: string;
+	bridgeProvider?: string;
+	remoteActor?: IActivityPubRemoteActorReport;
+}
+
+export interface IActivityPubSourceSubscriptionInput extends IActivityPubSourceResolveInput {
+	displayName?: string;
+}
+
+export interface IActivityPubSourceSubscriptionUpdateInput {
+	displayName?: string;
+	status?: ActivityPubSourceSubscriptionStatus | string;
+}
+
+export interface IActivityPubSourceSubscriptionFilters {
+	status?: ActivityPubSourceSubscriptionStatus | string;
+	remoteActorId?: number | string;
+}
+
+export interface IActivityPubSourceSubscriptionReport {
+	id?: number;
+	userId: number;
+	remoteActorId: number;
+	remoteActor?: IActivityPubRemoteActorReport;
+	sourceResource?: string;
+	sourceActorUrl: string;
+	bridgeProvider?: string;
+	displayName?: string;
+	status: ActivityPubSourceSubscriptionStatus;
+	lastReadAt?: Date;
+	lastRefreshRequestedAt?: Date;
+	lastError?: string;
+	createdAt?: Date;
+	updatedAt?: Date;
+}
+
+export interface IActivityPubSourceSubscriptionListResponse {
+	list: IActivityPubSourceSubscriptionReport[];
+	total: number;
+}
+
+export interface IActivityPubSourceFeedFilters extends IActivityPubRemoteObjectFilters {
+	cursorPublishedAt?: string | Date;
+	cursorId?: number | string;
+}
+
+export interface IActivityPubSourceFeedItem extends IActivityPubRemoteObjectReport {
+	sourceSubscriptionId?: number;
+	isUnread?: boolean;
+}
+
+export interface IActivityPubSourceFeedResponse {
+	source: IActivityPubSourceSubscriptionReport;
+	list: IActivityPubSourceFeedItem[];
+	total: number | null;
+	nextCursor?: {publishedAt: any; id: any} | null;
+}
+
+export interface IActivityPubSourceRefreshInput {
+	limit?: number | string;
+	includeFeatured?: boolean | string;
+	includeOutbox?: boolean | string;
+}
+
+export interface IActivityPubMigrationPreviewInput extends IActivityPubSourceResolveInput, IActivityPubSourceRefreshInput {
+	claimed?: boolean | string;
+	maxPages?: number | string;
+	ownershipProofToken?: string;
+	ownershipChallengeProof?: IActivityPubMigrationOwnershipChallengeProofInput;
+	requestIp?: string;
+}
+
+export interface IActivityPubMigrationPreviewResult extends IActivityPubMigrationPreview {
+	sourceActorUrl: string;
+	sourceResource?: string;
+	bridgeProvider?: string;
+	fetched: number;
+	pages: number;
+	maxPages: number;
+	hasMore: boolean;
+	errors: string[];
+}
+
+export interface IActivityPubMigrationImportInput extends IActivityPubMigrationPreviewInput {
+	async?: boolean | string;
+	createPosts?: boolean | string;
+	groupName?: string;
+	importRemoteAttachments?: boolean | string;
+	moderationMode?: string | null;
+	moderationPolicy?: IRemoteContentModerationPolicyInput;
+	moderationRules?: any[] | null;
+	ownershipApproved?: boolean | string;
+	process?: boolean | string;
+}
+
+export interface IActivityPubMigrationImportResult extends IActivityPubMigrationPreviewResult {
+	cached: number;
+	created: number;
+	moderation?: IRemoteContentModerationSummary;
+	postIds: number[];
+	skipped: number;
+	remoteObjectIds: number[];
+}
+
+export interface IActivityPubMigrationImportQueueInput extends IActivityPubMigrationImportInput {}
+
+export interface IActivityPubMigrationOwnershipChallengeInput extends IActivityPubSourceResolveInput {
+	expiresInMs?: number | string;
+	requestIp?: string;
+}
+
+export interface IActivityPubMigrationOwnershipChallengeResult {
+	id?: number;
+	actor: string;
+	sourceActorUrl: string;
+	sourceResource?: string;
+	bridgeProvider?: string;
+	challengeToken: string;
+	challengeUrl: string;
+	verificationUrl: string;
+	expiresAt: Date;
+	body: Record<string, any>;
+	bodyJson: string;
+}
+
+export interface IActivityPubMigrationOwnershipChallengeProofInput {
+	challengeToken?: string;
+	method?: string;
+	url?: string;
+	headers?: Record<string, string | number | string[] | undefined>;
+	body?: string | Record<string, any>;
+	bodyJson?: string;
+}
+
+export interface IActivityPubMigrationOwnershipChallengeVerifyInput {
+	ownershipChallengeProof?: IActivityPubMigrationOwnershipChallengeProofInput;
+	requestIp?: string;
+}
+
+export interface IActivityPubMigrationOwnershipChallengeVerifyResult {
+	verified: boolean;
+	method: 'signedChallenge';
+	actor: string;
+	challengeToken: string;
+	verifiedAt: Date;
+	expiresAt: Date;
+	keyId: string;
+}
+
+export interface IActivityPubMigrationOwnershipChallengeCleanupOptions {
+	retentionMs?: number | string;
+	limit?: number | string;
+	now?: Date | string;
+}
+
+export interface IActivityPubMigrationOwnershipChallengeCleanupResult {
+	deleted: number;
+	limit: number;
+	retentionMs: number;
+	cutoff: Date;
+}
+
+export interface IActivityPubMigrationImportQueueProcessOptions {
+	limit?: number | string;
+}
+
+export interface IActivityPubMigrationImportQueueProcessResult {
+	processed: number;
+}
+
+export interface IActivityPubMigrationRelationReconcileInput {
+	groupId?: number | string;
+	groupName?: string;
+	sourceChannelId?: string | null;
+	limit?: number | string;
+	cursorPublishedAt?: string | Date;
+	cursorId?: number | string;
+	allowCrossGroup?: boolean | string;
+	force?: boolean | string;
+	dryRun?: boolean | string;
+}
+
+export interface IActivityPubMigrationRelationReconcileRow {
+	postId: number;
+	sourcePostId?: string | null;
+	replyToId?: number | null;
+	repostOfId?: number | null;
+	updated?: boolean;
+	changes?: {
+		replyToId?: number | null;
+		repostOfId?: number | null;
+	};
+	skipped?: boolean;
+	reason?: string;
+}
+
+export interface IActivityPubMigrationRelationReconcileError {
+	postId?: number;
+	sourcePostId?: string | null;
+	message: string;
+}
+
+export interface IActivityPubMigrationRelationReconcileResult {
+	checked: number;
+	updated: number;
+	skipped: number;
+	failed: number;
+	dryRun: boolean;
+	rows: IActivityPubMigrationRelationReconcileRow[];
+	errors: IActivityPubMigrationRelationReconcileError[];
+	nextCursor?: {publishedAt: any; id: any} | null;
+}
+
+export interface IActivityPubSourceRefreshResult {
+	source: IActivityPubSourceSubscriptionReport;
+	fetched: number;
+	cached: number;
+	skipped: number;
+	errors: string[];
+}
+
+export interface IActivityPubSourceRefreshQueueInput extends IActivityPubSourceRefreshInput {
+	process?: boolean | string;
+}
+
+export interface IActivityPubSourceRefreshQueueProcessOptions {
+	limit?: number | string;
+}
+
+export interface IActivityPubSourceRefreshQueueProcessResult {
+	processed: number;
+}
+
+export interface IActivityPubSourceRefreshPollOptions {
+	limit?: number | string;
+	staleMs?: number | string;
+	now?: Date | string;
+	refreshInput?: IActivityPubSourceRefreshInput;
+}
+
+export interface IActivityPubSourceRefreshPollResult {
+	queued: number;
+}
+
+export interface IActivityPubSourceReadInput {
+	readAt?: Date | string;
+}
+
+export interface IActivityPubSourceFollowInput {
+	groupName?: string;
+}
+
+export interface IActivityPubSourceFollowResult {
+	source: IActivityPubSourceSubscriptionReport;
+	follow: IActivityPubOutboundFollowResult;
+}
+
 export interface IActivityPubRemoteObjectPostDraftSource {
 	protocol: 'activitypub';
 	objectId: string;
 	activityId?: string;
 	remoteObjectUrl?: string;
 	remoteActorUrl?: string;
+}
+
+export type ActivityPubRemoteAttachmentImportMode = 'provenanceOnly' | 'backupOnCreate';
+
+export interface IActivityPubRemoteAttachmentImportPolicy {
+	mode: 'provenanceOnly';
+	defaultMode: 'provenanceOnly';
+	canImportRemoteBytes: boolean;
+	supportedModes: ActivityPubRemoteAttachmentImportMode[];
+	reason?: 'activitypub_remote_attachment_import_disabled';
+}
+
+export interface IActivityPubRemoteAttachmentBackup {
+	url: string;
+	contentId: number;
+	storageId?: string;
+	mediaType?: string;
+	mediaCategory?: IActivityPubRemoteObjectAttachmentPreview['mediaCategory'];
+	name?: string;
 }
 
 export interface IActivityPubRemoteObjectPostDraft {
@@ -276,13 +657,42 @@ export interface IActivityPubRemoteObjectPostDraft {
 	contentText?: string;
 	contentRichText?: RichTextDocument;
 	summaryText?: string;
+	attachments?: IActivityPubRemoteObjectAttachmentPreview[];
+	attachmentImportPolicy?: IActivityPubRemoteAttachmentImportPolicy;
 	replyToPostId?: number;
 	source: IActivityPubRemoteObjectPostDraftSource;
+}
+
+export interface IActivityPubRemoteObjectPostCreateOptions {
+	importRemoteAttachments?: boolean | string;
 }
 
 export interface IActivityPubRemoteObjectPostCreateResult {
 	post: IPost;
 	remoteObject: IActivityPubRemoteObjectReport;
+	attachmentBackups?: IActivityPubRemoteAttachmentBackup[];
+}
+
+export interface IActivityPubRemoteAttachmentBackupQueueOptions {
+	process?: boolean;
+	limit?: number | string;
+}
+
+export interface IActivityPubRemoteAttachmentBackupQueueProcessOptions {
+	limit?: number | string;
+}
+
+export interface IActivityPubRemoteAttachmentBackupQueueProcessResult {
+	processed: number;
+}
+
+export interface IActivityPubRemoteAttachmentBackupRetryResult {
+	postId: number;
+	remoteObjectId: number;
+	attempted: number;
+	backedUp: number;
+	skipped: number;
+	attachmentBackups: IActivityPubRemoteAttachmentBackup[];
 }
 
 export interface IActivityPubRemoteObjectReviewStateInput {
@@ -418,6 +828,8 @@ export interface IActivityPubInboxResult extends Partial<IActivityPubInboxVerifi
 	activityPubObjectId?: number;
 	objectId?: string;
 	inReplyTo?: string;
+	localPostUpdated?: boolean;
+	localPostDeleted?: boolean;
 }
 
 export type IActivityPubRemoteActorKeyResolver = (input: {
@@ -427,6 +839,10 @@ export type IActivityPubRemoteActorKeyResolver = (input: {
 }) => Promise<IActivityPubRemoteActorKey | null> | IActivityPubRemoteActorKey | null;
 
 export type IActivityPubRemoteActorFetcher = (actorUrl: string) => Promise<any>;
+
+export type IActivityPubWebFingerFetcher = (resource: string, domain: string) => Promise<IActivityPubWebFingerResponse>;
+
+export type IActivityPubSourceJsonFetcher = (url: string) => Promise<any>;
 
 export type IActivityPubActorObject = Record<string, any>;
 
@@ -445,9 +861,17 @@ export type IActivityPubFollowersCollection = Record<string, any>;
 export type IActivityPubFollowingCollection = Record<string, any>;
 
 export default interface IGeesomeActivityPubModule {
+	setCronWorker(cronWorker: IBackgroundWorker | null): void;
+
+	stop(): Promise<void>;
+
 	isEnabled(): boolean;
 
 	getWebFingerResponse(resource: string): Promise<IActivityPubWebFingerResponse>;
+
+	getNodeInfoDiscovery(): Promise<IActivityPubNodeInfoDiscoveryResponse>;
+
+	getNodeInfo(): Promise<IActivityPubNodeInfoResponse>;
 
 	getGroupActor(groupName: string): Promise<IActivityPubActorObject>;
 
@@ -461,13 +885,57 @@ export default interface IGeesomeActivityPubModule {
 
 	getGroupFlagReports(groupName: string, filters?: IActivityPubFlagReportFilters, listParams?: IListParams): Promise<IActivityPubFlagReportListResponse>;
 
+	resolveActivityPubSource(input: IActivityPubSourceResolveInput): Promise<IActivityPubSourceResolveResult>;
+
+	createMigrationOwnershipChallenge(userId: number, input?: IActivityPubMigrationOwnershipChallengeInput): Promise<IActivityPubMigrationOwnershipChallengeResult>;
+
+	verifyMigrationOwnershipChallenge(userId: number, input?: IActivityPubMigrationOwnershipChallengeVerifyInput): Promise<IActivityPubMigrationOwnershipChallengeVerifyResult>;
+
+	cleanupMigrationOwnershipChallenges(options?: IActivityPubMigrationOwnershipChallengeCleanupOptions): Promise<IActivityPubMigrationOwnershipChallengeCleanupResult>;
+
+	getMigrationPreview(userId: number, input?: IActivityPubMigrationPreviewInput): Promise<IActivityPubMigrationPreviewResult>;
+
+	importMigration(userId: number, input?: IActivityPubMigrationImportInput): Promise<IActivityPubMigrationImportResult>;
+
+	queueMigrationImport(userId: number, userApiKeyId?: number | null, input?: IActivityPubMigrationImportQueueInput): Promise<IUserOperationQueue>;
+
+	processMigrationImportQueue(options?: IActivityPubMigrationImportQueueProcessOptions): Promise<IActivityPubMigrationImportQueueProcessResult>;
+
+	reconcileMigrationRelations(userId: number, input?: IActivityPubMigrationRelationReconcileInput): Promise<IActivityPubMigrationRelationReconcileResult>;
+
+	getActivityPubSourceSubscriptions(userId: number, filters?: IActivityPubSourceSubscriptionFilters, listParams?: IListParams): Promise<IActivityPubSourceSubscriptionListResponse>;
+
+	subscribeActivityPubSource(userId: number, input: IActivityPubSourceSubscriptionInput): Promise<IActivityPubSourceSubscriptionReport>;
+
+	updateActivityPubSourceSubscription(userId: number, sourceId: number | string, input: IActivityPubSourceSubscriptionUpdateInput): Promise<IActivityPubSourceSubscriptionReport>;
+
+	removeActivityPubSourceSubscription(userId: number, sourceId: number | string): Promise<IActivityPubSourceSubscriptionReport>;
+
+	getActivityPubSourceFeed(userId: number, sourceId: number | string, filters?: IActivityPubSourceFeedFilters, listParams?: IListParams): Promise<IActivityPubSourceFeedResponse>;
+
+	refreshActivityPubSource(userId: number, sourceId: number | string, input?: IActivityPubSourceRefreshInput): Promise<IActivityPubSourceRefreshResult>;
+
+	queueActivityPubSourceRefresh(userId: number, sourceId: number | string, userApiKeyId?: number | null, input?: IActivityPubSourceRefreshQueueInput): Promise<IUserOperationQueue>;
+
+	processActivityPubSourceRefreshQueue(options?: IActivityPubSourceRefreshQueueProcessOptions): Promise<IActivityPubSourceRefreshQueueProcessResult>;
+
+	queueDueActivityPubSourceRefreshes(options?: IActivityPubSourceRefreshPollOptions): Promise<IActivityPubSourceRefreshPollResult>;
+
+	markActivityPubSourceRead(userId: number, sourceId: number | string, input?: IActivityPubSourceReadInput): Promise<IActivityPubSourceSubscriptionReport>;
+
+	followActivityPubSource(userId: number, sourceId: number | string, input?: IActivityPubSourceFollowInput, options?: IActivityPubOutboundFollowOptions): Promise<IActivityPubSourceFollowResult>;
+
 	getGroupRemoteObjects(groupName: string, filters?: IActivityPubRemoteObjectFilters, listParams?: IListParams): Promise<IActivityPubRemoteObjectListResponse>;
 
 	getGroupRemoteObject(groupName: string, remoteObjectId: number | string): Promise<IActivityPubRemoteObjectReport>;
 
 	getGroupRemoteObjectPostDraft(groupName: string, remoteObjectId: number | string): Promise<IActivityPubRemoteObjectPostDraft>;
 
-	createGroupRemoteObjectPost(groupName: string, remoteObjectId: number | string, userId: number): Promise<IActivityPubRemoteObjectPostCreateResult>;
+	createGroupRemoteObjectPost(groupName: string, remoteObjectId: number | string, userId: number, options?: IActivityPubRemoteObjectPostCreateOptions): Promise<IActivityPubRemoteObjectPostCreateResult>;
+
+	queueGroupRemoteObjectAttachmentBackups(groupName: string, remoteObjectId: number | string, userId: number, userApiKeyId?: number | null, options?: IActivityPubRemoteAttachmentBackupQueueOptions): Promise<IUserOperationQueue>;
+
+	processRemoteAttachmentBackupQueue(options?: IActivityPubRemoteAttachmentBackupQueueProcessOptions): Promise<IActivityPubRemoteAttachmentBackupQueueProcessResult>;
 
 	setGroupRemoteObjectReviewState(groupName: string, remoteObjectId: number | string, input: IActivityPubRemoteObjectReviewStateInput, reviewedByUserId?: number): Promise<IActivityPubRemoteObjectReport>;
 

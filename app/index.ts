@@ -23,10 +23,12 @@ import IGeesomeStaticIdModule from "./modules/staticId/interface.js";
 import IGeesomeStorageModule from "./modules/storage/interface.js";
 import IGeesomeStorageSpaceModule from "./modules/storageSpace/interface.js";
 import IGeesomeActivityPubModule from "./modules/activityPub/interface.js";
+import IGeesomeBlueskyModule from "./modules/bluesky/interface.js";
 import IGeesomeDriversModule from "./modules/drivers/interface.js";
 import IGeesomeContentModule from "./modules/content/interface.js";
 import IGeesomeInviteModule from "./modules/invite/interface.js";
 import IGeesomeGroupModule from "./modules/group/interface.js";
+import IGeesomeImageCompositionModule from "./modules/imageComposition/interface.js";
 import IGeesomeApiModule from "./modules/api/interface.js";
 import {IGeesomeApp, IUserInput} from "./interface.js";
 import {GeesomeEmitter} from "./events.js";
@@ -44,6 +46,8 @@ import appEvents from './events.js';
 import helpers from './helpers.js';
 import config from './config.js';
 import {startMemoryProfiler} from './memoryProfiler.js';
+import type {MemoryProfilerHandle} from './memoryProfiler.js';
+import {cleanupAndRethrow, cleanupResource} from './resourceCleanup.js';
 const {pick, merge, isUndefined, startsWith, reverse, clone, extend, isString} = _;
 const log = debug('geesome:app');
 const apiKeyListParams: IListParamsOptions = {
@@ -57,8 +61,12 @@ const adminUserListParams: IListParamsOptions = {
   maxLimit: 100
 };
 
-export default async (extendConfig) => {
-  const resConfig = merge(config, extendConfig || {});
+export type AppBootstrapOptions = {
+  loadModule?: (moduleName: string, app: IGeesomeApp) => Promise<any>;
+};
+
+export default async (extendConfig, bootstrapOptions: AppBootstrapOptions = {}) => {
+  const resConfig = merge({}, config, extendConfig || {});
   const app = getModule(resConfig, await helpers.getSecretKey('app-pass', 'words'));
 
   if (!app.config.storageConfig.jsNode.pass) {
@@ -75,26 +83,30 @@ export default async (extendConfig) => {
 
   log('Init modules...');
   app.ms = {} as any;
-  await pIteration.forEachSeries(resConfig.modules, async (moduleName: string) => {
-    log(`Start ${moduleName} module...`);
-    try {
-      app.ms[moduleName] = await (await import(`./modules/${moduleName}/index.js`)).default(app);
-    } catch (e) {
-      console.error(moduleName + ' module initialization error', e);
+  try {
+    await pIteration.forEachSeries(resConfig.modules, async (moduleName: string) => {
+      log(`Start ${moduleName} module...`);
+      try {
+        app.ms[moduleName] = await loadConfiguredModule(moduleName, app, bootstrapOptions);
+      } catch (error) {
+        throw annotateModuleInitializationError(error, moduleName);
+      }
+    });
+
+    const frontendPackagePath = helpers.getCurDir() + '/../node_modules/@geesome/ui';
+    const frontendDistPath = frontendPackagePath + '/dist';
+    const frontendPath = fs.existsSync(frontendDistPath + '/index.html') ? frontendDistPath : frontendPackagePath;
+    if (!resConfig.skipFrontendStorage && fs.existsSync(frontendPath)) {
+      const directory = await app.ms.storage.saveDirectory(frontendPath);
+      app.frontendStorageId = directory.id;
     }
-  });
 
-  const frontendPackagePath = helpers.getCurDir() + '/../node_modules/@geesome/ui';
-  const frontendDistPath = frontendPackagePath + '/dist';
-  const frontendPath = fs.existsSync(frontendDistPath + '/index.html') ? frontendDistPath : frontendPackagePath;
-  if (!resConfig.skipFrontendStorage && fs.existsSync(frontendPath)) {
-    const directory = await app.ms.storage.saveDirectory(frontendPath);
-    app.frontendStorageId = directory.id;
+    app.memoryProfilerHandle = startMemoryProfiler();
+
+    return app;
+  } catch (error) {
+    return cleanupAndRethrow(error, 'app_bootstrap', () => app.stop());
   }
-
-  startMemoryProfiler();
-
-  return app;
 };
 
 function getModule(config, appPass) {
@@ -113,6 +125,10 @@ function getModule(config, appPass) {
 
     apiKeyContext = new AsyncLocalStorage<any>();
 
+    stopPromise: Promise<void> | null = null;
+
+    memoryProfilerHandle: MemoryProfilerHandle | null = null;
+
     ms: {
       database: IGeesomeDatabaseModule,
       content: IGeesomeContentModule,
@@ -122,11 +138,13 @@ function getModule(config, appPass) {
       staticId: IGeesomeStaticIdModule,
       invite: IGeesomeInviteModule,
       group: IGeesomeGroupModule,
+      imageComposition: IGeesomeImageCompositionModule,
       accountStorage: IGeesomeAccountStorageModule,
       communicator: IGeesomeCommunicatorModule,
       storage: IGeesomeStorageModule,
       storageSpace: IGeesomeStorageSpaceModule,
       activityPub: IGeesomeActivityPubModule,
+      bluesky: IGeesomeBlueskyModule,
       entityJsonManifest: IGeesomeEntityJsonManifestModule
     };
 
@@ -700,16 +718,23 @@ function getModule(config, appPass) {
     }
 
     async stop() {
-      await pIteration.forEachSeries(this.config.modules, async (moduleName: string) => {
+      if (!this.stopPromise) {
+        this.stopPromise = this.stopModules();
+      }
+      return this.stopPromise;
+    }
+
+    async stopModules() {
+      await pIteration.forEachSeries(getModuleStopOrder(this.config.modules), async (moduleName: string) => {
+        if (moduleName === 'database') {
+          await cleanupResource('memory_profiler', () => this.memoryProfilerHandle?.stop());
+        }
         if (this.ms[moduleName] && this.ms[moduleName].stop) {
           log(`Stop ${moduleName} module...`);
-          try {
-            await this.ms[moduleName].stop();
-          } catch (e) {
-            console.warn("Warning! Module didnt stop:", e);
-          }
+          await cleanupResource(`module:${moduleName}`, () => this.ms[moduleName].stop());
         }
       });
+      await cleanupResource('memory_profiler', () => this.memoryProfilerHandle?.stop());
     }
 
     async flushDatabase() {
@@ -732,4 +757,40 @@ function getModule(config, appPass) {
   }
 
   return new GeesomeApp(config);
+}
+
+export function getModuleStopOrder(moduleNames: string[]): string[] {
+  const reversedModuleNames = reverse(clone(moduleNames));
+  const ingressModuleNames = ['gateway', 'api'];
+  const databaseModuleName = 'database';
+  return ingressModuleNames
+    .filter(moduleName => reversedModuleNames.includes(moduleName))
+    .concat(reversedModuleNames.filter(moduleName => {
+      return !ingressModuleNames.includes(moduleName) && moduleName !== databaseModuleName;
+    }))
+    .concat(reversedModuleNames.filter(moduleName => moduleName === databaseModuleName));
+}
+
+async function loadConfiguredModule(moduleName: string, app: IGeesomeApp, options: AppBootstrapOptions) {
+  if (options.loadModule) {
+    return options.loadModule(moduleName, app);
+  }
+  return (await import(`./modules/${moduleName}/index.js`)).default(app);
+}
+
+function annotateModuleInitializationError(error, moduleName: string) {
+  if (!error || (typeof error !== 'object' && typeof error !== 'function')) {
+    return error;
+  }
+  try {
+    if (!error.bootstrapStage) {
+      error.bootstrapStage = 'module_initialization';
+    }
+    if (!error.bootstrapModuleName) {
+      error.bootstrapModuleName = moduleName;
+    }
+  } catch (_annotationError) {
+    return error;
+  }
+  return error;
 }

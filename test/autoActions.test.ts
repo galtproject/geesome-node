@@ -48,7 +48,6 @@ describe("autoActions", function () {
 
 	afterEach(async () => {
 		await app.stop();
-		await app.flushDatabase();
 	});
 
 	it('autoActions should be executed successfully', async () => {
@@ -238,6 +237,188 @@ describe("autoActions", function () {
 		assert.deepEqual(secondPage.list.map(action => action.moduleName), ['action-3']);
 	});
 
+	it('deduplicates concurrent active actions by stable identity', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const createAction = () => ({
+			moduleName: 'pin',
+			funcName: 'pinByAccountId',
+			funcArgs: '[1,"storage-id",{}]',
+			isActive: true,
+			executePeriod: 0,
+			totalExecuteAttempts: 1,
+			currentExecuteAttempts: 1,
+			executeOn: new Date()
+		});
+
+		const actions = await Promise.all(Array.from({length: 10}, () => {
+			return autoActions.addUniqueAutoAction(
+				testUser.id,
+				'pin:pin:1:storage-id',
+				createAction()
+			);
+		}));
+
+		assert.equal(new Set(actions.map(action => action.id)).size, 1);
+		const activeActions = await autoActions.getUserActions(testUser.id, {
+			moduleName: 'pin',
+			funcName: 'pinByAccountId',
+			isActive: 'true'
+		});
+		assert.equal(activeActions.total, 1);
+
+		await autoActions.updateAutoAction(testUser.id, actions[0].id, {isActive: false});
+		const replacement = await autoActions.addUniqueAutoAction(
+			testUser.id,
+			'pin:pin:1:storage-id',
+			createAction()
+		);
+		assert.notEqual(replacement.id, actions[0].id);
+
+		const unrelated = await autoActions.addUniqueAutoAction(
+			testUser.id,
+			'pin:pin:2:storage-id',
+			createAction()
+		);
+		assert.equal(
+			await autoActions.deactivateUniqueAutoActionsByIdentityPrefix(testUser.id, 'pin:pin:1:'),
+			1
+		);
+		const remainingActiveActions = await autoActions.getUserActions(testUser.id, {
+			moduleName: 'pin',
+			funcName: 'pinByAccountId',
+			isActive: 'true'
+		});
+		assert.deepEqual(remainingActiveActions.list.map(action => action.id), [unrelated.id]);
+	});
+
+	it('creates one atomic child chain for concurrent unique callers', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const actions = await Promise.all(Array.from({length: 10}, () => {
+			return autoActions.addUniqueAutoAction(
+				testUser.id,
+				'chain:shared-identity',
+				{
+					...getAutoActionTestData('chain-root'),
+					nextActions: [
+						getAutoActionTestData('chain-child-1'),
+						getAutoActionTestData('chain-child-2')
+					]
+				}
+			);
+		}));
+
+		assert.equal(new Set(actions.map(action => action.id)).size, 1);
+		const nextActions = await autoActions.getNextActionsById(testUser.id, actions[0].id);
+		assert.deepEqual(nextActions.map(action => action.moduleName), ['chain-child-1', 'chain-child-2']);
+		const storedActions = await autoActions.getUserActions(testUser.id, {
+			sortBy: 'id',
+			sortDir: 'ASC',
+			limit: 20
+		});
+		assert.deepEqual(
+			storedActions.list.map(action => action.moduleName),
+			['chain-root', 'chain-child-1', 'chain-child-2']
+		);
+	});
+
+	it('rolls back a unique root and new children when attachment fails', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const existingChild = await autoActions.addAutoAction(
+			testUser.id,
+			getAutoActionTestData('existing-child')
+		);
+
+		await assert.rejects(() => autoActions.addUniqueAutoAction(
+			testUser.id,
+			'chain:rollback',
+			{
+				...getAutoActionTestData('rollback-root'),
+				nextActions: [
+					getAutoActionTestData('rollback-new-child'),
+					{id: existingChild.id},
+					{id: existingChild.id}
+				]
+			}
+		));
+
+		const [actionRows] = await app.ms.database.sequelize.query(`
+			SELECT "moduleName"
+			FROM "autoActions"
+			ORDER BY id ASC
+		`) as any;
+		const [dedupeRows] = await app.ms.database.sequelize.query(`
+			SELECT id
+			FROM "autoActionDedupeKeys"
+			WHERE "identityKey" = 'chain:rollback'
+		`) as any;
+		assert.deepEqual(actionRows.map(row => row.moduleName), ['existing-child']);
+		assert.equal(dedupeRows.length, 0);
+	});
+
+	it('cleans stale inactive and orphan dedupe keys in bounded batches', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const staleInactive = await autoActions.addUniqueAutoAction(
+			testUser.id,
+			'cleanup:stale-inactive',
+			getAutoActionTestData('stale-inactive')
+		);
+		const staleActive = await autoActions.addUniqueAutoAction(
+			testUser.id,
+			'cleanup:stale-active',
+			getAutoActionTestData('stale-active')
+		);
+		const recentInactive = await autoActions.addUniqueAutoAction(
+			testUser.id,
+			'cleanup:recent-inactive',
+			getAutoActionTestData('recent-inactive')
+		);
+		await autoActions.updateAutoAction(testUser.id, staleInactive.id, {isActive: false});
+		await autoActions.updateAutoAction(testUser.id, recentInactive.id, {isActive: false});
+		const staleAt = new Date('2020-01-01T00:00:00.000Z');
+		const staleOrphanAt = new Date('2020-01-02T00:00:00.000Z');
+		await app.ms.database.sequelize.query(`
+			UPDATE "autoActions"
+			SET "updatedAt" = :staleAt
+			WHERE id IN (:staleInactiveId, :staleActiveId)
+		`, {
+			replacements: {
+				staleAt,
+				staleInactiveId: staleInactive.id,
+				staleActiveId: staleActive.id
+			}
+		});
+		await app.ms.database.sequelize.query(`
+			UPDATE "autoActionDedupeKeys"
+			SET "updatedAt" = :staleAt
+			WHERE "identityKey" IN ('cleanup:stale-inactive', 'cleanup:stale-active')
+		`, {replacements: {staleAt}});
+		await app.ms.database.sequelize.query(`
+			INSERT INTO "autoActionDedupeKeys"
+				("identityKey", "userId", "autoActionId", "createdAt", "updatedAt")
+			VALUES
+				('cleanup:stale-orphan', :userId, 999999, :staleOrphanAt, :staleOrphanAt)
+		`, {replacements: {userId: testUser.id, staleOrphanAt}});
+
+		assert.equal(await autoActions.cleanupStaleAutoActionDedupeKeys({
+			before: new Date('2021-01-01T00:00:00.000Z'),
+			limit: 1
+		}), 1);
+		assert.equal(await autoActions.cleanupStaleAutoActionDedupeKeys({
+			before: new Date('2021-01-01T00:00:00.000Z'),
+			limit: 10
+		}), 1);
+
+		const [remainingRows] = await app.ms.database.sequelize.query(`
+			SELECT "identityKey"
+			FROM "autoActionDedupeKeys"
+			ORDER BY "identityKey" ASC
+		`) as any;
+		assert.deepEqual(remainingRows.map(row => row.identityKey), [
+			'cleanup:recent-inactive',
+			'cleanup:stale-active'
+		]);
+	});
+
 	it('claims due auto actions before cron execution', async () => {
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
 		const dueAction = await autoActions.addAutoAction(testUser.id, {
@@ -344,4 +525,72 @@ describe("autoActions", function () {
 		assert.deepEqual(JSON.parse(logs[0].response), longResponse);
 		assert.equal(JSON.parse(logs[1].error), 'x'.repeat(400));
 	});
+
+	it('deactivates terminal failures without consuming the retry budget', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const action = await autoActions.addAutoAction(testUser.id, {
+			moduleName: 'testModule',
+			funcName: 'run',
+			funcArgs: '[]',
+			isActive: true,
+			totalExecuteAttempts: 3,
+			currentExecuteAttempts: 3,
+			executeOn: new Date(Date.now() - 1000)
+		});
+		const terminalError = Object.assign(new Error('provider_credentials_rejected'), {
+			retryable: false
+		});
+
+		await autoActions.handleAutoActionFailedExecution(testUser.id, action.id, terminalError);
+
+		const storedAction = await (autoActions as any).getAutoAction(action.id);
+		assert.equal(storedAction.isActive, false);
+		assert.equal(storedAction.currentExecuteAttempts, 3);
+	});
+
+	it('deactivates successful one-shot actions and keeps recurring actions active', async () => {
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const oneShot = await autoActions.addAutoAction(testUser.id, {
+			moduleName: 'content',
+			funcName: 'saveDataAndGetStorageId',
+			funcArgs: '[]',
+			isActive: true,
+			totalExecuteAttempts: 3,
+			currentExecuteAttempts: 3,
+			executePeriod: 0,
+			executeOn: new Date()
+		});
+		const recurring = await autoActions.addAutoAction(testUser.id, {
+			moduleName: 'content',
+			funcName: 'saveDataAndGetStorageId',
+			funcArgs: '[]',
+			isActive: true,
+			totalExecuteAttempts: 3,
+			currentExecuteAttempts: 3,
+			executePeriod: 60,
+			executeOn: new Date()
+		});
+
+		await autoActions.handleAutoActionSuccessfulExecution(testUser.id, oneShot.id, {ok: true});
+		await autoActions.handleAutoActionSuccessfulExecution(testUser.id, recurring.id, {ok: true});
+
+		const storedOneShot = await (autoActions as any).getAutoAction(oneShot.id);
+		const storedRecurring = await (autoActions as any).getAutoAction(recurring.id);
+		assert.equal(storedOneShot.isActive, false);
+		assert.equal(storedRecurring.isActive, true);
+		assert(storedRecurring.executeOn.getTime() > recurring.executeOn.getTime());
+	});
 });
+
+function getAutoActionTestData(moduleName: string): IAutoAction {
+	return {
+		moduleName,
+		funcName: 'run',
+		funcArgs: '[]',
+		isActive: true,
+		executePeriod: 0,
+		totalExecuteAttempts: 1,
+		currentExecuteAttempts: 1,
+		executeOn: new Date()
+	};
+}

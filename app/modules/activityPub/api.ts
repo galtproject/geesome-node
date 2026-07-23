@@ -1,8 +1,14 @@
 import {IGeesomeApp} from '../../interface.js';
+import helpers from '../../helpers.js';
 import {IApiModuleCommonOutput, IApiModulePotInput} from '../api/interface.js';
 import {CorePermissionName} from '../database/interface.js';
 import IGeesomeActivityPubModule, {IActivityPubInboxResult, IActivityPubInboundRequest} from './interface.js';
-import {activityPubContentType, activityPubWebFingerContentType} from './helpers.js';
+import {
+	activityPubContentType,
+	activityPubNodeInfoContentType,
+	activityPubNodeInfoDiscoveryContentType,
+	activityPubWebFingerContentType
+} from './helpers.js';
 
 export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) => {
 	/**
@@ -17,6 +23,38 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	app.ms.api.onUnversionGet('.well-known/webfinger', async (req, res) => {
 		setWebFingerHeaders(res);
 		return res.send(await activityPubModule.getWebFingerResponse(req.query.resource), 200);
+	});
+
+	/**
+	 * @api {get} /.well-known/nodeinfo Discover ActivityPub NodeInfo document
+	 * @apiName ActivityPubNodeInfoDiscovery
+	 * @apiGroup ActivityPub
+	 *
+	 * @apiDescription Public NodeInfo discovery endpoint for the GeeSome ActivityPub service. It advertises the NodeInfo 2.1 document URL when ActivityPub is enabled.
+	 * @apiSuccess {Object[]} links NodeInfo schema links.
+	 */
+	app.ms.api.onUnversionGet('.well-known/nodeinfo', async (req, res) => {
+		setNodeInfoDiscoveryHeaders(res);
+		return res.send(await activityPubModule.getNodeInfoDiscovery(), 200);
+	});
+
+	/**
+	 * @api {get} /nodeinfo/2.1 Get ActivityPub NodeInfo document
+	 * @apiName ActivityPubNodeInfo
+	 * @apiGroup ActivityPub
+	 *
+	 * @apiDescription Public NodeInfo 2.1 document for Fediverse discovery. It currently advertises GeeSome's ActivityPub protocol support without exposing user or post counts.
+	 * @apiSuccess {String} version NodeInfo schema version.
+	 * @apiSuccess {Object} software GeeSome node software metadata.
+	 * @apiSuccess {String[]} protocols Supported federation protocols.
+	 * @apiSuccess {Object} services External service bridges advertised through NodeInfo.
+	 * @apiSuccess {Boolean} openRegistrations Whether public account registration is advertised.
+	 * @apiSuccess {Object} usage Public usage counters; this first ActivityPub slice keeps counters at zero until privacy/product policy is defined.
+	 * @apiSuccess {Object} metadata Free-form node metadata.
+	 */
+	app.ms.api.onUnversionGet('nodeinfo/2.1', async (req, res) => {
+		setNodeInfoHeaders(res);
+		return res.send(await activityPubModule.getNodeInfo(), 200);
 	});
 
 	/**
@@ -90,18 +128,425 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Lists signed inbound ActivityPub `Flag` reports stored for a local federatable group actor. Report state can be marked pending or resolved separately; content moderation actions are handled by later moderation flows.
+	 * @apiDescription Lists signed inbound ActivityPub `Flag` reports stored for a local federatable group actor. Each report includes derived target context showing whether the signed report points at the group actor or a known local ActivityPub post object. Report state can be marked pending or resolved separately; content moderation actions are handled by later moderation flows.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
 	 * @apiQuery {String="pending","resolved"} [state] Filter by report state.
 	 * @apiQuery {String} [objectId] Filter by reported ActivityPub actor/object id.
 	 * @apiQuery {Number} [remoteActorId] Filter by reporting remote actor database id.
-	 * @apiSuccess {Object[]} list Flag report rows.
+	 * @apiSuccess {Object[]} list Flag report rows with remote actor metadata, parsed activity JSON, and derived target context.
 	 * @apiSuccess {Number} total Total matching reports.
 	 */
 	app.ms.api.onAuthorizedGet('admin/activity-pub/groups/:groupName/flags', async (req, res) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
 		return res.send(await activityPubModule.getGroupFlagReports(req.params.groupName, req.query, req.query));
+	});
+
+	/**
+	 * @api {post} /v1/soc-net/activity-pub/migration/ownership-challenge Create ActivityPub migration ownership challenge
+	 * @apiName UserActivityPubMigrationOwnershipChallenge
+	 * @apiGroup UserActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Resolves a public ActivityPub actor and creates a short-lived one-time ownership challenge for claimed social-page migration. The response includes canonical `bodyJson` plus `verificationUrl`; the remote actor owner must sign a `POST` request to that URL with the actor HTTP-signature key and the exact body JSON. The current path is a detached-proof flow: `verificationUrl` is the signed request target, not a public callback endpoint, and the signed request data must be submitted back as `ownershipChallengeProof`. This route is rate-limited by user/actor/request IP, does not create posts, cache objects, follow actors, or consume the challenge.
+	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
+	 * @apiBody {String} [resource] WebFinger resource, for example `acct:alice@example.com`.
+	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
+	 * @apiBody {String="bridgy-bluesky","bluesky"} [bridgeProvider] Bridge provider hint used for bridge handles without a domain.
+	 * @apiBody {String="bluesky-official"} [preset] Convenience preset for the official Bluesky Bridgy account.
+	 * @apiBody {Number} [expiresInMs=900000] Challenge lifetime, capped at one hour.
+	 * @apiSuccess {String} actor Resolved ActivityPub actor id.
+	 * @apiSuccess {String} sourceActorUrl Resolved ActivityPub actor URL.
+	 * @apiSuccess {String} challengeToken Random challenge token used to look up the proof.
+	 * @apiSuccess {String} challengeUrl Public challenge id URL.
+	 * @apiSuccess {String} verificationUrl URL that must be signed by the actor owner.
+	 * @apiSuccess {Date} expiresAt Expiration time.
+	 * @apiSuccess {Object} body Canonical challenge body object.
+	 * @apiSuccess {String} bodyJson Canonical challenge body string that must be signed exactly.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/ownership-challenge', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await activityPubModule.createMigrationOwnershipChallenge(req.user.id, getActivityPubBodyWithRequestIp(req)));
+	});
+
+	/**
+	 * @api {post} /v1/soc-net/activity-pub/migration/ownership-challenge/verify Verify ActivityPub migration ownership challenge
+	 * @apiName UserActivityPubMigrationOwnershipChallengeVerify
+	 * @apiGroup UserActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Verifies a signed ActivityPub migration ownership challenge proof without consuming it. The same proof can then be passed to visible migration import, where the challenge is consumed so it cannot be replayed. Verification is rate-limited by user/actor/token/request IP and fails when the challenge is expired, already consumed, signed for a different URL/body, signed by a key not owned by the challenged actor, or belongs to another GeeSome user.
+	 * @apiBody {Object} ownershipChallengeProof Signed challenge proof.
+	 * @apiBody {String} ownershipChallengeProof.challengeToken Challenge token from the challenge response.
+	 * @apiBody {String="POST"} ownershipChallengeProof.method Signed request method.
+	 * @apiBody {String} ownershipChallengeProof.url Signed request URL; must match the challenge `verificationUrl`.
+	 * @apiBody {Object} ownershipChallengeProof.headers Signed request headers including `Date`, `Host`, `Digest` or `Content-Digest`, and `Signature`.
+	 * @apiBody {String} ownershipChallengeProof.bodyJson Exact challenge body string that was signed.
+	 * @apiSuccess {Boolean} verified Always `true` when verification succeeds.
+	 * @apiSuccess {String="signedChallenge"} method Ownership method.
+	 * @apiSuccess {String} actor Verified ActivityPub actor.
+	 * @apiSuccess {String} challengeToken Challenge token.
+	 * @apiSuccess {Date} verifiedAt Verification time.
+	 * @apiSuccess {Date} expiresAt Challenge expiration time.
+	 * @apiSuccess {String} keyId Actor public key id that verified the signature.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/ownership-challenge/verify', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await activityPubModule.verifyMigrationOwnershipChallenge(req.user.id, getActivityPubBodyWithRequestIp(req)));
+	});
+
+	/**
+	 * @api {post} /v1/soc-net/activity-pub/migration/preview Preview ActivityPub migration
+	 * @apiName UserActivityPubMigrationPreview
+	 * @apiGroup UserActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Fetches bounded public ActivityPub actor `featured` and/or `outbox` pages and returns a read-only GeeSome migration preview. The preview classifies public `Create`, direct object, `Announce`, reply, quote, and mention records as local-owned posts or remote context, reports placeholder counts, and lists ActivityPub actor/object placeholders with stable protocol source-identity metadata that a later migration job can reconcile. When `claimed=true`, ownership is verified when the actor profile contains the provided bounded `ownershipProofToken` or when `ownershipChallengeProof` verifies a short-lived actor-signed challenge; otherwise it remains unverified until a later signed challenge or admin-approved proof exists. This route does not subscribe to the source, follow the actor, create social-import channels, create GeeSome posts, create migration jobs, cache remote objects, consume challenges, or federate ActivityPub requests.
+	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
+	 * @apiBody {String} [resource] WebFinger resource, for example `acct:alice@example.com`.
+	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
+	 * @apiBody {String="bridgy-bluesky","bluesky"} [bridgeProvider] Bridge provider hint used for bridge handles without a domain.
+	 * @apiBody {String="bluesky-official"} [preset] Convenience preset for the official Bluesky Bridgy account.
+	 * @apiBody {Boolean} [claimed=false] Whether the caller claims this ActivityPub actor as their own page.
+	 * @apiBody {String} [ownershipProofToken] Optional non-admin proof token. When `claimed=true`, the resolved actor profile must contain this exact token in bounded public fields such as summary, name, URL, aliases, attachment values, or tags.
+	 * @apiBody {Object} [ownershipChallengeProof] Optional signed challenge proof created by `/migration/ownership-challenge`.
+	 * @apiBody {Number} [limit=20] Maximum collection items to inspect, capped at 50.
+	 * @apiBody {Number} [maxPages=1] Maximum ActivityPub collection pages to inspect per selected collection, capped at 25.
+	 * @apiBody {Boolean} [includeFeatured=true] Whether to inspect the actor `featured` collection when present.
+	 * @apiBody {Boolean} [includeOutbox=true] Whether to inspect the actor `outbox` collection when present.
+	 * @apiSuccess {String} actor ActivityPub actor id used for migration ownership classification.
+	 * @apiSuccess {String} sourceActorUrl Resolved ActivityPub actor URL.
+	 * @apiSuccess {String} [sourceResource] Resolved WebFinger resource when one was used.
+	 * @apiSuccess {String} [bridgeProvider] Bridge provider detected from input or resolved actor metadata.
+	 * @apiSuccess {Object} ownership Ownership proof result for claimed migrations.
+	 * @apiSuccess {Object} summary Counts for local posts, remote context, replies, announces, quotes, mentions, and placeholders.
+	 * @apiSuccess {Object[]} list Migration preview items with sanitized preview data and placeholder keys.
+	 * @apiSuccess {Object[]} remotePlaceholders ActivityPub actor/object placeholders for referenced remote context, including `sourceIdentity` metadata for future reconciliation.
+	 * @apiSuccess {Number} fetched Number of remote collection items inspected.
+	 * @apiSuccess {Number} pages Number of ActivityPub collection pages inspected.
+	 * @apiSuccess {Number} maxPages Maximum ActivityPub collection pages inspected per selected collection.
+	 * @apiSuccess {Boolean} hasMore Whether at least one inspected collection had another page beyond the configured limit.
+	 * @apiSuccess {String[]} errors Bounded fetch/preview errors encountered while building the preview.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/preview', async (req, res) => {
+		return res.send(await activityPubModule.getMigrationPreview(req.user.id, getActivityPubBodyWithRequestIp(req)));
+	});
+
+	/**
+	 * @api {post} /v1/soc-net/activity-pub/migration/import Import ActivityPub migration candidates
+	 * @apiName UserActivityPubMigrationImport
+	 * @apiGroup UserActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Resolves the same bounded public ActivityPub actor `featured` and/or `outbox` pages as migration preview, refreshes the remote actor cache, and stores eligible own-authored public objects as ActivityPub remote-object candidates. By default this is a cache-only write job. When `createPosts=true`, the caller must provide a claimed target GeeSome group plus admin-approved ownership, a matching public profile `ownershipProofToken`, or a valid actor-signed `ownershipChallengeProof`; importable candidates are accepted, filtered by the optional moderation policy, and created as visible GeeSome remote posts through the same duplicate-resistant remote-object post path used by the admin review tools. Signed challenges are consumed only by visible import so they cannot be replayed. Remote-context records, announces/reblogs, non-public objects, non-reviewable object types, actor-mismatched objects, and moderation-blocked objects are skipped and reported. Use `async=true` to enqueue the same bounded import job in the persistent async-operation queue.
+	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
+	 * @apiBody {String} [resource] WebFinger resource, for example `acct:alice@example.com`.
+	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
+	 * @apiBody {String="bridgy-bluesky","bluesky"} [bridgeProvider] Bridge provider hint used for bridge handles without a domain.
+	 * @apiBody {String="bluesky-official"} [preset] Convenience preset for the official Bluesky Bridgy account.
+	 * @apiBody {Boolean} [claimed=false] Whether the caller claims this ActivityPub actor as their own page.
+	 * @apiBody {Boolean} [createPosts=false] Create visible GeeSome posts for importable candidates. Requires `groupName`, `claimed=true`, and `ownershipApproved=true` with admin permission, a matching `ownershipProofToken` in the public actor profile, or a valid `ownershipChallengeProof`.
+	 * @apiBody {String} [groupName] Target public GeeSome group name for visible post creation.
+	 * @apiBody {Boolean} [ownershipApproved=false] Admin approval that the caller's claimed ActivityPub ownership has been verified outside this request.
+	 * @apiBody {String} [ownershipProofToken] Optional non-admin proof token. For visible imports without `ownershipApproved=true`, the resolved actor profile must contain this exact token in bounded public fields such as summary, name, URL, aliases, attachment values, or tags.
+	 * @apiBody {Object} [ownershipChallengeProof] Optional actor-signed challenge proof. For visible imports this proof is consumed after verification.
+	 * @apiBody {Boolean} [importRemoteAttachments=false] Back up supported remote attachments before creating visible posts.
+	 * @apiBody {Object} [moderationPolicy] Optional remote-content moderation policy with `mode` and `rules`; non-allow decisions are skipped before visible post creation.
+	 * @apiBody {Number} [limit=20] Maximum collection items to inspect, capped at 50.
+	 * @apiBody {Number} [maxPages=1] Maximum ActivityPub collection pages to inspect per selected collection, capped at 25.
+	 * @apiBody {Boolean} [includeFeatured=true] Whether to inspect the actor `featured` collection when present.
+	 * @apiBody {Boolean} [includeOutbox=true] Whether to inspect the actor `outbox` collection when present.
+	 * @apiBody {Boolean} [async=false] Queue the import in the persistent async-operation queue instead of processing it immediately.
+	 * @apiBody {Boolean} [process=true] Start bounded queue processing immediately after enqueueing when `async=true`.
+	 * @apiSuccess {String} actor ActivityPub actor id used for migration ownership classification.
+	 * @apiSuccess {String} sourceActorUrl Resolved ActivityPub actor URL.
+	 * @apiSuccess {Object} ownership Ownership proof result for claimed migrations.
+	 * @apiSuccess {Object} summary Counts for local posts, remote context, replies, announces, quotes, mentions, and placeholders.
+	 * @apiSuccess {Object[]} remotePlaceholders ActivityPub actor/object placeholders for referenced remote context, including `sourceIdentity` metadata for future reconciliation.
+	 * @apiSuccess {Number} fetched Number of remote collection items inspected.
+	 * @apiSuccess {Number} pages Number of ActivityPub collection pages inspected.
+	 * @apiSuccess {Number} maxPages Maximum ActivityPub collection pages inspected per selected collection.
+	 * @apiSuccess {Boolean} hasMore Whether at least one inspected collection had another page beyond the configured limit.
+	 * @apiSuccess {Number} cached Number of remote-object candidates cached.
+	 * @apiSuccess {Number} created Number of visible GeeSome posts created.
+	 * @apiSuccess {Object} [moderation] Moderation summary when `createPosts=true`.
+	 * @apiSuccess {Number[]} postIds Created GeeSome post ids.
+	 * @apiSuccess {Number} skipped Number of fetched items skipped before caching.
+	 * @apiSuccess {Number[]} remoteObjectIds Cached ActivityPub remote-object ids.
+	 * @apiSuccess {String[]} errors Bounded fetch/cache errors encountered while processing the import.
+	 * @apiSuccess (Queued async response) {Number} id Operation queue id when `async=true`.
+	 * @apiSuccess (Queued async response) {String} module Queue module name `activitypub-migration-import` when `async=true`.
+	 * @apiSuccess (Queued async response) {Number} [asyncOperationId] Linked async operation id after queue processing starts.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/import', async (req, res) => {
+		const input = getActivityPubBodyWithRequestIp(req);
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		if (isActivityPubMigrationVisibleAdminApprovedImport(input)) {
+			await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		}
+		if (helpers.parseBoolean(input.async, false)) {
+			return res.send(await activityPubModule.queueMigrationImport(req.user.id, req.apiKey?.id || null, input));
+		}
+		return res.send(await activityPubModule.importMigration(req.user.id, input));
+	});
+
+	/**
+	 * @api {post} /v1/soc-net/activity-pub/migration/reconcile-relations Reconcile ActivityPub migration relations
+	 * @apiName UserActivityPubMigrationReconcileRelations
+	 * @apiGroup UserActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Bounded post-migration repair for already-created ActivityPub migration posts in one GeeSome group. The job scans imported ActivityPub posts by source identity, reads their cached ActivityStreams object JSON, resolves `inReplyTo` to local `replyToId`, resolves quote references (`quoteUrl`, `quoteUri`, `quote`, or `_misskey_quote`) to local `repostOfId`, and updates only when the matching target post already exists by ActivityPub object identity. Same-group targets are preferred; cross-group targets are used only when unambiguous and `allowCrossGroup` is not false. Use `dryRun=true` to preview changes without writing. Announces/reblogs are intentionally not rewritten in this first relation pass because repost authorship policy needs a separate product decision.
+	 * @apiBody {Number} [groupId] Local GeeSome group id whose imported ActivityPub posts should be inspected.
+	 * @apiBody {String} [groupName] Local GeeSome group name used when `groupId` is not supplied.
+	 * @apiBody {String} [sourceChannelId] Optional imported ActivityPub source channel filter such as `remoteActor:123`.
+	 * @apiBody {Number} [limit=20] Maximum imported posts to inspect, capped at 100.
+	 * @apiBody {Date} [cursorPublishedAt] Keyset cursor timestamp from the previous result.
+	 * @apiBody {Number} [cursorId] Keyset cursor id from the previous result.
+	 * @apiBody {Boolean} [allowCrossGroup=true] Whether to link to unambiguous target posts in other GeeSome groups.
+	 * @apiBody {Boolean} [force=false] Recompute relation fields even when they are already set.
+	 * @apiBody {Boolean} [dryRun=false] Return the rows that would change without updating posts.
+	 * @apiSuccess {Object} result Reconciliation result with checked, updated, skipped, failed, dryRun, row details, bounded errors, and optional nextCursor.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/activity-pub/migration/reconcile-relations', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await activityPubModule.reconcileMigrationRelations(req.user.id, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/activity-pub/sources/resolve Resolve ActivityPub source
+	 * @apiName AdminActivityPubSourceResolve
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Resolves a remote ActivityPub source before subscribing. The input can be a direct `actorUrl`, an ActivityPub WebFinger `resource` such as `acct:alice@example.com`, a full `handle` such as `alice@example.com`, or a Bridgy Bluesky handle with `bridgeProvider=bridgy-bluesky` such as `bsky.app`. Resolving may refresh the remote actor cache, but it does not follow the actor, import posts, or create GeeSome content.
+	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
+	 * @apiBody {String} [resource] WebFinger resource, for example `acct:bsky.app@bsky.brid.gy`.
+	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
+	 * @apiBody {String="bridgy-bluesky","bluesky"} [bridgeProvider] Bridge provider hint used for bridge handles without a domain.
+	 * @apiBody {String="bluesky-official"} [preset] Convenience preset for the official Bluesky Bridgy account.
+	 * @apiSuccess {String} sourceActorUrl Resolved ActivityPub actor URL.
+	 * @apiSuccess {String} [sourceResource] Resolved WebFinger resource when one was used.
+	 * @apiSuccess {String} [bridgeProvider] Bridge provider detected from input or resolved actor metadata.
+	 * @apiSuccess {Object} [remoteActor] Cached remote actor metadata.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/sources/resolve', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.resolveActivityPubSource(req.body || {}));
+	});
+
+	/**
+	 * @api {get} /v1/admin/activity-pub/sources List ActivityPub source subscriptions
+	 * @apiName AdminActivityPubSources
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Lists the current admin user's ActivityPub source subscriptions for reader/feed UI. Removed subscriptions are hidden unless `status=removed` is requested explicitly. This only lists subscriptions and cached remote actor metadata; it does not fetch remote timelines or import posts.
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 * @apiQuery {String="active","paused","removed"} [status] Filter by subscription status.
+	 * @apiQuery {Number} [remoteActorId] Filter by cached remote actor id.
+	 * @apiSuccess {Object[]} list Source subscription rows with remote actor metadata.
+	 * @apiSuccess {Number} total Total matching subscriptions.
+	 */
+	app.ms.api.onAuthorizedGet('admin/activity-pub/sources', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+		return res.send(await activityPubModule.getActivityPubSourceSubscriptions(req.user.id, req.query, req.query));
+	});
+
+	/**
+	 * @api {post} /v1/admin/activity-pub/sources Subscribe ActivityPub source
+	 * @apiName AdminActivityPubSourceSubscribe
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Creates or reactivates a source subscription for the current admin user. The input accepts the same source fields as `/sources/resolve` plus an optional display name. Duplicate subscribes for the same user and remote actor are idempotent updates. This does not follow the actor, import posts, or create GeeSome content.
+	 * @apiBody {String} [actorUrl] Direct remote ActivityPub actor URL.
+	 * @apiBody {String} [resource] WebFinger resource, for example `acct:bsky.app@bsky.brid.gy`.
+	 * @apiBody {String} [handle] Full ActivityPub handle or a bridge-specific handle.
+	 * @apiBody {String="bridgy-bluesky","bluesky"} [bridgeProvider] Bridge provider hint used for bridge handles without a domain.
+	 * @apiBody {String="bluesky-official"} [preset] Convenience preset for the official Bluesky Bridgy account.
+	 * @apiBody {String} [displayName] Optional UI label for the source.
+	 * @apiSuccess {Object} result Source subscription row with remote actor metadata.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/sources', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.subscribeActivityPubSource(req.user.id, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/activity-pub/sources/:sourceId/update Update ActivityPub source subscription
+	 * @apiName AdminActivityPubSourceUpdate
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Updates local subscription metadata such as display name or active/paused status. It does not update remote actor data, fetch posts, follow/unfollow, import posts, or delete cached ActivityPub objects.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {String} [displayName] Optional UI label for the source.
+	 * @apiBody {String="active","paused"} [status] New subscription status.
+	 * @apiSuccess {Object} result Updated source subscription row with remote actor metadata.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/sources/:sourceId/update', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.updateActivityPubSourceSubscription(req.user.id, req.params.sourceId, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/activity-pub/sources/:sourceId/remove Remove ActivityPub source subscription
+	 * @apiName AdminActivityPubSourceRemove
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Marks a source subscription removed for the current admin user. It does not delete cached remote actors/objects, unfollow any local group actor, delete GeeSome posts, or federate an ActivityPub activity.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiSuccess {Object} result Removed source subscription row with remote actor metadata.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/sources/:sourceId/remove', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.removeActivityPubSourceSubscription(req.user.id, req.params.sourceId));
+	});
+
+	/**
+	 * @api {post} /v1/admin/activity-pub/sources/:sourceId/follow Follow ActivityPub source from group actor
+	 * @apiName AdminActivityPubSourceFollow
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Requests a federation-level outbound `Follow` from the given local group actor to the subscribed source actor. This reuses group follow state and delivery queue semantics: the source appears in the public following collection only after a signed remote `Accept` is recorded. This route does not fetch source timelines, import posts, or create GeeSome content.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {String} groupName Local GeeSome group actor name that should follow the source.
+	 * @apiSuccess {Object} source Source subscription row with remote actor metadata.
+	 * @apiSuccess {Object} follow Outbound follow result and delivery metadata.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/sources/:sourceId/follow', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.followActivityPubSource(req.user.id, req.params.sourceId, req.body || {}));
+	});
+
+	/**
+	 * @api {get} /v1/admin/activity-pub/sources/:sourceId/feed List ActivityPub source feed
+	 * @apiName AdminActivityPubSourceFeed
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Lists cached remote ActivityPub objects for a subscribed source actor. Feed items reuse the same sanitized `preview` projection as remote object moderation views and include an `isUnread` marker based on the subscription read cursor. Passing `cursorPublishedAt` and `cursorId` enables keyset pagination by `(publishedAt, id)` and skips the total count. This route does not fetch remote timelines, import posts, or create GeeSome content.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 * @apiQuery {String} [objectId] Filter by ActivityPub object id.
+	 * @apiQuery {String} [objectType] Filter by ActivityPub object type such as `Note`, `Article`, or `Tombstone`.
+	 * @apiQuery {String="public","followers","direct"} [visibility] Filter by cached ActivityPub audience visibility.
+	 * @apiQuery {String="pending","accepted","rejected"} [reviewState] Filter by cached remote object review state. Objects without a review row are treated as pending.
+	 * @apiQuery {Date} [cursorPublishedAt] Keyset cursor timestamp for source-feed pages.
+	 * @apiQuery {Number} [cursorId] Keyset cursor id for source-feed pages.
+	 * @apiSuccess {Object} source Source subscription row with remote actor metadata.
+	 * @apiSuccess {Object[]} list Cached remote object rows with sanitized preview data and `isUnread`.
+	 * @apiSuccess {Number} total Total matching cached remote objects, or `null` for cursor pages.
+	 * @apiSuccess {Object} [nextCursor] Cursor for the next source-feed page.
+	 */
+	app.ms.api.onAuthorizedGet('admin/activity-pub/sources/:sourceId/feed', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+		return res.send(await activityPubModule.getActivityPubSourceFeed(req.user.id, req.params.sourceId, req.query, req.query));
+	});
+
+	/**
+	 * @api {post} /v1/admin/activity-pub/sources/:sourceId/refresh Refresh ActivityPub source cache
+	 * @apiName AdminActivityPubSourceRefresh
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Explicitly fetches the subscribed actor's public `featured` and/or `outbox` collection and caches supported public ActivityPub objects for the source feed. This is an operator-triggered read action: it does not follow the actor, import GeeSome posts, federate any activity, or delete cached objects. Partial item failures are returned in `errors` and stored on the subscription `lastError`.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {Number} [limit=20] Maximum remote collection items to inspect, capped at 50.
+	 * @apiBody {Boolean} [includeFeatured=true] Whether to inspect the actor `featured` collection when present.
+	 * @apiBody {Boolean} [includeOutbox=true] Whether to inspect the actor `outbox` collection when present.
+	 * @apiSuccess {Object} source Source subscription row with remote actor metadata and refresh status.
+	 * @apiSuccess {Number} fetched Number of remote collection items inspected.
+	 * @apiSuccess {Number} cached Number of public supported source objects created or updated in the local cache.
+	 * @apiSuccess {Number} skipped Number of unsupported, duplicate, non-public, or actor-mismatched items skipped.
+	 * @apiSuccess {String[]} errors Bounded fetch/cache errors encountered while refreshing.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/sources/:sourceId/refresh', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.refreshActivityPubSource(req.user.id, req.params.sourceId, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/activity-pub/sources/:sourceId/refresh-async Queue ActivityPub source cache refresh
+	 * @apiName AdminActivityPubSourceRefreshAsync
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Queues the subscribed actor public `featured` and/or `outbox` refresh as a normal user async operation. Duplicate waiting jobs for the same source/options are reused. Set `process=false` when an external worker should process the queue later.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {Number} [limit=20] Maximum remote collection items to inspect, capped at 50.
+	 * @apiBody {Boolean} [includeFeatured=true] Whether to inspect the actor `featured` collection when present.
+	 * @apiBody {Boolean} [includeOutbox=true] Whether to inspect the actor `outbox` collection when present.
+	 * @apiBody {Boolean} [process=true] Start bounded queue processing immediately after enqueueing.
+	 * @apiInterface (../asyncOperation/interface.ts) {IUserOperationQueue} apiSuccess
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/sources/:sourceId/refresh-async', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.queueActivityPubSourceRefresh(
+			req.user.id,
+			req.params.sourceId,
+			req.apiKey?.id || null,
+			req.body || {}
+		));
+	});
+
+	/**
+	 * @api {post} /v1/admin/activity-pub/sources/:sourceId/read Mark ActivityPub source feed read
+	 * @apiName AdminActivityPubSourceRead
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Updates the current admin user's read cursor for a source subscription. It only affects local unread markers and does not change cached objects, review decisions, or native GeeSome posts.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {Date} [readAt=now] Read cursor timestamp.
+	 * @apiSuccess {Object} result Updated source subscription row with remote actor metadata.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/sources/:sourceId/read', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.markActivityPubSourceRead(req.user.id, req.params.sourceId, req.body || {}));
 	});
 
 	/**
@@ -113,15 +558,15 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Lists signed remote ActivityPub objects cached for a local federatable group actor. This is a read-only review surface for remote replies/mentions and tombstones; it does not create, hide, delete, or federate GeeSome posts. Render sanitized `preview.contentHtml`/`preview.contentText` or canonical `preview.contentRichText` in admin UI; `object` is the parsed raw ActivityStreams object kept for audit.
+	 * @apiDescription Lists signed remote ActivityPub objects cached for a local federatable group actor. This is a read-only review surface for remote replies/mentions and tombstones; it does not create, hide, delete, or federate GeeSome posts. Render sanitized `preview.contentHtml`/`preview.contentText` or canonical `preview.contentRichText` in admin UI; `preview.attachments` only contains bounded sanitized remote URL/media metadata such as media category, alt text, dimensions, duration, blurhash, sensitive flag, per-attachment embed policy, and remote-byte backup eligibility, not imported GeeSome/IPFS content. `object` is the parsed raw ActivityStreams object kept for audit.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
 	 * @apiQuery {String} [objectId] Filter by ActivityPub object id.
-	 * @apiQuery {String} [objectType] Filter by ActivityPub object type such as `Note` or `Tombstone`.
+	 * @apiQuery {String} [objectType] Filter by ActivityPub object type such as `Note`, `Article`, or `Tombstone`.
 	 * @apiQuery {String="public","followers","direct"} [visibility] Filter by cached ActivityPub audience visibility.
 	 * @apiQuery {String="pending","accepted","rejected"} [reviewState] Filter by cached remote object review state. Objects without a review row are treated as pending.
 	 * @apiQuery {Number} [remoteActorId] Filter by remote actor database id.
-	 * @apiSuccess {Object[]} list Cached remote object rows with parsed ActivityStreams object JSON, sanitized preview data, and remote actor metadata.
+	 * @apiSuccess {Object[]} list Cached remote object rows with parsed ActivityStreams object JSON, sanitized preview data, optional sanitized remote attachment/media metadata with embed policy, and remote actor metadata.
 	 * @apiSuccess {Number} total Total matching cached remote objects.
 	 */
 	app.ms.api.onAuthorizedGet('admin/activity-pub/groups/:groupName/remote-objects', async (req, res) => {
@@ -141,7 +586,7 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiDescription Returns one signed remote ActivityPub object cached for a local federatable group actor. This is an actor-scoped read-only detail view for moderation/review UI; it does not create, hide, delete, or federate GeeSome posts.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiParam {Number} remoteObjectId Cached remote object database id.
-	 * @apiSuccess {Object} result Cached remote object row with parsed ActivityStreams object JSON, sanitized preview data, canonical preview rich text, and remote actor metadata.
+	 * @apiSuccess {Object} result Cached remote object row with parsed ActivityStreams object JSON, sanitized preview data, canonical preview rich text, optional sanitized remote attachment/media metadata with embed policy, and remote actor metadata.
 	 */
 	app.ms.api.onAuthorizedGet('admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId', async (req, res) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
@@ -157,10 +602,10 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Returns a read-only draft projection for a cached remote ActivityPub object. It tells moderation/import UI whether the object is currently safe and accepted for a future GeeSome post, which sanitized rich-text payload would be used, and which local post reply target was resolved from `inReplyTo` when available. This route does not create, update, hide, delete, or federate GeeSome posts.
+	 * @apiDescription Returns a read-only draft projection for a cached remote ActivityPub object. It tells moderation/import UI whether the object is currently safe and accepted for a future GeeSome post, which sanitized rich-text payload would be used, which sanitized remote attachment/media metadata and embed policy would be carried as provenance, which attachments can be backed up on create, the explicit remote-attachment import policy, and which local post reply target was resolved from `inReplyTo` when available. Remote attachment bytes are not fetched or imported by this route. This route does not create, update, hide, delete, or federate GeeSome posts.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiParam {Number} remoteObjectId Cached remote object database id.
-	 * @apiSuccess {Object} result Draft projection with the source remote-object report, readiness flag, blocker reasons, sanitized text/rich-text fields, optional `replyToPostId`, and ActivityPub source metadata.
+	 * @apiSuccess {Object} result Draft projection with the source remote-object report, readiness flag, blocker reasons, sanitized text/rich-text fields, optional remote attachment/media metadata with embed policy and backup eligibility, optional provenance-only `attachmentImportPolicy`, optional `replyToPostId`, and ActivityPub source metadata.
 	 */
 	app.ms.api.onAuthorizedGet('admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/post-draft', async (req, res) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
@@ -176,15 +621,43 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiUse AuthErrors
 	 * @apiUse AdminErrors
 	 *
-	 * @apiDescription Creates a duplicate-resistant native GeeSome remote post from an accepted cached ActivityPub `Note`. The route stores only the sanitized canonical rich-text projection as post content, keeps raw ActivityStreams JSON only on the cached remote object for audit, maps `inReplyTo` to a local GeeSome `replyToId` when it targets a known post in the same group actor, and links the cached object to the created post. Pending/rejected, non-public, non-Note, contentless, or already-linked objects are rejected.
+	 * @apiDescription Creates a duplicate-resistant native GeeSome remote post from an accepted cached ActivityPub `Note`. The route stores the sanitized canonical rich-text projection as post content, carries sanitized remote attachment/media metadata and embed policy, and defaults to provenance-only remote attachments. When `importRemoteAttachments` is true, supported remote HTTP(S), IPFS, and IPNS media/document attachments are backed up through GeeSome content storage and linked to the created post; unsupported or link-only attachments remain provenance metadata. Raw ActivityStreams JSON stays only on the cached remote object for audit. `inReplyTo` is mapped to a local GeeSome `replyToId` when it targets a known post in the same group actor, and the cached object is linked to the created post. Pending/rejected, non-public, non-Note, contentless, or already-linked objects are rejected.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiParam {Number} remoteObjectId Cached remote object database id.
+	 * @apiBody {Boolean} [importRemoteAttachments=false] Back up supported remote HTTP(S), IPFS, and IPNS media/document attachments into GeeSome content storage before creating the post.
 	 * @apiSuccess {Object} post Created native GeeSome remote post.
 	 * @apiSuccess {Object} remoteObject Updated cached remote object report with `localPostId` set.
+	 * @apiSuccess {Object[]} [attachmentBackups] Remote attachment backup records when `importRemoteAttachments` imported any attachments.
 	 */
 	app.ms.api.onAuthorizedPost('admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/post', async (req, res) => {
 		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
-		return res.send(await activityPubModule.createGroupRemoteObjectPost(req.params.groupName, req.params.remoteObjectId, req.user.id));
+		return res.send(await activityPubModule.createGroupRemoteObjectPost(req.params.groupName, req.params.remoteObjectId, req.user.id, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/attachment-backups/retry Queue ActivityPub attachment backup retry
+	 * @apiName AdminActivityPubRemoteObjectAttachmentBackupRetry
+	 * @apiGroup AdminActivityPub
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Queues async backup work for supported remote HTTP(S), IPFS, and IPNS media/document attachments that belong to an already-created native GeeSome post imported from the cached ActivityPub object. The job skips unsupported, link-only, and already-backed-up attachments, records progress through the normal user async-operation queue, retries transient backup failures, and updates the imported post contents/provenance metadata when backups succeed. It does not create a post, change review state, hide/delete content, or federate any activity.
+	 * @apiParam {String} groupName GeeSome group name.
+	 * @apiParam {Number} remoteObjectId Cached remote object database id with `localPostId` already set.
+	 * @apiBody {Boolean} [process=true] Start bounded queue processing immediately after enqueueing. Set false for an external worker/operator run.
+	 * @apiSuccess {Object} result User operation queue item for the retry job. Poll `/v1/user/get-operation-queue/:operationId` or `/v1/user/get-async-operation/:id` for completion.
+	 */
+	app.ms.api.onAuthorizedPost('admin/activity-pub/groups/:groupName/remote-objects/:remoteObjectId/attachment-backups/retry', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await activityPubModule.queueGroupRemoteObjectAttachmentBackups(
+			req.params.groupName,
+			req.params.remoteObjectId,
+			req.user.id,
+			req.apiKey?.id || null,
+			req.body || {}
+		));
 	});
 
 	/**
@@ -275,7 +748,8 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiDescription Public ActivityStreams inbox endpoint for a local federatable GeeSome group. Signed `Follow` activities whose `object` is the local group actor are stored idempotently as ActivityPub follow state, signed remote `Accept(Follow)` and `Reject(Follow)` activities update matching outbound follow requests, signed embedded `Undo(Follow)` activities cancel inbound follow state, signed `Block` activities cancel follower state so future local post delivery skips that remote actor, and signed `Flag` activities store pending moderation reports for the local actor or known local objects. Other activity types are not accepted yet.
 	 * @apiParam {String} groupName GeeSome group name.
 	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
-	 * @apiHeader {String} Digest SHA-256 digest for the raw JSON request body.
+	 * @apiHeader {String} [Digest] Legacy SHA-256 digest for the raw JSON request body; the signature must cover either `Digest` or `Content-Digest`.
+	 * @apiHeader {String} [Content-Digest] RFC-style SHA-256 content digest for the raw JSON request body; the signature must cover either `Digest` or `Content-Digest`.
 	 * @apiBody {Object} activity ActivityStreams activity payload.
 	 * @apiSuccess {Boolean} ok Whether the signed activity was processed.
 	 * @apiSuccess {Boolean} accepted Whether the activity leaves the follow accepted immediately.
@@ -295,14 +769,17 @@ export default (app: IGeesomeApp, activityPubModule: IGeesomeActivityPubModule) 
 	 * @apiName ActivityPubSharedInbox
 	 * @apiGroup ActivityPub
 	 *
-	 * @apiDescription Public ActivityStreams shared inbox endpoint. Signed remote `Create(Note)` activities are persisted idempotently when they reply to a known local ActivityPub object or mention a known local group actor, signed `Update(Note)` activities update already-cached remote objects from the same remote actor, and signed `Delete` or `Undo(Create)` activities tombstone already-cached remote objects from the same remote actor. Other activity types are not accepted yet.
+	 * @apiDescription Public ActivityStreams shared inbox endpoint. Signed remote `Create` activities for supported review object types (`Note`, `Article`, `Page`, `Image`, `Video`, `Audio`, `Document`, `Question`, and `Event`) are persisted idempotently when they reply to a known local ActivityPub object or mention a known local group actor. Signed `Update` activities refresh already-cached supported remote objects from the same remote actor, and signed `Delete` or `Undo(Create)` activities tombstone already-cached remote objects from the same remote actor. Only accepted public `Note` objects can become native GeeSome remote posts; non-Note objects remain review/audit records. If an updated or tombstoned remote Note was manually imported as a GeeSome remote post and the source identity still matches, that imported post is updated or soft-deleted too. Other activity types are not accepted yet.
 	 * @apiHeader {String} Signature ActivityPub HTTP Signature header.
-	 * @apiHeader {String} Digest SHA-256 digest for the raw JSON request body.
+	 * @apiHeader {String} [Digest] Legacy SHA-256 digest for the raw JSON request body; the signature must cover either `Digest` or `Content-Digest`.
+	 * @apiHeader {String} [Content-Digest] RFC-style SHA-256 content digest for the raw JSON request body; the signature must cover either `Digest` or `Content-Digest`.
 	 * @apiBody {Object} activity ActivityStreams activity payload.
 	 * @apiSuccess {Boolean} accepted Whether the activity was accepted and stored.
 	 * @apiSuccess {String} activityType Activity type that was processed.
 	 * @apiSuccess {String} objectId ActivityPub object id that was recorded, updated, or tombstoned.
 	 * @apiSuccess {Number} activityPubObjectId Local cached ActivityPub object row id.
+	 * @apiSuccess {Boolean} [localPostUpdated] Whether a linked imported GeeSome remote post was updated for `Update` of an importable Note.
+	 * @apiSuccess {Boolean} [localPostDeleted] Whether a linked imported GeeSome remote post was soft-deleted for `Delete` or `Undo(Create)`.
 	 */
 	app.ms.api.onUnversionPost('ap/shared-inbox', async (req, res) => {
 		return handleActivityPubInboxRequest(res, async () => {
@@ -345,6 +822,27 @@ function getInboundRequest(req: IApiModulePotInput): IActivityPubInboundRequest 
 	};
 }
 
+function getActivityPubBodyWithRequestIp(req: IApiModulePotInput) {
+	const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+		? req.body
+		: {};
+	return {
+		...body,
+		requestIp: getActivityPubRequestIp(req)
+	};
+}
+
+function getActivityPubRequestIp(req: IApiModulePotInput): string {
+	const forwardedFor = req.headers?.['x-forwarded-for'];
+	if (typeof forwardedFor === 'string' && forwardedFor.trim()) {
+		return forwardedFor.split(',')[0].trim();
+	}
+	if (Array.isArray(forwardedFor) && forwardedFor.length > 0) {
+		return String(forwardedFor[0]).split(',')[0].trim();
+	}
+	return req.stream?.ip || req.stream?.socket?.remoteAddress || 'unknown';
+}
+
 function isExpectedActivityPubInboxError(error): error is Error & {code?: number} {
 	return typeof error?.message === 'string' && error.message.startsWith('activitypub_');
 }
@@ -359,10 +857,22 @@ function getActivityPubInboxErrorStatus(error: Error & {code?: number}): number 
 	return 400;
 }
 
+function isActivityPubMigrationVisibleAdminApprovedImport(input): boolean {
+	return helpers.parseBoolean(input?.createPosts, false) && helpers.parseBoolean(input?.ownershipApproved, false);
+}
+
 function setActivityPubHeaders(res: IApiModuleCommonOutput): void {
 	res.setHeader('Content-Type', activityPubContentType);
 }
 
 function setWebFingerHeaders(res: IApiModuleCommonOutput): void {
 	res.setHeader('Content-Type', activityPubWebFingerContentType);
+}
+
+function setNodeInfoDiscoveryHeaders(res: IApiModuleCommonOutput): void {
+	res.setHeader('Content-Type', activityPubNodeInfoDiscoveryContentType);
+}
+
+function setNodeInfoHeaders(res: IApiModuleCommonOutput): void {
+	res.setHeader('Content-Type', activityPubNodeInfoContentType);
 }

@@ -19,6 +19,7 @@ import config from './config.js';
 import {
   ContentDeleteSafetyBlockerScope,
   IContent,
+  IContentDependencyRecord,
   IContentDeleteSafetyBlocker,
   IGeesomeDatabaseModule,
   IStorageIdReferenceOptions,
@@ -38,9 +39,16 @@ import {
 } from "./interface.js";
 import {
   countDerivedStorageIdReferences,
-  countRemotePinReferences,
+  getStorageObjectPinProvenance,
   countStorageObjectChildReferences
 } from './storageReferenceHelpers.js';
+import {
+  startDatabaseConnectionDiagnostics
+} from './connectionDiagnostics.js';
+import type {DatabaseConnectionDiagnostics} from './connectionDiagnostics.js';
+import {validateDatabaseConnectionBudget} from './connectionBudget.js';
+import type {DatabaseConnectionBudget} from './connectionBudget.js';
+import {cleanupAndRethrow} from '../../resourceCleanup.js';
 const {merge, isUndefined} = _;
 const log = debug('geesome:app:database');
 const SessionStore = expressSessionSequelize(expressSession.Store);
@@ -116,16 +124,20 @@ export default async function (app: IGeesomeApp) {
   if (!fs.existsSync('./data')) {
     fs.mkdirSync('./data');
   }
-  const resConfig = merge(config, app.config.databaseConfig || {});
-  let models, sequelize;
-  try {
-    sequelize = new Sequelize(resConfig);
-    models = await (await import('./models/index.js')).default(sequelize);
-  } catch (e) {
-    throw e;
-  }
+  const resConfig = merge({}, config, app.config.databaseConfig || {});
+  const sequelize = new Sequelize(resConfig);
+  const models = await initializeDatabaseModels(sequelize);
 
-  return new PostgresDatabase(app, sequelize, models, config) as IGeesomeDatabaseModule;
+  const connectionBudget = await validateDatabaseConnectionBudget(sequelize);
+  const connectionDiagnostics = startDatabaseConnectionDiagnostics(sequelize);
+  return new PostgresDatabase(
+    app,
+    sequelize,
+    models,
+    config,
+    connectionDiagnostics,
+    connectionBudget
+  ) as IGeesomeDatabaseModule;
 };
 
 class PostgresDatabase implements IGeesomeDatabaseModule {
@@ -133,12 +145,17 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   sequelize: any;
   models: any;
   config: any;
+  connectionDiagnostics: DatabaseConnectionDiagnostics;
+  connectionBudget: DatabaseConnectionBudget | null;
+  stopPromise: Promise<void> | null = null;
 
-  constructor(_app, _sequelize, _models, _config) {
+  constructor(_app, _sequelize, _models, _config, _connectionDiagnostics, _connectionBudget) {
     this.app = _app;
     this.sequelize = _sequelize;
     this.models = _models;
     this.config = _config;
+    this.connectionDiagnostics = _connectionDiagnostics;
+    this.connectionBudget = _connectionBudget;
   }
 
   async getDriver() {
@@ -210,9 +227,24 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     });
   }
 
+  async stop() {
+    if (!this.stopPromise) {
+      this.stopPromise = this.connectionDiagnostics.stop().then(() => this.sequelize.close());
+    }
+    return this.stopPromise;
+  }
+
+  async getConnectionDiagnostics() {
+    return this.connectionDiagnostics.getSnapshot();
+  }
+
+  getConnectionBudget() {
+    return this.connectionBudget;
+  }
+
   async flushDatabase() {
     await pIteration.forEachSeries([
-      'CorePermission', 'UserContentAction', 'UserLimit', 'Content', 'StorageObjectReference', 'StorageObject', 'StorageSpaceAvailabilitySample', 'StorageSpaceSnapshot', 'UserApiKey', 'User', 'Value', 'Object'
+      'CorePermission', 'UserContentAction', 'UserLimit', 'ContentDependency', 'Content', 'StorageObjectReference', 'StorageObject', 'StorageSpaceAvailabilitySample', 'StorageSpaceSnapshot', 'UserApiKey', 'User', 'Value', 'Object'
     ], (modelName) => {
       return this.models[modelName].destroy({where: {}});
     });
@@ -406,6 +438,75 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     return this.sequelize.transaction(run);
   }
 
+  async syncContentDependencies(
+    parentContentId: number,
+    dependencies: Partial<IContentDependencyRecord>[],
+    options: any = {}
+  ) {
+    if (!Number.isSafeInteger(Number(parentContentId)) || Number(parentContentId) <= 0) {
+      return [];
+    }
+    const run = async (transaction) => {
+      const expected = dependencies.map(dependency => ({
+        childContentId: Number(dependency.childContentId),
+        role: dependency.role,
+        position: Number(dependency.position),
+      })).sort(compareContentDependencies);
+      const existing = await this.models.ContentDependency.findAll({
+        where: {parentContentId},
+        order: [['role', 'ASC'], ['position', 'ASC'], ['id', 'ASC']],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (existing.length) {
+        const actual = existing.map(dependency => ({
+          childContentId: Number(dependency.childContentId),
+          role: dependency.role,
+          position: Number(dependency.position),
+        })).sort(compareContentDependencies);
+        if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+          throw new Error('content_dependency_conflict');
+        }
+        return existing;
+      }
+      if (!dependencies.length) {
+        return [];
+      }
+      await this.models.ContentDependency.bulkCreate(dependencies.map(dependency => ({
+        parentContentId,
+        childContentId: dependency.childContentId,
+        role: dependency.role,
+        position: dependency.position,
+      })), {transaction, ignoreDuplicates: true});
+      const stored = await this.models.ContentDependency.findAll({
+        where: {parentContentId},
+        order: [['role', 'ASC'], ['position', 'ASC'], ['id', 'ASC']],
+        transaction,
+      });
+      const actual = stored.map(dependency => ({
+        childContentId: Number(dependency.childContentId),
+        role: dependency.role,
+        position: Number(dependency.position),
+      })).sort(compareContentDependencies);
+      if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+        throw new Error('content_dependency_conflict');
+      }
+      return stored;
+    };
+    if (options.transaction) {
+      return run(options.transaction);
+    }
+    return this.sequelize.transaction(run);
+  }
+
+  async getContentDependencies(parentContentId: number, options: any = {}) {
+    return this.models.ContentDependency.findAll({
+      where: {parentContentId},
+      order: [['role', 'ASC'], ['position', 'ASC'], ['id', 'ASC']],
+      transaction: options.transaction,
+    });
+  }
+
   async markStorageObjectPinnedByContent(content, options: any = {}) {
     const storageObject = await this.syncStorageObjectForContent(content, options);
     if (!storageObject) {
@@ -502,15 +603,13 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     const [
       otherContents,
       previewRefs,
-      pinnedStorageObjects,
-      remotePinRefs,
+      pinProvenance,
       derivedStorageRefs,
       storageObjectChildRefs
     ] = await Promise.all([
       this.models.Content.count({where: otherContentsWhere}),
       this.models.Content.count({where: previewRefsWhere}),
-      this.models.StorageObject.count({where: {storageId, isPinned: true}}),
-      countRemotePinReferences(this.models, this.sequelize, storageId),
+      this.getStorageObjectPinProvenance(storageId),
       countDerivedStorageIdReferences(this.models, this.sequelize, storageId, options),
       countStorageObjectChildReferences(this.models, this.sequelize, storageId, {
         ...options,
@@ -520,25 +619,35 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     return {
       otherContents,
       previewRefs,
-      pinnedStorageObjects,
-      remotePinRefs,
+      pinnedStorageObjects: pinProvenance.storageObjectPinRefs,
+      remotePinRefs: pinProvenance.protectedRemotePinRefs,
       derivedStorageRefs,
-      storageObjectChildRefs
+      storageObjectChildRefs,
+      pinProvenance,
     };
+  }
+
+  async getStorageObjectPinProvenance(storageId: string) {
+    return getStorageObjectPinProvenance(this.models, this.sequelize, storageId);
   }
 
   // A1 reference-count helper for a specific Content row. Used by delete paths to detect
   // attachments/avatars/covers/file-catalog references that would orphan if the row is destroyed.
   async countContentReferences(contentId) {
-    const [posts, fileCatalogItems, groupAvatars, groupCovers, userAvatars, pinnedContents] = await Promise.all([
+    const [posts, contentDependencies, imageCompositionOperations, imageCompositionIdentities, fileCatalogItems, groupAvatars, groupCovers, userAvatars, pinnedContents] = await Promise.all([
       this.models.PostsContents.count({where: {contentId}}),
+      this.models.ContentDependency.count({where: {childContentId: contentId}}),
+      this.models.ImageCompositionOperation ? this.models.ImageCompositionOperation.count({where: {[Op.or]: [{resultContentId: contentId}, {candidateContentId: contentId}]}}) : 0,
+      this.models.ImageCompositionIdentity ? this.models.ImageCompositionIdentity.count({
+        where: {[Op.or]: [{rootContentId: contentId}, {currentContentId: contentId}]},
+      }) : 0,
       this.models.FileCatalogItem.count({where: {contentId}}),
       this.models.Group.count({where: {avatarImageId: contentId}}),
       this.models.Group.count({where: {coverImageId: contentId}}),
       this.models.User.count({where: {avatarImageId: contentId}}),
       this.models.Content.count({where: getActiveContentWhere({id: contentId, isPinned: true})}),
     ]);
-    return {posts, fileCatalogItems, groupAvatars, groupCovers, userAvatars, pinnedContents};
+    return {posts, contentDependencies, imageCompositionOperations, imageCompositionIdentities, fileCatalogItems, groupAvatars, groupCovers, userAvatars, pinnedContents};
   }
 
   async getContentDeleteSafety(content, options: {allowedFileCatalogItems?: number; excludeFileCatalogItemId?: number} = {}) {
@@ -1116,6 +1225,20 @@ function getEmptyStorageIdReferenceCounts() {
     remotePinRefs: 0,
     derivedStorageRefs: 0,
     storageObjectChildRefs: 0,
+    pinProvenance: getEmptyStorageObjectPinProvenance(),
+  };
+}
+
+function getEmptyStorageObjectPinProvenance() {
+  return {
+    storageObjectPinRefs: 0,
+    contentPinRefs: 0,
+    confirmedRemotePinRefs: 0,
+    protectedRemotePinRefs: 0,
+    hasLocalOrLegacyPin: false,
+    hasConfirmedRemotePin: false,
+    isConfirmedPinned: false,
+    isDeletionProtected: false,
   };
 }
 
@@ -1152,6 +1275,9 @@ function getStorageObjectDeleteSafety(storageId, storageRefs) {
 function getContentDeleteContentBlockers(contentRefs, options): IContentDeleteSafetyBlocker[] {
   return [
     getContentDeleteBlocker('content', 'posts', contentRefs.posts),
+    getContentDeleteBlocker('content', 'contentDependencies', contentRefs.contentDependencies),
+    getContentDeleteBlocker('content', 'imageCompositionOperations', contentRefs.imageCompositionOperations),
+    getContentDeleteBlocker('content', 'imageCompositionIdentities', contentRefs.imageCompositionIdentities),
     getContentDeleteBlocker(
       'content',
       'fileCatalogItems',
@@ -1307,4 +1433,22 @@ function getStorageObjectReferenceUpdateData(storageObjectReference, referenceDa
 
 function getUniqueStorageReferenceTargets(references: Partial<IStorageObjectReferenceRecord>[] = []) {
   return [...new Set(references.map(reference => reference.targetStorageId).filter(Boolean))];
+}
+
+function compareContentDependencies(left, right) {
+  return String(left.role).localeCompare(String(right.role))
+    || Number(left.position) - Number(right.position)
+    || Number(left.childContentId) - Number(right.childContentId);
+}
+
+export async function initializeDatabaseModels(sequelize, loadModels = loadDatabaseModels) {
+  try {
+    return await loadModels(sequelize);
+  } catch (error) {
+    return cleanupAndRethrow(error, 'database_bootstrap', () => sequelize.close());
+  }
+}
+
+async function loadDatabaseModels(sequelize) {
+  return (await import('./models/index.js')).default(sequelize);
 }

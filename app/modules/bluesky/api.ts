@@ -1,0 +1,597 @@
+import {IGeesomeApp} from '../../interface.js';
+import helpers from '../../helpers.js';
+import {CorePermissionName} from '../database/interface.js';
+import IGeesomeBlueskyModule from './interface.js';
+
+export default (app: IGeesomeApp, blueskyModule: IGeesomeBlueskyModule) => {
+	/**
+	 * @api {post} /v1/soc-net/bluesky/login Connect Bluesky account
+	 * @apiName UserBlueskyLogin
+	 * @apiGroup UserBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Verifies a Bluesky/ATProto app password by creating an authenticated XRPC session, reads the account profile, and stores or updates a user-scoped `socNetAccount` row with `socNet=bluesky`. The plaintext app password is never returned. If `isEncrypted=true`, pass `encryptedApiKey`; the route still needs the plaintext app password only for this verification request.
+	 * @apiBody {String} identifier Bluesky handle, DID, or login identifier.
+	 * @apiBody {String} [appPassword] Bluesky app password. Alias: `password` or `apiKey`.
+	 * @apiBody {Object} [accountData] Optional existing account selector.
+	 * @apiBody {Number} [accountData.id] Existing local social account id to update.
+	 * @apiBody {Boolean} [isEncrypted=false] Whether the stored API key is already encrypted by the caller.
+	 * @apiBody {String} [encryptedApiKey] Encrypted app password to store when `isEncrypted=true`.
+	 * @apiSuccess {Object} account Secret-free local account summary with `hasApiKey` flags.
+	 * @apiSuccess {Object} profile Current Bluesky profile returned by ATProto.
+	 * @apiSuccess {String} did Authenticated account DID.
+	 * @apiSuccess {String} [handle] Current Bluesky handle.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/bluesky/login', async (req, res) => {
+		return res.send(await blueskyModule.loginAccount(req.user.id, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/soc-net/bluesky/verify-account Verify Bluesky account
+	 * @apiName UserBlueskyVerifyAccount
+	 * @apiGroup UserBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Verifies that a stored user-scoped Bluesky `socNetAccount` still authenticates to the same ATProto DID/handle. Unencrypted stored app passwords can be used directly; encrypted accounts must pass the plaintext app password for this request. The route does not create posts, update remote records, or expose secret material.
+	 * @apiBody {Object} accountData Account selector.
+	 * @apiBody {Number} [accountData.id] Local social account id.
+	 * @apiBody {String} [accountData.accountId] Stored Bluesky DID.
+	 * @apiBody {String} [accountData.username] Stored Bluesky handle.
+	 * @apiBody {String} [appPassword] Optional app password override. Alias: `password` or `apiKey`.
+	 * @apiSuccess {Object} account Secret-free local account summary with `hasApiKey` flags.
+	 * @apiSuccess {Object} profile Current Bluesky profile returned by ATProto.
+	 * @apiSuccess {String} did Authenticated account DID.
+	 * @apiSuccess {String} [handle] Current Bluesky handle.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/bluesky/verify-account', async (req, res) => {
+		return res.send(await blueskyModule.verifyAccount(req.user.id, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/soc-net/bluesky/migration/preview Preview Bluesky migration
+	 * @apiName UserBlueskyMigrationPreview
+	 * @apiGroup UserBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Fetches a bounded public Bluesky account feed through native ATProto/XRPC and returns a read-only GeeSome migration preview. The preview classifies projected posts as local-owned posts or remote context, reports reply/repost/quote counts, and lists remote actor/post placeholders with stable ATProto source-identity metadata that a later migration job can reconcile. When `claimed=true`, GeeSome verifies the selected stored Bluesky account first and marks ownership as verified only when the authenticated DID/handle matches the previewed actor. This route does not create social-import channels, GeeSome posts, migration jobs, remote follows, or Bluesky records.
+	 * @apiBody {String} actor Bluesky handle or DID to preview, for example `alice.bsky.social`.
+	 * @apiBody {Boolean} [claimed=false] Whether the caller claims this Bluesky account as their own page.
+	 * @apiBody {Object} [accountData] Required when `claimed=true`; stored Bluesky account selector.
+	 * @apiBody {Number} [accountData.id] Local Bluesky social account id.
+	 * @apiBody {String} [accountData.accountId] Stored Bluesky DID.
+	 * @apiBody {String} [accountData.username] Stored Bluesky handle.
+	 * @apiBody {String} [appPassword] Optional app password override for encrypted accounts. Alias: `password` or `apiKey`.
+	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional ATProto author-feed filter.
+	 * @apiBody {Number} [limit=10] Maximum feed items to inspect, capped at 100.
+	 * @apiBody {String} [cursor] Optional ATProto feed cursor for the next page.
+	 * @apiSuccess {String} actor Normalized actor handle or DID used for the XRPC request.
+	 * @apiSuccess {String} [cursor] Cursor returned by the public ATProto API.
+	 * @apiSuccess {Object} ownership Ownership proof result for claimed migrations.
+	 * @apiSuccess {Object} summary Counts for local posts, remote context, replies, reposts, quotes, and placeholders.
+	 * @apiSuccess {Object[]} list Migration preview items with source preview and placeholder keys.
+	 * @apiSuccess {Object[]} remotePlaceholders ATProto actor/post placeholders for referenced remote context, including `sourceIdentity` metadata for future reconciliation.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/bluesky/migration/preview', async (req, res) => {
+		return res.send(await blueskyModule.getMigrationPreview(req.user.id, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/soc-net/bluesky/migration/import Import claimed Bluesky migration
+	 * @apiName UserBlueskyMigrationImport
+	 * @apiGroup UserBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Verifies a stored user-scoped Bluesky account, fetches one bounded public author-feed page, verifies that the authenticated DID/handle owns the previewed actor, applies optional write-time moderation rules before any local post import starts, applies optional relation/media import policy to the allowed projections, then starts the existing social-import async operation for records from that page. When `async=true`, the same claimed import is stored in the persistent async-operation queue instead; the queued payload stores only bounded import options, moderation policy, relation/media policy, and account selectors, then verifies the stored account again when processed. Plaintext `appPassword`, `password`, and `apiKey` overrides are rejected for queued imports so secrets are not stored in the queue; omit `async` when a one-off plaintext override is required. Imported posts preserve Bluesky AT URI source identity, projected reply/repost/quote metadata, embed metadata, moderation decision metadata, and canonical rich-text content unless policy explicitly omits a class. `claimed=true` and a matching `accountData` selector are required to avoid creating a personal migration for someone else's account. Preview placeholders expose deterministic source-identity metadata, but this route does not create Bluesky records, follow sources, subscribe pollers, or rewrite remote-placeholder relations yet.
+	 * @apiBody {String} actor Bluesky handle or DID to import, for example `alice.bsky.social`.
+	 * @apiBody {Boolean} claimed Must be `true`; the selected stored Bluesky account must match the imported actor.
+	 * @apiBody {Object} accountData Stored Bluesky account selector.
+	 * @apiBody {Number} [accountData.id] Local Bluesky social account id.
+	 * @apiBody {String} [accountData.accountId] Stored Bluesky DID.
+	 * @apiBody {String} [accountData.username] Stored Bluesky handle.
+	 * @apiBody {String} [appPassword] Optional app password override for encrypted accounts. Alias: `password` or `apiKey`.
+	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional ATProto author-feed filter.
+	 * @apiBody {Number} [limit=10] Maximum feed items to import from this page, capped by the public ATProto helper.
+	 * @apiBody {String} [cursor] Optional ATProto feed cursor for the page to import.
+	 * @apiBody {String} [groupName] Optional target personal group name to use when the import channel creates a new group.
+	 * @apiBody {Boolean} [force=false] Re-import posts even when matching social-import messages already exist.
+	 * @apiBody {Number} [mergeSeconds] Optional existing social-import merge window.
+	 * @apiBody {Object} [advancedSettings] Optional low-level social-import settings for this batch.
+	 * @apiBody {Object} [moderationPolicy] Optional one-off moderation-policy override for this migration import. Non-allow decisions are not written as visible GeeSome posts by this route.
+	 * @apiBody {String="autoImport","reviewFirst"} [moderationPolicy.mode] Optional moderation mode.
+	 * @apiBody {Object[]} [moderationPolicy.rules] Optional bounded keyword/regex/source/group-name rules.
+	 * @apiBody {Object} [mediaPolicy] Optional import media policy applied after moderation and before posts are written.
+	 * @apiBody {String="preserve","ignore","reject"} [mediaPolicy.images="preserve"] Preserve, strip, or reject imported Bluesky image embed metadata.
+	 * @apiBody {String="preserve","ignore","reject"} [mediaPolicy.linkPreviews="preserve"] Preserve, strip, or reject imported Bluesky external/link-preview embed metadata.
+	 * @apiBody {String="preserve","ignore","reject"} [mediaPolicy.unsupportedEmbeds="preserve"] Preserve, strip, or reject unsupported embed type metadata.
+	 * @apiBody {Object} [relationPolicy] Optional import relation policy applied after moderation and before posts are written.
+	 * @apiBody {String="preserve","omit","reject"} [relationPolicy.replies="preserve"] Preserve, strip, or reject imported reply metadata.
+	 * @apiBody {String="preserve","omit","reject"} [relationPolicy.quotes="preserve"] Preserve, strip, or reject imported quote metadata.
+	 * @apiBody {String="preserve","omit","reject"} [relationPolicy.reposts="preserve"] Preserve, skip, or reject repost feed items.
+	 * @apiBody {Boolean} [async=false] Queue the import in the persistent async-operation queue instead of starting it immediately.
+	 * @apiBody {Number} [maxPages=1] Maximum author-feed pages for queued imports when `async=true`, capped at 25. Immediate imports always process one page.
+	 * @apiBody {Boolean} [process=true] Start bounded queue processing immediately after enqueueing when `async=true`.
+	 * @apiSuccess {String} actor Normalized actor handle or DID used for the XRPC request.
+	 * @apiSuccess {String} [cursor] Cursor returned by the public ATProto API.
+	 * @apiSuccess {Object} ownership Verified ownership report for the claimed migration.
+	 * @apiSuccess {Object} moderation Summary of allowed, review, quarantine, block, and match decisions for fetched records.
+	 * @apiSuccess {Number} projectedPostsCount Number of projected feed items fetched before moderation filtering.
+	 * @apiSuccess {Object} dbChannel Local social-import channel summary.
+	 * @apiSuccess {Object} asyncOperation Async import operation to track or cancel.
+	 * @apiSuccess (Queued async response) {Number} id Operation queue id when `async=true`.
+	 * @apiSuccess (Queued async response) {String} module Queue module name `bluesky-migration-import` when `async=true`.
+	 * @apiSuccess (Queued async response) {Number} [asyncOperationId] Linked async operation id after queue processing starts.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/bluesky/migration/import', async (req, res) => {
+		const input = req.body || {};
+		if (helpers.parseBoolean(input.async, false)) {
+			return res.send(await blueskyModule.queueMigrationImport(req.user.id, req.apiKey?.id || null, input));
+		}
+		return res.send(await blueskyModule.importMigration(req.user.id, req.apiKey?.id || null, input));
+	});
+
+	/**
+	 * @api {post} /v1/soc-net/bluesky/migration/reconcile-relations Reconcile Bluesky migration relations
+	 * @apiName UserBlueskyMigrationReconcileRelations
+	 * @apiGroup UserBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Bounded post-migration repair for already-imported native Bluesky posts in one GeeSome group. The job reads stored Bluesky source metadata from imported posts, resolves `reply.parentUri` to local `replyToId`, resolves `quote.uri` to local `repostOfId`, and updates only when the matching target post already exists by source identity. Same-group targets are preferred; cross-group targets are used only when unambiguous and `allowCrossGroup` is not false. Use `dryRun=true` to preview changes without writing. Reposts are intentionally not rewritten in this first relation pass because repost authorship policy needs a separate product decision.
+	 * @apiBody {Number} [groupId] Local GeeSome group id whose imported Bluesky posts should be inspected.
+	 * @apiBody {String} [groupName] Local GeeSome group name used when `groupId` is not supplied.
+	 * @apiBody {String} [sourceChannelId] Optional imported Bluesky source channel/DID filter.
+	 * @apiBody {Number} [limit=20] Maximum imported posts to inspect, capped at 100.
+	 * @apiBody {Date} [cursorPublishedAt] Keyset cursor timestamp from the previous result.
+	 * @apiBody {Number} [cursorId] Keyset cursor id from the previous result.
+	 * @apiBody {Boolean} [allowCrossGroup=true] Whether to link to unambiguous target posts in other GeeSome groups.
+	 * @apiBody {Boolean} [force=false] Recompute relation fields even when they are already set.
+	 * @apiBody {Boolean} [dryRun=false] Return the rows that would change without updating posts.
+	 * @apiSuccess {Object} result Reconciliation result with checked, updated, skipped, failed, dryRun, row details, bounded errors, and optional nextCursor.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/bluesky/migration/reconcile-relations', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await blueskyModule.reconcileMigrationRelations(req.user.id, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/soc-net/bluesky/posts/:postId/cross-post Cross-post GeeSome post to Bluesky
+	 * @apiName UserBlueskyCrossPost
+	 * @apiGroup UserBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Creates an authenticated native ATProto `app.bsky.feed.post` record from one published local GeeSome post and stores the returned Bluesky URI/CID in the post `propertiesJson` for idempotency. The write path supports text/rich-text facets plus up to four supported image media/attachments. Images are uploaded as ATProto blobs before record creation; if blob upload fails and `BLUESKY_PUBLIC_URL`, `ACTIVITYPUB_PUBLIC_URL`, or `DOMAIN` is configured, GeeSome adds the public image URL as a link fallback and uses a Bluesky external card when no image embed succeeded. Storage-backed non-image media/attachments are added as public link facets and can become a Bluesky external card when there is exactly one fallback link and no image embed. JSON link-preview records with safe `http(s)` URLs are added as link facets and can become an external card. Local `replyToId` and `repostOfId` relations are preserved as native Bluesky reply and quote metadata only when the referenced post already has a stored/imported Bluesky URI/CID. Optional `mediaPolicy` and `relationPolicy` fields let callers explicitly choose link-only media handling, reject/ignore attachment classes, reject upload-failure fallback, or omit reply/quote metadata; defaults preserve the existing fail-closed behavior so context is not silently flattened. Unsafe link-preview URLs, encrypted posts, remote/imported posts, unpublished posts, non-public groups, attachments without a public node URL, and required relation targets without Bluesky identity are rejected. Repeating the request for the same post/account returns the stored record unless `force=true`.
+	 * @apiParam {Number} postId Local GeeSome post id.
+	 * @apiBody {Object} accountData Account selector.
+	 * @apiBody {Number} [accountData.id] Local Bluesky social account id.
+	 * @apiBody {String} [accountData.accountId] Stored Bluesky DID.
+	 * @apiBody {String} [accountData.username] Stored Bluesky handle.
+	 * @apiBody {String} [appPassword] Optional app password override. Alias: `password` or `apiKey`.
+	 * @apiBody {String[]} [langs] Optional ATProto language tags, capped by Bluesky helper validation.
+	 * @apiBody {Date} [createdAt] Optional ATProto record creation time; defaults to now.
+	 * @apiBody {Boolean} [force=false] Create another Bluesky record even when this post/account already has stored cross-post metadata.
+	 * @apiBody {Object} [mediaPolicy] Optional explicit media publishing policy.
+	 * @apiBody {String="upload","link","reject"} [mediaPolicy.images="upload"] Upload image blobs, publish public image links only, or reject posts with images.
+	 * @apiBody {String="link","reject"} [mediaPolicy.imageUploadFailure="link"] Fall back to a public image link when blob upload fails, or reject instead.
+	 * @apiBody {String="card","link","reject","ignore"} [mediaPolicy.attachments="card"] Publish non-image storage attachments as link facets plus possible external card, link facets only, reject, or explicitly ignore them.
+	 * @apiBody {String="card","link","reject","ignore"} [mediaPolicy.linkPreviews="card"] Publish safe JSON link previews as link facets plus possible external card, link facets only, reject, or explicitly ignore them.
+	 * @apiBody {Object} [relationPolicy] Optional explicit relation publishing policy.
+	 * @apiBody {String="require","omit"} [relationPolicy.replies="require"] Require a Bluesky identity for local reply parents or omit native reply metadata.
+	 * @apiBody {String="require","omit"} [relationPolicy.quotes="require"] Require a Bluesky identity for local quote/repost targets or omit native quote metadata.
+	 * @apiSuccess {Object} account Secret-free local account summary.
+	 * @apiSuccess {Object} profile Current Bluesky profile returned by ATProto.
+	 * @apiSuccess {String} did Authenticated account DID.
+	 * @apiSuccess {String} [handle] Current Bluesky handle.
+	 * @apiSuccess {Object} post Local post summary.
+	 * @apiSuccess {Object} record Bluesky `uri` and `cid` returned by `com.atproto.repo.createRecord`.
+	 * @apiSuccess {Boolean} alreadyExists Whether the stored idempotency record was returned without writing to Bluesky.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/bluesky/posts/:postId/cross-post', async (req, res) => {
+		return res.send(await blueskyModule.crossPostPost(req.user.id, req.params.postId, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/soc-net/bluesky/posts/:postId/update-cross-post Update stored Bluesky cross-post
+	 * @apiName UserBlueskyUpdateCrossPost
+	 * @apiGroup UserBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Rebuilds the authenticated account's stored native ATProto `app.bsky.feed.post` record for one GeeSome post and replaces it in place through `com.atproto.repo.putRecord`. The route requires an existing `propertiesJson.bluesky.crossPosts` metadata entry for the authenticated DID, verifies the stored URI belongs to that DID and the feed-post collection, reuses the stored rkey instead of creating a duplicate post, and sends the stored CID as `swapRecord` so remote changes are not overwritten silently. The same public/local post, rich-text, media, attachment, link-preview, reply, quote, `mediaPolicy`, and `relationPolicy` safety gates as `cross-post` apply.
+	 * @apiParam {Number} postId Local GeeSome post id.
+	 * @apiBody {Object} accountData Account selector.
+	 * @apiBody {Number} [accountData.id] Local Bluesky social account id.
+	 * @apiBody {String} [accountData.accountId] Stored Bluesky DID.
+	 * @apiBody {String} [accountData.username] Stored Bluesky handle.
+	 * @apiBody {String} [appPassword] Optional app password override. Alias: `password` or `apiKey`.
+	 * @apiBody {String[]} [langs] Optional ATProto language tags, capped by Bluesky helper validation.
+	 * @apiBody {Date} [createdAt] Optional ATProto record creation time; defaults to now.
+	 * @apiBody {Object} [mediaPolicy] Optional explicit media publishing policy, with the same fields and defaults as `cross-post`.
+	 * @apiBody {Object} [relationPolicy] Optional explicit relation publishing policy, with the same fields and defaults as `cross-post`.
+	 * @apiSuccess {Object} account Secret-free local account summary.
+	 * @apiSuccess {Object} profile Current Bluesky profile returned by ATProto.
+	 * @apiSuccess {String} did Authenticated account DID.
+	 * @apiSuccess {String} [handle] Current Bluesky handle.
+	 * @apiSuccess {Object} post Local post summary.
+	 * @apiSuccess {Object} record Bluesky `uri` and new `cid` returned by `com.atproto.repo.putRecord`.
+	 * @apiSuccess {Object} previousRecord Previous stored Bluesky `uri` and `cid` used for the update.
+	 * @apiSuccess {Boolean} updated Whether the remote record was updated.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/bluesky/posts/:postId/update-cross-post', async (req, res) => {
+		return res.send(await blueskyModule.updateCrossPostPost(req.user.id, req.params.postId, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/soc-net/bluesky/posts/:postId/delete-cross-post Delete stored Bluesky cross-post
+	 * @apiName UserBlueskyDeleteCrossPost
+	 * @apiGroup UserBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 *
+	 * @apiDescription Deletes the authenticated account's stored native ATProto `app.bsky.feed.post` record for one GeeSome post through `com.atproto.repo.deleteRecord`, then removes only that account/DID entry from the local post `propertiesJson.bluesky.crossPosts`. The route uses the previously stored Bluesky URI for repo/collection/rkey selection, verifies it belongs to the authenticated DID and feed-post collection, and treats an already-missing remote record as a successful local cleanup. It does not delete the local GeeSome post or any other account's cross-post metadata.
+	 * @apiParam {Number} postId Local GeeSome post id.
+	 * @apiBody {Object} accountData Account selector.
+	 * @apiBody {Number} [accountData.id] Local Bluesky social account id.
+	 * @apiBody {String} [accountData.accountId] Stored Bluesky DID.
+	 * @apiBody {String} [accountData.username] Stored Bluesky handle.
+	 * @apiBody {String} [appPassword] Optional app password override. Alias: `password` or `apiKey`.
+	 * @apiSuccess {Object} account Secret-free local account summary.
+	 * @apiSuccess {Object} profile Current Bluesky profile returned by ATProto.
+	 * @apiSuccess {String} did Authenticated account DID.
+	 * @apiSuccess {String} [handle] Current Bluesky handle.
+	 * @apiSuccess {Object} post Local post summary.
+	 * @apiSuccess {Object} record Stored Bluesky record identity that was targeted for deletion.
+	 * @apiSuccess {Object} deleteRecord Remote delete result with `deleted` and `alreadyDeleted` flags.
+	 */
+	app.ms.api.onAuthorizedPost('soc-net/bluesky/posts/:postId/delete-cross-post', async (req, res) => {
+		return res.send(await blueskyModule.deleteCrossPostPost(req.user.id, req.params.postId, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/bluesky/public-author-feed/preview Preview public Bluesky author feed
+	 * @apiName AdminBlueskyPublicAuthorFeedPreview
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Fetches a public Bluesky account feed through native ATProto/XRPC and projects `app.bsky.feed.post` records into GeeSome source-identity, canonical rich-text, reply, repost, quote, and embed metadata. This route is read-only: it does not use stored credentials, create social import channels, create GeeSome posts, follow ActivityPub actors, or write to the database.
+	 * @apiBody {String} actor Bluesky handle or DID, for example `bsky.app`.
+	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional ATProto author-feed filter.
+	 * @apiBody {Number} [limit=10] Maximum feed items to inspect, capped at 100.
+	 * @apiBody {String} [cursor] Optional ATProto feed cursor for the next page.
+	 * @apiSuccess {String} actor Normalized actor handle or DID used for the XRPC request.
+	 * @apiSuccess {String} [cursor] Cursor returned by the public ATProto API.
+	 * @apiSuccess {Object[]} list Projected public feed posts with source identity, canonical rich text, reply/repost/quote metadata, and embed metadata.
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/public-author-feed/preview', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+		return res.send(await blueskyModule.getPublicAuthorFeedPreview(req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/bluesky/public-author-feed/import Import public Bluesky author feed
+	 * @apiName AdminBlueskyPublicAuthorFeedImport
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Fetches one public Bluesky account feed page through native ATProto/XRPC, creates or reuses the local social-import channel/group for that author, applies optional relation/media import policy, and starts an async import that stores projected `app.bsky.feed.post` records as GeeSome posts through the existing social-import pipeline. Imported text is stored as canonical rich-text content with Bluesky AT URI source identity and projected reply/repost/quote/embed context unless policy explicitly omits a class. The route does not create a persistent subscription, poller, credentialed account, or cross-post configuration; those are separate follow-up flows.
+	 * @apiBody {String} actor Bluesky handle or DID, for example `bsky.app`.
+	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional ATProto author-feed filter.
+	 * @apiBody {Number} [limit=10] Maximum feed items to import from this page, capped by the public ATProto helper.
+	 * @apiBody {String} [cursor] Optional ATProto feed cursor for the page to import.
+	 * @apiBody {Number} [accountId] Optional stored social account id to associate with the import channel.
+	 * @apiBody {String} [groupName] Optional local group name to use when the import channel creates a new group.
+	 * @apiBody {Boolean} [force=false] Re-import posts even when matching social-import messages already exist.
+	 * @apiBody {Number} [mergeSeconds] Optional existing social-import merge window.
+	 * @apiBody {Object} [advancedSettings] Optional low-level social-import settings for this batch.
+	 * @apiBody {Object} [mediaPolicy] Optional import media policy with `images`, `linkPreviews`, and `unsupportedEmbeds` values of `preserve`, `ignore`, or `reject`.
+	 * @apiBody {Object} [relationPolicy] Optional import relation policy with `replies`, `quotes`, and `reposts` values of `preserve`, `omit`, or `reject`.
+	 * @apiSuccess {String} actor Normalized actor handle or DID used for the XRPC request.
+	 * @apiSuccess {String} [cursor] Cursor returned by the public ATProto API.
+	 * @apiSuccess {Number} projectedPostsCount Number of projected feed items fetched before relation/media import policy filtering.
+	 * @apiSuccess {Object} dbChannel Local social-import channel summary.
+	 * @apiSuccess {Object} asyncOperation Async import operation to track or cancel.
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/public-author-feed/import', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await blueskyModule.importPublicAuthorFeed(req.user.id, req.apiKey?.id || null, req.body || {}));
+	});
+
+	/**
+	 * @api {get} /v1/admin/bluesky/sources List native Bluesky source subscriptions
+	 * @apiName AdminBlueskySources
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Lists stored native Bluesky/ATProto source subscriptions for the current admin user. Removed subscriptions are hidden unless `status=removed` is requested explicitly. This route only reads local subscription state; it does not fetch Bluesky, import posts, poll feeds, or write GeeSome content.
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 * @apiQuery {String="active","paused","removed"} [status] Filter by subscription status.
+	 * @apiQuery {String} [actor] Filter by normalized Bluesky handle or DID.
+	 * @apiSuccess {Object[]} list Source subscription rows with actor, filter, import settings, moderation policy, channel link, and last refresh metadata.
+	 * @apiSuccess {Number} total Total matching subscriptions.
+	 */
+	app.ms.api.onAuthorizedGet('admin/bluesky/sources', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+		return res.send(await blueskyModule.getSourceSubscriptions(req.user.id, req.query, req.query));
+	});
+
+	/**
+	 * @api {get} /v1/admin/bluesky/sources/:sourceId/feed List native Bluesky source feed
+	 * @apiName AdminBlueskySourceFeed
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Lists already-imported GeeSome posts for a native Bluesky source subscription through the linked social-import channel. Passing `cursorPublishedAt` and `cursorId` enables the existing group-post keyset pagination path and skips expensive totals. This route is read-only: it does not fetch Bluesky, import posts, poll feeds, delete content, or use credentials.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 * @apiQuery {Date} [cursorPublishedAt] Keyset cursor timestamp for source-feed pages.
+	 * @apiQuery {Number} [cursorId] Keyset cursor id for source-feed pages.
+	 * @apiSuccess {Object} source Source subscription row with refresh/channel metadata.
+	 * @apiSuccess {Object} dbChannel Linked local social-import channel summary.
+	 * @apiSuccess {Object} posts Imported GeeSome post page with `list`, `total`, and optional `nextCursor`.
+	 */
+	app.ms.api.onAuthorizedGet('admin/bluesky/sources/:sourceId/feed', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+		return res.send(await blueskyModule.getSourceFeed(req.user.id, req.params.sourceId, req.query, req.query));
+	});
+
+	/**
+	 * @api {get} /v1/admin/bluesky/sources/:sourceId/reviews List native Bluesky source review records
+	 * @apiName AdminBlueskySourceReviews
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Lists cached native Bluesky records that were fetched from a subscribed source but not auto-imported because review-first mode or a moderation filter returned review/quarantine/block. Imported and rejected records are hidden by default unless `state` is requested explicitly.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiInterface (../../interface.ts) {IListQueryInput} apiQuery
+	 * @apiQuery {String="pending","quarantined","blocked","rejected","imported"} [state] Optional review/import state filter.
+	 * @apiSuccess {Object} source Source subscription row.
+	 * @apiSuccess {Object[]} list Review records with source identity, moderation decision, sanitized projection preview, review metadata, and import metadata.
+	 * @apiSuccess {Number} total Total matching review records.
+	 */
+	app.ms.api.onAuthorizedGet('admin/bluesky/sources/:sourceId/reviews', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminRead);
+		return res.send(await blueskyModule.getSourceReviews(req.user.id, req.params.sourceId, req.query, req.query));
+	});
+
+	/**
+	 * @api {post} /v1/admin/bluesky/sources Subscribe native Bluesky source
+	 * @apiName AdminBlueskySourceSubscribe
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Creates or reactivates a native Bluesky/ATProto source subscription for the current admin user. Duplicate subscribes for the same normalized actor are idempotent updates. This stores refresh/import preferences, moderation defaults, and default relation/media import policies only; it does not fetch Bluesky, import posts, create a social-import channel, or configure credentialed cross-posting.
+	 * @apiBody {String} actor Bluesky handle or DID, for example `bsky.app`.
+	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional ATProto author-feed filter for future refreshes/imports.
+	 * @apiBody {String} [displayName] Optional UI label.
+	 * @apiBody {String} [groupName] Optional local group name to use when future refresh/import creates a channel.
+	 * @apiBody {Number} [accountId] Optional stored social account id to associate with future imports.
+	 * @apiBody {Number} [importLimit] Optional page import limit, capped at 100.
+	 * @apiBody {String="autoImport","reviewFirst"} [moderationMode="autoImport"] Source moderation mode. `reviewFirst` fetches source records but keeps them out of visible GeeSome posts until a review/import flow exists.
+	 * @apiBody {Object[]} [moderationRules] Optional bounded keyword/regex filter rules for this source.
+	 * @apiBody {String} [moderationRules.name] Optional rule label returned in moderation decisions.
+	 * @apiBody {String="keyword","regex"} [moderationRules.type="keyword"] Rule match type.
+	 * @apiBody {String="text","source","groupName"} [moderationRules.field="text"] Field to match.
+	 * @apiBody {String} moderationRules.value Bounded keyword or regex pattern.
+	 * @apiBody {String="block","quarantine","review"} [moderationRules.action="block"] Action to take when the rule matches.
+	 * @apiBody {Object} [mediaPolicy] Optional default import media policy for future source refresh/review imports.
+	 * @apiBody {String="preserve","ignore","reject"} [mediaPolicy.images="preserve"] Preserve, strip, or reject imported Bluesky image embed metadata.
+	 * @apiBody {String="preserve","ignore","reject"} [mediaPolicy.linkPreviews="preserve"] Preserve, strip, or reject imported Bluesky external/link-preview embed metadata.
+	 * @apiBody {String="preserve","ignore","reject"} [mediaPolicy.unsupportedEmbeds="preserve"] Preserve, strip, or reject unsupported embed type metadata.
+	 * @apiBody {Object} [relationPolicy] Optional default import relation policy for future source refresh/review imports.
+	 * @apiBody {String="preserve","omit","reject"} [relationPolicy.replies="preserve"] Preserve, strip, or reject imported reply metadata.
+	 * @apiBody {String="preserve","omit","reject"} [relationPolicy.quotes="preserve"] Preserve, strip, or reject imported quote metadata.
+	 * @apiBody {String="preserve","omit","reject"} [relationPolicy.reposts="preserve"] Preserve, skip, or reject repost feed items.
+	 * @apiSuccess {Object} result Source subscription row.
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/sources', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await blueskyModule.subscribeSource(req.user.id, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/bluesky/sources/:sourceId/update Update native Bluesky source subscription
+	 * @apiName AdminBlueskySourceUpdate
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Updates local native Bluesky source subscription metadata such as display label, feed filter, future import settings, stored moderation defaults, default relation/media import policies, or active/paused status. It does not fetch Bluesky, import posts, delete GeeSome posts, or alter credentials.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional ATProto author-feed filter, or empty to clear.
+	 * @apiBody {String} [displayName] Optional UI label, or empty to clear.
+	 * @apiBody {String="active","paused"} [status] New subscription status.
+	 * @apiBody {String} [groupName] Optional local group name for future imports, or empty to clear.
+	 * @apiBody {Number} [accountId] Optional stored social account id for future imports, or empty to clear.
+	 * @apiBody {Number} [importLimit] Optional page import limit, capped at 100, or empty to clear.
+	 * @apiBody {String="autoImport","reviewFirst"} [moderationMode] Optional source moderation mode. If omitted while rules are updated, the previous mode is preserved.
+	 * @apiBody {Object[]} [moderationRules] Optional replacement moderation rules. If omitted while mode is updated, previous rules are preserved.
+	 * @apiBody {Object} [mediaPolicy] Optional replacement default import media policy. Send `null` or `{}` to clear stored defaults back to preserve behavior.
+	 * @apiBody {Object} [relationPolicy] Optional replacement default import relation policy. Send `null` or `{}` to clear stored defaults back to preserve behavior.
+	 * @apiSuccess {Object} result Updated source subscription row.
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/update', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await blueskyModule.updateSourceSubscription(req.user.id, req.params.sourceId, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/bluesky/sources/:sourceId/refresh Refresh native Bluesky source subscription
+	 * @apiName AdminBlueskySourceRefresh
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Fetches one public ATProto author-feed page for the stored source subscription, applies stored default relation/media import policies plus optional one-off overrides, imports projected posts through the social-import pipeline, and updates local cursor/channel/error metadata. This is a bounded manual refresh, not a long-running poller or credentialed cross-post operation.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional one-off feed filter override; defaults to the stored subscription filter.
+	 * @apiBody {Number} [limit] Optional one-off page import limit, capped at 100; defaults to the stored subscription import limit.
+	 * @apiBody {String} [cursor] Optional one-off ATProto cursor; defaults to the stored subscription cursor.
+	 * @apiBody {Boolean} [force=false] Re-import posts even when matching social-import messages already exist.
+	 * @apiBody {Number} [mergeSeconds] Optional existing social-import merge window.
+	 * @apiBody {Object} [advancedSettings] Optional low-level social-import settings for this refresh.
+	 * @apiBody {Object} [moderationPolicy] Optional one-off moderation-policy override for this refresh.
+	 * @apiBody {String="autoImport","reviewFirst"} [moderationPolicy.mode] Optional one-off moderation mode.
+	 * @apiBody {Object[]} [moderationPolicy.rules] Optional one-off bounded keyword/regex/source/group-name rules.
+	 * @apiBody {Object} [mediaPolicy] Optional one-off import media policy override with `images`, `linkPreviews`, and `unsupportedEmbeds` values of `preserve`, `ignore`, or `reject`; omitted uses the stored source default.
+	 * @apiBody {Object} [relationPolicy] Optional one-off import relation policy override with `replies`, `quotes`, and `reposts` values of `preserve`, `omit`, or `reject`; omitted uses the stored source default.
+	 * @apiSuccess {Object} result Refresh result with updated source row, fetched/imported counts, moderation summary, cursor, and channel summary.
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/refresh', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await blueskyModule.refreshSourceSubscription(req.user.id, req.params.sourceId, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/bluesky/sources/:sourceId/refresh-async Queue native Bluesky source refresh
+	 * @apiName AdminBlueskySourceRefreshAsync
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Queues one public ATProto author-feed page refresh for the stored source subscription as a normal user async operation. Duplicate waiting jobs for the same source/options are reused. Optional one-off relation/media import policy overrides are normalized before being stored in the queue; omitted policy fields use the stored source defaults when the job runs. Set `process=false` when an external worker should process the queue later.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {String="posts_with_replies","posts_no_replies","posts_with_media","posts_and_author_threads"} [filter] Optional one-off feed filter override.
+	 * @apiBody {Number} [limit] Optional one-off page import limit, capped at 100.
+	 * @apiBody {String} [cursor] Optional one-off ATProto cursor.
+	 * @apiBody {Boolean} [force=false] Re-import posts even when matching social-import messages already exist.
+	 * @apiBody {Number} [mergeSeconds] Optional existing social-import merge window.
+	 * @apiBody {Object} [advancedSettings] Optional low-level social-import settings for this refresh.
+	 * @apiBody {Object} [moderationPolicy] Optional one-off moderation-policy override for this queued refresh.
+	 * @apiBody {Object} [mediaPolicy] Optional one-off import media policy with `images`, `linkPreviews`, and `unsupportedEmbeds` values of `preserve`, `ignore`, or `reject`.
+	 * @apiBody {Object} [relationPolicy] Optional one-off import relation policy with `replies`, `quotes`, and `reposts` values of `preserve`, `omit`, or `reject`.
+	 * @apiBody {Boolean} [process=true] Start bounded queue processing immediately after enqueueing.
+	 * @apiInterface (../asyncOperation/interface.ts) {IUserOperationQueue} apiSuccess
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/refresh-async', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await blueskyModule.queueSourceSubscriptionRefresh(
+			req.user.id,
+			req.params.sourceId,
+			req.apiKey?.id || null,
+			req.body || {}
+		));
+	});
+
+	/**
+	 * @api {post} /v1/admin/bluesky/sources/:sourceId/sync Sync native Bluesky source posts
+	 * @apiName AdminBlueskySourceSync
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Verifies a bounded page of already-imported native Bluesky posts against `com.atproto.repo.getRecord`. Posts whose AT records still exist but have a changed CID are re-imported with source identity preserved. Posts are soft-deleted only when the AT record lookup confirms the record is missing; absence from an author feed page is not treated as deletion. Use `cursorPublishedAt` and `cursorId` from `nextCursor` to continue through the next page.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiBody {Number} [limit=20] Maximum imported posts to verify, capped at 100.
+	 * @apiBody {Date} [cursorPublishedAt] Keyset cursor timestamp from the previous sync result.
+	 * @apiBody {Number} [cursorId] Keyset cursor id from the previous sync result.
+	 * @apiBody {Boolean} [force=false] Re-import existing records even when the stored CID matches.
+	 * @apiSuccess {Object} result Sync result with checked, updated, deleted, skipped, failed, moderation summary, bounded errors, and optional nextCursor.
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/sync', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await blueskyModule.syncSourceSubscriptionPosts(req.user.id, req.params.sourceId, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/bluesky/sources/:sourceId/reviews/:reviewId/state Update native Bluesky source review state
+	 * @apiName AdminBlueskySourceReviewState
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Updates moderation bookkeeping for a cached native Bluesky source review record. Use the dedicated import route to create a visible GeeSome post; setting state here never imports content by itself.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiParam {Number} reviewId Review record id.
+	 * @apiBody {String="pending","quarantined","blocked","rejected"} state New review state. `imported` is set only by the import route.
+	 * @apiSuccess {Object} result Updated review record.
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/reviews/:reviewId/state', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await blueskyModule.updateSourceReviewState(req.user.id, req.params.sourceId, req.params.reviewId, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/bluesky/sources/:sourceId/reviews/:reviewId/import Import native Bluesky source review
+	 * @apiName AdminBlueskySourceReviewImport
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Imports one pending or quarantined cached native Bluesky review record into the linked local social-import channel/group. This uses the stored ATProto projection and preserves Bluesky AT URI source identity for idempotency unless stored source defaults or optional one-off relation/media policy overrides strip or reject a projection class.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiParam {Number} reviewId Review record id.
+	 * @apiBody {Boolean} [force=true] Re-import even when the same social-import message already exists.
+	 * @apiBody {Object} [mediaPolicy] Optional one-off import media policy override with `images`, `linkPreviews`, and `unsupportedEmbeds` values of `preserve`, `ignore`, or `reject`; omitted uses the stored source default.
+	 * @apiBody {Object} [relationPolicy] Optional one-off import relation policy override with `replies`, `quotes`, and `reposts` values of `preserve`, `omit`, or `reject`; omitted uses the stored source default.
+	 * @apiSuccess {Object} result Import result with source row, updated review row, channel summary, and imported count.
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/reviews/:reviewId/import', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		return res.send(await blueskyModule.importSourceReviewPost(req.user.id, req.params.sourceId, req.params.reviewId, req.body || {}));
+	});
+
+	/**
+	 * @api {post} /v1/admin/bluesky/sources/:sourceId/remove Remove native Bluesky source subscription
+	 * @apiName AdminBlueskySourceRemove
+	 * @apiGroup AdminBluesky
+	 *
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse AdminErrors
+	 *
+	 * @apiDescription Marks a native Bluesky source subscription removed for the current admin user. It does not delete social-import channels, GeeSome groups/posts, cached content, or Bluesky credentials.
+	 * @apiParam {Number} sourceId Source subscription id.
+	 * @apiSuccess {Object} result Removed source subscription row.
+	 */
+	app.ms.api.onAuthorizedPost('admin/bluesky/sources/:sourceId/remove', async (req, res) => {
+		await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+		return res.send(await blueskyModule.removeSourceSubscription(req.user.id, req.params.sourceId));
+	});
+}

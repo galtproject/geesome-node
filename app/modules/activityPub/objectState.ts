@@ -71,7 +71,7 @@ export async function syncRemoteActivityPubObject(models, options: ISyncRemoteAc
 	if (existingObject) {
 		assertRemoteActivityPubObjectActor(existingObject, options.remoteActorRecord, 'activitypub_create_object_actor_mismatch');
 		assertActivityPubObjectNotTombstoned(existingObject);
-		return updateActivityPubObjectRecord(existingObject, objectData);
+		return updateActivityPubObjectRecord(existingObject, getRemoteActivityPubObjectSyncData(existingObject, objectData));
 	}
 
 	try {
@@ -86,7 +86,7 @@ export async function syncRemoteActivityPubObject(models, options: ISyncRemoteAc
 		}
 		assertRemoteActivityPubObjectActor(createdObject, options.remoteActorRecord, 'activitypub_create_object_actor_mismatch');
 		assertActivityPubObjectNotTombstoned(createdObject);
-		return updateActivityPubObjectRecord(createdObject, objectData);
+		return updateActivityPubObjectRecord(createdObject, getRemoteActivityPubObjectSyncData(createdObject, objectData));
 	}
 }
 
@@ -99,7 +99,11 @@ export async function updateRemoteActivityPubObject(models, options: IUpdateRemo
 	assertRemoteActivityPubObjectActor(existingObject, options.remoteActorRecord, 'activitypub_update_object_actor_mismatch');
 	assertActivityPubObjectNotTombstoned(existingObject);
 
-	return updateActivityPubObjectRecord(existingObject, getRemoteActivityPubObjectUpdateData(existingObject, options));
+	const objectData = getRemoteActivityPubObjectUpdateData(existingObject, options);
+	const objectChanged = hasChangedActivityPubObjectData(existingObject, objectData);
+	const objectRecord = await updateActivityPubObjectRecord(existingObject, objectData);
+	objectRecord.activityPubObjectChanged = objectChanged;
+	return objectRecord;
 }
 
 export async function tombstoneRemoteActivityPubObject(models, options: ITombstoneRemoteActivityPubObjectOptions) {
@@ -178,6 +182,14 @@ function getRemoteActivityPubObjectLocalActorId(options: ISyncRemoteActivityPubO
 	return options.targetObjectRecord?.localActorId || options.localActorRecord?.id || null;
 }
 
+function getRemoteActivityPubObjectSyncData(existingObject, objectData) {
+	return {
+		...objectData,
+		localActorId: objectData.localActorId || existingObject.localActorId || null,
+		localPostId: existingObject.localPostId || null
+	};
+}
+
 function getRemoteActivityPubObjectUpdateData(existingObject, options: IUpdateRemoteActivityPubObjectOptions) {
 	const objectId = getRequiredActivityPubObjectId(options.object);
 
@@ -209,6 +221,10 @@ function getChangedActivityPubObjectData(objectRecord, objectData) {
 		updateData[key] = objectData[key];
 	});
 	return updateData;
+}
+
+function hasChangedActivityPubObjectData(objectRecord, objectData) {
+	return Object.keys(getChangedActivityPubObjectData(objectRecord, objectData)).length > 0;
 }
 
 async function getActivityPubObjectRecord(models, objectData) {

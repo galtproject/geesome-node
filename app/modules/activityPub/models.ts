@@ -1,5 +1,5 @@
 import {DataTypes, Op, QueryTypes, Sequelize} from 'sequelize';
-import {ActivityPubObjectReviewState} from './interface.js';
+import {ActivityPubObjectReviewState, ActivityPubSourceSubscriptionStatus} from './interface.js';
 
 export default async function (sequelize: Sequelize) {
 	const deliveryClaimSchemaState = await getActivityPubDeliveryClaimSchemaState(sequelize);
@@ -103,6 +103,57 @@ export default async function (sequelize: Sequelize) {
 		]
 	} as any);
 
+	const ActivityPubSourceSubscription = sequelize.define('activityPubSourceSubscription', {
+		userId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		remoteActorId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		sourceResource: {
+			type: DataTypes.STRING(500),
+			allowNull: true
+		},
+		sourceActorUrl: {
+			type: DataTypes.STRING(500),
+			allowNull: false
+		},
+		bridgeProvider: {
+			type: DataTypes.STRING(100),
+			allowNull: true
+		},
+		displayName: {
+			type: DataTypes.STRING(200),
+			allowNull: true
+		},
+		status: {
+			type: DataTypes.STRING(30),
+			allowNull: false,
+			defaultValue: ActivityPubSourceSubscriptionStatus.Active
+		},
+		lastReadAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		lastRefreshRequestedAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		lastError: {
+			type: DataTypes.TEXT,
+			allowNull: true
+		}
+	} as any, {
+		indexes: [
+			{name: 'activity_pub_source_subscriptions_user_remote_unique', fields: ['userId', 'remoteActorId'], unique: true},
+			{name: 'activity_pub_source_subscriptions_user_status_idx', fields: ['userId', 'status', 'updatedAt']},
+			{name: 'activity_pub_source_subscriptions_remote_status_idx', fields: ['remoteActorId', 'status']},
+			{name: 'activity_pub_source_subscriptions_status_refresh_idx', fields: ['status', 'lastRefreshRequestedAt', 'id']}
+		]
+	} as any);
+
 	const ActivityPubFollow = sequelize.define('activityPubFollow', {
 		localActorId: {
 			type: DataTypes.INTEGER,
@@ -194,7 +245,9 @@ export default async function (sequelize: Sequelize) {
 			{name: 'activity_pub_objects_object_id_unique', fields: ['objectId'], unique: true},
 			{name: 'activity_pub_objects_activity_id_unique', fields: ['activityId'], unique: true},
 			{name: 'activity_pub_objects_local_post_unique', fields: ['localActorId', 'localPostId'], unique: true},
-			{name: 'activity_pub_objects_remote_object_unique', fields: ['remoteObjectUrl'], unique: true}
+			{name: 'activity_pub_objects_remote_object_unique', fields: ['remoteObjectUrl'], unique: true},
+			{name: 'activity_pub_objects_local_actor_origin_published_idx', fields: ['localActorId', 'origin', 'publishedAt', 'id']},
+			{name: 'activity_pub_objects_remote_actor_origin_published_idx', fields: ['remoteActorId', 'origin', 'publishedAt', 'id']}
 		]
 	} as any);
 
@@ -225,6 +278,63 @@ export default async function (sequelize: Sequelize) {
 		indexes: [
 			{name: 'activity_pub_object_reviews_object_unique', fields: ['activityPubObjectId'], unique: true},
 			{name: 'activity_pub_object_reviews_state_idx', fields: ['state']}
+		]
+	} as any);
+
+	const ActivityPubMigrationOwnershipChallenge = sequelize.define('activityPubMigrationOwnershipChallenge', {
+		userId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		remoteActorId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		actorUrl: {
+			type: DataTypes.STRING(500),
+			allowNull: false
+		},
+		challengeToken: {
+			type: DataTypes.STRING(100),
+			allowNull: false
+		},
+		challengeUrl: {
+			type: DataTypes.STRING(700),
+			allowNull: false
+		},
+		verificationUrl: {
+			type: DataTypes.STRING(700),
+			allowNull: false
+		},
+		challengeJson: {
+			type: DataTypes.TEXT,
+			allowNull: false
+		},
+		expiresAt: {
+			type: DataTypes.DATE,
+			allowNull: false
+		},
+		verifiedAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		consumedAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		verifiedPublicKeyId: {
+			type: DataTypes.STRING(500),
+			allowNull: true
+		},
+		lastError: {
+			type: DataTypes.TEXT,
+			allowNull: true
+		}
+	} as any, {
+		indexes: [
+			{name: 'activity_pub_migration_ownership_challenges_token_unique', fields: ['challengeToken'], unique: true},
+			{name: 'activity_pub_migration_ownership_challenges_user_actor_idx', fields: ['userId', 'actorUrl', 'expiresAt']},
+			{name: 'activity_pub_migration_ownership_challenges_remote_actor_idx', fields: ['remoteActorId', 'expiresAt']}
 		]
 	} as any);
 
@@ -264,10 +374,12 @@ export default async function (sequelize: Sequelize) {
 	return {
 		ActivityPubActor: await ActivityPubActor.sync({}),
 		ActivityPubRemoteActor: await ActivityPubRemoteActor.sync({}),
+		ActivityPubSourceSubscription: await ActivityPubSourceSubscription.sync({}),
 		ActivityPubFollow: await ActivityPubFollow.sync({}),
 		ActivityPubObject: await ActivityPubObject.sync({}),
 		ActivityPubDelivery: await ActivityPubDelivery.sync({}),
 		ActivityPubObjectReview: await ActivityPubObjectReview.sync({}),
+		ActivityPubMigrationOwnershipChallenge: await ActivityPubMigrationOwnershipChallenge.sync({}),
 		ActivityPubFlag: await ActivityPubFlag.sync({}),
 		activityPubDeliveryClaimsSupported: includeDeliveryClaimColumns
 	};

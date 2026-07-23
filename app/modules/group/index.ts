@@ -18,6 +18,8 @@ import IGeesomeGroupModule, {
 } from "./interface.js";
 import {buildPostLifecycleEvent, buildSourceImportPostEvent, getPostEventState} from './postEventHelpers.js';
 import {IGeesomeApp} from "../../interface.js";
+import {startIntervalWorker} from '../../backgroundWorker.js';
+import type {IBackgroundWorker} from '../../backgroundWorker.js';
 import helpers from '../../helpers.js';
 import {
 	ContentView,
@@ -29,7 +31,13 @@ import {
 	IListParams,
 	IListParamsOptions
 } from "../database/interface.js";
-import {getProjectedContentText} from './contentProjectionHelpers.js';
+import {
+	getProjectedContentRichText,
+	getProjectedContentRichTextPlainText,
+	getProjectedContentText,
+	isProjectedRichTextContent
+} from './contentProjectionHelpers.js';
+import {getPostInputContents, stripPostContentInputFields} from './postContentInputHelpers.js';
 const {extend, pick, isUndefined, some, uniqBy, clone, orderBy, sumBy} = _;
 const log = debug('geesome:app:group');
 const groupDerivedStateQueueModuleName = 'group-derived-state';
@@ -215,8 +223,9 @@ export default async (app: IGeesomeApp) => {
 
 function getModule(app: IGeesomeApp, models) {
 	const {communicator} = app.ms;
-	let derivedStateQueueInProcess = false;
-	let derivedStateQueueWorkerTimer = null;
+	let derivedStateQueueProcessPromise: Promise<any> | null = null;
+	let derivedStateQueueWorker: IBackgroundWorker | null = null;
+	let stopped = false;
 
 	async function createActorContentFromGroupObject(userId, contentObject) {
 		if (!contentObject) {
@@ -554,6 +563,9 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		startDerivedStateQueueProcessing(options: any = {}) {
+			if (stopped) {
+				return;
+			}
 			const limit = helpers.parsePositiveInteger(options.limit, groupDerivedStateKickBatchLimit);
 			void this.processDerivedStateQueue({limit}).catch((e) => {
 				log('processDerivedStateQueue error', e);
@@ -561,34 +573,33 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		startDerivedStateQueueWorker() {
-			if (!shouldRunDerivedStateWorker()) {
+			if (stopped || !shouldRunDerivedStateWorker()) {
 				return;
 			}
-			if (derivedStateQueueWorkerTimer) {
+			if (derivedStateQueueWorker) {
 				return;
 			}
 
-			this.startDerivedStateQueueProcessing({limit: groupDerivedStateWorkerBatchLimit});
-			derivedStateQueueWorkerTimer = setInterval(() => {
-				this.startDerivedStateQueueProcessing({limit: groupDerivedStateWorkerBatchLimit});
-			}, groupDerivedStateWorkerIntervalMs);
-
-			const timer: any = derivedStateQueueWorkerTimer;
-			if (timer.unref) {
-				timer.unref();
-			}
+			derivedStateQueueWorker = startIntervalWorker(
+				() => this.processDerivedStateQueue({limit: groupDerivedStateWorkerBatchLimit}),
+				{
+					intervalMs: groupDerivedStateWorkerIntervalMs,
+					runImmediately: true,
+					onError: e => log('processDerivedStateQueue error', e)
+				}
+			);
 		}
 
-		stopDerivedStateQueueWorker() {
-			if (!derivedStateQueueWorkerTimer) {
-				return;
-			}
-			clearInterval(derivedStateQueueWorkerTimer);
-			derivedStateQueueWorkerTimer = null;
+		async stopDerivedStateQueueWorker() {
+			const worker = derivedStateQueueWorker;
+			derivedStateQueueWorker = null;
+			await worker?.stop();
 		}
 
-		stop() {
-			this.stopDerivedStateQueueWorker();
+		async stop() {
+			stopped = true;
+			await this.stopDerivedStateQueueWorker();
+			await derivedStateQueueProcessPromise;
 		}
 
 		async applyPostManifestUpdate(userId, post, group = null, options: any = {}) {
@@ -613,29 +624,31 @@ function getModule(app: IGeesomeApp, models) {
 			return this.queueGroupManifestUpdate(userId, groupId, options);
 		}
 
-		async processDerivedStateQueue(options: any = {}) {
-			if (derivedStateQueueInProcess) {
-				return {processed: 0};
+		processDerivedStateQueue(options: any = {}) {
+			if (stopped || derivedStateQueueProcessPromise) {
+				return Promise.resolve({processed: 0});
 			}
 
-			derivedStateQueueInProcess = true;
+			derivedStateQueueProcessPromise = this.runDerivedStateQueue(options);
+			return derivedStateQueueProcessPromise.finally(() => {
+				derivedStateQueueProcessPromise = null;
+			});
+		}
+
+		async runDerivedStateQueue(options: any = {}) {
 			let processed = 0;
 			const limit = helpers.parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
 
-			try {
-				while (processed < limit) {
-					const waitingQueue = await this.prepareNextDerivedStateQueue();
-					if (!waitingQueue) {
-						return {processed};
-					}
-
-					await this.processDerivedStateQueueItem(waitingQueue);
-					processed += 1;
+			while (processed < limit) {
+				const waitingQueue = await this.prepareNextDerivedStateQueue();
+				if (!waitingQueue) {
+					return {processed};
 				}
-				return {processed};
-			} finally {
-				derivedStateQueueInProcess = false;
+
+				await this.processDerivedStateQueueItem(waitingQueue);
+				processed += 1;
 			}
+			return {processed};
 		}
 
 		async prepareNextDerivedStateQueue() {
@@ -803,7 +816,7 @@ function getModule(app: IGeesomeApp, models) {
 			}) as IGroup;
 		}
 
-		async getGroupPosts(groupId, filters = {}, listParams?: IListParams) {
+		async getGroupPosts(groupId, filters = {}, listParams?: IListParams, options: {emitInitialCursor?: boolean} = {}) {
 			groupId = await this.checkGroupId(groupId);
 			listParams = helpers.prepareListParams(listParams, publicPostListParams);
 			if (isUndefined(filters['isDeleted'])) {
@@ -823,7 +836,9 @@ function getModule(app: IGeesomeApp, models) {
 			});
 			const postIds = pagePosts.map(post => post.id);
 			const list = await this.getHydratedPostListByIds(postIds, {groupId, includeRepostOf: true});
-			const nextCursor = helpers.getNextListCursor(cursor, pagePosts, limit);
+			const nextCursor = options.emitInitialCursor
+				? helpers.getNextCursorFromRows(pagePosts, limit)
+				: helpers.getNextListCursor(cursor, pagePosts, limit);
 
 			return {
 				list,
@@ -1082,7 +1097,7 @@ function getModule(app: IGeesomeApp, models) {
 			return uniqBy(contentsData.filter(c => c.id), 'id');
 		}
 
-		async createPost(userId, postData) {
+		async createPost(userId, postData, options: any = {}) {
 			postData = clone(postData);
 			log('createPost', postData);
 			const [, canCreate, canReply] = await Promise.all([
@@ -1098,8 +1113,9 @@ function getModule(app: IGeesomeApp, models) {
 			postData.groupId = await this.checkGroupId(postData.groupId);
 			log('checkGroupId');
 
-			const contents = await this.getContentsForPost(userId, postData.contents);
-			delete postData.contents;
+			const postInputContents = await getPostInputContents(app, userId, postData);
+			stripPostContentInputFields(postData);
+			const contents = await this.getContentsForPost(userId, postInputContents);
 			const size = sumBy(contents || [], contentSize);
 
 			const [user, group] = await Promise.all([
@@ -1156,7 +1172,7 @@ function getModule(app: IGeesomeApp, models) {
 			// static directory, and the personal-chat encryption handshake unless the row
 			// was created as an active published post.
 			if (post.status === PostStatus.Published && !post.isDeleted) {
-				post = await this.applyPostManifestUpdate(userId, post, group);
+				post = await this.applyPostManifestUpdate(userId, post, group, options);
 				log('updatePostManifest');
 
 				if (group.isEncrypted && group.type === GroupType.PersonalChat) {
@@ -1278,6 +1294,7 @@ function getModule(app: IGeesomeApp, models) {
 			const baseData = {
 				id: c.id,
 				name: c.name,
+				description: c.description,
 				storageId: c.storageId,
 				previewStorageId: c.mediumPreviewStorageId,
 				view: attachmentView,
@@ -1285,8 +1302,26 @@ function getModule(app: IGeesomeApp, models) {
 				extension: c.extension,
 				previewExtension: c.previewExtension,
 				mimeType: c.mimeType,
+				size: c.size,
 			}
-			if (c.mimeType.startsWith('text/')) {
+			const mimeType = String(c.mimeType || '');
+			if (isProjectedRichTextContent(c)) {
+				const contentData: IContentData = {
+					type: 'text',
+					...baseData
+				};
+				if (options.includeText !== false || options.includeJson !== false) {
+					const richText = await getProjectedContentRichText(app.ms.storage, c, options);
+					if (options.includeText !== false) {
+						contentData.text = getProjectedContentRichTextPlainText(richText);
+					}
+					if (richText && options.includeJson !== false) {
+						contentData.json = richText;
+					}
+				}
+				return contentData;
+			}
+			if (mimeType.startsWith('text/')) {
 				const contentData: IContentData = {
 					type: 'text',
 					...baseData
@@ -1295,17 +1330,17 @@ function getModule(app: IGeesomeApp, models) {
 					contentData.text = await getProjectedContentText(app.ms.storage, c, options);
 				}
 				return contentData;
-			} else if (c.mimeType.includes('image')) {
+			} else if (mimeType.includes('image')) {
 				return {
 					type: 'image',
 					...baseData
 				};
-			} else if (c.mimeType.includes('video')) {
+			} else if (mimeType.includes('video')) {
 				return {
 					type: 'video',
 					...baseData
 				};
-			} else if (c.mimeType.includes('json')) {
+			} else if (mimeType.includes('json')) {
 				const contentData: IContentData = {
 					type: 'json',
 					...baseData
@@ -1315,7 +1350,10 @@ function getModule(app: IGeesomeApp, models) {
 				}
 				return contentData;
 			}
-			return null;
+			return {
+				type: 'file',
+				...baseData
+			};
 		}
 
 		async prepareContentDataWithUrl(c: IContent, baseStorageUri: string, options: IContentDataProjectionOptions = {}): Promise<IContentData> {
@@ -1352,16 +1390,15 @@ function getModule(app: IGeesomeApp, models) {
 			}));
 		}
 
+		async updateRemotePostByObject(userId, postId, postData, options: any = {}) {
+			postData = clone(postData);
+			postData.isRemote = true;
+			postData.status = PostStatus.Published;
+			return this.updatePostPure(userId, postId, postData, options);
+		}
+
 		async updatePost(userId, postId, postData) {
 			const oldPost = await this.getPostPure(postId);
-
-			// B5: cross-group moves are not supported. Users who want a post in another group
-			// repost it (repostOfId) or create a new post that reuses the same content attachments.
-			if (!isUndefined(postData.groupId) && Number(postData.groupId) !== Number(oldPost.groupId)) {
-				throw new Error("group_move_not_supported");
-			}
-			delete postData.groupId;
-
 			const [, canEdit] = await Promise.all([
 				await app.checkUserCan(userId, CorePermissionName.UserGroupManagement),
 				this.canEditPostInGroup(userId, oldPost.groupId, postId),
@@ -1370,8 +1407,26 @@ function getModule(app: IGeesomeApp, models) {
 				throw new Error("not_permitted");
 			}
 
-			const contentsData = await this.getContentsForPost(userId, postData.contents);
-			delete postData.contents;
+			return this.updatePostPure(userId, postId, postData, {oldPost});
+		}
+
+		async updatePostPure(userId, postId, postData, options: any = {}) {
+			const oldPost = options.oldPost || await this.getPostPure(postId);
+			if (!oldPost) {
+				throw new Error("post_not_found");
+			}
+
+			postData = clone(postData);
+			// B5: cross-group moves are not supported. Users who want a post in another group
+			// repost it (repostOfId) or create a new post that reuses the same content attachments.
+			if (!isUndefined(postData.groupId) && Number(postData.groupId) !== Number(oldPost.groupId)) {
+				throw new Error("group_move_not_supported");
+			}
+			delete postData.groupId;
+
+			const postInputContents = await getPostInputContents(app, userId, postData);
+			stripPostContentInputFields(postData);
+			const contentsData = await this.getContentsForPost(userId, postInputContents);
 
 			// B4: drafts/deleted rows are DB-only. Only run post manifest/static rebuild when
 			// the merged row is actively published. Rows that leave the public lifecycle still
@@ -1398,6 +1453,22 @@ function getModule(app: IGeesomeApp, models) {
 			};
 
 			await app.ms.database.sequelize.transaction(async (transaction) => {
+				if (!isUndefined(options.expectedPropertiesJson)) {
+					const lockedPost = await models.Post.findOne({
+						where: {id: postId},
+						transaction,
+						lock: transaction.LOCK.UPDATE,
+					});
+					if (!lockedPost) {
+						throw new Error('post_not_found');
+					}
+					if (lockedPost.propertiesJson !== options.expectedPropertiesJson) {
+						if (options.createPropertiesConflictError) {
+							throw options.createPropertiesConflictError(lockedPost);
+						}
+						throw new Error('post_properties_conflict');
+					}
+				}
 				if (isPublished && !oldPost.localId) {
 					postData.localId = await this.allocatePostLocalId({...postData, groupId: oldPost.groupId}, transaction);
 					postData.publishedAt = postData.publishedAt || oldPost.publishedAt || new Date();
@@ -1405,7 +1476,7 @@ function getModule(app: IGeesomeApp, models) {
 					nextPostEventState.publishedAt = postData.publishedAt;
 				}
 
-				if(contentsData) {
+				if (contentsData) {
 					await this.setPostContents(postId, contentsData, {transaction});
 				}
 
@@ -1428,10 +1499,10 @@ function getModule(app: IGeesomeApp, models) {
 			});
 			if (isPublished) {
 				const updatedPost = await this.getPostPure(postId);
-				return this.applyPostManifestUpdate(userId, updatedPost, oldPost.group);
+				return this.applyPostManifestUpdate(userId, updatedPost, oldPost.group, options);
 			}
 			if (wasPublished) {
-				await this.applyGroupManifestUpdate(userId, oldPost.groupId);
+				await this.applyGroupManifestUpdate(userId, oldPost.groupId, options);
 			}
 			return this.getPostPure(postId);
 		}
@@ -1771,7 +1842,19 @@ function getModule(app: IGeesomeApp, models) {
 				cursorIdFilter: 'publishedAfterCursorId',
 				direction: 'after'
 			});
-			['id', 'status', 'replyToId', 'repostOfId', 'name', 'groupId', 'isDeleted'].forEach((name) => {
+			[
+				'id',
+				'status',
+				'type',
+				'replyToId',
+				'repostOfId',
+				'name',
+				'groupId',
+				'isDeleted',
+				'source',
+				'sourceChannelId',
+				'sourcePostId'
+			].forEach((name) => {
 				if(filters[name] === 'null') {
 					filters[name] = null;
 				}

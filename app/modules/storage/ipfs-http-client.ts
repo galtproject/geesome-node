@@ -18,9 +18,10 @@ export default async (app: IGeesomeApp) => {
   const node = create(app.config.storageConfig.goNode);
   log('ipfsHttpClientConnected', {profile: process.env.IPFS_PROFILE});
   const service = new JsIpfsServiceNode(node, 'kubo-rpc');
-  if (process.env.STORAGE_SKIP_REMOTE_STOP === '1') {
-    service.stop = async () => null;
-  }
+  const stopRemoteNode = service.stop;
+  service.stop = process.env.STORAGE_STOP_REMOTE_NODE === '1'
+    ? stopRemoteNode
+    : async () => null;
 
   let error;
   do {

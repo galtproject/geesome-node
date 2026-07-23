@@ -85,7 +85,7 @@ function notesFor(route: RouteRow, block: string): string[] {
   if (routeLower.includes('webhook')) {
     notes.add('webhook/token-in-path review');
   }
-  if (routeLower.startsWith('/ap/') || routeLower === '/.well-known/webfinger') {
+  if (isActivityPubFederationRoute(routeLower)) {
     notes.add('ActivityPub federation boundary');
   }
   if (routeLower.includes('inbox')) {
@@ -97,6 +97,15 @@ function notesFor(route: RouteRow, block: string): string[] {
   if (routeLower.includes('content') || routeLower.includes('file') || routeLower.includes('ipfs')) {
     notes.add('content/storage boundary');
   }
+  if (route.moduleName === 'imageComposition') {
+    notes.add('module enforces actor-owned catalog Content and dependency authorization');
+    if (routeLower.endsWith('/image-compositions') && route.method === 'GET') {
+      notes.add('baked-only list projection; original/SVG dependency URLs omitted');
+    }
+    if (routeLower.includes('/image-compositions/:contentmanifestid')) {
+      notes.add('recipe detail restricted to the catalog owner');
+    }
+  }
   if (routeLower === '/v1/content/:contentid' && blockLower.includes('getpubliccontentmetadata')) {
     notes.add('public-safe metadata projection; private DB ids hidden');
   }
@@ -107,6 +116,13 @@ function notesFor(route: RouteRow, block: string): string[] {
     notes.add('encryption/key boundary');
   }
   return [...notes].sort();
+}
+
+function isActivityPubFederationRoute(routeLower: string): boolean {
+  return routeLower.startsWith('/ap/') ||
+    routeLower === '/.well-known/webfinger' ||
+    routeLower === '/.well-known/nodeinfo' ||
+    routeLower === '/nodeinfo/2.1';
 }
 
 function parseFile(filePath: string): RouteRow[] {

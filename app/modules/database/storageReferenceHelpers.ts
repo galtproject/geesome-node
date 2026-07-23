@@ -1,4 +1,42 @@
 import {Op, QueryTypes} from 'sequelize';
+import {
+  confirmedPinStorageObjectStatuses,
+  protectedPinStorageObjectStatuses
+} from '../pin/stateHelpers.js';
+
+export async function getStorageObjectPinProvenance(models, sequelize, storageId) {
+  const storageObjectModel = getReferenceModel(models, sequelize, ['StorageObject', 'storageObject']);
+  const contentModel = getReferenceModel(models, sequelize, ['Content', 'content']);
+  const pinStorageObjectModel = getReferenceModel(models, sequelize, ['PinStorageObject', 'pinStorageObject']);
+  const [storageObjectPinRefs, contentPinRefs, confirmedRemotePinRefs, protectedRemotePinRefs] = await Promise.all([
+    countModelReferences(storageObjectModel, {storageId, isPinned: true}),
+    countModelReferences(contentModel, {
+      storageId,
+      isPinned: true,
+      isDeleted: {[Op.ne]: true},
+    }),
+    countModelReferences(pinStorageObjectModel, {
+      storageId,
+      status: {[Op.in]: confirmedPinStorageObjectStatuses},
+    }),
+    countModelReferences(pinStorageObjectModel, {
+      storageId,
+      status: {[Op.in]: protectedPinStorageObjectStatuses},
+    }),
+  ]);
+  const hasLocalOrLegacyPin = storageObjectPinRefs > 0 || contentPinRefs > 0;
+  const hasConfirmedRemotePin = confirmedRemotePinRefs > 0;
+  return {
+    storageObjectPinRefs,
+    contentPinRefs,
+    confirmedRemotePinRefs,
+    protectedRemotePinRefs,
+    hasLocalOrLegacyPin,
+    hasConfirmedRemotePin,
+    isConfirmedPinned: hasLocalOrLegacyPin || hasConfirmedRemotePin,
+    isDeletionProtected: hasLocalOrLegacyPin || protectedRemotePinRefs > 0,
+  };
+}
 
 export async function countDerivedStorageIdReferences(models, sequelize, storageId, options: any = {}) {
   return countDirectDerivedStorageIdReferences(models, sequelize, storageId, options);
@@ -43,7 +81,7 @@ export async function countRemotePinReferences(models, sequelize, storageId) {
   return pinStorageObjectModel.count({
     where: {
       storageId,
-      status: 'pinned',
+      status: {[Op.in]: protectedPinStorageObjectStatuses},
     },
   });
 }
@@ -250,4 +288,11 @@ function getReferenceModel(models, sequelize, modelNames) {
     }
   }
   return null;
+}
+
+async function countModelReferences(model, where) {
+  if (!model) {
+    return 0;
+  }
+  return model.count({where});
 }

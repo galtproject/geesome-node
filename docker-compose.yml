@@ -5,6 +5,7 @@ services:
       context: .
     command: npm run in-docker-start
     restart: always
+    stop_grace_period: ${GEESOME_DOCKER_STOP_GRACE_PERIOD:-35s}
     ports:
       - "2052:2052"
       - "2082:2082"
@@ -26,6 +27,7 @@ services:
       - GEESOME_ACCESS_LOGS=${GEESOME_ACCESS_LOGS:-}
       - GEESOME_DEPENDENCY_INFO_LOGS=${GEESOME_DEPENDENCY_INFO_LOGS:-}
       - GEESOME_LOG_SQL=${GEESOME_LOG_SQL:-}
+      - GEESOME_SHUTDOWN_TIMEOUT_MS=${GEESOME_SHUTDOWN_TIMEOUT_MS:-30000}
       - DATABASE_USER=geesome
       - DATABASE_PASSWORD=geesome
       - DATABASE_NAME=geesome_node

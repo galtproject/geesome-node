@@ -9,13 +9,14 @@
 
 //TODO: move communicator and fileCatalog to improve
 const modulePacks = {
-  'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'staticId', 'asyncOperation', 'group', 'entityJsonManifest', 'remoteGroup'],
-  'improve': ['groupCategory', 'invite', 'staticSiteGenerator', 'rss', 'activityPub', 'autoActions', 'pin', 'foreignAccounts', 'ethereumAuthorization', 'fileCatalog', 'storageSpace', 'gateway'],
-  'socNet': ['socNetAccount', 'socNetImport', 'telegramClient', 'twitterClient', 'tgContentBot']
+  'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'staticId', 'asyncOperation', 'group', 'fileCatalog', 'entityJsonManifest', 'imageComposition', 'remoteGroup'],
+  'improve': ['groupCategory', 'invite', 'staticSiteGenerator', 'rss', 'activityPub', 'autoActions', 'pin', 'foreignAccounts', 'ethereumAuthorization', 'storageSpace', 'gateway'],
+  'socNet': ['socNetAccount', 'socNetImport', 'bluesky', 'telegramClient', 'twitterClient', 'tgContentBot']
 };
 
 //TODO: refactor modules config
 export default {
+  domain: process.env.DOMAIN || '',
   databaseModule: 'sql',
   databaseConfig: {
 
@@ -31,12 +32,72 @@ export default {
   },
   activityPubConfig: {
     enabled: process.env.ACTIVITYPUB_ENABLED === '1',
-    publicUrl: process.env.ACTIVITYPUB_PUBLIC_URL || '',
+    publicUrl: process.env.ACTIVITYPUB_PUBLIC_URL || getPublicUrlFromDomainEnv(process.env.DOMAIN),
     domain: process.env.ACTIVITYPUB_DOMAIN || '',
     deliveryWorker: process.env.ACTIVITYPUB_DELIVERY_WORKER === '1',
     deliveryWorkerIntervalMs: process.env.ACTIVITYPUB_DELIVERY_WORKER_INTERVAL_MS,
     deliveryWorkerLimit: process.env.ACTIVITYPUB_DELIVERY_WORKER_LIMIT,
-    deliveryClaimTtlMs: process.env.ACTIVITYPUB_DELIVERY_CLAIM_TTL_MS
+    deliveryClaimTtlMs: process.env.ACTIVITYPUB_DELIVERY_CLAIM_TTL_MS,
+    sourceRefreshWorker: process.env.ACTIVITYPUB_SOURCE_REFRESH_WORKER === '1',
+    sourceRefreshWorkerIntervalMs: process.env.ACTIVITYPUB_SOURCE_REFRESH_WORKER_INTERVAL_MS,
+    sourceRefreshWorkerLimit: process.env.ACTIVITYPUB_SOURCE_REFRESH_WORKER_LIMIT,
+    sourceRefreshPoller: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER === '1',
+    sourceRefreshPollerIntervalMs: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER_INTERVAL_MS,
+    sourceRefreshPollerLimit: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER_LIMIT,
+    sourceRefreshPollerStaleMs: process.env.ACTIVITYPUB_SOURCE_REFRESH_POLLER_STALE_MS,
+    ownershipChallengeCleanupIntervalMs: process.env.ACTIVITYPUB_OWNERSHIP_CHALLENGE_CLEANUP_INTERVAL_MS,
+    ownershipChallengeCleanupLimit: process.env.ACTIVITYPUB_OWNERSHIP_CHALLENGE_CLEANUP_LIMIT,
+    ownershipChallengeCleanupRetentionMs: process.env.ACTIVITYPUB_OWNERSHIP_CHALLENGE_CLEANUP_RETENTION_MS,
+    ownershipChallengeCreateRateLimitCount: process.env.ACTIVITYPUB_OWNERSHIP_CHALLENGE_CREATE_RATE_LIMIT_COUNT,
+    ownershipChallengeCreateRateLimitWindowMs: process.env.ACTIVITYPUB_OWNERSHIP_CHALLENGE_CREATE_RATE_LIMIT_WINDOW_MS,
+    ownershipChallengeVerifyRateLimitCount: process.env.ACTIVITYPUB_OWNERSHIP_CHALLENGE_VERIFY_RATE_LIMIT_COUNT,
+    ownershipChallengeVerifyRateLimitWindowMs: process.env.ACTIVITYPUB_OWNERSHIP_CHALLENGE_VERIFY_RATE_LIMIT_WINDOW_MS
+  },
+  blueskyConfig: {
+    publicUrl: process.env.BLUESKY_PUBLIC_URL || process.env.ACTIVITYPUB_PUBLIC_URL || getPublicUrlFromDomainEnv(process.env.DOMAIN),
+    publicApiOrigin: process.env.BLUESKY_PUBLIC_API_ORIGIN || 'https://public.api.bsky.app',
+    publicApiTimeoutMs: process.env.BLUESKY_PUBLIC_API_TIMEOUT_MS,
+    authApiOrigin: process.env.BLUESKY_AUTH_API_ORIGIN || 'https://bsky.social',
+    authApiTimeoutMs: process.env.BLUESKY_AUTH_API_TIMEOUT_MS,
+    sourceRefreshWorker: process.env.BLUESKY_SOURCE_REFRESH_WORKER === '1',
+    sourceRefreshWorkerIntervalMs: process.env.BLUESKY_SOURCE_REFRESH_WORKER_INTERVAL_MS,
+    sourceRefreshWorkerLimit: process.env.BLUESKY_SOURCE_REFRESH_WORKER_LIMIT,
+    sourceRefreshPoller: process.env.BLUESKY_SOURCE_REFRESH_POLLER === '1',
+    sourceRefreshPollerIntervalMs: process.env.BLUESKY_SOURCE_REFRESH_POLLER_INTERVAL_MS,
+    sourceRefreshPollerLimit: process.env.BLUESKY_SOURCE_REFRESH_POLLER_LIMIT,
+    sourceRefreshPollerStaleMs: process.env.BLUESKY_SOURCE_REFRESH_POLLER_STALE_MS
+  },
+  pinConfig: {
+    reconciliationWorker: process.env.PIN_RECONCILIATION_WORKER === '1',
+    reconciliationWorkerIntervalMs: process.env.PIN_RECONCILIATION_WORKER_INTERVAL_MS,
+    reconciliationWorkerLimit: process.env.PIN_RECONCILIATION_WORKER_LIMIT,
+    reconciliationPerAccountLimit: process.env.PIN_RECONCILIATION_PER_ACCOUNT_LIMIT,
+    reconciliationClaimTtlMs: process.env.PIN_RECONCILIATION_CLAIM_TTL_MS
   },
   modules: process.env.MODULES ? process.env.MODULES.split(',') : modulePacks.main.concat(modulePacks.improve).concat(modulePacks.socNet)
 };
+
+function getPublicUrlFromDomainEnv(domain): string {
+  const rawDomain = String(domain || '').trim().replace(/^@/, '');
+  if (!rawDomain) {
+    return '';
+  }
+  try {
+    if (rawDomain.includes('://')) {
+      const parsedUrl = new URL(rawDomain);
+      if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+        return '';
+      }
+      return `${parsedUrl.protocol}//${parsedUrl.host}`;
+    }
+    const cleanDomain = rawDomain.replace(/^\/+/, '').split('/')[0];
+    if (!cleanDomain) {
+      return '';
+    }
+    const publicUrl = `https://${cleanDomain}`;
+    new URL(publicUrl);
+    return publicUrl;
+  } catch (e) {
+    return '';
+  }
+}

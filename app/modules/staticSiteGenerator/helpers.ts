@@ -12,6 +12,7 @@ import { join } from 'path';
 import {load as cheerioLoad} from 'cheerio';
 import {readdirSync, rmdirSync, unlinkSync, statSync} from 'fs';
 import {sanitizeHtml} from '../../htmlSafety.js';
+import {isRichTextDocument, richTextToSafeHtml} from '../../richText.js';
 const {trim} = _;
 
 const isDir = path => {
@@ -219,6 +220,12 @@ function sanitizeStaticSiteContents(contents = []) {
 }
 
 function sanitizeStaticSiteContent(content) {
+    if (content?.type === 'text' && isRichTextDocument(content.json)) {
+        return {
+            ...content,
+            text: richTextToSafeHtml(content.json)
+        };
+    }
     if (content?.type !== 'text' || typeof content.text !== 'string') {
         return content;
     }

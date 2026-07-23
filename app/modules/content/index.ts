@@ -95,6 +95,21 @@ const contentManifestStorageObjectFields = [
 	'previewExtension'
 ];
 
+export function getContentServingSecurityHeaders(mimeType?: string) {
+	const headers = {
+		'X-Content-Type-Options': 'nosniff'
+	};
+	if (String(mimeType || '').split(';', 1)[0].trim().toLowerCase() !== 'image/svg+xml') {
+		return headers;
+	}
+	return {
+		...headers,
+		// SVG is an active document format. Keep stored SVG useful as an <img> source while
+		// preventing scripts, network fetches, and document-level navigation when opened directly.
+		'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+	};
+}
+
 export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
 	(await import('./api.js')).default(app, module);
@@ -238,6 +253,17 @@ function getModule(app: IGeesomeApp) {
 			fields = publicContentMetadataFields;
 		}
 		return pick(contentData, fields);
+	}
+
+	function parseContentPropertiesJson(propertiesJson) {
+		if (!propertiesJson) {
+			return {};
+		}
+		try {
+			return JSON.parse(propertiesJson);
+		} catch (e) {
+			return {};
+		}
 	}
 
 	function parseByteRange(rangeHeader: string, dataSize: number, defaultChunkSize: number): {start: number, end: number} | null {
@@ -665,7 +691,8 @@ function getModule(app: IGeesomeApp) {
 
 		async updateExistsContentMetadata(userId: number, content: IContent, options) {
 			const propsToUpdate = ['view'];
-			if (content.mediumPreviewStorageId && content.previewMimeType) {
+			const isRaw = !!this.getDriverNameAndParams(options).raw;
+			if (isRaw || (content.mediumPreviewStorageId && content.previewMimeType)) {
 				if (propsToUpdate.some(prop => options[prop] && content[prop] !== options[prop])) {
 					await app.ms.database.updateContent(content.id, pick(options, propsToUpdate));
 					await this.updateContentManifest({
@@ -744,7 +771,7 @@ function getModule(app: IGeesomeApp) {
 			return this.saveData(userId, dataToSave, fileName, options).then(c => c.storageId);
 		}
 
-		async saveData(userId: number, dataToSave, fileName, options: { view?, driver?, previews?: {content, mimeType, previewSize}, apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties? } = {}) {
+		async saveData(userId: number, dataToSave, fileName, options: { view?, driver?, previews?: {content, mimeType, previewSize, driver?}[], apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties?, forceNewContentEntity?: boolean, requirePreview?: boolean, skipFileCatalog?: boolean } = {}) {
 			log('saveData');
 
 			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
@@ -812,7 +839,9 @@ function getModule(app: IGeesomeApp) {
 				storageFile = resultFile;
 				log('checkFileSizeAndSaveByStream extension', extension, 'mimeType', mimeType);
 
-				let existsContent = await app.ms.database.getContentByStorageAndUserId(storageFile.id, userId);
+				let existsContent = options.forceNewContentEntity
+					? null
+					: await app.ms.database.getContentByStorageAndUserId(storageFile.id, userId);
 				log('existsContent', !!existsContent);
 				if (existsContent) {
 					log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
@@ -851,7 +880,7 @@ function getModule(app: IGeesomeApp) {
 			return {name: options.driver}
 		}
 
-		async saveDataByUrl(userId: number, url, options: { driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, name?, description?, view?, path?, onProgress? } = {}) {
+		async saveDataByUrl(userId: number, url, options: { driver?, apiKey?, userApiKeyId?, folderId?, mimeType?, name?, description?, view?, path?, onProgress?, properties? } = {}) {
 			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
 			let {name, description, view} = options;
 			if (!name) {
@@ -921,7 +950,7 @@ function getModule(app: IGeesomeApp) {
 				view: view || ContentView.Attachment,
 				storageId: storageFile.id,
 				size: storageFile.size,
-				propertiesJson: JSON.stringify(properties)
+				propertiesJson: JSON.stringify(merge(properties || {}, options.properties || {}))
 			}, options, url);
 		}
 
@@ -936,7 +965,13 @@ function getModule(app: IGeesomeApp) {
 					log('driver raw, skip previews');
 				} else if (options.previews) {
 					await pIteration.forEachSeries(options.previews, async (p: any) => {
-						const result = await this.checkFileSizeAndSaveByStream(userId, p.content, p.mimeType, {waitForPin: options.waitForPin});
+						const previewStream = isString(p.content) || isBuffer(p.content)
+							? Readable.from([p.content])
+							: p.content;
+						const result = await this.checkFileSizeAndSaveByStream(userId, previewStream, p.mimeType, {
+							waitForPin: options.waitForPin,
+							driver: p.driver,
+						});
 						log('result', result);
 						previewData[p.previewSize + 'PreviewStorageId'] = result.resultFile.id;
 						previewData[p.previewSize + 'PreviewSize'] = result.resultFile.size;
@@ -955,10 +990,17 @@ function getModule(app: IGeesomeApp) {
 					log('getPreview');
 					previewData = await this.getPreview(forPreviewStorageFile, forPreviewExtension, forPreviewFullType, source);
 					if (properties) {
-						contentData.propertiesJson = JSON.stringify(properties);
+						contentData.propertiesJson = JSON.stringify(merge(
+							{},
+							parseContentPropertiesJson(contentData.propertiesJson),
+							properties
+						));
 					}
 				}
 
+				if (options.requirePreview && (!previewData['mediumPreviewStorageId'] || !String(previewData['previewMimeType'] || '').startsWith('image/'))) {
+					throw new Error('content_required_preview_failed');
+				}
 				return await this.addContent(userId, {
 					...contentData,
 					...previewData
@@ -1357,6 +1399,7 @@ function getModule(app: IGeesomeApp) {
 					// 'Pragma': 'no-cache',
 					// 'Expires': 0,
 					...storageResponseHeaders,
+					...getContentServingSecurityHeaders(mimeType),
 					'Cross-Origin-Resource-Policy': 'cross-origin',
 					'Content-Type': mimeType,
 					'Accept-Ranges': 'bytes',
@@ -1409,9 +1452,11 @@ function getModule(app: IGeesomeApp) {
 				contentData['Content-Length'] = dataSize;
 				contentData['x-ipfs-datasize'] = dataSize;
 			}
+			const mimeType = contentData['Content-Type'];
 			return {
 				...contentData,
 				...extraHeaders,
+				...getContentServingSecurityHeaders(mimeType),
 				'Accept-Ranges': 'bytes',
 				'Cross-Origin-Resource-Policy': 'cross-origin',
 				'cache-control': 'public, max-age=29030400, immutable',
@@ -1442,6 +1487,9 @@ function getModule(app: IGeesomeApp) {
 			log('contentType', contentType);
 			if (contentType) {
 				res.setHeader('Content-Type', contentType);
+			}
+			for (const [name, value] of Object.entries(getContentServingSecurityHeaders(contentType))) {
+				res.setHeader(name, value);
 			}
 			return preparedDataPath;
 		}

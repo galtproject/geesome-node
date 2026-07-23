@@ -50,7 +50,8 @@ describe("pin api", function () {
 			apiKey: "pinata-key",
 			secretApiKey: "pinata-secret",
 			secretApiKeyEncrypted: "encrypted-pinata-secret",
-			isEncrypted: true
+			isEncrypted: true,
+			options: JSON.stringify({autoPin: {enabled: true}})
 		};
 		const {call} = createPinApiHarness({
 			createAccount: async () => ({...secretAccount}),
@@ -70,6 +71,7 @@ describe("pin api", function () {
 		assert.equal(created.secretApiKey, undefined);
 		assert.equal(created.secretApiKeyEncrypted, undefined);
 		assert.equal(created.apiKey, "pinata-key");
+		assert.deepEqual(created.options, {autoPin: {enabled: true}});
 
 		const updated = await call("POST", "user/pin/update-account/:id", {params: {id: 1}});
 		assert.equal(updated.secretApiKey, undefined);
@@ -81,6 +83,7 @@ describe("pin api", function () {
 		});
 		assert.equal(userAccounts.list[0].secretApiKey, undefined);
 		assert.equal(userAccounts.list[0].secretApiKeyEncrypted, undefined);
+		assert.deepEqual(userAccounts.list[0].options, {autoPin: {enabled: true}});
 		assert.deepEqual(userAccountListParams, {limit: "7", sortBy: "name"});
 
 		const groupAccounts = await call("GET", "user/pin/group-accounts/:groupId", {
@@ -92,5 +95,44 @@ describe("pin api", function () {
 		assert.deepEqual(groupAccountListParams, {offset: "3", sortDir: "ASC"});
 
 		assert.deepEqual(await call("POST", "user/pin/delete-account/:id", {params: {id: 1}}), {success: true});
+	});
+
+	it('forwards account health, credential tests, and bounded reconciliation to the pin module', async () => {
+		const calls = [];
+		const {call} = createPinApiHarness({
+			testAccountCredentials: async (userId, id) => {
+				calls.push(['credentials', userId, id]);
+				return {ok: true, service: 'pinata', checkedAt: new Date(1000)};
+			},
+			getAccountHealth: async (userId, id, options) => {
+				calls.push(['health', userId, id, options]);
+				return {accountId: 4, totalCount: 0, statusCounts: {}, dueReconciliationCount: 0, activeClaimCount: 0, recent: []};
+			},
+			queueAccountReconciliation: async (userId, id, options) => {
+				calls.push(['reconcile', userId, id, options]);
+				return {queued: 1, accountId: 4};
+			}
+		});
+
+		const credentialResult = await call('POST', 'user/pin/account/:id/test-credentials', {
+			params: {id: 4}
+		});
+		const healthResult = await call('GET', 'user/pin/account/:id/health', {
+			params: {id: 4},
+			query: {historyLimit: '7'}
+		});
+		const reconcileResult = await call('POST', 'user/pin/account/:id/reconcile', {
+			params: {id: 4},
+			body: {storageId: 'bafy-test'}
+		});
+
+		assert.equal(credentialResult.ok, true);
+		assert.equal(healthResult.accountId, 4);
+		assert.deepEqual(reconcileResult, {queued: 1, accountId: 4});
+		assert.deepEqual(calls, [
+			['credentials', 1, 4],
+			['health', 1, 4, {historyLimit: '7'}],
+			['reconcile', 1, 4, {storageId: 'bafy-test'}]
+		]);
 	});
 });

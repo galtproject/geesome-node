@@ -1,6 +1,9 @@
 import {IListParams} from "../database/interface.js";
+import {PinStorageObjectStatus} from './stateHelpers.js';
 
 export default interface IGeesomePinModule {
+	stop?(): Promise<void>;
+
 	createAccount(userId: number, account: IPinAccount): Promise<IPinAccount>;
 
 	updateAccount(userId: number, id: number, updateData: IPinAccount): Promise<IPinAccount>;
@@ -15,11 +18,29 @@ export default interface IGeesomePinModule {
 
 	getGroupAccountsList(userId: number, groupId: number, listParams?: IListParams): Promise<IPinAccount[]>;
 
+	testAccountCredentials(userId: number, id: number): Promise<IPinAccountCredentialTestResult>;
+
+	getAccountHealth(userId: number, id: number, options?: IPinAccountHealthOptions): Promise<IPinAccountHealth>;
+
+	queueAccountReconciliation(userId: number, id: number, options?: IPinAccountReconciliationOptions): Promise<{queued: number; accountId: number}>;
+
 	pinByUserAccount(userId: number, name: string, storageId: string, options?): Promise<any>;
 
 	pinByGroupAccount(userId: number, groupId: number, name: string, storageId: string, options?): Promise<any>;
 
+	pinByAccountId(userId: number, accountId: number, storageId: string, options?): Promise<any>;
+
+	afterContentAdding(userId: number, content): Promise<any[]>;
+
+	afterPostManifestUpdate(userId: number, postId: number): Promise<any[]>;
+
 	recordPinnedStorageObject?(storageId: string, account: IPinAccount, content?: any, result?: any): Promise<IPinStorageObject | null>;
+
+	updatePinStorageObjectStatus?(pinAccountId: number, storageId: string, status: PinStorageObjectStatus, details?: any): Promise<IPinStorageObject>;
+
+	queueDuePinReconciliations(options?: IPinReconciliationQueueOptions): Promise<{queued: number}>;
+
+	processPinReconciliationQueue(options?: IPinReconciliationQueueOptions): Promise<{processed: number}>;
 }
 
 export interface IPinAccount {
@@ -33,7 +54,17 @@ export interface IPinAccount {
 	isEncrypted?: boolean;
 	secretApiKeyEncrypted?: string;
 	secretApiKey?: string;
-	options?: string;
+	options?: string | IPinAccountOptions;
+}
+
+export interface IPinAccountOptions {
+	autoPin?: {
+		enabled?: boolean;
+		attempts?: number;
+		metadata?: Record<string, string | number | boolean>;
+		scope?: 'user-content' | 'group-post';
+		targets?: Array<'post-manifest' | 'contents'>;
+	};
 }
 
 export interface IPinStorageObject {
@@ -46,7 +77,76 @@ export interface IPinStorageObject {
 	userId?: number;
 	groupId?: number;
 	remoteId?: string;
+	attemptId?: string;
+	attemptCount?: number;
+	requestedAt?: Date;
+	acceptedAt?: Date;
+	confirmedAt?: Date;
+	failedAt?: Date;
+	lastAttemptAt?: Date;
+	nextCheckAt?: Date;
+	lastErrorCode?: string;
+	lastErrorMessage?: string;
+	reconcileClaimId?: string;
+	reconcileClaimExpiresAt?: Date;
+	reconcileAttemptCount?: number;
+	lastReconcileAt?: Date;
 	pinnedAt?: Date;
 	checkedAt?: Date;
 	resultJson?: string;
 }
+
+export interface IPinReconciliationQueueOptions {
+	limit?: number;
+	perAccountLimit?: number;
+	claimTtlMs?: number;
+}
+
+export interface IPinAccountCredentialTestResult {
+	ok: true;
+	service: string;
+	checkedAt: Date;
+}
+
+export interface IPinAccountHealthOptions {
+	historyLimit?: number;
+}
+
+export interface IPinAccountReconciliationOptions {
+	storageId?: string;
+	limit?: number;
+}
+
+export interface IPinAccountHealth {
+	accountId: number;
+	service?: string;
+	totalCount: number;
+	statusCounts: Record<string, number>;
+	dueReconciliationCount: number;
+	activeClaimCount: number;
+	lastCheckedAt?: Date | null;
+	lastSuccessfulCheckAt?: Date | null;
+	lastError?: {
+		storageId: string;
+		status: string;
+		code?: string | null;
+		message?: string | null;
+		failedAt?: Date | null;
+	} | null;
+	recent: IPinStorageObjectHealthEntry[];
+}
+
+export interface IPinStorageObjectHealthEntry {
+	storageId: string;
+	status: string;
+	attemptCount: number;
+	reconcileAttemptCount: number;
+	lastAttemptAt?: Date | null;
+	lastReconcileAt?: Date | null;
+	checkedAt?: Date | null;
+	nextCheckAt?: Date | null;
+	lastErrorCode?: string | null;
+	lastErrorMessage?: string | null;
+}
+
+export {PinStorageObjectStatus};

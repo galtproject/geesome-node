@@ -28,7 +28,6 @@ services:
       - DATABASE_PORT=5432
       - STORAGE_MODULE=ipfs-http-client
       - STORAGE_URL=http://go_ipfs:5001
-      - STORAGE_SKIP_REMOTE_STOP=1
       - NPM_CONFIG_UPDATE_NOTIFIER=false
 
   postgres:

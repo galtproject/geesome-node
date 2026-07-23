@@ -15,7 +15,6 @@ const operationQueueListParams: IListParamsOptions = {
 };
 const finishedOperationRetentionDays = 30;
 const finishedOperationCleanupBatchLimit = 1000;
-const moduleOperationQueuesInProcess = new Set<string>();
 
 export default async (app: IGeesomeApp) => {
 	// app.checkModules([]);
@@ -27,11 +26,18 @@ export default async (app: IGeesomeApp) => {
 }
 
 export function getModule(app: IGeesomeApp, models) {
+	const moduleOperationQueuePromises = new Map<string, Promise<{processed: number}>>();
+	let stopped = false;
 	let finishCallbacks = {
 
 	};
 
 	class AsyncOperationModule implements IGeesomeAsyncOperationModule {
+		async stop() {
+			stopped = true;
+			await Promise.all(moduleOperationQueuePromises.values());
+		}
+
 		async asyncOperationWrapper(moduleName, funcName, args, options) {
 			await app.checkUserCan(options.userId, CorePermissionName.UserSaveData);
 
@@ -230,29 +236,32 @@ export function getModule(app: IGeesomeApp, models) {
 			return this.getWaitingOperationQueueByModule(module);
 		}
 
-		async processModuleOperationQueue(moduleName: string, options: IModuleOperationQueueProcessorOptions) {
-			if (moduleOperationQueuesInProcess.has(moduleName)) {
-				return {processed: 0};
+		processModuleOperationQueue(moduleName: string, options: IModuleOperationQueueProcessorOptions) {
+			if (stopped || moduleOperationQueuePromises.has(moduleName)) {
+				return Promise.resolve({processed: 0});
 			}
 
-			moduleOperationQueuesInProcess.add(moduleName);
+			const processPromise = this.runModuleOperationQueue(moduleName, options);
+			moduleOperationQueuePromises.set(moduleName, processPromise);
+			return processPromise.finally(() => {
+				moduleOperationQueuePromises.delete(moduleName);
+			});
+		}
+
+		async runModuleOperationQueue(moduleName: string, options: IModuleOperationQueueProcessorOptions) {
 			let processed = 0;
 			const limit = helpers.parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
 
-			try {
-				while (processed < limit) {
-					const waitingQueue = await this.getNextProcessableOperationQueue(moduleName);
-					if (!waitingQueue) {
-						return {processed};
-					}
-
-					await this.processModuleOperationQueueItem(waitingQueue, options);
-					processed += 1;
+			while (processed < limit) {
+				const waitingQueue = await this.getNextProcessableOperationQueue(moduleName);
+				if (!waitingQueue) {
+					return {processed};
 				}
-				return {processed};
-			} finally {
-				moduleOperationQueuesInProcess.delete(moduleName);
+
+				await this.processModuleOperationQueueItem(waitingQueue, options);
+				processed += 1;
 			}
+			return {processed};
 		}
 
 		async getNextProcessableOperationQueue(moduleName: string) {

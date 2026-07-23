@@ -1,6 +1,7 @@
 import {IContent, IListParams} from "../database/interface.js";
 
 export default interface IGeesomeAsyncOperationModule {
+	stop(): Promise<void>;
 
 	asyncOperationWrapper(moduleName, funcName, funcArgs, options);
 

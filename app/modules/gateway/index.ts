@@ -5,15 +5,22 @@ import bearerToken from 'express-bearer-token';
 import IGeesomeGatewayModule from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import appHelpers from "../../helpers.js";
+import {trackRuntimeHttpRequest} from '../../memoryProfiler.js';
+import {closeHttpServer} from '../../httpServer.js';
 import gatewayHelpers from "./helpers.js";
+import {cleanupAndRethrow} from '../../resourceCleanup.js';
 
 export default async (app: IGeesomeApp, options: {registerApi?: boolean, port?: number | string} = {}) => {
 	app.checkModules(['api']);
 	const module = await getModule(app, options.port || process.env.GATEWAY_PORT || 2082);
-	if (options.registerApi !== false) {
-		(await import('./api.js')).default(app, module);
+	try {
+		if (options.registerApi !== false) {
+			(await import('./api.js')).default(app, module);
+		}
+		return module;
+	} catch (error) {
+		return cleanupAndRethrow(error, 'gateway_bootstrap', () => module.stop());
 	}
-	return module;
 }
 
 async function getModule(app: IGeesomeApp, port) {
@@ -27,6 +34,10 @@ async function getModule(app: IGeesomeApp, port) {
 	if (appHelpers.isAccessLogEnabled()) {
 		service.use(morgan('combined'));
 	}
+	service.use((req, res, next) => {
+		trackRuntimeHttpRequest('gateway', req, res);
+		next();
+	});
 
 	service.use(async (req, res, next) => {
 		setHeaders(res);
@@ -49,6 +60,7 @@ async function getModule(app: IGeesomeApp, port) {
 	});
 
 	const server = await service.listen(port);
+	let stopPromise: Promise<void> | null = null;
 
 	function setHeaders(res) {
 		res.setHeader('Strict-Transport-Security', 'max-age=0');
@@ -79,14 +91,11 @@ async function getModule(app: IGeesomeApp, port) {
 				callback(app.ms.api.reqToModuleInput(req), app.ms.api.resToModuleOutput(res));
 			});
 		}
-		stop(): any {
-			try {
-				server.close();
-			} catch (e) {
-				if (!e.message.includes('Server is not running')) {
-					throw e;
-				}
+		stop(): Promise<void> {
+			if (!stopPromise) {
+				stopPromise = closeHttpServer(server);
 			}
+			return stopPromise;
 		}
 	}
 	return new GeesomeGatewayModule(port);

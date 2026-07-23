@@ -8,6 +8,7 @@ function sanitizePinAccount(account) {
     const plainAccount = account.toJSON ? account.toJSON() : {...account};
     delete plainAccount.secretApiKey;
     delete plainAccount.secretApiKeyEncrypted;
+    plainAccount.options = parsePinAccountOptions(plainAccount.options);
     return plainAccount;
 }
 
@@ -23,6 +24,13 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @apiError (400) UnknownService The pin account service is not supported.
      * @apiError (404) ContentNotFound The storage id does not belong to visible local content.
      * @apiError (403) NotPermitted Current user or API key cannot manage the requested group pin account.
+     * @apiError (400) GroupAutoPinPolicyInvalid Group automatic pinning must use `group-post` scope and select at least one supported target.
+     * @apiError (400) UserAutoPinPolicyInvalid User automatic pinning cannot use the group-post ownership scope.
+     * @apiError (400) PinAccountScopeImmutable Move credentials between user and group scopes by creating a new account instead of updating `groupId`.
+     * @apiError (400) PinStorageObjectNotFound The requested storage id has no ledger row for this account.
+     * @apiError (400) PinStorageIdInvalid The storage id must be a non-empty string.
+     * @apiError (400) PinCredentialTestUnsupported The account service or custom endpoint has no safe credential-test adapter.
+     * @apiError (403) GroupPostPinNotPermitted The requested post is not a local, public, unencrypted, published post in this group.
      * @apiError (502) PinataPinFailed The remote Pinata pin request failed.
      * @apiErrorExample {json} Pin account missing
      *   {
@@ -38,7 +46,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @api {post} /v1/user/pin/create-account Create pin account
      * @apiName UserPinCreateAccount
      * @apiGroup UserPin
-     * @apiDescription Creates a user-owned or group-owned account for an external pinning service. When `groupId` is provided, the current user must be able to edit that group. For Pinata, set `service` to `pinata`; `secretApiKey` can be encrypted at rest by setting `isEncrypted` to `true`. Secret fields are write-only and are not returned in API responses.
+     * @apiDescription Creates a direct user account or a group-scoped account for an external pinning service. When `groupId` is provided, the current user must be able to edit that group and current group editors control the account after creation; the creator id remains audit metadata but does not grant permanent access. Group automatic pinning is deliberately post-scoped: it runs only after a local, public, unencrypted post is published and can pin the final post manifest, attached content, or both. For Pinata, set `service` to `pinata`; `secretApiKey` can be encrypted at rest by setting `isEncrypted` to `true`. Secret fields are write-only and are not returned in API responses.
      *
      * @apiUse ApiKey
      * @apiUse AuthErrors
@@ -47,6 +55,13 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      *
      * @apiInterface (./interface.ts) {IPinAccount} apiBody
      * @apiInterface (./interface.ts) {IPinAccount} apiSuccess
+     * @apiBody {Object} [options] Pin account behavior options.
+     * @apiBody {Object} [options.autoPin] Automatic pin settings. User accounts act on newly saved owner content; group accounts require the explicit `group-post` scope and target list.
+     * @apiBody {Boolean} [options.autoPin.enabled=false] Enable bounded one-shot automatic pin jobs.
+     * @apiBody {Number{1-10}} [options.autoPin.attempts=3] Maximum worker attempts for each automatic pin.
+     * @apiBody {Object} [options.autoPin.metadata] Flat Pinata metadata keyvalues added to automatic requests.
+     * @apiBody {String="user-content","group-post"} [options.autoPin.scope=user-content] Automatic pin ownership scope. Group accounts must use `group-post`.
+     * @apiBody {String[]="post-manifest","contents"} [options.autoPin.targets] Required group-post targets. `contents` includes only content rows attached to the eligible post, including attachments uploaded by another user.
      *
      * @apiExample {curl} Example usage
      *   curl -X POST http://localhost:2052/v1/user/pin/create-account \
@@ -54,11 +69,17 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      *     -H "Content-Type: application/json" \
      *     -d '{"name":"pinata","service":"pinata","apiKey":"pinata-key","secretApiKey":"pinata-secret"}'
      *
+     * @apiExample {curl} Create an automatic Pinata account
+     *   curl -X POST http://localhost:2052/v1/user/pin/create-account \
+     *     -H "Authorization: Bearer geesome-api-key" \
+     *     -H "Content-Type: application/json" \
+     *     -d '{"name":"automatic-pinata","service":"pinata","apiKey":"pinata-key","secretApiKey":"pinata-secret","isEncrypted":true,"options":{"autoPin":{"enabled":true,"attempts":3,"metadata":{"collection":"uploads"}}}}'
+     *
      * @apiExample {curl} Create a group Pinata account with encrypted secret
      *   curl -X POST http://localhost:2052/v1/user/pin/create-account \
      *     -H "Authorization: Bearer geesome-api-key" \
      *     -H "Content-Type: application/json" \
-     *     -d '{"name":"group-pinata","service":"pinata","groupId":42,"apiKey":"pinata-key","secretApiKey":"pinata-secret","isEncrypted":true}'
+     *     -d '{"name":"group-pinata","service":"pinata","groupId":42,"apiKey":"pinata-key","secretApiKey":"pinata-secret","isEncrypted":true,"options":{"autoPin":{"enabled":true,"scope":"group-post","targets":["post-manifest","contents"],"attempts":3}}}'
      */
     app.ms.api.onAuthorizedPost('user/pin/create-account', async (req, res) => {
         res.send(sanitizePinAccount(await pinModule.createAccount(req.user.id, req.body)));
@@ -68,7 +89,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @api {post} /v1/user/pin/update-account/:id Update pin account
      * @apiName UserPinUpdateAccount
      * @apiGroup UserPin
-     * @apiDescription Updates a user-owned pin account or a group-owned pin account editable by the current user. Secret updates follow the same `isEncrypted` handling as account creation. Secret fields are write-only and are not returned in API responses.
+     * @apiDescription Updates a direct user pin account or a group-scoped pin account controlled by a current group editor. Account scope is immutable: create a replacement account to move credentials into or out of a group. Secret updates follow the same `isEncrypted` handling as account creation. Secret fields are write-only and are not returned in API responses.
      *
      * @apiUse ApiKey
      * @apiUse AuthErrors
@@ -78,6 +99,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @apiParam {Number} id Pin account id.
      * @apiInterface (./interface.ts) {IPinAccount} apiBody
      * @apiInterface (./interface.ts) {IPinAccount} apiSuccess
+     * @apiBody {Object} [options] Replaces pin account behavior options. Group automation must preserve the explicit `group-post` scope and at least one supported target.
      *
      * @apiExample {curl} Rotate a Pinata secret
      *   curl -X POST http://localhost:2052/v1/user/pin/update-account/15 \
@@ -93,7 +115,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @api {post} /v1/user/pin/delete-account/:id Delete pin account
      * @apiName UserPinDeleteAccount
      * @apiGroup UserPin
-     * @apiDescription Deletes a user-owned pin account or a group-owned pin account editable by the current user. This only removes the local service credentials; it does not unpin already pinned remote content.
+     * @apiDescription Deletes a direct user pin account or a group-scoped pin account controlled by a current group editor. This only removes the local service credentials; it retains historical pin-ledger rows and does not unpin already pinned remote content.
      *
      * @apiUse ApiKey
      * @apiUse AuthErrors
@@ -114,7 +136,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @api {get} /v1/user/pin/user-accounts List user pin accounts
      * @apiName UserPinAccounts
      * @apiGroup UserPin
-     * @apiDescription Lists pin accounts owned directly by the current user.
+     * @apiDescription Lists only direct pin accounts owned by the current user. Group-scoped accounts created by this user are available through the group-account endpoint instead.
      *
      * @apiUse ApiKey
      * @apiUse AuthErrors
@@ -157,6 +179,75 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
     });
 
     /**
+     * @api {post} /v1/user/pin/account/:id/test-credentials Test pin account credentials
+     * @apiName UserPinTestAccountCredentials
+     * @apiGroup UserPin
+     * @apiDescription Tests the stored credentials through the provider's read-only authentication endpoint. The current user must own the direct account or be able to edit its group. The response never includes credentials or the provider response body. Custom endpoints fail closed until they have an explicit credential-test adapter.
+     *
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse PinErrors
+     *
+     * @apiParam {Number} id Pin account id.
+     * @apiInterface (./interface.ts) {IPinAccountCredentialTestResult} apiSuccess
+     *
+     * @apiExample {curl} Test Pinata credentials
+     *   curl -X POST http://localhost:2052/v1/user/pin/account/15/test-credentials \
+     *     -H "Authorization: Bearer geesome-api-key"
+     */
+    app.ms.api.onAuthorizedPost('user/pin/account/:id/test-credentials', async (req, res) => {
+        res.send(await pinModule.testAccountCredentials(req.user.id, req.params.id));
+    });
+
+    /**
+     * @api {get} /v1/user/pin/account/:id/health Get pin account health
+     * @apiName UserPinAccountHealth
+     * @apiGroup UserPin
+     * @apiDescription Returns bounded per-account ledger health for an owned direct account or editable group account. Confirmed, accepted, missing, and failed states remain distinct. Recent entries omit provider result JSON and credentials; error text is the bounded credential-redacted value stored by the pin module.
+     *
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse PinErrors
+     *
+     * @apiParam {Number} id Pin account id.
+     * @apiQuery {Number{1-50}} [historyLimit=10] Maximum recent ledger entries.
+     * @apiInterface (./interface.ts) {IPinAccountHealth} apiSuccess
+     *
+     * @apiExample {curl} Read account health
+     *   curl -X GET 'http://localhost:2052/v1/user/pin/account/15/health?historyLimit=20' \
+     *     -H "Authorization: Bearer geesome-api-key"
+     */
+    app.ms.api.onAuthorizedGet('user/pin/account/:id/health', async (req, res) => {
+        res.send(await pinModule.getAccountHealth(req.user.id, req.params.id, req.query));
+    });
+
+    /**
+     * @api {post} /v1/user/pin/account/:id/reconcile Reconcile pin account
+     * @apiName UserPinReconcileAccount
+     * @apiGroup UserPin
+     * @apiDescription Queues a bounded provider reconciliation for an owned direct account or editable group account and starts shared async queue processing. Supply `storageId` to retry one ledger row, including a missing or terminal-failure row; otherwise the least-recently-updated account rows are queued so repeated bounded runs advance through the ledger. This action never unpins remote content.
+     *
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse PinErrors
+     *
+     * @apiParam {Number} id Pin account id.
+     * @apiBody {String} [storageId] Retry one exact account/storage ledger row.
+     * @apiBody {Number{1-100}} [limit=20] Maximum rows to queue when `storageId` is omitted.
+     * @apiSuccess {Number} queued Number of ledger rows queued or already represented by a waiting unique job.
+     * @apiSuccess {Number} accountId Pin account id.
+     *
+     * @apiExample {curl} Retry one missing pin
+     *   curl -X POST http://localhost:2052/v1/user/pin/account/15/reconcile \
+     *     -H "Authorization: Bearer geesome-api-key" \
+     *     -H "Content-Type: application/json" \
+     *     -d '{"storageId":"bafy..."}'
+     */
+    app.ms.api.onAuthorizedPost('user/pin/account/:id/reconcile', async (req, res) => {
+        res.send(await pinModule.queueAccountReconciliation(req.user.id, req.params.id, req.body));
+    });
+
+    /**
      * @api {post} /v1/user/pin/account/:accountName/pin-content/:storageId/by-user Pin content by user account
      * @apiName UserPinContentByUser
      * @apiGroup UserPin
@@ -187,7 +278,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @api {post} /v1/user/pin/account/:accountName/pin-content/:storageId/by-group/:groupId Pin content by group account
      * @apiName UserPinContentByGroup
      * @apiGroup UserPin
-     * @apiDescription Pins existing local content through a group-owned pin account. The current user must be able to edit the group. The JSON body is forwarded to Pinata as `pinataMetadata.keyvalues`.
+     * @apiDescription Pins existing local content through a group-owned pin account. The current user must be able to edit the group. Supplying `postId` authorizes a post manifest or attached content through that exact local, public, unencrypted, published group post, including content uploaded by another user. Without `postId`, the legacy account-owner content lookup remains in effect. The JSON body is forwarded to Pinata as `pinataMetadata.keyvalues`.
      *
      * @apiUse ApiKey
      * @apiUse AuthErrors
@@ -197,6 +288,7 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
      * @apiParam {String} accountName Pin account name.
      * @apiParam {String} storageId Content storage id.
      * @apiParam {String} groupId Group id.
+     * @apiBody {Number} [postId] Local post id used to authorize the manifest or attachment target through group membership.
      * @apiBody {String|Number|Boolean} [metadataKey] Any flat metadata key forwarded to Pinata as `pinataMetadata.keyvalues`.
      * @apiInterface (../../interface.ts) {IPinOptionsInput} apiBody
      * @apiInterface (../../interface.ts) {IPinServiceResponse} apiSuccess
@@ -210,4 +302,19 @@ export default (app: IGeesomeApp, pinModule: IGeesomePinModule) => {
     app.ms.api.onAuthorizedPost('user/pin/account/:accountName/pin-content/:storageId/by-group/:groupId', async (req, res) => {
         res.send(await pinModule.pinByGroupAccount(req.user.id, req.params.groupId, req.params.accountName, req.params.storageId, req.body));
     });
+}
+
+function parsePinAccountOptions(options) {
+    if (!options) {
+        return {};
+    }
+    if (typeof options === 'object') {
+        return options;
+    }
+    try {
+        const parsedOptions = JSON.parse(options);
+        return parsedOptions && typeof parsedOptions === 'object' ? parsedOptions : {};
+    } catch (e) {
+        return {};
+    }
 }
