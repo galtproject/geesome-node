@@ -144,6 +144,21 @@ describe('image composition content persistence', function () {
 		assert.equal(retriedCreate.composite.contentManifestId, revised.composite.contentManifestId);
 	});
 
+	it('does not expose an existing catalog placement when create omits folderId', async () => {
+		const input = catalogInput();
+		const placed = await app.ms.imageComposition.createImageCompositionContent(owner.id, input);
+		assert(Number.isSafeInteger(placed.fileCatalogItemId));
+
+		const standaloneResponse = await app.ms.imageComposition.createImageCompositionContent(owner.id, {
+			...input,
+			idempotencyKey: `without-folder-${randomUUID()}`,
+			folderId: undefined,
+		});
+		assert.equal(standaloneResponse.fileCatalogItemId, undefined);
+		assert.equal(standaloneResponse.composite.contentManifestId, placed.composite.contentManifestId);
+		assert(await app.ms.fileCatalog.getFileCatalogItem(placed.fileCatalogItemId));
+	});
+
 	it('lists only matching owner catalog items with pagination before projection', async () => {
 		await app.ms.imageComposition.createImageCompositionContent(owner.id, catalogInput());
 		await app.ms.imageComposition.createImageCompositionContent(owner.id, catalogInput());

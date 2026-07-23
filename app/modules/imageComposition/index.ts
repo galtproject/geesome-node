@@ -55,7 +55,7 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
         const result = await this.createRootComposite(userId, input, operation);
         const catalogItem = input.folderId
           ? await this.ensureCatalogItem(userId, result.identity, result.composite, input.folderId)
-          : await this.getBoundCatalogItem(userId, result.identity);
+          : undefined;
         const response = await this.resolveComposite(result.composite, catalogItem);
         await this.succeedOperation(operation, result.composite, response);
         return response;
