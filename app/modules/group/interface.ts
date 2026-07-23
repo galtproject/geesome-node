@@ -58,13 +58,22 @@ export default interface IGeesomeGroupModule {
 
 	getGroupPostPath(postId);
 
-	createPost(userId, postData);
+	createPost(userId, postData, options?: {asyncDerivedState?: boolean; [key: string]: any});
 
 	createRemotePostByObject(userId, postData, options?);
 
 	updateRemotePostByObject(userId, postId, postData, options?);
 
 	updatePost(userId, postId, postData);
+
+	updatePostPure(userId, postId, postData, options?: {
+		oldPost?: IPost;
+		expectedPropertiesJson?: string | null;
+		createPropertiesConflictError?: (lockedPost: IPost) => Error;
+		[key: string]: any;
+	});
+
+	applyPostManifestUpdate(userId, post: IPost, group?, options?): Promise<IPost>;
 
 	deletePosts(userId, postIds, options?): Promise<any>;
 
@@ -108,7 +117,7 @@ export default interface IGeesomeGroupModule {
 
 	getPostContentDataWithUrl(post: IPost, baseStorageUri: string, options?: IContentDataProjectionOptions): Promise<IContentData[]>;
 
-	getGroupPosts(groupId, filters?, listParams?: IListParams): Promise<IPostListResponse>;
+	getGroupPosts(groupId, filters?, listParams?: IListParams, options?: {emitInitialCursor?: boolean}): Promise<IPostListResponse>;
 
 	getGroupPostRefs(groupId, filters?, listParams?: IListParams, options?): Promise<IPost[]>;
 

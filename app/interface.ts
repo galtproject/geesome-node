@@ -20,6 +20,7 @@ import IGeesomeDriversModule from "./modules/drivers/interface.js";
 import IGeesomeContentModule from "./modules/content/interface.js";
 import IGeesomeInviteModule from "./modules/invite/interface.js";
 import IGeesomeGroupModule from "./modules/group/interface.js";
+import IGeesomeImageCompositionModule from "./modules/imageComposition/interface.js";
 import IGeesomeApiModule from "./modules/api/interface.js";
 import {GeesomeEmitter} from "./events.js";
 import {
@@ -47,6 +48,7 @@ export interface IGeesomeApp {
     staticId: IGeesomeStaticIdModule;
     invite: IGeesomeInviteModule;
     group: IGeesomeGroupModule;
+    imageComposition: IGeesomeImageCompositionModule;
     accountStorage: IGeesomeAccountStorageModule;
     storage: IGeesomeStorageModule;
     storageSpace: IGeesomeStorageSpaceModule;

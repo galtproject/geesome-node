@@ -816,7 +816,7 @@ function getModule(app: IGeesomeApp, models) {
 			}) as IGroup;
 		}
 
-		async getGroupPosts(groupId, filters = {}, listParams?: IListParams) {
+		async getGroupPosts(groupId, filters = {}, listParams?: IListParams, options: {emitInitialCursor?: boolean} = {}) {
 			groupId = await this.checkGroupId(groupId);
 			listParams = helpers.prepareListParams(listParams, publicPostListParams);
 			if (isUndefined(filters['isDeleted'])) {
@@ -836,7 +836,9 @@ function getModule(app: IGeesomeApp, models) {
 			});
 			const postIds = pagePosts.map(post => post.id);
 			const list = await this.getHydratedPostListByIds(postIds, {groupId, includeRepostOf: true});
-			const nextCursor = helpers.getNextListCursor(cursor, pagePosts, limit);
+			const nextCursor = options.emitInitialCursor
+				? helpers.getNextCursorFromRows(pagePosts, limit)
+				: helpers.getNextListCursor(cursor, pagePosts, limit);
 
 			return {
 				list,
@@ -1095,7 +1097,7 @@ function getModule(app: IGeesomeApp, models) {
 			return uniqBy(contentsData.filter(c => c.id), 'id');
 		}
 
-		async createPost(userId, postData) {
+		async createPost(userId, postData, options: any = {}) {
 			postData = clone(postData);
 			log('createPost', postData);
 			const [, canCreate, canReply] = await Promise.all([
@@ -1170,7 +1172,7 @@ function getModule(app: IGeesomeApp, models) {
 			// static directory, and the personal-chat encryption handshake unless the row
 			// was created as an active published post.
 			if (post.status === PostStatus.Published && !post.isDeleted) {
-				post = await this.applyPostManifestUpdate(userId, post, group);
+				post = await this.applyPostManifestUpdate(userId, post, group, options);
 				log('updatePostManifest');
 
 				if (group.isEncrypted && group.type === GroupType.PersonalChat) {
@@ -1451,6 +1453,22 @@ function getModule(app: IGeesomeApp, models) {
 			};
 
 			await app.ms.database.sequelize.transaction(async (transaction) => {
+				if (!isUndefined(options.expectedPropertiesJson)) {
+					const lockedPost = await models.Post.findOne({
+						where: {id: postId},
+						transaction,
+						lock: transaction.LOCK.UPDATE,
+					});
+					if (!lockedPost) {
+						throw new Error('post_not_found');
+					}
+					if (lockedPost.propertiesJson !== options.expectedPropertiesJson) {
+						if (options.createPropertiesConflictError) {
+							throw options.createPropertiesConflictError(lockedPost);
+						}
+						throw new Error('post_properties_conflict');
+					}
+				}
 				if (isPublished && !oldPost.localId) {
 					postData.localId = await this.allocatePostLocalId({...postData, groupId: oldPost.groupId}, transaction);
 					postData.publishedAt = postData.publishedAt || oldPost.publishedAt || new Date();
@@ -1827,6 +1845,7 @@ function getModule(app: IGeesomeApp, models) {
 			[
 				'id',
 				'status',
+				'type',
 				'replyToId',
 				'repostOfId',
 				'name',

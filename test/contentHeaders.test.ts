@@ -1,10 +1,20 @@
 import assert from "assert";
 import {PassThrough, Readable} from "node:stream";
-import contentModule from "../app/modules/content/index.js";
+import contentModule, {getContentServingSecurityHeaders} from "../app/modules/content/index.js";
 import {ContentMimeType} from "../app/modules/database/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
 
 describe("content headers", function () {
+	it("sandboxes SVG documents and disables MIME sniffing for all stored content", () => {
+		assert.deepEqual(getContentServingSecurityHeaders("image/png"), {
+			"X-Content-Type-Options": "nosniff"
+		});
+		assert.deepEqual(getContentServingSecurityHeaders("image/svg+xml; charset=utf-8"), {
+			"X-Content-Type-Options": "nosniff",
+			"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+		});
+	});
+
 	function getApiStub() {
 		return {
 			onGet: () => null,
@@ -67,7 +77,43 @@ describe("content headers", function () {
 		assert.equal(headers["Content-Length"], contentSize);
 		assert.equal(headers["x-ipfs-datasize"], contentSize);
 		assert.equal(headers["Content-Type"], ContentMimeType.Text);
+		assert.equal(headers["X-Content-Type-Options"], "nosniff");
 		assert.equal(ended, true);
+	});
+
+	it("adds a restrictive CSP to stored SVG HEAD responses", async () => {
+		const headers = {};
+		const content = await contentModule({
+			checkModules: () => null,
+			ms: {
+				api: getApiStub(),
+				database: {
+					getSharedStorageMetadataByStorageId: async () => ({
+						storageId: "sticker.svg",
+						mimeType: "image/svg+xml",
+						size: 10
+					})
+				},
+				storage: {
+					getFileStat: async () => ({size: 10})
+				}
+			}
+		} as unknown as IGeesomeApp);
+
+		await content.getContentHead({} as any, {
+			setHeader: (name, value) => {
+				headers[name] = value;
+			},
+			writeHead: (status, responseHeaders) => {
+				headers["status"] = status;
+				Object.assign(headers, responseHeaders);
+			},
+			stream: {end: () => null}
+		} as any, "sticker.svg");
+
+		assert.equal(headers["status"], 200);
+		assert.equal(headers["X-Content-Type-Options"], "nosniff");
+		assert.equal(headers["Content-Security-Policy"], "default-src 'none'; style-src 'unsafe-inline'; sandbox");
 	});
 
 	it("returns 404 for allowed HEAD paths missing from storage", async () => {

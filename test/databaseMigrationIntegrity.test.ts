@@ -25,11 +25,6 @@ describe("databaseMigrationIntegrity", function () {
         permissions: [CorePermissionName.UserAll]
       });
 
-      await app.ms.group.createGroup(testUser.id, {
-        name: 'test',
-        title: 'Test'
-      });
-
       const queryInterface = app.ms.database.sequelize.getQueryInterface();
       const pinStorageObjectColumns = await queryInterface.describeTable('pinStorageObjects');
       for (const column of [
