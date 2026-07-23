@@ -12,7 +12,6 @@ export default function registerImageCompositionApi(app: IGeesomeApp, module: IG
 	 * @apiError (404) composition_content_not_found The requested original Content does not exist.
 	 * @apiError (422) composition_invalid The request or stored version-1 recipe is malformed.
 	 * @apiError (422) composition_dependency_not_found A recipe dependency is missing or inconsistent.
-	 * @apiError (422) composition_template_unknown A sticker template is unsupported.
 	 * @apiError (422) composition_version_unknown The recipe version is unsupported.
 	 * @apiError (422) composition_renderer_unknown The stored renderer version is unsupported.
 	 * @apiError (422) composition_render_limit The encoded or decoded image exceeds a render safety limit.
@@ -20,7 +19,6 @@ export default function registerImageCompositionApi(app: IGeesomeApp, module: IG
 	 * @apiError (422) composition_preview_generation_failed The mandatory baked-image preview could not be generated.
 	 * @apiError (409) composition_idempotency_conflict An idempotency identity was reused with a different request.
 	 * @apiError (409) composition_revision_conflict The expected revision is no longer current.
-	 * @apiError (500) composition_svg_generation_failed Sticker SVG generation failed.
 	 * @apiError (500) composition_storage_failed Durable storage failed.
 	 * @apiErrorExample {json} Revision conflict
 	 *   HTTP/1.1 409 Conflict
@@ -39,7 +37,9 @@ export default function registerImageCompositionApi(app: IGeesomeApp, module: IG
 	 * @apiBody {Number} [folderId] Optional owned file-catalog folder for placing the composite.
 	 * @apiBody {Object} [render] Optional bounded server render hint.
 	 * @apiBody {Number} [render.maxDimension] Maximum output width or height.
-	 * @apiBody {Object[]} stickers Complete semantic text-bubble list; may be empty.
+	 * @apiBody {Object[]} stickers Complete client-rendered SVG sticker list with normalized geometry; may be empty.
+	 * @apiBody {String} stickers.svg Self-contained, allowlisted SVG with no scripts, styles, or external resources.
+	 * @apiBody {Object} [stickers.editorData] Bounded opaque client metadata used to reconstruct editor controls.
 	 * @apiSuccess {Object} composition Resolved composite and dependencies; fileCatalogItemId is present only for catalog-placed content.
 	 * @apiExample {curl} Create content-only composition
 	 *   curl -X POST http://localhost:2052/v1/user/image-compositions -H "Authorization: Bearer geesome-api-key" -H "Content-Type: application/json" -d '{"idempotencyKey":"request-1","compositionId":"card-1","originalContentManifestId":"manifest-cid","stickers":[]}'
@@ -76,7 +76,7 @@ export default function registerImageCompositionApi(app: IGeesomeApp, module: IG
 	 * @apiParam {String} contentManifestId Current baked composite Content manifest id.
 	 * @apiBody {String} idempotencyKey Stable retry key.
 	 * @apiBody {Number} expectedRevision Optimistic concurrency revision.
-	 * @apiBody {Object[]} stickers Complete next semantic text-bubble list; may be empty.
+	 * @apiBody {Object[]} stickers Complete next client-rendered SVG sticker list with normalized geometry; may be empty.
 	 * @apiSuccess {Object} composition Resolved immutable successor and the optional unchanged fileCatalogItemId.
 	 */
 	app.ms.api.onAuthorizedPost('user/image-compositions/:contentManifestId/revisions', async (req, res) => {

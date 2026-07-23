@@ -81,7 +81,9 @@ describe('image composition content persistence', function () {
 			compositionId: `composition-${randomUUID()}`,
 			originalContentManifestId: originalContent.manifestStorageId,
 			stickers: [{
-				id: 'bubble-1', kind: 'text-bubble', template: 'speech-v1', text: 'Hello',
+				id: 'bubble-1',
+				svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><text x="1" y="5">Hello</text></svg>',
+				editorData: {kind: 'text-bubble', text: 'Hello'},
 				x: 0.1, y: 0.2, width: 0.3, height: 0.2, rotationDeg: 0, zIndex: 1,
 			}],
 			...overrides,

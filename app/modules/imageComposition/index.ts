@@ -28,7 +28,7 @@ import {
   parseImageCompositionContent,
 } from './helpers.js';
 import {bakeImageComposition} from './raster.js';
-import {generateImageCompositionStickerSvg} from './svg.js';
+import {validateAndNormalizeImageCompositionStickerSvg} from './svg.js';
 import {createImageCompositionOperationRepository, createImageCompositionRequestHash} from './operationRepository.js';
 import type IGeesomeImageCompositionModule from './interface.js';
 
@@ -304,27 +304,28 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
       const stickerContents: IContent[] = [];
       const rasterStickers = [];
       for (const sticker of input.stickers) {
-        let generated;
+        let asset;
         try {
-          generated = generateImageCompositionStickerSvg(sticker);
+          asset = validateAndNormalizeImageCompositionStickerSvg(sticker.svg);
         } catch (_error) {
-          throw new ImageCompositionApiError('composition_svg_generation_failed', 500);
+          throw new ImageCompositionApiError('composition_invalid', 422, {field: `stickers.${sticker.id}.svg`});
         }
         const oldSticker: any = oldStickers.get(sticker.id);
-        let content = oldSticker?.semanticHash === generated.semanticHash ? oldContents.get(oldSticker.contentManifestId) : null;
-        if (content && !(await this.isVerifiedStickerContent(content, generated))) content = null;
+        let content = oldSticker?.svgHash === asset.svgHash ? oldContents.get(oldSticker.contentManifestId) : null;
+        if (content && !(await this.isVerifiedStickerContent(content, asset))) content = null;
         if (!content) {
-          content = await app.ms.content.saveData(userId, generated.svg, `composition-${input.compositionId || previous.recipe.compositionId}-${sticker.id}.svg`, {
-            mimeType: generated.mimeType,
+          content = await app.ms.content.saveData(userId, asset.svg, `composition-${input.compositionId || previous.recipe.compositionId}-${sticker.id}.svg`, {
+            mimeType: asset.mimeType,
             view: ContentView.Attachment,
             driver: {raw: true},
-            properties: {source: 'image-composition-v1', semanticHash: generated.semanticHash, templateVersion: generated.templateVersion},
+            properties: {source: 'image-composition-v1', svgHash: asset.svgHash},
             skipFileCatalog: true,
           });
         }
         stickerContents.push(content);
-        rasterStickers.push({...sticker, svg: generated.svg});
-        storedStickers.push({...sticker, templateVersion: generated.templateVersion, contentManifestId: content.manifestStorageId, semanticHash: generated.semanticHash});
+        rasterStickers.push({...sticker, svg: asset.svg});
+        const {svg: _svg, ...storedSticker} = sticker;
+        storedStickers.push({...storedSticker, contentManifestId: content.manifestStorageId, svgHash: asset.svgHash});
         await this.checkpoint(operation, {
           ...operation.recovery,
           stickerContentManifestIds: stickerContents.map(savedContent => savedContent.manifestStorageId),
@@ -454,14 +455,8 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
       for (let index = 0; index < recipe.stickers.length; index += 1) {
         const sticker = recipe.stickers[index];
         const content = stickerContents[index];
-        let generated;
-        try {
-          generated = generateImageCompositionStickerSvg(sticker);
-        } catch (_error) {
-          throw new ImageCompositionApiError('composition_invalid', 422, {field: `stickers.${sticker.id}`});
-        }
-        if (content.mimeType !== 'image/svg+xml' || generated.semanticHash !== sticker.semanticHash
-          || !(await this.isVerifiedStickerContent(content, generated))) {
+        if (content.mimeType !== 'image/svg+xml'
+          || !(await this.isVerifiedStickerContent(content, {svgHash: sticker.svgHash}))) {
           throw new ImageCompositionApiError('composition_dependency_not_found', 422, {contentManifestId: sticker.contentManifestId});
         }
       }
@@ -635,11 +630,13 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
       return content;
     }
 
-    async isVerifiedStickerContent(content, generated) {
+    async isVerifiedStickerContent(content, expected) {
       if (!content || content.isDeleted || content.mimeType !== 'image/svg+xml') return false;
       try {
         const bytes = await app.ms.storage.getFileData(content.storageId);
-        return toBuffer(bytes).equals(Buffer.from(generated.svg, 'utf8'));
+        const asset = validateAndNormalizeImageCompositionStickerSvg(toBuffer(bytes).toString('utf8'));
+        return asset.svgHash === expected.svgHash
+          && (expected.svg === undefined || asset.svg === expected.svg);
       } catch (_error) {
         return false;
       }

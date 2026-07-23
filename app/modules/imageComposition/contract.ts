@@ -1,7 +1,6 @@
 export const IMAGE_COMPOSITION_CONTRACT = 'image-composition-v1';
 export const IMAGE_COMPOSITION_VERSION = 1;
 export const IMAGE_COMPOSITION_TYPE = 'image-composition';
-export const IMAGE_COMPOSITION_TEMPLATE = 'speech-v1';
 export const IMAGE_COMPOSITION_RENDERER = Object.freeze({
   name: 'geesome-image-composition',
   version: 1,
@@ -9,14 +8,13 @@ export const IMAGE_COMPOSITION_RENDERER = Object.freeze({
 
 export const IMAGE_COMPOSITION_LIMITS = Object.freeze({
   maxStickers: 64,
-  maxTextLength: 500,
-  maxTextLines: 12,
   maxExportPixels: 64_000_000,
   maxExportDimension: 16_384,
   maxDecodedBytes: 256_000_000,
   maxInputBytes: 100_000_000,
   maxStickerSvgBytes: 256_000,
   maxTotalStickerSvgBytes: 4_000_000,
+  maxStickerEditorDataBytes: 16_000,
   sharpTimeoutSeconds: 10,
 });
 
@@ -26,7 +24,6 @@ export type ImageCompositionErrorCode =
   | 'composition_not_permitted'
   | 'composition_content_not_found'
   | 'composition_content_not_permitted'
-  | 'composition_template_unknown'
   | 'composition_version_unknown'
   | 'composition_idempotency_conflict'
   | 'composition_revision_conflict'
@@ -36,7 +33,6 @@ export type ImageCompositionErrorCode =
   | 'composition_render_limit'
   | 'composition_render_failed'
   | 'composition_preview_generation_failed'
-  | 'composition_svg_generation_failed'
   | 'composition_storage_failed';
 
 export interface ImageCompositionOutput {
@@ -46,9 +42,8 @@ export interface ImageCompositionOutput {
 
 export interface ImageCompositionStickerInput {
   id: string;
-  kind: 'text-bubble';
-  template: 'speech-v1';
-  text: string;
+  svg: string;
+  editorData?: Record<string, unknown>;
   x: number;
   y: number;
   width: number;
@@ -72,10 +67,9 @@ export interface ImageCompositionUpdateInput {
   stickers: ImageCompositionStickerInput[];
 }
 
-export interface StoredImageCompositionSticker extends ImageCompositionStickerInput {
-  templateVersion: number;
+export interface StoredImageCompositionSticker extends Omit<ImageCompositionStickerInput, 'svg'> {
   contentManifestId: string;
-  semanticHash: string;
+  svgHash: string;
 }
 
 export interface StoredImageComposition {
@@ -136,10 +130,3 @@ export interface ImageCompositionCatalogSummary {
   editable: boolean;
   composite: ResolvedImageComposition['composite'];
 }
-
-export const IMAGE_COMPOSITION_SEMANTIC_HASH_FIELDS = [
-  'kind',
-  'template',
-  'templateVersion',
-  'text',
-] as const;
