@@ -203,3 +203,9 @@ not recorded as secure E2EE. The active plan requires browser/device-held privat
 keys, browser-side message and attachment encryption, opaque durable node
 storage, offline backfill, multi-device behavior, membership key rotation, and
 end-to-end tests before chat can be presented as production-secure.
+
+The IPFS chat reliability research is complete. It records that bootstrap and
+PubSub cannot guarantee delivery, recommends reciprocal peering only as a live
+connectivity aid, and defines durable encrypted event storage plus cursor
+reconciliation as the correctness boundary. Implementation remains in the active
+TODO.

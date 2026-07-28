@@ -44,4 +44,5 @@ can be used for the generated API page, this portal, and module docs.
 - [Security route inventory](./security-route-inventory.md)
 - [Database scalability review](./database-scalability-review.md)
 - [Group manifest IPLD scalability](./group-manifest-ipld-scalability.md)
+- [Reliable IPFS chat research](./ipfs-chat-reliability-research.md)
 - [Manifest examples](./manifests-example.md)
