@@ -10,7 +10,9 @@ API reference output with handwritten architecture, operations, and module notes
 - [Module docs index](./modules.md): map of modules and module-owned docs under
   `app/modules/<module>/docs/`.
 - [Agent docs map](./agent-map.md): task-to-doc routing for agents and maintainers.
-- [TODO and delivery plan](./todo.md): issue-backed implementation backlog.
+- [Active TODO](./todo.md): unfinished deterministic implementation sections.
+- [Implemented work](./implemented.md): delivered foundations and verification
+  history previously mixed into the TODO.
 
 For implementation slices, list deterministic TODO section ids with
 `npm run todo:sections`, then print the exact context for one slice with

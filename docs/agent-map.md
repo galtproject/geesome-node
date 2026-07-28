@@ -2,6 +2,16 @@
 
 Use this map after loading the repo instructions in `AGENTS.md`.
 
+## Planning And History
+
+- Read [todo.md](./todo.md) for unfinished work only.
+- Use `npm run todo:sections`, then
+  `npm run todo:context -- <section-id>` before implementing a plan section.
+- Read [implemented.md](./implemented.md) for delivered foundations and preserved
+  verification history.
+- When a section is delivered, move its durable outcome to `implemented.md`
+  instead of leaving completed implementation history in the active TODO.
+
 ## API Work
 
 - Read `AGENTS.md` for required API-doc and security-inventory upkeep.
@@ -34,6 +44,15 @@ Useful live endpoints:
   `app/modules/bluesky/docs/overview.md`.
 - For review-first/auto-import policy or remote-source filters, also read
   `app/modules/remoteContentModeration/docs/overview.md`.
+
+## Secure Chat
+
+- Treat the current node-encryption path as an insecure proof of concept, not
+  E2EE.
+- Load the `browser-first-chat-e2ee` TODO section before chat implementation.
+- Coordinate protocol/envelope changes through `geesome-libs`, browser/device
+  key handling through `geesome-ui`, and opaque storage/delivery through
+  `geesome-node`.
 
 ## Data Scale, Migrations, And Storage
 
