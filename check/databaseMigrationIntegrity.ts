@@ -258,6 +258,8 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'storageObjectReferences', columns: ['targetStorageId'], type: 'character varying'},
   {table: 'storageObjectReferences', columns: ['referenceType'], type: 'character varying'},
   {table: 'storageObjectReferences', columns: ['targetSize'], type: 'bigint'},
+  {table: 'chatConversationHeads', columns: ['lastSequence'], type: 'bigint'},
+  {table: 'chatEvents', columns: ['sequence'], type: 'bigint'},
 ];
 
 const expectedIndexes: ExpectedIndex[] = [
@@ -350,6 +352,13 @@ const expectedIndexes: ExpectedIndex[] = [
   {name: 'auto_tags_required_tag3_idx', table: 'autoTags', columns: ['requiredTag3Id']},
   {name: 'auto_tags_required_tag4_idx', table: 'autoTags', columns: ['requiredTag4Id']},
   {name: 'auto_tags_required_tag5_idx', table: 'autoTags', columns: ['requiredTag5Id']},
+  {name: 'chat_devices_user_device_unique', table: 'chatDevices', columns: ['userId', 'deviceId'], unique: true},
+  {name: 'chat_devices_key_unique', table: 'chatDevices', columns: ['keyId'], unique: true},
+  {name: 'chat_conversation_heads_conversation_unique', table: 'chatConversationHeads', columns: ['conversationId'], unique: true},
+  {name: 'chat_events_message_unique', table: 'chatEvents', columns: ['messageId'], unique: true},
+  {name: 'chat_events_conversation_sequence_unique', table: 'chatEvents', columns: ['conversationId', 'sequence'], unique: true},
+  {name: 'chat_event_recipients_event_key_unique', table: 'chatEventRecipients', columns: ['chatEventId', 'keyId'], unique: true},
+  {name: 'chat_event_receipts_event_user_unique', table: 'chatEventReceipts', columns: ['chatEventId', 'userId'], unique: true},
 ];
 
 const storageObjectMetadataColumns = [
@@ -376,6 +385,55 @@ const countChecks: CountCheck[] = [
       FROM pg_class
       WHERE relkind = 'i'
         AND relname = 'contents_user_storage_unique'
+    `,
+  },
+  {
+    name: 'chat event recipients reference existing events',
+    requirements: [
+      {table: 'chatEventRecipients', columns: ['chatEventId']},
+      {table: 'chatEvents', columns: ['id']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "chatEventRecipients" recipient
+      LEFT JOIN "chatEvents" event
+        ON event.id = recipient."chatEventId"
+      WHERE event.id IS NULL
+    `,
+  },
+  {
+    name: 'chat event receipts reference existing events',
+    requirements: [
+      {table: 'chatEventReceipts', columns: ['chatEventId']},
+      {table: 'chatEvents', columns: ['id']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "chatEventReceipts" receipt
+      LEFT JOIN "chatEvents" event
+        ON event.id = receipt."chatEventId"
+      WHERE event.id IS NULL
+    `,
+  },
+  {
+    name: 'chat conversation heads cover stored event sequences',
+    requirements: [
+      {table: 'chatConversationHeads', columns: ['conversationId', 'lastSequence']},
+      {table: 'chatEvents', columns: ['conversationId', 'sequence']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM (
+        SELECT
+          event."conversationId",
+          MAX(event.sequence) AS "maxSequence"
+        FROM "chatEvents" event
+        GROUP BY event."conversationId"
+      ) stored
+      LEFT JOIN "chatConversationHeads" head
+        ON head."conversationId" = stored."conversationId"
+      WHERE head.id IS NULL
+        OR head."lastSequence" < stored."maxSequence"
     `,
   },
   duplicateCheck('storage object storageId duplicates', 'storageObjects', ['storageId']),

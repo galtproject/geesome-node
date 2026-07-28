@@ -108,7 +108,7 @@
     "express-session-sequelize": "^2.0.0",
     "fluent-ffmpeg": "^2.1.2",
     "fs": "0.0.1-security",
-    "geesome-libs": "https://github.com/galtproject/geesome-libs#1e265ee729cb95b4d41c769292fc32787f6a4584",
+    "geesome-libs": "https://github.com/galtproject/geesome-libs#420754a66171ffaab788e7a9e552f7f665478faa",
     "keccak": "^3.0.3",
     "kubo-rpc-client": "^6.1.0",
     "lodash": "^4.18.1",

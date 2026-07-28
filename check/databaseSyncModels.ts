@@ -31,6 +31,13 @@ const moduleModelSyncers = [
     },
   },
   {
+    name: 'chat',
+    sync: async (sequelize: Sequelize, models: any) => {
+      Object.assign(models, await (await import('../app/modules/chat/models.js')).default(sequelize));
+      return models;
+    },
+  },
+  {
     name: 'invite',
     sync: async (sequelize: Sequelize, models: any) => {
       Object.assign(models, await (await import('../app/modules/invite/models.js')).default(sequelize, models));
