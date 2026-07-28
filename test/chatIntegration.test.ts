@@ -1,7 +1,13 @@
 import assert from 'node:assert';
+import {createHash} from 'node:crypto';
 import browserE2eeHelper from 'geesome-libs/src/browserE2eeHelper.js';
 import {CorePermissionName} from '../app/modules/database/interface.js';
 import type {IGeesomeApp} from '../app/interface.js';
+import {
+	chatDeliveryProtocol,
+	signChatDelivery,
+	verifyChatAcknowledgement
+} from '../app/modules/chat/transport.js';
 
 describe('chat persistence', function () {
 	this.timeout(60000);
@@ -13,6 +19,8 @@ describe('chat persistence', function () {
 	beforeEach(async () => {
 		const appConfig: any = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
+		appConfig.chatConfig.deliveryWorker = false;
+		appConfig.chatConfig.autoProcessDeliveries = false;
 		app = await (await import('../app/index.js')).default({
 			storageConfig: appConfig.storageConfig,
 			port: 7771
@@ -107,5 +115,98 @@ describe('chat persistence', function () {
 			'postgres-concurrent-conversation'
 		);
 		assert.equal(concurrentHead.lastSequence, '2');
+
+		const bobTransportPublicKey = await app.ms.accountStorage
+			.getStaticIdPublicKeyByOr(bob.storageAccountId);
+		const queuedEnvelope = await browserE2eeHelper.encryptEnvelope(
+			'queued transport secret',
+			[bobDevice.publicBundle],
+			aliceDevice,
+			{
+				messageId: 'postgres-queued-message-1',
+				conversationId: 'postgres-queued-conversation'
+			}
+		);
+		await app.ms.chat.acceptEncryptedEvent(alice.id, queuedEnvelope, {
+			recipientEndpoints: [{
+				ownerId: bob.storageAccountId,
+				publicKey: bobTransportPublicKey,
+				inboxUrl: 'https://recipient.example/v1/chat/inbox'
+			}]
+		});
+		const deliveryResult = await app.ms.chat.processDeliveryQueue({
+			deliverChatRequest: (_inboxUrl, delivery) =>
+				app.ms.chat.acceptRemoteDelivery(delivery)
+		});
+		assert.equal(deliveryResult.delivered, 1);
+		const deliveryRows = await app.ms.chat.getEventDeliveries(
+			alice.id,
+			queuedEnvelope.messageId
+		);
+		assert.equal(deliveryRows.length, 1);
+		assert.equal(deliveryRows[0].state, 'delivered');
+		assert.equal(deliveryRows[0].attempts, 1);
+		assert.ok(deliveryRows[0].acknowledgedSequence);
+
+		const remoteEnvelope = await browserE2eeHelper.encryptEnvelope(
+			'remote transport secret',
+			[bobDevice.publicBundle],
+			aliceDevice,
+			{
+				messageId: 'postgres-remote-message-1',
+				conversationId: 'postgres-remote-conversation'
+			}
+		);
+		const aliceTransportKey = await app.ms.accountStorage.getAccountPeerId(
+			alice.storageAccountId
+		);
+		const aliceTransportPublicKey = await app.ms.accountStorage
+			.getStaticIdPublicKeyByOr(alice.storageAccountId);
+		const deliveryId = `${remoteEnvelope.messageId}:${bob.storageAccountId}`;
+		const delivery = await signChatDelivery({
+			version: chatDeliveryProtocol,
+			deliveryId,
+			sentAt: new Date().toISOString(),
+			sender: {
+				ownerId: alice.storageAccountId,
+				publicKey: aliceTransportPublicKey,
+				deviceBundle: aliceDevice.publicBundle
+			},
+			recipientOwnerId: bob.storageAccountId,
+			sourceSequence: '15',
+			envelope: remoteEnvelope
+		}, {
+			ownerId: alice.storageAccountId,
+			publicKey: aliceTransportPublicKey,
+			sign: async data => Buffer.from(await aliceTransportKey.privKey.sign(data))
+		});
+		const acknowledgement = await app.ms.chat.acceptRemoteDelivery(delivery);
+		const remoteEventHash = getEnvelopeHash(remoteEnvelope);
+		await verifyChatAcknowledgement(acknowledgement, {
+			deliveryId,
+			messageId: remoteEnvelope.messageId,
+			eventHash: remoteEventHash,
+			recipientOwnerId: bob.storageAccountId,
+			publicKey: bobTransportPublicKey
+		});
+		const remoteEvents = await app.ms.chat.getEncryptedEvents(
+			bob.id,
+			remoteEnvelope.conversationId
+		);
+		assert.equal(remoteEvents.total, 1);
+		assert.equal(remoteEvents.list[0].state, 'received_remote');
+		assert.equal(remoteEvents.list[0].sourceSequence, '15');
+		assert.equal(JSON.stringify(remoteEvents.list[0]).includes('remote transport secret'), false);
 	});
 });
+
+function getEnvelopeHash(envelope): string {
+	return createHash('sha256').update([
+		envelope.version,
+		envelope.messageId,
+		envelope.conversationId,
+		envelope.sender.keyId,
+		envelope.content.ciphertext,
+		envelope.signature.signature
+	].join('\n')).digest('hex');
+}
