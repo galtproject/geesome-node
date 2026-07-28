@@ -12,6 +12,7 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 - `asyncOperation`: [overview](../app/modules/asyncOperation/docs/overview.md)
 - `autoActions`: [overview](../app/modules/autoActions/docs/overview.md)
 - `bluesky`: [overview](../app/modules/bluesky/docs/overview.md)
+- `chat`: [overview](../app/modules/chat/docs/overview.md)
 - `communicator`: [overview](../app/modules/communicator/docs/overview.md)
 - `content`: [overview](../app/modules/content/docs/overview.md)
 - `database`: [overview](../app/modules/database/docs/overview.md)
@@ -49,6 +50,7 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 | `asyncOperation` | Tracks long-running user operations and processes queued background work. | [Overview](../app/modules/asyncOperation/docs/overview.md) |
 | `autoActions` | Stores and claims scheduled module function calls. | [Overview](../app/modules/autoActions/docs/overview.md) |
 | `bluesky` | Imports, refreshes, reads local feed views, verifies user-scoped accounts, and cross-posts safe text/image posts for native Bluesky/ATProto. | [Overview](../app/modules/bluesky/docs/overview.md) |
+| `chat` | Persists browser-encrypted chat device bundles, opaque events, ordered heads, and receipts without receiving plaintext or private keys. | [Overview](../app/modules/chat/docs/overview.md) |
 | `communicator` | Provides network communication, static-id lookup/binding, and pubsub-style event hooks. | [Overview](../app/modules/communicator/docs/overview.md) |
 | `content` | Creates, serves, previews, restores, and deletes user content records. | [Overview](../app/modules/content/docs/overview.md) |
 | `database` | Owns Sequelize setup, models, permissions, API keys, sessions, and shared query helpers. | [Overview](../app/modules/database/docs/overview.md) |

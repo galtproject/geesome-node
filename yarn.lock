@@ -1411,6 +1411,18 @@
     race-signal "^2.0.0"
     uint8arrays "^5.1.0"
 
+"@hpke/common@^1.10.0":
+  version "1.10.1"
+  resolved "https://registry.npmjs.org/@hpke/common/-/common-1.10.1.tgz#11f205e5ba24d558c1bd4ac671580d95d488af18"
+  integrity sha512-moJwhmtLtuxiUzzNp1jpfBfx8yefKoO9D/RCR9dmwrnc7qjJqId1rEtQz+lSlU5cabX8daToMSx/7HayXOiaFw==
+
+"@hpke/core@^1.9.0":
+  version "1.9.0"
+  resolved "https://registry.npmjs.org/@hpke/core/-/core-1.9.0.tgz#4eced0597787f51fdb53ad515c3d47a3abc9fe3a"
+  integrity sha512-pFxWl1nNJeQCSUFs7+GAblHvXBCjn9EPN65vdKlYQil2aURaRxfGMO6vBKGqm1YHTKwiAxJQNEI70PbSowMP9Q==
+  dependencies:
+    "@hpke/common" "^1.10.0"
+
 "@img/sharp-darwin-arm64@0.33.5":
   version "0.33.5"
   resolved "https://registry.yarnpkg.com/@img/sharp-darwin-arm64/-/sharp-darwin-arm64-0.33.5.tgz#ef5b5a07862805f1e8145a377c8ba6e98813ca08"
@@ -6514,13 +6526,14 @@ functions-have-names@^1.2.2, functions-have-names@^1.2.3:
     semver "^7.5.0"
     webpack "^5.106.2"
 
-"geesome-libs@https://github.com/galtproject/geesome-libs#1e265ee729cb95b4d41c769292fc32787f6a4584":
+"geesome-libs@https://github.com/galtproject/geesome-libs#420754a66171ffaab788e7a9e552f7f665478faa":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs#1e265ee729cb95b4d41c769292fc32787f6a4584"
+  resolved "https://github.com/galtproject/geesome-libs#420754a66171ffaab788e7a9e552f7f665478faa"
   dependencies:
     "@ethersproject/hash" "^5.7.0"
     "@helia/dag-cbor" "^5.1.1"
     "@helia/unixfs" "^7.2.1"
+    "@hpke/core" "^1.9.0"
     "@types/chai" "^4.3.20"
     "@types/create-hash" "^1.2.6"
     "@types/dirty-chai" "^2.0.5"
