@@ -292,7 +292,7 @@ geesomeClient.init().then(async () => {
 ## TODO:
 
 - Complete the remaining operator-run ActivityPub/Bluesky release gates: credentialed native Bluesky writes, public staging-node inbox/outbox exchange, and external signed-ownership proof compatibility.
-- Replace the node-encryption chat proof of concept with browser-first E2EE. Private keys, plaintext messages, and plaintext attachments must stay on user devices; the node should persist and route only opaque encrypted envelopes plus delivery metadata. Use durable cursor backfill for correctness and treat PubSub/communicator events and reciprocal peering only as live-delivery accelerators.
+- Replace the node-encryption chat proof of concept with browser-first E2EE. Private keys, plaintext messages, and plaintext attachments must stay on user devices; the node should persist and route only opaque encrypted envelopes plus delivery metadata. For running, mutually reachable GeeSome/IPFS nodes, use persist-before-publish, remote acknowledgement, retry, and sequence/head reconciliation to prevent content loss; treat PubSub/communicator events and reciprocal peering only as live-delivery accelerators. Offline mailbox delivery is out of scope.
 - Finish API route ownership and public-route abuse coverage before expanding federation and secure-chat surfaces.
 - Complete static-site settings validation and generated frontend delivery while preserving the stabilized renderer.
 - Attribute reported content-serving CPU saturation across GeeSome, Kubo, PostgreSQL, nginx, media conversion, and storage I/O before changing runtime behavior.

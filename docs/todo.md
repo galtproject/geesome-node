@@ -82,27 +82,30 @@ Architecture decision:
 - Treat Fluence, libp2p PubSub, WebSocket notifications, and future direct
   browser transports as replaceable live hints. Losing every hint must delay
   delivery without losing a message.
+- Scope delivery reliability to mutually reachable, running GeeSome/IPFS nodes.
+  Do not build an offline recipient mailbox in this phase.
 - Use reciprocal Kubo peering to improve live node-to-node connectivity.
   Bootstrap peers are discovery entry points and must not be treated as durable
   relays, mailboxes, or delivery guarantees.
-- Keep PostgreSQL as the operational authorization/cursor/retry index. Consider
-  encrypted IPLD event batches or checkpoints for portable replication only
-  after the operational path is proven.
+- Keep PostgreSQL as the operational authorization, head, acknowledgement, and
+  retry index. Consider encrypted IPLD event batches or checkpoints for portable
+  replication only after the operational path is proven.
 
 Current safety boundary:
 
 - Existing chat encryption is a proof of concept because encryption and key
   handling occur on the node.
 - Chat must not be described as production-secure until browser/device crypto,
-  durable opaque delivery, and multi-device tests are complete.
+  durable opaque node-to-node delivery, and E2EE tests are complete.
 - Existing UI chat surfaces should identify the current path as experimental and
   insecure where a user could otherwise interpret it as E2EE.
 
 Delivery order:
 
 1. Freeze a transport-independent protocol for immutable encrypted events,
-   membership/key epochs, device identity, deterministic ordering, cursors,
-   acknowledgements, retention gaps, and replica receipts.
+   membership/key epochs, device identity, deterministic sequence/log heads,
+   remote persistence acknowledgements, retries, head reconciliation, and
+   authenticated GeeSome/IPFS node identity binding.
 2. Select a maintained browser-capable E2EE/device protocol. Evaluate MLS,
    Matrix's device/session model, and other reviewed implementations; do not
    promote the current Node-specific RSA envelope experiment as a custom
@@ -110,11 +113,11 @@ Delivery order:
 3. Add versioned opaque event and sync contracts to `geesome-libs`, keeping the
    cryptographic payload replaceable and independent of the transport.
 4. Make `geesome-node` idempotently persist and route opaque encrypted events,
-   public device material, cursor pages, delivery receipts, retry state, and
-   store-and-forward replicas. A send is accepted only after durable commit.
-5. Implement a durable browser outbox, retry by stable `messageId`, cursor
-   backfill, local event verification, and precise pending/accepted/replicated/
-   delivered/read states in `geesome-ui`.
+   public device material, sequence heads, remote persistence acknowledgements,
+   and retry state. Publish only after local commit/pin; acknowledge remotely
+   only after fetch, verification, and remote commit/pin.
+5. Implement stable `messageId` handling, local event verification, and precise
+   saving/accepted-local/received-remote/read states in `geesome-ui`.
 6. Implement browser/device key generation, protected local private-key storage,
    encryption/decryption, device trust, recovery, membership changes, and key
    rotation.
@@ -122,21 +125,28 @@ Delivery order:
    only encrypted bytes and opaque envelope references on the node.
 8. Add communicator notifications and reciprocal peering as latency and
    availability improvements after durable send/sync works without them.
-9. Migrate or explicitly retire the legacy server-encrypted path. Do not
+9. Add an acknowledged repair carrier: authenticated node-to-node HTTPS first
+   when bound node URLs are available, with a dedicated libp2p protocol or
+   version-pinned Kubo P2P tunnel as the P2P-only option. Do not run repair only
+   through PubSub.
+10. Migrate or explicitly retire the legacy server-encrypted path. Do not
    silently label old conversations as E2EE.
 
 Transport requirements:
 
 - Treat every live transport as optional online propagation, not durable
   storage.
-- Support store-and-forward recovery for offline recipients and additional
-  devices through per-device durable cursors.
 - Define idempotent send and deterministic dedupe by `messageId`.
-- Define ordering and conflict behavior for offline concurrent messages.
-- Reconcile on startup, reconnect, cursor-gap detection, and a bounded periodic
-  interval.
-- Define conversation replica count, retention, quota, pinning, and failure
-  policy. A successful publish must not hide failed durable storage.
+- Define deterministic sequence/log-head comparison and conflict behavior.
+- Reconcile heads after subscription, reconnect, and at a bounded periodic
+  interval while both nodes are running.
+- Authenticate the repair peer against the expected GeeSome static identity and
+  IPFS peer ID; an IP address or URL alone is insufficient.
+- Keep encrypted content pinned on the sender until the receiving node confirms
+  fetch, verification, persistence, and pinning. A successful PubSub publish
+  must not be presented as remote receipt.
+- Do not promise delivery to a stopped or persistently unreachable recipient
+  node and do not add a long-lived offline mailbox in this phase.
 - Use opaque, rotatable topic identifiers or direct streams so public topic
   names do not expose account/group names.
 - Test browser-compatible WebTransport/WebRTC/relay paths separately from the
@@ -145,22 +155,22 @@ Transport requirements:
 Verification:
 
 - Cross-package compatibility fixtures for envelope encoding and key wrapping.
-- Browser tests with two users and multiple devices where the node cannot inspect
-  plaintext.
-- Restart, offline sender/recipient, duplicate, delayed, reordered, and retry
-  scenarios.
+- Browser tests with two users where either node cannot inspect plaintext.
+- Duplicate, delayed, reordered, briefly disconnected, and retry scenarios
+  between otherwise running nodes.
 - A test that drops 100% of PubSub/communicator notifications and still
-  recovers every accepted event through cursor synchronization.
-- Node restart immediately before and after acknowledgement, browser outbox
-  restart, network partition, reciprocal-peering reconnect, and replica/storage
+  recovers every locally accepted event through sequence/head reconciliation.
+- Node restart immediately before and after acknowledgement, browser
+  resubmission after a rejected local save, brief network partition,
+  reciprocal-peering reconnect, remote fetch/pin failure, and database/storage
   failure scenarios.
 - Membership removal and key rotation proving removed devices cannot decrypt new
   messages.
 - Encrypted attachment upload/download and corruption/tamper failure tests.
 - A regression proving the node persists and returns opaque envelopes without
   possessing client private keys.
-- Operational metrics for replication lag, oldest unreplicated event, cursor
-  gaps, retries, retention failures, and peer availability.
+- Operational metrics for oldest unacknowledged event, retry count, head
+  divergence, reconciliation lag, fetch/pin failures, and peer availability.
 <!-- /todo-section -->
 
 <!-- todo-section: api-security-remaining -->

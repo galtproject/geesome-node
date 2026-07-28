@@ -201,11 +201,12 @@ TODO.
 Only the server-encryption proof of concept is implemented. It is intentionally
 not recorded as secure E2EE. The active plan requires browser/device-held private
 keys, browser-side message and attachment encryption, opaque durable node
-storage, offline backfill, multi-device behavior, membership key rotation, and
+storage, reliable delivery between running nodes, membership key rotation, and
 end-to-end tests before chat can be presented as production-secure.
 
 The IPFS chat reliability research is complete. It records that bootstrap and
 PubSub cannot guarantee delivery, recommends reciprocal peering only as a live
-connectivity aid, and defines durable encrypted event storage plus cursor
-reconciliation as the correctness boundary. Implementation remains in the active
-TODO.
+connectivity aid, and defines persist-before-publish, remote acknowledgement,
+retry, and sequence/head reconciliation as the correctness boundary. Offline
+mailbox delivery is explicitly outside this phase. Implementation remains in
+the active TODO.

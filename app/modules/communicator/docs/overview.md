@@ -24,10 +24,11 @@ The `communicator` module provides the network communication adapter for static-
 
 - Treat communicator as online propagation/discovery, not durable storage.
 - Do not depend on PubSub or Fluence event delivery for critical state
-  transitions without database-backed state, idempotent writes, and cursor
-  reconciliation.
+  transitions without database-backed state, idempotent writes, remote
+  acknowledgement, retry, and sequence/head reconciliation.
 - For chat, publish only a pointer to an already persisted opaque event. A
-  dropped communicator event must be recoverable through durable backfill.
+  dropped communicator event between running nodes must be recoverable through
+  head comparison and missing-event fetch.
 - Bootstrap peers provide discovery. Reciprocal peering can improve live
   availability, but neither is a delivery acknowledgement or retained mailbox.
 - Keep disabled-mode behavior predictable for tests, maintenance, and local-only nodes.
