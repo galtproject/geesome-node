@@ -12,11 +12,11 @@ The central question is not whether PubSub can carry a live chat event. It can.
 The question is whether a chat remains correct when a peer, browser tab, relay,
 or PubSub subscription temporarily fails at the wrong moment.
 
-Offline mailbox delivery is not a requirement. The availability assumption is
-that both GeeSome nodes and their IPFS nodes are running and become mutually
-reachable within the active chat session. A stopped recipient node is not
-promised later delivery. Temporary event loss or reconnection between running
-nodes must not lose accepted content.
+The primary availability assumption is that GeeSome nodes and their IPFS nodes
+normally remain running. Delayed node-to-node delivery is also useful: when a
+recipient node is temporarily unreachable, the sending node should persist an
+encrypted outbound queue and retry when the recipient returns. This is a
+server-side ciphertext queue, not plaintext browser storage or PubSub history.
 
 ## Executive Conclusion
 
@@ -36,6 +36,9 @@ path.
   sequence/head. The receiving node fetches, persists, and acknowledges the
   event. Missing acknowledgements trigger retry, and periodic head reconciliation
   repairs missed notifications.
+- If the recipient node is unavailable, the sender retains a persistent outbound
+  queue entry and the referenced IPFS pins until remote acknowledgement or an
+  explicit expiry/permanent failure policy applies.
 
 The practical rule is:
 
@@ -44,8 +47,8 @@ The practical rule is:
 
 With this design, running bound nodes can communicate reliably even when PubSub
 events are lost. Reliability comes from persist-before-publish,
-acknowledgement/retry, and anti-entropy reconciliation, while peering improves
-latency and availability.
+durable queued retry, acknowledgement, and anti-entropy reconciliation, while
+peering improves latency and availability.
 
 ## What IPFS PubSub Guarantees
 
@@ -101,7 +104,7 @@ Peering improves the chance and speed of live delivery. It does not replace:
 
 - persist-and-pin before publish;
 - remote acknowledgement after fetch and persistence;
-- retry with an idempotent event ID;
+- a persistent retry queue keyed by destination and idempotent event ID;
 - periodic sequence/head reconciliation;
 - content pinning until remote acknowledgement.
 
@@ -153,18 +156,18 @@ Waku separates live Relay from Store-based historical recovery. Lightpush
 acknowledges that one peer accepted a message, not that the whole network or
 recipient received it.
 
-GeeSome does not require Waku's offline store behavior here. The useful lesson
-is narrower: distinguish local persistence from acknowledgement that the remote
-node fetched and retained the content.
+The useful lessons for GeeSome are to distinguish local queue acceptance from
+remote persistence and to keep delayed delivery independent of transient Relay
+or PubSub history.
 
 ### Matrix
 
 Matrix homeservers persist room history and clients synchronize an event graph.
 Its E2EE model also treats each device as a cryptographic participant.
 
-Offline Matrix delivery is outside this reliability scope. Its useful E2EE
-lesson is that account identity alone is insufficient: browser/device key
-ownership and membership-key changes must still be explicit.
+Matrix reinforces two relevant boundaries: delayed server-to-server delivery
+must be persistent, and account identity alone is insufficient for E2EE.
+Browser/device key ownership and membership-key changes must still be explicit.
 
 ## Current GeeSome Behavior
 
@@ -224,8 +227,9 @@ private keys.
    signature, stores/pins it, and records the event idempotently.
 5. Only after remote persistence, the receiving node acknowledges the event ID
    and its latest contiguous sequence/head.
-6. The sending node retries unacknowledged pointers while the peer remains in
-   the active availability window.
+6. The sending node keeps an unacknowledged event in its persistent outbound
+   queue. It retries with exponential backoff and jitter, wakes the queue when
+   the peer reconnects, and resumes after a sender-node restart.
 7. Both running nodes periodically exchange their latest sequence/head and
    request missing event ranges. This anti-entropy pass repairs dropped PubSub
    notifications without requiring retained PubSub history.
@@ -263,8 +267,12 @@ Expose precise states:
 
 - `saving`: the sending node has not yet committed/pinned the content;
 - `accepted-local`: durably stored and pinned by the sending node;
+- `queued`: the recipient node is unavailable or has not acknowledged remote
+  persistence; automatic delivery will continue under the configured policy;
 - `received-remote`: fetched, verified, stored/pinned, and acknowledged by the
   receiving GeeSome node;
+- `delivery-failed`: retry expired or the remote node returned a permanent
+  authorization/protocol rejection;
 - `read`: optional browser-level user receipt, independent of transport
   reliability.
 
@@ -283,9 +291,52 @@ each conversation peer. The reconciliation protocol must:
 - verify every fetched CID and envelope signature before acknowledgement;
 - run after subscription, reconnect, and periodically while peers are connected.
 
-This is not an offline mailbox. If the remote node is stopped or remains
-unreachable, the message stays `accepted-local` and the UI reports that it was
-not received remotely.
+If the remote node is stopped or unreachable, the message remains `queued`.
+When the node returns, direct reconciliation and the outbound worker deliver the
+same event idempotently. The recipient browser does not need to be open: its
+GeeSome node can retain the opaque encrypted event.
+
+### Delayed outbound delivery queue
+
+The queue belongs to the durable chat delivery layer, not to the communicator.
+The communicator reports connectivity and carries attempts, but a disabled or
+restarted communicator must not erase queue state.
+
+Each queue record should include:
+
+- destination GeeSome static identity and expected IPFS peer ID;
+- conversation and event/message IDs;
+- encrypted event CID and required attachment CIDs;
+- sequence/log-head metadata;
+- state, attempt count, next-attempt time, and last categorized error;
+- lease owner and lease expiry for safe multi-process claims;
+- creation time and configurable delivery expiry.
+
+Queue behavior must:
+
+- enforce uniqueness by destination plus event/message ID;
+- pin all referenced ciphertext while queued;
+- claim work transactionally so concurrent workers do not own the same attempt;
+- use bounded exponential backoff with jitter and an immediate wake-up on
+  authenticated peer reconnection;
+- treat network and remote-capacity failures as retryable;
+- treat invalid signatures, unsupported protocol versions, and authorization
+  rejection as visible permanent failures;
+- remove or archive an item only after authenticated remote persistence
+  acknowledgement;
+- survive GeeSome and Kubo process restarts;
+- enforce per-user/conversation quotas and a configurable retry deadline;
+- transition an expired item to visible `delivery-failed` state without silently
+  deleting its encrypted event or pins. Cleanup requires an explicit
+  user/operator action or a separately documented retention policy;
+- reject new queued work when quota is exhausted rather than silently evicting
+  older undelivered messages;
+- recheck current conversation membership and key epoch before retrying. Cancel
+  an undelivered event if policy no longer permits that recipient to receive it.
+
+For a group, delivery state is per destination node. One unavailable node must
+not block acknowledgement from other nodes, and the UI should show partial
+delivery clearly.
 
 ### Content durability and pinning
 
@@ -353,8 +404,9 @@ For known GeeSome nodes:
    while connected.
 6. Provide an authenticated request/response repair channel over bound GeeSome
    HTTPS endpoints or a tested dedicated libp2p/Kubo tunnel protocol.
-7. Monitor peer connection state, oldest unacknowledged event, retry counts,
-   head divergence, fetch/pin failures, and reconciliation lag.
+7. Monitor peer connection state, queue depth/age, oldest unacknowledged event,
+   retry counts, permanent failures, head divergence, fetch/pin failures, and
+   reconciliation lag.
 8. Apply rate limits, quotas, authorization, and spam controls before accepting
    durable events.
 
@@ -371,6 +423,12 @@ The implementation is not complete until deterministic tests cover:
 - node restart immediately before and after durable acknowledgement;
 - brief network partition between otherwise running nodes followed by head
   reconciliation;
+- recipient GeeSome/IPFS node stopped, queued delivery retained, and successful
+  delivery after it restarts;
+- sender GeeSome node restarted with queued delivery resuming exactly once;
+- concurrent queue workers, expired leases, duplicate attempts, and idempotent
+  remote acceptance;
+- queue quota, expiry, permanent rejection, and membership-removal cancellation;
 - asymmetric and reciprocal peering under reconnect pressure;
 - direct, relayed, NAT-restricted, and unavailable peer paths;
 - remote fetch/pin failure followed by retry without false acknowledgement;
@@ -381,8 +439,8 @@ The implementation is not complete until deterministic tests cover:
 
 Out of scope for this phase:
 
-- delivery to a GeeSome/IPFS node that is intentionally stopped;
-- a long-lived mailbox for an unavailable recipient;
+- infinite delivery retention without quota or expiry;
+- composing/sending from a browser while its own GeeSome node is unavailable;
 - multi-device history catch-up unrelated to browser-first E2EE key ownership.
 
 ## Recommended Delivery Phases
@@ -391,15 +449,17 @@ Out of scope for this phase:
    and reconciliation contract.
 2. Implement idempotent opaque event persistence and pin-before-publish in
    `geesome-node`.
-3. Implement reciprocal acknowledgement, retry, and periodic head
-   reconciliation between running nodes.
-4. Select and integrate the reviewed browser E2EE/device protocol.
-5. Add encrypted attachments and browser key ownership.
-6. Add communicator hints and reciprocal Kubo peering without making either the
+3. Implement the acknowledged repair carrier and remote persistence receipt.
+4. Implement the persistent encrypted outbound queue, worker leases, backoff,
+   visible retry-deadline/quota policy, and restart recovery.
+5. Implement periodic head reconciliation for live and returning nodes.
+6. Select and integrate the reviewed browser E2EE/device protocol.
+7. Add encrypted attachments and browser key ownership.
+8. Add communicator hints and reciprocal Kubo peering without making either the
    correctness boundary.
-7. Add IPLD encrypted-log checkpoints if measurements show that range
+9. Add IPLD encrypted-log checkpoints if measurements show that range
    reconciliation needs them.
-8. Migrate or explicitly retire legacy server-encrypted chats.
+10. Migrate or explicitly retire legacy server-encrypted chats.
 
 ## Sources
 

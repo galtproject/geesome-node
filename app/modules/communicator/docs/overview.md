@@ -31,6 +31,9 @@ The `communicator` module provides the network communication adapter for static-
   head comparison and missing-event fetch.
 - Bootstrap peers provide discovery. Reciprocal peering can improve live
   availability, but neither is a delivery acknowledgement or retained mailbox.
+- Delayed chat delivery belongs to a persistent encrypted outbound queue in the
+  chat delivery layer. The communicator may wake or carry attempts but must not
+  own the only copy of queued state.
 - Keep disabled-mode behavior predictable for tests, maintenance, and local-only nodes.
 - Avoid exposing low-level peer/network details where product-level static IDs are enough.
 

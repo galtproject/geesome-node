@@ -207,6 +207,7 @@ end-to-end tests before chat can be presented as production-secure.
 The IPFS chat reliability research is complete. It records that bootstrap and
 PubSub cannot guarantee delivery, recommends reciprocal peering only as a live
 connectivity aid, and defines persist-before-publish, remote acknowledgement,
-retry, and sequence/head reconciliation as the correctness boundary. Offline
-mailbox delivery is explicitly outside this phase. Implementation remains in
-the active TODO.
+retry, and sequence/head reconciliation as the correctness boundary. The active
+plan also requires a persistent encrypted sender-side queue for delayed delivery
+when a recipient node is temporarily unavailable. Implementation remains in the
+active TODO.

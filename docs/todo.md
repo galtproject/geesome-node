@@ -82,8 +82,9 @@ Architecture decision:
 - Treat Fluence, libp2p PubSub, WebSocket notifications, and future direct
   browser transports as replaceable live hints. Losing every hint must delay
   delivery without losing a message.
-- Scope delivery reliability to mutually reachable, running GeeSome/IPFS nodes.
-  Do not build an offline recipient mailbox in this phase.
+- Optimize delivery for mutually reachable, running GeeSome/IPFS nodes, while
+  retaining an encrypted outbound queue when a recipient node is temporarily
+  unavailable.
 - Use reciprocal Kubo peering to improve live node-to-node connectivity.
   Bootstrap peers are discovery entry points and must not be treated as durable
   relays, mailboxes, or delivery guarantees.
@@ -114,22 +115,28 @@ Delivery order:
    cryptographic payload replaceable and independent of the transport.
 4. Make `geesome-node` idempotently persist and route opaque encrypted events,
    public device material, sequence heads, remote persistence acknowledgements,
-   and retry state. Publish only after local commit/pin; acknowledge remotely
-   only after fetch, verification, and remote commit/pin.
-5. Implement stable `messageId` handling, local event verification, and precise
-   saving/accepted-local/received-remote/read states in `geesome-ui`.
-6. Implement browser/device key generation, protected local private-key storage,
-   encryption/decryption, device trust, recovery, membership changes, and key
-   rotation.
-7. Encrypt attachments in the browser before content-addressed upload; store
-   only encrypted bytes and opaque envelope references on the node.
-8. Add communicator notifications and reciprocal peering as latency and
-   availability improvements after durable send/sync works without them.
-9. Add an acknowledged repair carrier: authenticated node-to-node HTTPS first
+   and persistent outbound retry state. Publish only after local commit/pin;
+   acknowledge remotely only after fetch, verification, and remote commit/pin.
+5. Add an acknowledged repair carrier: authenticated node-to-node HTTPS first
    when bound node URLs are available, with a dedicated libp2p protocol or
    version-pinned Kubo P2P tunnel as the P2P-only option. Do not run repair only
    through PubSub.
-10. Migrate or explicitly retire the legacy server-encrypted path. Do not
+6. Add a persistent encrypted outbound queue with transactional worker leases,
+   bounded backoff/jitter, peer-reconnect wake-up, quotas, a configurable retry
+   deadline, categorized permanent failures, membership/key-epoch rechecks, and
+   restart recovery. Keep referenced ciphertext pinned until remote
+   acknowledgement or explicit cleanup.
+7. Implement stable `messageId` handling, local event verification, and precise
+   saving/accepted-local/queued/received-remote/delivery-failed/read states in
+   `geesome-ui`.
+8. Implement browser/device key generation, protected local private-key storage,
+   encryption/decryption, device trust, recovery, membership changes, and key
+   rotation.
+9. Encrypt attachments in the browser before content-addressed upload; store
+   only encrypted bytes and opaque envelope references on the node.
+10. Add communicator notifications and reciprocal peering as latency and
+   availability improvements after durable send/sync works without them.
+11. Migrate or explicitly retire the legacy server-encrypted path. Do not
    silently label old conversations as E2EE.
 
 Transport requirements:
@@ -145,8 +152,13 @@ Transport requirements:
 - Keep encrypted content pinned on the sender until the receiving node confirms
   fetch, verification, persistence, and pinning. A successful PubSub publish
   must not be presented as remote receipt.
-- Do not promise delivery to a stopped or persistently unreachable recipient
-  node and do not add a long-lived offline mailbox in this phase.
+- Queue opaque encrypted delivery when a recipient node is unavailable and
+  resume after either node restarts. Never store plaintext or client private
+  keys in queue state.
+- Enforce configurable retry deadlines and quotas. A deadline or permanent
+  rejection stops automatic retries but must remain visible and must not
+  silently delete encrypted content or pins. Cleanup is explicit or governed by
+  a separately documented retention policy.
 - Use opaque, rotatable topic identifiers or direct streams so public topic
   names do not expose account/group names.
 - Test browser-compatible WebTransport/WebRTC/relay paths separately from the
@@ -164,13 +176,17 @@ Verification:
   resubmission after a rejected local save, brief network partition,
   reciprocal-peering reconnect, remote fetch/pin failure, and database/storage
   failure scenarios.
+- Recipient-node downtime followed by queued delivery, sender-node restart with
+  queue recovery, concurrent worker lease recovery, quota/expiry, permanent
+  rejection, and membership-removal cancellation.
 - Membership removal and key rotation proving removed devices cannot decrypt new
   messages.
 - Encrypted attachment upload/download and corruption/tamper failure tests.
 - A regression proving the node persists and returns opaque envelopes without
   possessing client private keys.
-- Operational metrics for oldest unacknowledged event, retry count, head
-  divergence, reconciliation lag, fetch/pin failures, and peer availability.
+- Operational metrics for queue depth/age, oldest unacknowledged event, retry
+  count, permanent failures, head divergence, reconciliation lag, fetch/pin
+  failures, and peer availability.
 <!-- /todo-section -->
 
 <!-- todo-section: api-security-remaining -->
