@@ -30,6 +30,14 @@ export default {
     },
     goNode: {url: process.env.STORAGE_URL || 'http://127.0.0.1:5001'}
   },
+  chatConfig: {
+    publicUrl: process.env.CHAT_PUBLIC_URL || getPublicUrlFromDomainEnv(process.env.DOMAIN),
+    deliveryWorker: process.env.CHAT_DELIVERY_WORKER === '1',
+    autoProcessDeliveries: process.env.CHAT_AUTO_PROCESS_DELIVERIES !== '0',
+    deliveryWorkerIntervalMs: process.env.CHAT_DELIVERY_WORKER_INTERVAL_MS,
+    deliveryWorkerLimit: process.env.CHAT_DELIVERY_WORKER_LIMIT,
+    deliveryClaimTtlMs: process.env.CHAT_DELIVERY_CLAIM_TTL_MS
+  },
   activityPubConfig: {
     enabled: process.env.ACTIVITYPUB_ENABLED === '1',
     publicUrl: process.env.ACTIVITYPUB_PUBLIC_URL || getPublicUrlFromDomainEnv(process.env.DOMAIN),

@@ -2,11 +2,23 @@ import assert from 'node:assert';
 import registerChatApi from '../app/modules/chat/api.js';
 
 describe('chat api', () => {
-	it('registers every chat route behind authorization', async () => {
+	it('registers public transport routes and protects user chat operations', async () => {
 		const routes = [];
 		const app: any = {
 			ms: {
 				api: {
+					onGet: (path, callback) => routes.push({
+						method: 'GET',
+						path,
+						callback,
+						authorized: false
+					}),
+					onPost: (path, callback) => routes.push({
+						method: 'POST',
+						path,
+						callback,
+						authorized: false
+					}),
 					onAuthorizedGet: (path, callback) => routes.push({method: 'GET', path, callback}),
 					onAuthorizedPost: (path, callback) => routes.push({method: 'POST', path, callback})
 				}
@@ -14,11 +26,14 @@ describe('chat api', () => {
 		};
 		const calls = [];
 		const chat: any = {
+			getPublicNodeInfo: async (...args) => record(calls, 'getPublicNodeInfo', args),
+			acceptRemoteDelivery: async (...args) => record(calls, 'acceptRemoteDelivery', args),
 			registerDevice: async (...args) => record(calls, 'registerDevice', args),
 			getOwnDevices: async (...args) => record(calls, 'getOwnDevices', args),
 			getPublicDevices: async (...args) => record(calls, 'getPublicDevices', args),
 			revokeDevice: async (...args) => record(calls, 'revokeDevice', args),
 			acceptEncryptedEvent: async (...args) => record(calls, 'acceptEncryptedEvent', args),
+			getEventDeliveries: async (...args) => record(calls, 'getEventDeliveries', args),
 			getEncryptedEvents: async (...args) => record(calls, 'getEncryptedEvents', args),
 			getConversationHead: async (...args) => record(calls, 'getConversationHead', args),
 			setEventReceipt: async (...args) => record(calls, 'setEventReceipt', args)
@@ -26,15 +41,28 @@ describe('chat api', () => {
 
 		registerChatApi(app, chat);
 		assert.deepEqual(routes.map(({method, path}) => `${method} ${path}`), [
+			'GET chat/public/node',
+			'GET chat/public/users/:ownerId/devices',
+			'POST chat/inbox',
 			'POST chat/devices',
 			'GET chat/devices',
 			'GET chat/users/:ownerId/devices',
 			'POST chat/devices/:deviceId/revoke',
 			'POST chat/events',
+			'GET chat/events/:messageId/deliveries',
 			'GET chat/conversations/:conversationId/events',
 			'GET chat/conversations/:conversationId/head',
 			'POST chat/events/:messageId/receipt'
 		]);
+		assert.deepEqual(
+			routes.filter(route => route.authorized === false)
+				.map(({method, path}) => `${method} ${path}`),
+			[
+				'GET chat/public/node',
+				'GET chat/public/users/:ownerId/devices',
+				'POST chat/inbox'
+			]
+		);
 
 		const response = {
 			send: value => value

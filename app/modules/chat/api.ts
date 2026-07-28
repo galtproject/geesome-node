@@ -3,6 +3,46 @@ import type IGeesomeChatModule from './interface.js';
 
 export default function registerChatApi(app: IGeesomeApp, chat: IGeesomeChatModule) {
 	/**
+	 * @api {get} /v1/chat/public/node Discover chat transport
+	 * @apiName DiscoverChatTransport
+	 * @apiGroup Chat
+	 * @apiDescription Returns the node's browser-E2EE delivery protocol and public device/inbox endpoints. No private key or user data is returned.
+	 * @apiSuccess {String} protocol Transport protocol version.
+	 * @apiSuccess {String} [publicUrl] Public GeeSome node URL.
+	 * @apiSuccess {String} [inboxUrl] Signed encrypted-event inbox URL.
+	 * @apiSuccess {String} [deviceDiscoveryTemplate] Public device lookup template.
+	 */
+	app.ms.api.onGet('chat/public/node', async (_req, res) => {
+		return res.send(await chat.getPublicNodeInfo());
+	});
+
+	/**
+	 * @api {get} /v1/chat/public/users/:ownerId/devices Resolve recipient devices
+	 * @apiName ResolvePublicChatDevices
+	 * @apiGroup Chat
+	 * @apiDescription Returns active self-signed browser public-key bundles for a known stable owner identity. The endpoint never returns private keys.
+	 * @apiParam {String} ownerId Stable GeeSome account identity.
+	 * @apiSuccess {Object[]} list Active signed public device bundles.
+	 */
+	app.ms.api.onGet('chat/public/users/:ownerId/devices', async (req, res) => {
+		return res.send({list: await chat.getPublicDevices(req.params.ownerId)});
+	});
+
+	/**
+	 * @api {post} /v1/chat/inbox Receive encrypted inter-node event
+	 * @apiName ReceiveEncryptedChatDelivery
+	 * @apiGroup Chat
+	 * @apiDescription Verifies the sender static-identity signature, browser device signature, encrypted envelope, destination owner, and active local recipient key before idempotently storing ciphertext. Returns a recipient-identity-signed acknowledgement.
+	 * @apiBody {Object} delivery Signed `geesome-chat-delivery-v1` payload.
+	 * @apiSuccess {String} deliveryId Stable delivery identifier.
+	 * @apiSuccess {String} acceptedSequence Recipient node sequence.
+	 * @apiSuccess {Object} signature Recipient static-identity signature.
+	 */
+	app.ms.api.onPost('chat/inbox', async (req, res) => {
+		return res.send(await chat.acceptRemoteDelivery(req.body.delivery));
+	});
+
+	/**
 	 * @api {post} /v1/chat/devices Register browser chat device
 	 * @apiName RegisterChatDevice
 	 * @apiGroup Chat
@@ -40,7 +80,7 @@ export default function registerChatApi(app: IGeesomeApp, chat: IGeesomeChatModu
 	 * @apiSuccess {Object[]} list Active signed public device bundles.
 	 */
 	app.ms.api.onAuthorizedGet('chat/users/:ownerId/devices', async (req, res) => {
-		return res.send({list: await chat.getPublicDevices(req.user.id, req.params.ownerId)});
+		return res.send({list: await chat.getPublicDevices(req.params.ownerId)});
 	});
 
 	/**
@@ -64,11 +104,32 @@ export default function registerChatApi(app: IGeesomeApp, chat: IGeesomeChatModu
 	 * @apiUse AuthErrors
 	 * @apiDescription Verifies and idempotently appends a `geesome-e2ee-v2` envelope. The node stores only opaque ciphertext and public routing metadata.
 	 * @apiBody {Object} envelope Signed encrypted envelope.
+	 * @apiBody {Object[]} [recipientEndpoints] Remote node destinations for owners represented in the encrypted envelope.
+	 * @apiBody {String} [recipientEndpoints.ownerId] Recipient stable identity.
+	 * @apiBody {String} [recipientEndpoints.publicKey] Recipient static-identity public key; it must derive `ownerId`.
+	 * @apiBody {String} [recipientEndpoints.inboxUrl] Public HTTPS GeeSome chat inbox.
 	 * @apiSuccess {Object} event Stored opaque event and assigned sequence.
 	 * @apiSuccess {Boolean} replay Whether the same message was already accepted.
 	 */
 	app.ms.api.onAuthorizedPost('chat/events', async (req, res) => {
-		return res.send(await chat.acceptEncryptedEvent(req.user.id, req.body.envelope));
+		return res.send(await chat.acceptEncryptedEvent(req.user.id, req.body.envelope, {
+			recipientEndpoints: req.body.recipientEndpoints
+		}));
+	});
+
+	/**
+	 * @api {get} /v1/chat/events/:messageId/deliveries Read encrypted-event delivery state
+	 * @apiName ReadChatEventDeliveries
+	 * @apiGroup Chat
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiParam {String} messageId Locally sent encrypted event identifier.
+	 * @apiSuccess {Object[]} list Per-recipient pending/delivered/failed state and signed acknowledgement sequences.
+	 */
+	app.ms.api.onAuthorizedGet('chat/events/:messageId/deliveries', async (req, res) => {
+		return res.send({
+			list: await chat.getEventDeliveries(req.user.id, req.params.messageId)
+		});
 	});
 
 	/**

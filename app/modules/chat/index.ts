@@ -2,26 +2,64 @@ import {createHash} from 'node:crypto';
 import {literal, Op} from 'sequelize';
 import browserE2eeHelper from 'geesome-libs/src/browserE2eeHelper.js';
 import ipfsHelper from 'geesome-libs/src/ipfsHelper.js';
+import type {IBackgroundWorker} from '../../backgroundWorker.js';
 import type {IGeesomeApp} from '../../interface.js';
 import {CorePermissionName} from '../database/interface.js';
-import IGeesomeChatModule, {ChatEventState, ChatReceiptState} from './interface.js';
+import {
+	processChatDeliveryQueue,
+	serializeChatDelivery
+} from './delivery.js';
+import IGeesomeChatModule, {
+	ChatDeliveryState,
+	ChatEventState,
+	ChatReceiptState,
+	IChatDeliveryProcessOptions,
+	IChatRecipientEndpoint
+} from './interface.js';
+import {
+	assertPublicKeyMatchesOwner,
+	chatDeliveryProtocol,
+	IChatDeliveryPayload,
+	IChatTransportSigner,
+	normalizeChatInboxUrl,
+	signChatAcknowledgement,
+	verifyChatDelivery
+} from './transport.js';
 
 const maxDeviceBundleBytes = 64 * 1024;
 const maxEnvelopeBytes = 1024 * 1024;
 const maxEventListLimit = 100;
 
-export default async function initializeChatModule(app: IGeesomeApp) {
+export default async function initializeChatModule(app: IGeesomeApp, options: any = {}) {
 	app.checkModules(['database', 'api']);
-	const models = await (await import('./models.js')).default(app.ms.database.sequelize);
-	const module = getModule(app, models);
+	const models = options.models || await (await import('./models.js')).default(
+		app.ms.database.sequelize
+	);
+	const module = getModule(app, models, options);
 	(await import('./api.js')).default(app, module);
+	module.setDeliveryWorker((await import('./cron.js')).default(app, module));
 	return module;
 }
 
-export function getModule(app: IGeesomeApp, models): IGeesomeChatModule {
+export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesomeChatModule {
 	class ChatModule implements IGeesomeChatModule {
+		deliveryWorker: IBackgroundWorker | null = null;
+		deliveryProcessPromise: Promise<any> | null = null;
+
+		setDeliveryWorker(worker: IBackgroundWorker | null) {
+			this.deliveryWorker = worker;
+		}
+
+		async stop() {
+			const worker = this.deliveryWorker;
+			this.deliveryWorker = null;
+			await worker?.stop();
+			await this.deliveryProcessPromise;
+		}
+
 		async flushDatabase() {
 			await models.ChatEventReceipt.destroy({where: {}});
+			await models.ChatDelivery.destroy({where: {}});
 			await models.ChatEventRecipient.destroy({where: {}});
 			await models.ChatEvent.destroy({where: {}});
 			await models.ChatConversationHead.destroy({where: {}});
@@ -79,14 +117,25 @@ export function getModule(app: IGeesomeApp, models): IGeesomeChatModule {
 			return devices.map(serializeDevice);
 		}
 
-		async getPublicDevices(userId: number, ownerId: string) {
-			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
+		async getPublicDevices(ownerId: string) {
 			const normalizedOwnerId = requireIdentifier(ownerId, 'owner_id_required');
 			const devices = await models.ChatDevice.findAll({
 				where: {ownerId: normalizedOwnerId, revokedAt: null},
 				order: [['createdAt', 'ASC'], ['id', 'ASC']]
 			});
 			return devices.map(device => JSON.parse(device.bundleJson));
+		}
+
+		async getPublicNodeInfo() {
+			const publicUrl = getChatPublicUrl(app);
+			return {
+				protocol: chatDeliveryProtocol,
+				publicUrl,
+				inboxUrl: publicUrl ? `${publicUrl}/v1/chat/inbox` : null,
+				deviceDiscoveryTemplate: publicUrl
+					? `${publicUrl}/v1/chat/public/users/{ownerId}/devices`
+					: null
+			};
 		}
 
 		async revokeDevice(userId: number, deviceId: string) {
@@ -103,7 +152,11 @@ export function getModule(app: IGeesomeApp, models): IGeesomeChatModule {
 			return serializeDevice(device);
 		}
 
-		async acceptEncryptedEvent(userId: number, envelope: any) {
+		async acceptEncryptedEvent(
+			userId: number,
+			envelope: any,
+			eventOptions: {recipientEndpoints?: IChatRecipientEndpoint[]} = {}
+		) {
 			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
 			assertJsonSize(envelope, maxEnvelopeBytes, 'encrypted_event_too_large');
 			assertEncryptedEnvelopeShape(envelope);
@@ -138,13 +191,28 @@ export function getModule(app: IGeesomeApp, models): IGeesomeChatModule {
 
 			const envelopeJson = JSON.stringify(envelope);
 			const eventHash = getEventHash(envelope);
+			const recipientEndpoints = await normalizeRecipientEndpoints(
+				envelope,
+				eventOptions.recipientEndpoints,
+				{allowHttp: options.allowHttp === true}
+			);
 			const existing = await models.ChatEvent.findOne({where: {messageId: envelope.messageId}});
 			if (existing) {
-				return replayExistingEvent(existing, eventHash);
+				const result = replayExistingEvent(existing, eventHash);
+				await enqueueChatDeliveries(
+					models,
+					existing,
+					recipientEndpoints,
+					new Date()
+				);
+				if (recipientEndpoints.length && shouldAutoProcessChatDeliveries(app)) {
+					this.startDeliveryQueueProcessing();
+				}
+				return result;
 			}
 
 			try {
-				return await app.ms.database.sequelize.transaction(async transaction => {
+				const result = await app.ms.database.sequelize.transaction(async transaction => {
 					const sequence = await allocateConversationSequence(
 						models,
 						envelope.conversationId,
@@ -158,6 +226,8 @@ export function getModule(app: IGeesomeApp, models): IGeesomeChatModule {
 						senderOwnerId: envelope.sender.ownerId,
 						senderDeviceId: envelope.sender.deviceId,
 						senderKeyId: envelope.sender.keyId,
+						senderBundleJson: senderDevice.bundleJson,
+						sourceSequence: sequence,
 						eventHash,
 						envelopeJson,
 						state: ChatEventState.AcceptedLocal
@@ -165,19 +235,34 @@ export function getModule(app: IGeesomeApp, models): IGeesomeChatModule {
 					const localUsersByKey = new Map(
 						localRecipientDevices.map(device => [device.keyId, device.userId])
 					);
+					const recipientOwnersByKey = new Map(
+						envelope.recipients.map(recipient => [recipient.keyId, recipient.ownerId])
+					);
 					await models.ChatEventRecipient.bulkCreate(
 						envelope.recipientKeyIds.map(keyId => ({
 							chatEventId: event.id,
 							userId: localUsersByKey.get(keyId) || null,
+							ownerId: recipientOwnersByKey.get(keyId),
 							keyId
 						})),
 						{transaction}
+					);
+					await enqueueChatDeliveries(
+						models,
+						event,
+						recipientEndpoints,
+						new Date(),
+						transaction
 					);
 					return {
 						event: serializeEvent(event),
 						replay: false
 					};
 				});
+				if (recipientEndpoints.length && shouldAutoProcessChatDeliveries(app)) {
+					this.startDeliveryQueueProcessing();
+				}
+				return result;
 			} catch (error) {
 				if (!isUniqueConstraintError(error)) {
 					throw error;
@@ -186,8 +271,138 @@ export function getModule(app: IGeesomeApp, models): IGeesomeChatModule {
 				if (!racedEvent) {
 					throw error;
 				}
-				return replayExistingEvent(racedEvent, eventHash);
+				const result = replayExistingEvent(racedEvent, eventHash);
+				await enqueueChatDeliveries(
+					models,
+					racedEvent,
+					recipientEndpoints,
+					new Date()
+				);
+				if (recipientEndpoints.length && shouldAutoProcessChatDeliveries(app)) {
+					this.startDeliveryQueueProcessing();
+				}
+				return result;
 			}
+		}
+
+		async acceptRemoteDelivery(delivery: IChatDeliveryPayload) {
+			assertJsonSize(delivery, maxEnvelopeBytes + maxDeviceBundleBytes, 'chat_delivery_too_large');
+			await verifyChatDelivery(delivery);
+			const envelope = delivery.envelope;
+			assertEncryptedEnvelopeShape(envelope);
+			assertPublicDeviceBundleShape(delivery.sender.deviceBundle);
+			if (!browserE2eeHelper.isEncryptedEnvelope(envelope)) {
+				throw chatError('encrypted_envelope_required');
+			}
+			if (
+				delivery.deliveryId !== getChatDeliveryId(
+					envelope.messageId,
+					delivery.recipientOwnerId
+				) ||
+				delivery.sender.ownerId !== envelope.sender.ownerId ||
+				delivery.sender.deviceBundle.ownerId !== envelope.sender.ownerId ||
+				delivery.sender.deviceBundle.deviceId !== envelope.sender.deviceId ||
+				delivery.sender.deviceBundle.keyId !== envelope.sender.keyId
+			) {
+				throw chatError('chat_delivery_envelope_mismatch', 403);
+			}
+			if (
+				!await browserE2eeHelper.verifyDeviceKeyBundle(delivery.sender.deviceBundle) ||
+				!await browserE2eeHelper.verifyEnvelopeSignature(
+					envelope,
+					delivery.sender.deviceBundle
+				)
+			) {
+				throw chatError('envelope_signature_invalid', 403);
+			}
+			const recipientKeyIds = envelope.recipients
+				.filter(recipient => recipient.ownerId === delivery.recipientOwnerId)
+				.map(recipient => recipient.keyId);
+			if (!recipientKeyIds.length) {
+				throw chatError('chat_delivery_recipient_missing', 403);
+			}
+			const localRecipientDevices = await models.ChatDevice.findAll({
+				where: {
+					ownerId: delivery.recipientOwnerId,
+					keyId: {[Op.in]: recipientKeyIds},
+					revokedAt: null
+				}
+			});
+			if (!localRecipientDevices.length) {
+				throw chatError('chat_delivery_recipient_device_not_found', 404);
+			}
+
+			const eventHash = getEventHash(envelope);
+			const existing = await models.ChatEvent.findOne({
+				where: {messageId: envelope.messageId}
+			});
+			const event = existing || await app.ms.database.sequelize.transaction(
+				async transaction => createRemoteChatEvent(
+					models,
+					envelope,
+					delivery,
+					localRecipientDevices,
+					eventHash,
+					transaction
+				)
+			);
+			if (existing) {
+				replayExistingEvent(existing, eventHash);
+			}
+			const head = await models.ChatConversationHead.findOne({
+				where: {conversationId: envelope.conversationId}
+			});
+			const signer = await getChatTransportSigner(app, delivery.recipientOwnerId);
+			const receivedAt = new Date();
+			return signChatAcknowledgement({
+				version: chatDeliveryProtocol,
+				deliveryId: delivery.deliveryId,
+				messageId: envelope.messageId,
+				eventHash,
+				recipientOwnerId: delivery.recipientOwnerId,
+				acceptedSequence: String(event.sequence),
+				headSequence: String(head?.lastSequence || event.sequence),
+				receivedAt: receivedAt.toISOString()
+			}, signer);
+		}
+
+		async processDeliveryQueue(processOptions: IChatDeliveryProcessOptions = {}) {
+			return processChatDeliveryQueue(models, {
+				...processOptions,
+				allowHttp: options.allowHttp === true,
+				deliverChatRequest: processOptions.deliverChatRequest ||
+					options.deliverChatRequest,
+				getSigner: ownerId => getChatTransportSigner(app, ownerId)
+			});
+		}
+
+		startDeliveryQueueProcessing() {
+			if (this.deliveryProcessPromise) {
+				return;
+			}
+			this.deliveryProcessPromise = this.processDeliveryQueue()
+				.catch(error => console.error('processChatDeliveryQueue error', error))
+				.finally(() => {
+					this.deliveryProcessPromise = null;
+				});
+		}
+
+		async getEventDeliveries(userId: number, messageId: string) {
+			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
+			const event = await models.ChatEvent.findOne({
+				where: {
+					messageId: requireIdentifier(messageId, 'message_id_required'),
+					senderUserId: userId
+				}
+			});
+			if (!event) {
+				throw chatError('event_not_found', 404);
+			}
+			const deliveries = await models.ChatDelivery.findAll({
+				where: {chatEventId: event.id},
+				order: [['id', 'ASC']]
+			});
+			return deliveries.map(serializeChatDelivery);
 		}
 
 		async getEncryptedEvents(userId: number, conversationId: string, options: any = {}) {
@@ -271,10 +486,158 @@ export function getModule(app: IGeesomeApp, models): IGeesomeChatModule {
 	return new ChatModule();
 }
 
+async function createRemoteChatEvent(
+	models,
+	envelope,
+	delivery: IChatDeliveryPayload,
+	localRecipientDevices,
+	eventHash: string,
+	transaction
+) {
+	const sequence = await allocateConversationSequence(
+		models,
+		envelope.conversationId,
+		transaction
+	);
+	const event = await models.ChatEvent.create({
+		messageId: envelope.messageId,
+		conversationId: envelope.conversationId,
+		sequence,
+		senderUserId: null,
+		senderOwnerId: envelope.sender.ownerId,
+		senderDeviceId: envelope.sender.deviceId,
+		senderKeyId: envelope.sender.keyId,
+		senderBundleJson: JSON.stringify(delivery.sender.deviceBundle),
+		sourceSequence: parseSequence(delivery.sourceSequence),
+		eventHash,
+		envelopeJson: JSON.stringify(envelope),
+		state: ChatEventState.ReceivedRemote
+	}, {transaction});
+	const localUsersByKey = new Map(
+		localRecipientDevices.map(device => [device.keyId, device.userId])
+	);
+	await models.ChatEventRecipient.bulkCreate(
+		envelope.recipients.map(recipient => ({
+			chatEventId: event.id,
+			userId: localUsersByKey.get(recipient.keyId) || null,
+			ownerId: recipient.ownerId,
+			keyId: recipient.keyId
+		})),
+		{transaction}
+	);
+	return event;
+}
+
+async function enqueueChatDeliveries(
+	models,
+	event,
+	endpoints: IChatRecipientEndpoint[],
+	now: Date,
+	transaction = undefined
+): Promise<void> {
+	for (const endpoint of endpoints) {
+		await models.ChatDelivery.findOrCreate({
+			where: {
+				chatEventId: event.id,
+				recipientOwnerId: endpoint.ownerId
+			},
+			defaults: {
+				chatEventId: event.id,
+				recipientOwnerId: endpoint.ownerId,
+				recipientPublicKey: endpoint.publicKey,
+				inboxUrl: endpoint.inboxUrl,
+				state: ChatDeliveryState.Pending,
+				attempts: 0,
+				nextAttemptAt: now
+			},
+			transaction
+		});
+	}
+}
+
+async function normalizeRecipientEndpoints(
+	envelope,
+	endpoints: IChatRecipientEndpoint[] | undefined,
+	options: {allowHttp?: boolean}
+): Promise<IChatRecipientEndpoint[]> {
+	if (endpoints === undefined) {
+		return [];
+	}
+	if (!Array.isArray(endpoints) || endpoints.length > 20) {
+		throw chatError('chat_recipient_endpoints_invalid');
+	}
+	const recipientOwnerIds = new Set(
+		envelope.recipients.map(recipient => recipient.ownerId)
+	);
+	const normalizedEndpoints: IChatRecipientEndpoint[] = [];
+	const seenOwnerIds = new Set<string>();
+	for (const endpoint of endpoints) {
+		if (!hasExactKeys(endpoint, ['inboxUrl', 'ownerId', 'publicKey'])) {
+			throw chatError('chat_recipient_endpoint_fields_invalid');
+		}
+		const ownerId = requireIdentifier(endpoint.ownerId, 'chat_recipient_owner_id_required');
+		if (!recipientOwnerIds.has(ownerId)) {
+			throw chatError('chat_recipient_endpoint_not_in_envelope');
+		}
+		if (seenOwnerIds.has(ownerId)) {
+			throw chatError('chat_recipient_endpoint_duplicate');
+		}
+		await assertPublicKeyMatchesOwner(endpoint.publicKey, ownerId);
+		seenOwnerIds.add(ownerId);
+		normalizedEndpoints.push({
+			ownerId,
+			publicKey: endpoint.publicKey,
+			inboxUrl: normalizeChatInboxUrl(endpoint.inboxUrl, options)
+		});
+	}
+	return normalizedEndpoints;
+}
+
+async function getChatTransportSigner(
+	app: IGeesomeApp,
+	ownerId: string
+): Promise<IChatTransportSigner> {
+	const peerId = await app.ms.accountStorage.getAccountPeerId(ownerId);
+	const publicKey = await app.ms.accountStorage.getStaticIdPublicKeyByOr(ownerId);
+	if (!peerId?.privKey || !publicKey) {
+		throw chatError('chat_transport_signing_identity_missing', 500);
+	}
+	await assertPublicKeyMatchesOwner(publicKey, ownerId);
+	return {
+		ownerId,
+		publicKey,
+		sign: data => peerId.privKey.sign(data).then(signature => Buffer.from(signature))
+	};
+}
+
 async function getLocalOwnerId(app: IGeesomeApp, userId: number): Promise<string> {
 	const user = await app.ms.database.getUser(userId);
 	const ownerId = user?.storageAccountId || user?.manifestStaticStorageId;
 	return requireIdentifier(ownerId, 'chat_owner_identity_missing');
+}
+
+function getChatPublicUrl(app: IGeesomeApp): string | null {
+	const rawUrl = String(app.config.chatConfig?.publicUrl || '').trim();
+	if (!rawUrl) {
+		return null;
+	}
+	try {
+		const url = new URL(rawUrl);
+		if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+			return null;
+		}
+		return `${url.protocol}//${url.host}`;
+	} catch (error) {
+		return null;
+	}
+}
+
+function shouldAutoProcessChatDeliveries(app: IGeesomeApp): boolean {
+	return app.config.chatConfig?.autoProcessDeliveries !== false;
+}
+
+function getChatDeliveryId(messageId: string, recipientOwnerId: string): string {
+	return `${messageId}:${recipientOwnerId}`;
 }
 
 async function allocateConversationSequence(models, conversationId: string, transaction): Promise<string> {
@@ -324,6 +687,8 @@ function serializeEvent(event) {
 		messageId: event.messageId,
 		conversationId: event.conversationId,
 		sequence: String(event.sequence),
+		sourceSequence: String(event.sourceSequence || event.sequence),
+		senderOwnerId: event.senderOwnerId,
 		state: event.state,
 		envelope: JSON.parse(event.envelopeJson),
 		acceptedAt: event.createdAt

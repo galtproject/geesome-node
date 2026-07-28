@@ -260,6 +260,11 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'storageObjectReferences', columns: ['targetSize'], type: 'bigint'},
   {table: 'chatConversationHeads', columns: ['lastSequence'], type: 'bigint'},
   {table: 'chatEvents', columns: ['sequence'], type: 'bigint'},
+  {table: 'chatEvents', columns: ['sourceSequence'], type: 'bigint'},
+  {table: 'chatEvents', columns: ['senderBundleJson'], type: 'text'},
+  {table: 'chatEventRecipients', columns: ['ownerId'], type: 'character varying'},
+  {table: 'chatDeliveries', columns: ['acknowledgedSequence'], type: 'bigint'},
+  {table: 'chatDeliveries', columns: ['acknowledgedHeadSequence'], type: 'bigint'},
 ];
 
 const expectedIndexes: ExpectedIndex[] = [
@@ -359,6 +364,9 @@ const expectedIndexes: ExpectedIndex[] = [
   {name: 'chat_events_conversation_sequence_unique', table: 'chatEvents', columns: ['conversationId', 'sequence'], unique: true},
   {name: 'chat_event_recipients_event_key_unique', table: 'chatEventRecipients', columns: ['chatEventId', 'keyId'], unique: true},
   {name: 'chat_event_receipts_event_user_unique', table: 'chatEventReceipts', columns: ['chatEventId', 'userId'], unique: true},
+  {name: 'chat_deliveries_event_owner_unique', table: 'chatDeliveries', columns: ['chatEventId', 'recipientOwnerId'], unique: true},
+  {name: 'chat_deliveries_due_idx', table: 'chatDeliveries', columns: ['state', 'nextAttemptAt']},
+  {name: 'chat_deliveries_claim_idx', table: 'chatDeliveries', columns: ['state', 'nextAttemptAt', 'deliveryClaimExpiresAt', 'id']},
 ];
 
 const storageObjectMetadataColumns = [
@@ -413,6 +421,46 @@ const countChecks: CountCheck[] = [
       LEFT JOIN "chatEvents" event
         ON event.id = receipt."chatEventId"
       WHERE event.id IS NULL
+    `,
+  },
+  {
+    name: 'chat deliveries reference existing events',
+    requirements: [
+      {table: 'chatDeliveries', columns: ['chatEventId']},
+      {table: 'chatEvents', columns: ['id']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "chatDeliveries" delivery
+      LEFT JOIN "chatEvents" event
+        ON event.id = delivery."chatEventId"
+      WHERE event.id IS NULL
+    `,
+  },
+  {
+    name: 'delivered chat rows contain acknowledgement state',
+    requirements: [{
+      table: 'chatDeliveries',
+      columns: [
+        'state',
+        'deliveredAt',
+        'acknowledgedSequence',
+        'acknowledgedHeadSequence',
+        'deliveryClaimedAt',
+        'deliveryClaimExpiresAt',
+      ],
+    }],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "chatDeliveries"
+      WHERE state = 'delivered'
+        AND (
+          "deliveredAt" IS NULL
+          OR "acknowledgedSequence" IS NULL
+          OR "acknowledgedHeadSequence" IS NULL
+          OR "deliveryClaimedAt" IS NOT NULL
+          OR "deliveryClaimExpiresAt" IS NOT NULL
+        )
     `,
   },
   {
