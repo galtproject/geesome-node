@@ -567,6 +567,310 @@ describe('chat persistence', function () {
 		);
 	});
 
+	it('cleans committed ciphertext only after local releases and delivery acknowledgement', async () => {
+		const aliceDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: alice.storageAccountId,
+			deviceId: 'alice-cleanup-browser'
+		});
+		const bobDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: bob.storageAccountId,
+			deviceId: 'bob-cleanup-browser'
+		});
+		await app.ms.chat.registerDevice(alice.id, aliceDevice.publicBundle);
+		await app.ms.chat.registerDevice(bob.id, bobDevice.publicBundle);
+		const attachment = await app.ms.database.addContent({
+			userId: alice.id,
+			storageType: ContentStorageType.IPFS,
+			mimeType: 'application/octet-stream',
+			storageId: testAttachmentStorageId,
+			size: 32,
+			name: 'delivery-gated-encrypted-chat-attachment'
+		} as any);
+		const envelope = await browserE2eeHelper.encryptEnvelope(
+			JSON.stringify({text: '', attachments: [{storageId: testAttachmentStorageId}]}),
+			[bobDevice.publicBundle],
+			aliceDevice,
+			{
+				messageId: 'postgres-attachment-cleanup-1',
+				conversationId: 'postgres-attachment-cleanup-conversation',
+				metadata: {attachmentStorageIds: [testAttachmentStorageId]}
+			}
+		);
+		const bobTransportPublicKey = await app.ms.accountStorage
+			.getStaticIdPublicKeyByOr(bob.storageAccountId);
+		await app.ms.chat.acceptEncryptedEvent(alice.id, envelope, {
+			recipientEndpoints: [{
+				ownerId: bob.storageAccountId,
+				publicKey: bobTransportPublicKey,
+				inboxUrl: 'https://recipient.example/v1/chat/inbox'
+			}]
+		});
+
+		await app.ms.chat.releaseEventAttachment(
+			alice.id,
+			envelope.messageId,
+			testAttachmentStorageId
+		);
+		const participantBlocked = await app.ms.chat.processAttachmentCleanup({
+			attachmentReleasedRetentionMs: 0,
+			processStorageRemoval: false
+		});
+		assert.equal(participantBlocked.releasedBlocked, 1);
+		assert.equal(
+			await app.ms.database.sequelize.models.chatEventAttachment.count(),
+			1
+		);
+
+		await app.ms.chat.releaseEventAttachment(
+			bob.id,
+			envelope.messageId,
+			testAttachmentStorageId
+		);
+		const deliveryBlocked = await app.ms.chat.processAttachmentCleanup({
+			attachmentReleasedRetentionMs: 0,
+			processStorageRemoval: false
+		});
+		assert.equal(deliveryBlocked.releasedBlocked, 1);
+		assert.equal(
+			await app.ms.database.sequelize.models.chatEventAttachment.count(),
+			1
+		);
+
+		await app.ms.database.sequelize.models.chatDelivery.update({
+			state: 'delivered',
+			deliveredAt: new Date(),
+			acknowledgedSequence: 1,
+			acknowledgedHeadSequence: 1
+		}, {
+			where: {recipientOwnerId: bob.storageAccountId}
+		});
+		const cleaned = await app.ms.chat.processAttachmentCleanup({
+			attachmentReleasedRetentionMs: 0,
+			processStorageRemoval: false
+		});
+		assert.equal(cleaned.releasedCleaned, 1);
+		assert.equal(
+			await app.ms.database.sequelize.models.chatEventAttachment.count(),
+			0
+		);
+		assert.equal(
+			(await app.ms.database.getContent(attachment.id, {includeDeleted: true}))
+				.isDeleted,
+			true
+		);
+		const retentionStates = await app.ms.database.sequelize.models
+			.chatEventAttachmentRetention.findAll({
+				attributes: ['state'],
+				order: [['id', 'ASC']]
+			});
+		assert.deepEqual(
+			retentionStates.map(retention => retention.state),
+			['cleanup_queued', 'cleanup_queued']
+		);
+		const queue = await app.ms.database.sequelize.models.userOperationQueue.findOne({
+			where: {module: 'storage-space-storage-removal'}
+		});
+		assert.ok(queue);
+		assert.equal(
+			JSON.parse(queue.inputJson).storageId,
+			testAttachmentStorageId
+		);
+		const aliceEvents = await app.ms.chat.getEncryptedEvents(
+			alice.id,
+			envelope.conversationId
+		);
+		const bobEvents = await app.ms.chat.getEncryptedEvents(
+			bob.id,
+			envelope.conversationId
+		);
+		assert.deepEqual(
+			aliceEvents.list[0].releasedAttachmentStorageIds,
+			[testAttachmentStorageId]
+		);
+		assert.deepEqual(
+			bobEvents.list[0].releasedAttachmentStorageIds,
+			[testAttachmentStorageId]
+		);
+		const replay = await app.ms.chat.releaseEventAttachment(
+			alice.id,
+			envelope.messageId,
+			testAttachmentStorageId
+		);
+		assert.equal(replay.state, 'released');
+	});
+
+	it('keeps released ciphertext until every remote recipient has a delivery row', async () => {
+		const aliceDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: alice.storageAccountId,
+			deviceId: 'alice-remote-cleanup-browser'
+		});
+		const remoteBobDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: bob.storageAccountId,
+			deviceId: 'bob-remote-cleanup-browser'
+		});
+		await app.ms.chat.registerDevice(alice.id, aliceDevice.publicBundle);
+		const attachment = await app.ms.database.addContent({
+			userId: alice.id,
+			storageType: ContentStorageType.IPFS,
+			mimeType: 'application/octet-stream',
+			storageId: testAttachmentStorageId,
+			size: 32,
+			name: 'remote-delivery-gated-chat-attachment'
+		} as any);
+		const envelope = await browserE2eeHelper.encryptEnvelope(
+			JSON.stringify({text: '', attachments: [{storageId: testAttachmentStorageId}]}),
+			[remoteBobDevice.publicBundle],
+			aliceDevice,
+			{
+				messageId: 'postgres-remote-attachment-cleanup-1',
+				conversationId: 'postgres-remote-attachment-cleanup-conversation',
+				metadata: {attachmentStorageIds: [testAttachmentStorageId]}
+			}
+		);
+		await app.ms.chat.acceptEncryptedEvent(alice.id, envelope);
+		await app.ms.chat.releaseEventAttachment(
+			alice.id,
+			envelope.messageId,
+			testAttachmentStorageId
+		);
+
+		const missingDelivery = await app.ms.chat.processAttachmentCleanup({
+			attachmentReleasedRetentionMs: 0,
+			processStorageRemoval: false
+		});
+		assert.equal(missingDelivery.releasedBlocked, 1);
+		assert.equal(
+			await app.ms.database.sequelize.models.chatEventAttachment.count(),
+			1
+		);
+
+		const bobTransportPublicKey = await app.ms.accountStorage
+			.getStaticIdPublicKeyByOr(bob.storageAccountId);
+		await app.ms.chat.acceptEncryptedEvent(alice.id, envelope, {
+			recipientEndpoints: [{
+				ownerId: bob.storageAccountId,
+				publicKey: bobTransportPublicKey,
+				inboxUrl: 'https://recipient.example/v1/chat/inbox'
+			}]
+		});
+		const pendingDelivery = await app.ms.chat.processAttachmentCleanup({
+			attachmentReleasedRetentionMs: 0,
+			processStorageRemoval: false
+		});
+		assert.equal(pendingDelivery.releasedBlocked, 1);
+
+		await app.ms.database.sequelize.models.chatDelivery.update({
+			state: 'delivered',
+			deliveredAt: new Date(),
+			acknowledgedSequence: 1,
+			acknowledgedHeadSequence: 1
+		}, {
+			where: {recipientOwnerId: bob.storageAccountId}
+		});
+		const cleaned = await app.ms.chat.processAttachmentCleanup({
+			attachmentReleasedRetentionMs: 0,
+			processStorageRemoval: false
+		});
+		assert.equal(cleaned.releasedCleaned, 1);
+		assert.equal(
+			await app.ms.database.sequelize.models.chatEventAttachment.count(),
+			0
+		);
+		assert.equal(
+			(await app.ms.database.getContent(attachment.id, {includeDeleted: true}))
+				.isDeleted,
+			true
+		);
+	});
+
+	it('keeps ciphertext content active while another event still references it', async () => {
+		const aliceDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: alice.storageAccountId,
+			deviceId: 'alice-shared-cleanup-browser'
+		});
+		const bobDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: bob.storageAccountId,
+			deviceId: 'bob-shared-cleanup-browser'
+		});
+		await app.ms.chat.registerDevice(alice.id, aliceDevice.publicBundle);
+		await app.ms.chat.registerDevice(bob.id, bobDevice.publicBundle);
+		const attachment = await app.ms.database.addContent({
+			userId: alice.id,
+			storageType: ContentStorageType.IPFS,
+			mimeType: 'application/octet-stream',
+			storageId: testAttachmentStorageId,
+			size: 32,
+			name: 'shared-event-encrypted-chat-attachment'
+		} as any);
+		const envelopes = await Promise.all([1, 2].map(index =>
+			browserE2eeHelper.encryptEnvelope(
+				JSON.stringify({
+					text: '',
+					attachments: [{storageId: testAttachmentStorageId}]
+				}),
+				[bobDevice.publicBundle],
+				aliceDevice,
+				{
+					messageId: `postgres-shared-attachment-cleanup-${index}`,
+					conversationId: 'postgres-shared-attachment-cleanup-conversation',
+					metadata: {attachmentStorageIds: [testAttachmentStorageId]}
+				}
+			)
+		));
+		for (const envelope of envelopes) {
+			await app.ms.chat.acceptEncryptedEvent(alice.id, envelope);
+		}
+		await app.ms.chat.releaseEventAttachment(
+			alice.id,
+			envelopes[0].messageId,
+			testAttachmentStorageId
+		);
+		await app.ms.chat.releaseEventAttachment(
+			bob.id,
+			envelopes[0].messageId,
+			testAttachmentStorageId
+		);
+		const firstCleanup = await app.ms.chat.processAttachmentCleanup({
+			attachmentReleasedRetentionMs: 0,
+			processStorageRemoval: false
+		});
+		assert.equal(firstCleanup.releasedCleaned, 1);
+		assert.equal(
+			await app.ms.database.sequelize.models.chatEventAttachment.count(),
+			1
+		);
+		assert.equal(
+			(await app.ms.database.getContent(attachment.id, {includeDeleted: true}))
+				.isDeleted,
+			false
+		);
+
+		await app.ms.chat.releaseEventAttachment(
+			alice.id,
+			envelopes[1].messageId,
+			testAttachmentStorageId
+		);
+		await app.ms.chat.releaseEventAttachment(
+			bob.id,
+			envelopes[1].messageId,
+			testAttachmentStorageId
+		);
+		const finalCleanup = await app.ms.chat.processAttachmentCleanup({
+			attachmentReleasedRetentionMs: 0,
+			processStorageRemoval: false
+		});
+		assert.equal(finalCleanup.releasedCleaned, 1);
+		assert.equal(
+			await app.ms.database.sequelize.models.chatEventAttachment.count(),
+			0
+		);
+		assert.equal(
+			(await app.ms.database.getContent(attachment.id, {includeDeleted: true}))
+				.isDeleted,
+			true
+		);
+	});
+
 	it('tombstones cancelled ciphertext and queues reference-safe physical cleanup', async () => {
 		const reservation = await app.ms.chat.createAttachmentUploadReservation(
 			alice.id,

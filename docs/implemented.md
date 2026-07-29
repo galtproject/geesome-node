@@ -10,7 +10,7 @@ Current unfinished work lives in [todo.md](./todo.md). Detailed design and
 operational notes remain in their dedicated documents and module-local `docs`
 directories.
 
-Last consolidated: 2026-07-29.
+Last consolidated: 2026-07-30.
 
 ## Runtime And Test Foundation
 
@@ -240,6 +240,12 @@ TODO.
   participant and overlays released ciphertext IDs on that user's encrypted
   event reads. Release does not rewrite the signed event or prematurely remove
   the shared reference needed by another participant, retry, or repair.
+- The browser exposes confirmed per-attachment release without removing the
+  signed message event. A recoverable node lifecycle waits for every distinct
+  local participant, every required signed delivery acknowledgement, and a
+  configurable retention window before tombstoning dedicated ciphertext
+  content, detaching the event reference, and delegating physical removal to the
+  shared reference-safe queue.
 - Recipient nodes recursively fetch and pin every referenced attachment
   ciphertext DAG before committing the remote event and signing its delivery
   acknowledgement. Missing or unavailable objects return a retryable service
@@ -257,6 +263,6 @@ TODO.
   sequence/head reconciliation as the correctness boundary.
 
 This is a browser-first encrypted direct-message foundation, not completion of
-production-secure chat. Browser attachment-release controls, delivery-gated
-physical retention cleanup, reviewed group membership/key rotation, and real
-two-node browser testing remain in the active TODO.
+production-secure chat. Reviewed group membership/key rotation, real two-node
+browser testing, explicit operator policy, and legacy-path retirement remain in
+the active TODO.

@@ -182,20 +182,23 @@ export default function registerChatApi(app: IGeesomeApp, chat: IGeesomeChatModu
 	);
 
 	/**
-	 * @api {post} /v1/admin/chat/attachments/cleanup Clean abandoned encrypted chat uploads
+	 * @api {post} /v1/admin/chat/attachments/cleanup Clean retained encrypted chat attachments
 	 * @apiName CleanupEncryptedChatAttachments
 	 * @apiGroup Chat
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 * @apiPermission AdminAll
 	 * @apiBody {Number} [limit=25] Maximum lifecycle rows to process, capped at 100.
+	 * @apiBody {Number} [attachmentReleasedRetentionMs=604800000] Minimum time after release before committed ciphertext becomes cleanup-eligible.
 	 * @apiSuccess {Number} processed Lifecycle rows processed.
-	 * @apiSuccess {Number} cleaned Uploads tombstoned and queued for reference-safe storage removal.
-	 * @apiSuccess {Number} blocked Uploads retained because another content reference still exists.
+	 * @apiSuccess {Number} cleaned Uploads or fully released event attachments tombstoned and queued for reference-safe storage removal.
+	 * @apiSuccess {Number} blocked Rows retained because a participant has not released or delivery is not acknowledged.
+	 * @apiSuccess {Number} releasedCleaned Fully released event attachments detached and queued for reference-safe storage removal.
+	 * @apiSuccess {Number} releasedBlocked Released event attachments retained by participant or delivery gates.
 	 * @apiSuccess {Number} reconciled Uploads repaired to attached state from an accepted event reference.
 	 * @apiSuccess {Number} pruned Expired cleanup audit rows removed.
 	 * @apiSuccess {Number} failed Rows left retryable after a cleanup failure.
-	 * @apiDescription Uses configured retention windows unless explicit operator overrides are supplied. Plaintext names, MIME types, attachment keys, and message bodies are never read.
+	 * @apiDescription Uses configured retention windows unless explicit operator overrides are supplied. Committed ciphertext is detached only after every local participant releases it and every required outbound delivery has a signed acknowledgement. Plaintext names, MIME types, attachment keys, and message bodies are never read.
 	 */
 	app.ms.api.onAuthorizedPost(
 		'admin/chat/attachments/cleanup',

@@ -1,6 +1,8 @@
 import {Op} from 'sequelize';
 import type {IGeesomeApp} from '../../interface.js';
 import {ChatAttachmentUploadState} from './attachmentLifecycle.js';
+import {cleanupReleasedChatEventAttachments} from './releasedAttachmentCleanup.js';
+import {queueChatAttachmentStorageRemoval} from './attachmentStorageRemoval.js';
 
 const defaultAbandonedRetentionMs = 7 * 24 * 60 * 60 * 1000;
 const defaultCancelledRetentionMs = 60 * 60 * 1000;
@@ -57,6 +59,22 @@ export async function cleanupChatAttachmentUploads(
 			result.failed += 1;
 		}
 	}
+	const releasedCleanup = await cleanupReleasedChatEventAttachments(
+		app,
+		models,
+		{
+			...options,
+			limit: Math.max(0, limit - result.processed)
+		}
+	);
+	result.processed += releasedCleanup.processed;
+	result.cleaned += releasedCleanup.cleaned;
+	result.blocked += releasedCleanup.blocked;
+	result.failed += releasedCleanup.failed;
+	Object.assign(result, {
+		releasedCleaned: releasedCleanup.cleaned,
+		releasedBlocked: releasedCleanup.blocked
+	});
 	return result;
 }
 
@@ -270,30 +288,6 @@ function getChatAttachmentCleanupCutoffs(now: Date, policy) {
 		claim: new Date(now.getTime() - policy.cleanupClaimTtlMs),
 		record: new Date(now.getTime() - policy.cleanupRecordRetentionMs)
 	};
-}
-
-async function queueChatAttachmentStorageRemoval(
-	app: IGeesomeApp,
-	userId: number,
-	storageId,
-	options
-) {
-	if (!storageId) {
-		return;
-	}
-	const storageSpace = app.ms['storageSpace'];
-	if (storageSpace?.queueStorageObjectRemoval) {
-		await storageSpace.queueStorageObjectRemoval(userId, null, storageId, {
-			process: options.processStorageRemoval !== false
-		});
-		return;
-	}
-	const deleteSafety = await app.ms.database.getStorageObjectDeleteSafety(storageId);
-	if (!deleteSafety.safeToRemovePhysical) {
-		return;
-	}
-	await app.ms.storage.unPin(storageId).catch(() => null);
-	await app.ms.storage.remove(storageId).catch(() => null);
 }
 
 function getDate(value): Date {

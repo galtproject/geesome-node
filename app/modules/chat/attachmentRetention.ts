@@ -3,8 +3,14 @@ import type {IGeesomeApp} from '../../interface.js';
 import {CorePermissionName} from '../database/interface.js';
 
 export enum ChatEventAttachmentRetentionState {
-	Released = 'released'
+	Released = 'released',
+	CleanupPending = 'cleanup_pending',
+	CleanupQueued = 'cleanup_queued'
 }
+
+export const chatEventAttachmentReleasedStates = Object.values(
+	ChatEventAttachmentRetentionState
+);
 
 export async function releaseChatEventAttachment(
 	app: IGeesomeApp,
@@ -36,6 +42,18 @@ export async function releaseChatEventAttachment(
 			!await canUserAccessChatEvent(models, event, userId, transaction)
 		) {
 			throw retentionError('event_not_found', 404);
+		}
+		const existingRelease = await models.ChatEventAttachmentRetention.findOne({
+			where: {
+				chatEventId: event.id,
+				storageId: normalizedStorageId,
+				userId
+			},
+			transaction,
+			lock: transaction.LOCK.UPDATE
+		});
+		if (existingRelease) {
+			return serializeChatEventAttachmentRelease(event, existingRelease);
 		}
 		const attachment = await models.ChatEventAttachment.findOne({
 			where: {
@@ -81,7 +99,7 @@ export async function getReleasedChatEventAttachments(
 		where: {
 			userId,
 			chatEventId: {[Op.in]: chatEventIds},
-			state: ChatEventAttachmentRetentionState.Released
+			state: {[Op.in]: chatEventAttachmentReleasedStates}
 		},
 		order: [['id', 'ASC']]
 	});
@@ -111,7 +129,7 @@ function serializeChatEventAttachmentRelease(event, release) {
 	return {
 		messageId: event.messageId,
 		storageId: release.storageId,
-		state: release.state,
+		state: ChatEventAttachmentRetentionState.Released,
 		releasedAt: release.releasedAt
 	};
 }
