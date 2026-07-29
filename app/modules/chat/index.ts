@@ -57,6 +57,10 @@ export default async function initializeChatModule(app: IGeesomeApp, options: an
 	const models = options.models || await (await import('./models.js')).default(
 		app.ms.database.sequelize
 	);
+	app.ms.database.registerStorageIdReferenceSource?.({
+		model: models.ChatEventAttachment,
+		columns: ['storageId']
+	});
 	const module = getModule(app, models, options);
 	(await import('./api.js')).default(app, module);
 	module.setDeliveryWorker((await import('./cron.js')).default(app, module));
@@ -84,6 +88,7 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 			await models.ChatDelivery.destroy({where: {}});
 			await models.ChatSyncJob.destroy({where: {}});
 			await models.ChatSyncState.destroy({where: {}});
+			await models.ChatEventAttachment.destroy({where: {}});
 			await models.ChatEventRecipient.destroy({where: {}});
 			await models.ChatEvent.destroy({where: {}});
 			await models.ChatConversationHead.destroy({where: {}});
@@ -207,6 +212,7 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 
 			const envelopeJson = JSON.stringify(envelope);
 			const eventHash = getEventHash(envelope);
+			const attachmentStorageIds = getAttachmentStorageIds(envelope);
 			const recipientEndpoints = await normalizeRecipientEndpoints(
 				envelope,
 				eventOptions.recipientEndpoints,
@@ -226,6 +232,11 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 				}
 				return result;
 			}
+			const attachmentContents = await getOwnedAttachmentContents(
+				app,
+				userId,
+				attachmentStorageIds
+			);
 
 			try {
 				const result = await app.ms.database.sequelize.transaction(async transaction => {
@@ -261,6 +272,14 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 							userId: localUsersByKey.get(keyId) || null,
 							ownerId: recipientOwnersByKey.get(keyId),
 							keyId
+						})),
+						{transaction}
+					);
+					await models.ChatEventAttachment.bulkCreate(
+						attachmentContents.map(content => ({
+							chatEventId: event.id,
+							contentId: content.id,
+							storageId: content.storageId
 						})),
 						{transaction}
 					);
@@ -1107,8 +1126,39 @@ function isSafeEnvelopeMetadata(metadata): boolean {
 		) {
 			return false;
 		}
+		if (
+			new Set(metadata.attachmentStorageIds).size !==
+			metadata.attachmentStorageIds.length
+		) {
+			return false;
+		}
 	}
 	return true;
+}
+
+function getAttachmentStorageIds(envelope): string[] {
+	return envelope.metadata?.attachmentStorageIds || [];
+}
+
+async function getOwnedAttachmentContents(
+	app: IGeesomeApp,
+	userId: number,
+	storageIds: string[]
+) {
+	if (!storageIds.length) {
+		return [];
+	}
+	const contents = await app.ms.database.getContentByStorageIdListAndUserId(
+		storageIds,
+		userId
+	);
+	const contentsByStorageId = new Map(
+		contents.map(content => [content.storageId, content])
+	);
+	if (storageIds.some(storageId => !contentsByStorageId.has(storageId))) {
+		throw chatError('chat_attachment_not_owned', 403);
+	}
+	return storageIds.map(storageId => contentsByStorageId.get(storageId));
 }
 
 function hasExactKeys(value, expectedKeys: string[]): boolean {

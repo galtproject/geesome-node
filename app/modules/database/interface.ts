@@ -85,6 +85,8 @@ export interface IGeesomeDatabaseModule {
 
   countStorageIdReferences(storageId, excludeContentId?, options?: IStorageIdReferenceOptions): Promise<IStorageIdReferenceCounts>;
 
+  registerStorageIdReferenceSource?(source: IStorageIdReferenceSource): void;
+
   getStorageObjectPinProvenance(storageId: string): Promise<IStorageObjectPinProvenance>;
 
   countContentReferences(contentId): Promise<IContentReferenceCounts>;
@@ -298,6 +300,11 @@ export interface IStorageIdReferenceCounts {
   derivedStorageRefs: number;
   storageObjectChildRefs: number;
   pinProvenance: IStorageObjectPinProvenance;
+}
+
+export interface IStorageIdReferenceSource {
+  model: any;
+  columns: string[];
 }
 
 export interface IStorageObjectPinProvenance {

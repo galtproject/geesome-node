@@ -67,6 +67,58 @@ describe('chat module', () => {
 		);
 	});
 
+	it('retains only attachment ciphertext owned by the authenticated sender', async () => {
+		const {chat, rows} = createChatHarness({
+			contents: [{id: 7, userId: 1, storageId: testAttachmentStorageId}]
+		});
+		const alice = await createDevice('owner-alice', 'alice-browser');
+		const bob = await createDevice('owner-bob', 'bob-browser');
+		await chat.registerDevice(1, alice.publicBundle);
+		await chat.registerDevice(2, bob.publicBundle);
+		const envelope = await createEnvelope(
+			'encrypted attachment descriptor',
+			alice,
+			bob,
+			'message-attachment',
+			{attachmentStorageIds: [testAttachmentStorageId]}
+		);
+
+		await chat.acceptEncryptedEvent(1, envelope);
+		assert.deepEqual(rows.attachments.map(row => ({
+			chatEventId: row.chatEventId,
+			contentId: row.contentId,
+			storageId: row.storageId
+		})), [{
+			chatEventId: rows.events[0].id,
+			contentId: 7,
+			storageId: testAttachmentStorageId
+		}]);
+
+		const unownedEnvelope = await createEnvelope(
+			'encrypted attachment descriptor',
+			alice,
+			bob,
+			'message-unowned-attachment',
+			{attachmentStorageIds: [testUnownedAttachmentStorageId]}
+		);
+		await assert.rejects(
+			() => chat.acceptEncryptedEvent(1, unownedEnvelope),
+			/chat_attachment_not_owned/
+		);
+		const duplicateEnvelope = await createEnvelope(
+			'encrypted duplicate attachment descriptor',
+			alice,
+			bob,
+			'message-duplicate-attachment',
+			{attachmentStorageIds: [testAttachmentStorageId, testAttachmentStorageId]}
+		);
+		await assert.rejects(
+			() => chat.acceptEncryptedEvent(1, duplicateEnvelope),
+			/encrypted_envelope_fields_invalid/
+		);
+		assert.equal(rows.events.length, 1);
+	});
+
 	it('rejects revoked sender and locally known recipient devices', async () => {
 		const {chat} = createChatHarness();
 		const alice = await createDevice('owner-alice', 'alice-browser');
@@ -143,7 +195,10 @@ async function createDevice(ownerId: string, deviceId: string) {
 	});
 }
 
-async function createEnvelope(message, sender, recipient, messageId: string) {
+const testAttachmentStorageId = 'QmYwAPJzv5CZsnAzt8auVZRnGi9iS3hBghG9V1sA9j3z2H';
+const testUnownedAttachmentStorageId = 'QmPChd2hVbrJ6i4y6XvYxQm8Y8hWgX9kL4nR7tV2cD5fEa';
+
+async function createEnvelope(message, sender, recipient, messageId: string, metadata?) {
 	return browserE2eeHelper.encryptEnvelope(
 		message,
 		[recipient.publicBundle],
@@ -151,24 +206,32 @@ async function createEnvelope(message, sender, recipient, messageId: string) {
 		{
 			messageId,
 			conversationId: 'conversation-1',
-			createdAt: '2026-07-28T00:01:00.000Z'
+			createdAt: '2026-07-28T00:01:00.000Z',
+			metadata
 		}
 	);
 }
 
-function createChatHarness() {
+function createChatHarness(options: any = {}) {
 	const rows = {
 		devices: [],
 		heads: [],
 		events: [],
+		attachments: [],
 		recipients: [],
-		receipts: []
+		receipts: [],
+		contents: options.contents || []
 	};
 	const models = createModels(rows);
 	const app: any = {
 		checkUserCan: async () => true,
 		ms: {
 			database: {
+				getContentByStorageIdListAndUserId: async (storageIds, userId) => {
+					return rows.contents.filter(content =>
+						content.userId === userId && storageIds.includes(content.storageId)
+					);
+				},
 				getUser: async userId => ({
 					id: userId,
 					storageAccountId: userId === 1 ? 'owner-alice' : 'owner-bob'
@@ -247,6 +310,10 @@ function createModels(rows) {
 		ChatEventRecipient: {
 			bulkCreate: async records => records.map(record => addRow(rows.recipients, record)),
 			destroy: async () => clearRows(rows.recipients)
+		},
+		ChatEventAttachment: {
+			bulkCreate: async records => records.map(record => addRow(rows.attachments, record)),
+			destroy: async () => clearRows(rows.attachments)
 		},
 		ChatEventReceipt: {
 			findOrCreate: async ({where, defaults}) => {

@@ -143,6 +143,30 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 		]
 	} as any);
 
+	const ChatEventAttachment = sequelize.define('chatEventAttachment', {
+		chatEventId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		contentId: {
+			type: DataTypes.INTEGER,
+			allowNull: true
+		},
+		storageId: {
+			type: DataTypes.STRING(200),
+			allowNull: false
+		}
+	} as any, {
+		indexes: [
+			{
+				name: 'chat_event_attachments_event_storage_unique',
+				fields: ['chatEventId', 'storageId'],
+				unique: true
+			},
+			{name: 'chat_event_attachments_storage_idx', fields: ['storageId', 'chatEventId']}
+		]
+	} as any);
+
 	const ChatDelivery = sequelize.define('chatDelivery', {
 		chatEventId: {
 			type: DataTypes.INTEGER,
@@ -347,6 +371,8 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 
 	ChatEvent.hasMany(ChatEventRecipient, {as: 'recipients', foreignKey: 'chatEventId'});
 	ChatEventRecipient.belongsTo(ChatEvent, {as: 'event', foreignKey: 'chatEventId'});
+	ChatEvent.hasMany(ChatEventAttachment, {as: 'attachments', foreignKey: 'chatEventId'});
+	ChatEventAttachment.belongsTo(ChatEvent, {as: 'event', foreignKey: 'chatEventId'});
 	ChatEvent.hasMany(ChatEventReceipt, {as: 'receipts', foreignKey: 'chatEventId'});
 	ChatEventReceipt.belongsTo(ChatEvent, {as: 'event', foreignKey: 'chatEventId'});
 	ChatEvent.hasMany(ChatDelivery, {as: 'deliveries', foreignKey: 'chatEventId'});
@@ -358,6 +384,7 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 	await ChatConversationHead.sync({});
 	await ChatEvent.sync({});
 	await ChatEventRecipient.sync({});
+	await ChatEventAttachment.sync({});
 	await ChatDelivery.sync({});
 	await ChatEventReceipt.sync({});
 	await ChatSyncState.sync({});
@@ -383,6 +410,7 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 		ChatConversationHead,
 		ChatEvent,
 		ChatEventRecipient,
+		ChatEventAttachment,
 		ChatDelivery,
 		ChatEventReceipt,
 		ChatSyncState,
