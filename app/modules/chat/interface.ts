@@ -75,6 +75,7 @@ export default interface IGeesomeChatModule {
 	revokeDevice(userId: number, deviceId: string): Promise<any>;
 	createAttachmentUploadReservation(userId: number, expectedBytes): Promise<any>;
 	cancelAttachmentUploadReservation(userId: number, reservationId: string): Promise<any>;
+	releaseEventAttachment(userId: number, messageId: string, storageId: string): Promise<any>;
 	processAttachmentCleanup(options?: any): Promise<any>;
 	afterContentAdding(userId: number, content, options?): Promise<any>;
 	existsContentAdding(userId: number, content, options?): Promise<any>;

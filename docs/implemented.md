@@ -236,6 +236,10 @@ TODO.
   hour and abandoned uploads for seven days, reconciles event-linked rows, and
   tombstones only unreferenced Content. Physical bytes go through the existing
   async storage-removal queue and its execution-time shared-reference checks.
+- The node records idempotent committed-attachment release intent per event
+  participant and overlays released ciphertext IDs on that user's encrypted
+  event reads. Release does not rewrite the signed event or prematurely remove
+  the shared reference needed by another participant, retry, or repair.
 - Recipient nodes recursively fetch and pin every referenced attachment
   ciphertext DAG before committing the remote event and signing its delivery
   acknowledgement. Missing or unavailable objects return a retryable service
@@ -253,6 +257,6 @@ TODO.
   sequence/head reconciliation as the correctness boundary.
 
 This is a browser-first encrypted direct-message foundation, not completion of
-production-secure chat. User-visible deletion and retention for attachments
-already committed to events, reviewed group membership/key rotation, and real
+production-secure chat. Browser attachment-release controls, delivery-gated
+physical retention cleanup, reviewed group membership/key rotation, and real
 two-node browser testing remain in the active TODO.

@@ -126,5 +126,15 @@ can run the same bounded pass explicitly through
 `POST /v1/admin/chat/attachments/cleanup`. The lifecycle reads only ciphertext
 identity and byte counts; it never receives plaintext metadata or keys.
 
+An authenticated event participant can release an attachment from their local
+history through `POST /v1/chat/events/:messageId/attachments/release`. Release
+is idempotent and stored per user. Ordered event reads return
+`releasedAttachmentStorageIds` so the client can stop rendering released
+ciphertext without modifying the signed envelope. This is a local retention
+intent, not remote retraction: the shared event attachment and storage reference
+remain until every local participant has released it and sender-side delivery
+and repair no longer depend on the ciphertext. A later bounded reconciliation
+step must enforce those gates before physical unpinning.
+
 See [Reliable IPFS Chat Research](../../../../docs/ipfs-chat-reliability-research.md)
 for the transport and delivery analysis behind these boundaries.

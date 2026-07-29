@@ -125,9 +125,13 @@ Remaining delivery order:
    Bounded cleanup expires unbound reservations, tombstones cancelled and
    abandoned uploads after explicit retention windows, reconciles event-linked
    rows, and delegates physical deletion to the reference-safe storage queue.
-   Next, define user-visible deletion and retention for attachments already
-   committed to events without exposing plaintext, original file metadata, or
-   keys to the node.
+   The node now records idempotent committed-attachment release intent per
+   participant and overlays released ciphertext IDs on that user's event reads
+   without changing the signed envelope or shared reference. Next, expose that
+   release action in the browser, then add bounded physical cleanup only after
+   every local participant released the attachment and every required outbound
+   delivery was acknowledged. Neither step may expose plaintext, original file
+   metadata, or keys to the node.
 2. Select and review the group protocol before extending pairwise envelopes.
    Define membership epochs and rotate future-message keys when members/devices
    are added, removed, replaced, or revoked. Evaluate MLS, Matrix-style

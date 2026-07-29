@@ -39,6 +39,8 @@ describe('chat api', () => {
 				record(calls, 'createAttachmentUploadReservation', args),
 			cancelAttachmentUploadReservation: async (...args) =>
 				record(calls, 'cancelAttachmentUploadReservation', args),
+			releaseEventAttachment: async (...args) =>
+				record(calls, 'releaseEventAttachment', args),
 			processAttachmentCleanup: async (...args) =>
 				record(calls, 'processAttachmentCleanup', args),
 			acceptEncryptedEvent: async (...args) => record(calls, 'acceptEncryptedEvent', args),
@@ -61,6 +63,7 @@ describe('chat api', () => {
 			'POST chat/devices/:deviceId/revoke',
 			'POST chat/attachments/reservations',
 			'POST chat/attachments/reservations/:reservationId/cancel',
+			'POST chat/events/:messageId/attachments/release',
 			'POST admin/chat/attachments/cleanup',
 			'POST chat/events',
 			'GET chat/events/:messageId/deliveries',
@@ -112,6 +115,15 @@ describe('chat api', () => {
 			user: {id: 7},
 			body: {limit: 5}
 		}, response);
+		await getRoute(
+			routes,
+			'POST',
+			'chat/events/:messageId/attachments/release'
+		).callback({
+			user: {id: 7},
+			params: {messageId: 'message-1'},
+			body: {storageId: 'ciphertext-storage-id'}
+		}, response);
 		await getRoute(routes, 'POST', 'chat/events/:messageId/receipt').callback({
 			user: {id: 7},
 			params: {messageId: 'message-1'},
@@ -138,6 +150,10 @@ describe('chat api', () => {
 			{
 				method: 'processAttachmentCleanup',
 				args: [{limit: 5}]
+			},
+			{
+				method: 'releaseEventAttachment',
+				args: [7, 'message-1', 'ciphertext-storage-id']
 			},
 			{
 				method: 'setEventReceipt',
