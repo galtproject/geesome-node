@@ -207,6 +207,12 @@ TODO.
   reads ordered sequence pages, exposes delivery/setup states, and lets users
   compare stable fingerprints, verify devices, review key changes, and distinguish
   unverified, verified, changed, and revoked devices.
+- `geesome-ui` encrypts attachment bytes before upload, sends only generic
+  ciphertext files to the node, and keeps original names, media types, IVs, and
+  content keys inside the encrypted message payload. Recipients fetch ciphertext
+  on demand, authenticate it before rendering, preview only safe raster formats,
+  and can retry failed integrity/download attempts. Text-only messages retain the
+  older UTF-8 envelope shape for rolling frontend compatibility.
 - `geesome-node` registers only public device bundles and persists only signed
   opaque envelopes plus routing, sequence, receipt, and delivery metadata.
 - Outgoing encrypted-attachment references are accepted only when every
@@ -231,6 +237,6 @@ TODO.
   sequence/head reconciliation as the correctness boundary.
 
 This is a browser-first encrypted direct-message foundation, not completion of
-production-secure chat. Browser attachment encryption and decryption UX,
-reviewed group membership/key rotation, retention/quota policy, and real
-two-node browser testing remain in the active TODO.
+production-secure chat. Attachment deletion, quota, abandoned-upload cleanup,
+and retention policy, reviewed group membership/key rotation, and real two-node
+browser testing remain in the active TODO.

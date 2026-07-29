@@ -72,9 +72,12 @@ regress repair work. The following environment variables tune the bounded worker
 
 Browser device creation, encrypted recovery/restore, revocation, and encrypted
 direct-message send/read UX and explicit device trust verification are present
-in `geesome-ui`. Remaining chat work includes browser attachment
-encryption/decryption UX, group membership and key rotation, retention/quota
-policy, and real multi-node browser e2e coverage.
+in `geesome-ui`. The browser also encrypts attachment bytes before upload, keeps
+private attachment descriptors inside the encrypted envelope, authenticates
+downloaded ciphertext before preview/download, and preserves the text-only
+envelope for rolling compatibility. Remaining chat work includes attachment
+deletion, quota, abandoned-upload cleanup, and retention policy, group membership
+and key rotation, and real multi-node browser e2e coverage.
 
 See [Reliable IPFS Chat Research](../../../../docs/ipfs-chat-reliability-research.md)
 for the transport and delivery analysis behind these boundaries.
