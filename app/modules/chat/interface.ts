@@ -1,4 +1,5 @@
 import type {IBackgroundWorker} from '../../backgroundWorker.js';
+import type {IChatPublicNodeInfoResponse} from './publicNodeInfo.js';
 
 export enum ChatEventState {
 	AcceptedLocal = 'accepted_local',
@@ -70,7 +71,7 @@ export default interface IGeesomeChatModule {
 	registerDevice(userId: number, publicBundle: any): Promise<any>;
 	getOwnDevices(userId: number, options?: {includeRevoked?: boolean}): Promise<any[]>;
 	getPublicDevices(ownerId: string): Promise<any[]>;
-	getPublicNodeInfo(): Promise<any>;
+	getPublicNodeInfo(): Promise<IChatPublicNodeInfoResponse>;
 	revokeDevice(userId: number, deviceId: string): Promise<any>;
 	acceptEncryptedEvent(
 		userId: number,
