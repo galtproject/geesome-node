@@ -2,6 +2,16 @@
 
 Use this map after loading the repo instructions in `AGENTS.md`.
 
+## Planning And History
+
+- Read [todo.md](./todo.md) for unfinished work only.
+- Use `npm run todo:sections`, then
+  `npm run todo:context -- <section-id>` before implementing a plan section.
+- Read [implemented.md](./implemented.md) for delivered foundations and preserved
+  verification history.
+- When a section is delivered, move its durable outcome to `implemented.md`
+  instead of leaving completed implementation history in the active TODO.
+
 ## API Work
 
 - Read `AGENTS.md` for required API-doc and security-inventory upkeep.
@@ -35,15 +45,20 @@ Useful live endpoints:
 - For review-first/auto-import policy or remote-source filters, also read
   `app/modules/remoteContentModeration/docs/overview.md`.
 
-## Browser-First Secure Chat
+## Secure Chat
 
-- Run `npm run todo:context -- browser-first-chat-e2ee`.
+- Treat browser-encrypted direct messages as the implemented foundation, not as
+  completion of production-secure group chat.
+- Read [Reliable IPFS Chat Research](./ipfs-chat-reliability-research.md) before
+  changing chat storage, delivery, PubSub, peering, or browser transport.
 - Read `app/modules/chat/docs/overview.md` before changing device, envelope,
   delivery, acknowledgement, or reconciliation contracts.
-- Keep browser private keys and plaintext outside `geesome-node`; node tests
-  should operate on signed opaque envelopes.
-- Treat realtime communicator/PubSub events as hints. Durable delivery, retry,
-  ordering, and missing-range repair belong to the stored chat log.
+- Load the `browser-first-chat-e2ee` TODO section before chat implementation.
+- Coordinate protocol/envelope changes through `geesome-libs`, browser/device
+  key handling through `geesome-ui`, and opaque storage/delivery through
+  `geesome-node`.
+- Keep private keys, plaintext messages, and plaintext attachments outside
+  `geesome-node`; realtime communicator/PubSub events remain optional hints.
 
 ## Data Scale, Migrations, And Storage
 

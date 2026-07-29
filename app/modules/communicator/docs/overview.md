@@ -23,7 +23,17 @@ The `communicator` module provides the network communication adapter for static-
 ## Boundaries
 
 - Treat communicator as online propagation/discovery, not durable storage.
-- Do not depend on pubsub delivery for critical state transitions without database-backed state.
+- Do not depend on PubSub or Fluence event delivery for critical state
+  transitions without database-backed state, idempotent writes, remote
+  acknowledgement, retry, and sequence/head reconciliation.
+- For chat, publish only a pointer to an already persisted opaque event. A
+  dropped communicator event between running nodes must be recoverable through
+  head comparison and missing-event fetch.
+- Bootstrap peers provide discovery. Reciprocal peering can improve live
+  availability, but neither is a delivery acknowledgement or retained mailbox.
+- Delayed chat delivery belongs to a persistent encrypted outbound queue in the
+  chat delivery layer. The communicator may wake or carry attempts but must not
+  own the only copy of queued state.
 - Keep disabled-mode behavior predictable for tests, maintenance, and local-only nodes.
 - Avoid exposing low-level peer/network details where product-level static IDs are enough.
 
@@ -31,3 +41,4 @@ The `communicator` module provides the network communication adapter for static-
 
 - [Static ID module](../../../../docs/modules.md)
 - [Account Storage module](../../../../docs/modules.md)
+- [Reliable IPFS chat research](../../../../docs/ipfs-chat-reliability-research.md)

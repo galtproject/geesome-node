@@ -48,7 +48,7 @@ GeeSome protocol created to provide communication tool between communities of pr
 
 Galt Project team is aware of many cases of censorship and blocking in different social networks. These cases forced us to develop a new decentralized protocol and node application that would allow anyone to upload any content to his personal node and to share this content with the whole world without the risk of being blocked.
 
-Using the GeeSome protocol, communities in the Galt Project should eventually be able to communicate in end-to-end encrypted chat groups, share images, video, text or any data. Chat group encryption is currently only a proof of concept; real security requires client-side encryption with user-held private keys and recipient public keys.
+Using the GeeSome protocol, communities in the Galt Project should eventually be able to communicate in end-to-end encrypted chat groups, share images, video, text or any data. Browser-encrypted direct messages now keep device private keys and plaintext outside GeeSome nodes, which store and route opaque ciphertext. Production-secure group chat still requires explicit device trust, encrypted attachments, a reviewed membership/key-rotation protocol, and real multi-node browser verification.
 
 We are sure that this tool should be used not only by the project's communities, but also by anyone who is concerned about the safety of their data, censorship and blocking in web.
 
@@ -272,7 +272,7 @@ geesomeClient.init().then(async () => {
 ```
 
 ## Current state and features:
-- Browser-first encrypted chat foundation with client-held device keys, opaque node storage, authenticated delayed inter-node delivery, and signed history repair; production group key rotation and trust/recovery UX remain
+- Browser-first encrypted direct messages with client-held device keys, opaque node storage, authenticated delayed inter-node delivery, and signed history repair; production device trust, attachments, group key rotation, and multi-node browser testing remain
 - Public channels and posts
 - Streamable media api(video and audio)
 - Basic file manager
@@ -290,20 +290,20 @@ geesomeClient.init().then(async () => {
 - Auto-backup social networks channels(Telegram)
 
 ## TODO:
-- Stabilize content serving, upload limits, client-disconnect stream cleanup, high-CPU paths, and background-worker database connection pressure reported in operational/test evidence. Opt-in runtime diagnostics correlate process CPU/event-loop pressure with bounded API/gateway request counters, while dedicated database diagnostics report scalar Sequelize pool gauges and aggregate PostgreSQL connection states without per-query logging.
-- API key permissions and expiration are enforced; keep extending scoped service-token tests as new integrations land.
-- Run a focused security review of API authorization and encryption boundaries before expanding integrations and production E2EE.
-- Keep shared package versions aligned across `geesome-node`, `geesome-libs`, and `geesome-ui`, while treating Vue/ethers/mime major-line differences as separate migrations.
-- Improve static-site generation options, favicon handling, and frontend build delivery by IPFS.
-- Complete browser-first E2EE chat with automatic bounded history reconciliation, device trust/recovery, encrypted attachments, real multi-node e2e tests, and a reviewed group membership/key-rotation protocol. The node already stores only signed opaque envelopes and supports authenticated delayed delivery plus signed missing-range repair.
-- Integrate ActivityPub/Fediverse so GeeSome groups and posts can federate with compatible servers; the current MVP includes discovery, signed inbox/outbox exchange, queued delivery, moderation-gated remote import, source feeds and migration, canonical rich text, native Bluesky import/cross-post/account flows, and simplified user/admin UI. Deterministic and public live-read interoperability checks cover Mastodon, Bridgy Fed, native ATProto, and independent Fedify CLI parsing. Credentialed Bluesky writes and full public staging-node federation exchange remain operator release gates because they require disposable accounts and a reachable node; see the [live interoperability runbook](./app/modules/activityPub/docs/live-interoperability.md).
-- Expand group views toward thread/feed use cases while preserving existing post/group APIs.
-- Improve social backup/import workflows for Telegram and Twitter-compatible sources.
-- Keep the completed large-group/database scalability baseline healthy with measured migrations, cursor/page-scoped reads, generated-output batching, migration-integrity verification, conservative content tombstone restore/purge routes, and canonical storage-object identity seeded by real producers such as GeeSome content manifests.
-- Maintain the completed storage space analyzer and restored-database reports for file-catalog and group usage, with drilldowns into largest files, file types, duplicate/shared storage IDs, preview overhead, safe cleanup blockers, queued original/preview physical storage cleanup with retention/history, deterministic availability signals, bounded on-demand IPFS provider/stat inspection, and a separate IPFS popularity/availability tab for tuning from production observations.
-- Keep protocol-scale work such as local IPNS accounts, PubSub modules, remote backup, Matrix/Filecoin integrations, and mobile/browser apps as separate epics.
 
-See [docs/todo.md](./docs/todo.md) for the issue-backed backlog snapshot and fast delivery plan.
+- Complete the remaining operator-run ActivityPub/Bluesky release gates: credentialed native Bluesky writes, public staging-node inbox/outbox exchange, and external signed-ownership proof compatibility.
+- Complete browser-first secure chat with explicit device trust, encrypted attachments, a reviewed group membership/key-rotation protocol, retention quotas, and real multi-node browser tests. Private keys and plaintext remain on user devices; nodes persist and route only opaque encrypted envelopes and delivery metadata.
+- Finish API route ownership and public-route abuse coverage before expanding federation and secure-chat surfaces.
+- Complete static-site settings validation and generated frontend delivery while preserving the stabilized renderer.
+- Attribute reported content-serving CPU saturation across GeeSome, Kubo, PostgreSQL, nginx, media conversion, and storage I/O before changing runtime behavior.
+- Test Node 24 as the next runtime target and continue bounded cleanup of legacy moderate dependency chains.
+- Fix remaining sticker/media preview issues and design safe resumable uploads without allowing active SVG content into browser render paths.
+- Expand group views toward thread/feed use cases while preserving current APIs and large-group cursor pagination.
+- Improve resumable, idempotent Telegram and Twitter-compatible backup/import workflows.
+- Tune the completed database scalability, pinning, and storage analyzer foundations from restored-production and live Kubo/provider evidence.
+- Keep local browser IPNS signing, PubSub backup, Matrix/Filecoin/search integrations, and mobile/browser apps as separate epics.
+
+See [docs/todo.md](./docs/todo.md) for active deterministic implementation sections and [docs/implemented.md](./docs/implemented.md) for delivered foundations and verification history.
 
 ## GeeSome Services
 You can develop your own GeeSome service in any programming language for extend GeeSome node functional by

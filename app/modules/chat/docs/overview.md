@@ -1,6 +1,6 @@
 # Chat Module
 
-The `chat` module owns the durable server-side boundary for browser-first secure
+The `chat` module owns the durable node-side boundary for browser-first secure
 chat. It registers signed public device bundles, verifies signed encrypted
 events, assigns deterministic per-conversation sequences, stores recipient
 indexes, and records received/read receipts.
@@ -61,7 +61,11 @@ regress repair work. The following environment variables tune the bounded worker
 - `CHAT_RECONCILIATION_PAGE_LIMIT`
 - `CHAT_RECONCILIATION_MAX_PAGES`
 
-The backend delivery and repair foundation is now present. Remaining chat work
-includes browser trust/recovery UX, group membership and key rotation,
-encrypted attachment lifecycle, retention policy, and multi-node browser e2e
-coverage.
+Browser device creation, encrypted recovery/restore, revocation, and encrypted
+direct-message send/read UX are present in `geesome-ui`. Remaining chat work
+includes explicit device trust verification, group membership and key rotation,
+encrypted attachment lifecycle, retention/quota policy, and real multi-node
+browser e2e coverage.
+
+See [Reliable IPFS Chat Research](../../../../docs/ipfs-chat-reliability-research.md)
+for the transport and delivery analysis behind these boundaries.
