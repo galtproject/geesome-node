@@ -44,7 +44,10 @@ import {
 	verifyChatDelivery
 } from './transport.js';
 import {buildChatPublicNodeInfoResponse} from './publicNodeInfo.js';
-import {pinRemoteChatAttachments} from './attachmentStorage.js';
+import {
+	assertOwnedChatAttachmentQuota,
+	pinRemoteChatAttachments
+} from './attachmentStorage.js';
 
 const maxDeviceBundleBytes = 64 * 1024;
 const maxEnvelopeBytes = 1024 * 1024;
@@ -238,6 +241,7 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 				userId,
 				attachmentStorageIds
 			);
+			assertOwnedChatAttachmentQuota(attachmentContents, getAttachmentLimits(app));
 
 			try {
 				const result = await app.ms.database.sequelize.transaction(async transaction => {
@@ -371,7 +375,8 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 
 			const attachmentStorageIds = getAttachmentStorageIds(envelope);
 			await pinRemoteChatAttachments(app.ms.storage, attachmentStorageIds, {
-				timeoutMs: app.config.chatConfig?.attachmentPinTimeoutMs
+				timeoutMs: app.config.chatConfig?.attachmentPinTimeoutMs,
+				...getAttachmentLimits(app)
 			});
 			const eventHash = getEventHash(envelope);
 			const existing = await models.ChatEvent.findOne({
@@ -1151,6 +1156,13 @@ function isSafeEnvelopeMetadata(metadata): boolean {
 
 function getAttachmentStorageIds(envelope): string[] {
 	return envelope.metadata?.attachmentStorageIds || [];
+}
+
+function getAttachmentLimits(app: IGeesomeApp) {
+	return {
+		maxAttachmentBytes: app.config?.chatConfig?.maxAttachmentBytes,
+		maxEventAttachmentBytes: app.config?.chatConfig?.maxEventAttachmentBytes
+	};
 }
 
 async function getOwnedAttachmentContents(

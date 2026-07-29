@@ -126,6 +126,7 @@ export default function registerChatApi(app: IGeesomeApp, chat: IGeesomeChatModu
 	 * @apiBody {String} [recipientEndpoints.inboxUrl] Public HTTPS GeeSome chat inbox.
 	 * @apiSuccess {Object} event Stored opaque event and assigned sequence.
 	 * @apiSuccess {Boolean} replay Whether the same message was already accepted.
+	 * @apiError (413) AttachmentTooLarge A referenced ciphertext file or the combined attachment bytes exceed the configured chat limits.
 	 */
 	app.ms.api.onAuthorizedPost('chat/events', async (req, res) => {
 		return res.send(await chat.acceptEncryptedEvent(req.user.id, req.body.envelope, {

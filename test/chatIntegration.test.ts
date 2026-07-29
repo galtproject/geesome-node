@@ -197,7 +197,12 @@ describe('chat persistence', function () {
 			sign: async data => Buffer.from(await aliceTransportKey.privKey.sign(data))
 		});
 		const pinnedAttachmentStorageIds = [];
+		const getFileStat = app.ms.storage.getFileStat.bind(app.ms.storage);
 		const addPin = app.ms.storage.addPin.bind(app.ms.storage);
+		app.ms.storage.getFileStat = async storageId => {
+			assert.equal(storageId, testAttachmentStorageId);
+			return {size: 32};
+		};
 		app.ms.storage.addPin = async storageId => {
 			pinnedAttachmentStorageIds.push(storageId);
 		};
@@ -205,6 +210,7 @@ describe('chat persistence', function () {
 		try {
 			acknowledgement = await app.ms.chat.acceptRemoteDelivery(delivery);
 		} finally {
+			app.ms.storage.getFileStat = getFileStat;
 			app.ms.storage.addPin = addPin;
 		}
 		const remoteEventHash = getEnvelopeHash(remoteEnvelope);

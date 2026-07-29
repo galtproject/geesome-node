@@ -116,9 +116,11 @@ Remaining delivery order:
    implemented. Browsers now encrypt before upload, keep wrapped content-key
    descriptors inside the encrypted envelope, authenticate downloads, render
    safe raster previews, report corruption, and reuse successful uploads when
-   event submission is retried. Next, define deletion, quota, abandoned-upload
-   cleanup, and retention policy without exposing plaintext, original file
-   metadata, or keys to the node.
+   event submission is retried. Configurable byte admission now caps individual
+   ciphertext files and combined event attachments before local persistence or
+   remote pinning. Next, define deletion, aggregate per-account lifecycle quota,
+   abandoned-upload cleanup, and retention policy without exposing plaintext,
+   original file metadata, or keys to the node.
 2. Select and review the group protocol before extending pairwise envelopes.
    Define membership epochs and rotate future-message keys when members/devices
    are added, removed, replaced, or revoked. Evaluate MLS, Matrix-style

@@ -220,6 +220,10 @@ TODO.
   stores normalized event-to-storage references, and registers them with the
   shared deletion-safety scanner so queued events cannot be orphaned by content
   cleanup.
+- Configurable ciphertext admission limits reject oversized local attachments
+  before event persistence and resolve remote ciphertext sizes before pinning.
+  Defaults cap one attachment at 25 MiB and one event at 100 MiB; unavailable
+  ciphertext remains retryable while quota rejection is a permanent `413`.
 - Recipient nodes recursively fetch and pin every referenced attachment
   ciphertext DAG before committing the remote event and signing its delivery
   acknowledgement. Missing or unavailable objects return a retryable service
@@ -237,6 +241,7 @@ TODO.
   sequence/head reconciliation as the correctness boundary.
 
 This is a browser-first encrypted direct-message foundation, not completion of
-production-secure chat. Attachment deletion, quota, abandoned-upload cleanup,
-and retention policy, reviewed group membership/key rotation, and real two-node
-browser testing remain in the active TODO.
+production-secure chat. Attachment deletion, aggregate per-account lifecycle
+quota, abandoned-upload cleanup, and retention policy, reviewed group
+membership/key rotation, and real two-node browser testing remain in the active
+TODO.
