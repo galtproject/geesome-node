@@ -29,6 +29,15 @@ export interface IChatDeliveryProcessOptions {
 	deliverChatRequest?: (inboxUrl: string, delivery: any) => Promise<any>;
 }
 
+export interface IChatReconcileOptions {
+	sourceOwnerId: string;
+	sourcePublicKey?: string;
+	syncUrl?: string;
+	limit?: number;
+	maxPages?: number;
+	requestChatSync?: (syncUrl: string, request: any) => Promise<any>;
+}
+
 export interface IChatDeviceBundleRecord {
 	id?: number;
 	userId: number;
@@ -57,6 +66,12 @@ export default interface IGeesomeChatModule {
 		options?: {recipientEndpoints?: IChatRecipientEndpoint[]}
 	): Promise<any>;
 	acceptRemoteDelivery(delivery: any): Promise<any>;
+	acceptSyncRequest(request: any): Promise<any>;
+	reconcileConversation(
+		userId: number,
+		conversationId: string,
+		options: IChatReconcileOptions
+	): Promise<any>;
 	processDeliveryQueue(options?: IChatDeliveryProcessOptions): Promise<any>;
 	getEventDeliveries(userId: number, messageId: string): Promise<any[]>;
 	getEncryptedEvents(userId: number, conversationId: string, options?: any): Promise<any>;

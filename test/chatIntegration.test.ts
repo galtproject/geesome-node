@@ -147,6 +147,16 @@ describe('chat persistence', function () {
 		assert.equal(deliveryRows[0].state, 'delivered');
 		assert.equal(deliveryRows[0].attempts, 1);
 		assert.ok(deliveryRows[0].acknowledgedSequence);
+		const secondQueuedEnvelope = await browserE2eeHelper.encryptEnvelope(
+			'second queued transport secret',
+			[bobDevice.publicBundle],
+			aliceDevice,
+			{
+				messageId: 'postgres-queued-message-2',
+				conversationId: queuedEnvelope.conversationId
+			}
+		);
+		await app.ms.chat.acceptEncryptedEvent(alice.id, secondQueuedEnvelope);
 
 		const remoteEnvelope = await browserE2eeHelper.encryptEnvelope(
 			'remote transport secret',
@@ -170,7 +180,8 @@ describe('chat persistence', function () {
 			sender: {
 				ownerId: alice.storageAccountId,
 				publicKey: aliceTransportPublicKey,
-				deviceBundle: aliceDevice.publicBundle
+				deviceBundle: aliceDevice.publicBundle,
+				syncUrl: 'https://alice.example/v1/chat/sync'
 			},
 			recipientOwnerId: bob.storageAccountId,
 			sourceSequence: '15',
@@ -197,6 +208,98 @@ describe('chat persistence', function () {
 		assert.equal(remoteEvents.list[0].state, 'received_remote');
 		assert.equal(remoteEvents.list[0].sourceSequence, '15');
 		assert.equal(JSON.stringify(remoteEvents.list[0]).includes('remote transport secret'), false);
+
+		const firstReconciliation = await app.ms.chat.reconcileConversation(
+			bob.id,
+			queuedEnvelope.conversationId,
+			{
+				sourceOwnerId: alice.storageAccountId,
+				sourcePublicKey: aliceTransportPublicKey,
+				syncUrl: 'https://alice.example/v1/chat/sync',
+				limit: 1,
+				maxPages: 1,
+				requestChatSync: (_syncUrl, request) =>
+					app.ms.chat.acceptSyncRequest(request)
+			}
+		);
+		assert.equal(firstReconciliation.complete, false);
+		assert.equal(firstReconciliation.imported, 0);
+		assert.equal(firstReconciliation.replayed, 1);
+		assert.equal(firstReconciliation.scanAfterSourceSequence, '1');
+		assert.equal(firstReconciliation.verifiedSourceSequence, '0');
+		assert.equal(firstReconciliation.sourceHeadSequence, '2');
+
+		const resumedReconciliation = await app.ms.chat.reconcileConversation(
+			bob.id,
+			queuedEnvelope.conversationId,
+			{
+				sourceOwnerId: alice.storageAccountId,
+				requestChatSync: (_syncUrl, request) =>
+					app.ms.chat.acceptSyncRequest(request)
+			}
+		);
+		assert.equal(resumedReconciliation.complete, true);
+		assert.equal(resumedReconciliation.imported, 0);
+		assert.equal(resumedReconciliation.replayed, 1);
+		assert.equal(resumedReconciliation.scanAfterSourceSequence, '2');
+		assert.equal(resumedReconciliation.verifiedSourceSequence, '2');
+
+		for (const [messageId, plaintext] of [
+			['postgres-queued-message-3', 'third queued transport secret'],
+			['postgres-queued-message-4', 'fourth queued transport secret']
+		]) {
+			const nextEnvelope = await browserE2eeHelper.encryptEnvelope(
+				plaintext,
+				[bobDevice.publicBundle],
+				aliceDevice,
+				{
+					messageId,
+					conversationId: queuedEnvelope.conversationId
+				}
+			);
+			await app.ms.chat.acceptEncryptedEvent(alice.id, nextEnvelope);
+		}
+
+		let signalSlowResponse;
+		const slowResponseReady = new Promise(resolve => {
+			signalSlowResponse = resolve;
+		});
+		let releaseSlowResponse;
+		const slowResponseRelease = new Promise(resolve => {
+			releaseSlowResponse = resolve;
+		});
+		const slowReconciliationPromise = app.ms.chat.reconcileConversation(
+			bob.id,
+			queuedEnvelope.conversationId,
+			{
+				sourceOwnerId: alice.storageAccountId,
+				limit: 1,
+				maxPages: 1,
+				requestChatSync: async (_syncUrl, request) => {
+					const response = await app.ms.chat.acceptSyncRequest(request);
+					signalSlowResponse();
+					await slowResponseRelease;
+					return response;
+				}
+			}
+		);
+		await slowResponseReady;
+		const fastReconciliation = await app.ms.chat.reconcileConversation(
+			bob.id,
+			queuedEnvelope.conversationId,
+			{
+				sourceOwnerId: alice.storageAccountId,
+				requestChatSync: (_syncUrl, request) =>
+					app.ms.chat.acceptSyncRequest(request)
+			}
+		);
+		releaseSlowResponse();
+		const slowReconciliation = await slowReconciliationPromise;
+		assert.equal(fastReconciliation.complete, true);
+		assert.equal(fastReconciliation.scanAfterSourceSequence, '4');
+		assert.equal(slowReconciliation.complete, true);
+		assert.equal(slowReconciliation.scanAfterSourceSequence, '4');
+		assert.equal(slowReconciliation.verifiedSourceSequence, '4');
 	});
 });
 

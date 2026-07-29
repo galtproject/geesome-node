@@ -92,6 +92,10 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 			type: DataTypes.BIGINT,
 			allowNull: false
 		},
+		sourceSyncUrl: {
+			type: DataTypes.TEXT,
+			allowNull: true
+		},
 		eventHash: {
 			type: DataTypes.STRING(64),
 			allowNull: false
@@ -231,6 +235,63 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 		]
 	} as any);
 
+	const ChatSyncState = sequelize.define('chatSyncState', {
+		conversationId: {
+			type: DataTypes.STRING(500),
+			allowNull: false
+		},
+		recipientOwnerId: {
+			type: DataTypes.STRING(500),
+			allowNull: false
+		},
+		sourceOwnerId: {
+			type: DataTypes.STRING(500),
+			allowNull: false
+		},
+		sourcePublicKey: {
+			type: DataTypes.TEXT,
+			allowNull: false
+		},
+		syncUrl: {
+			type: DataTypes.TEXT,
+			allowNull: false
+		},
+		verifiedSourceSequence: {
+			type: DataTypes.BIGINT,
+			allowNull: false,
+			defaultValue: '0'
+		},
+		scanAfterSourceSequence: {
+			type: DataTypes.BIGINT,
+			allowNull: false,
+			defaultValue: '0'
+		},
+		lastSourceHeadSequence: {
+			type: DataTypes.BIGINT,
+			allowNull: true
+		},
+		lastSyncedAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		lastError: {
+			type: DataTypes.TEXT,
+			allowNull: true
+		}
+	} as any, {
+		indexes: [
+			{
+				name: 'chat_sync_states_conversation_recipient_source_unique',
+				fields: ['conversationId', 'recipientOwnerId', 'sourceOwnerId'],
+				unique: true
+			},
+			{
+				name: 'chat_sync_states_recipient_updated_idx',
+				fields: ['recipientOwnerId', 'updatedAt', 'id']
+			}
+		]
+	} as any);
+
 	ChatEvent.hasMany(ChatEventRecipient, {as: 'recipients', foreignKey: 'chatEventId'});
 	ChatEventRecipient.belongsTo(ChatEvent, {as: 'event', foreignKey: 'chatEventId'});
 	ChatEvent.hasMany(ChatEventReceipt, {as: 'receipts', foreignKey: 'chatEventId'});
@@ -244,6 +305,7 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 	await ChatEventRecipient.sync({});
 	await ChatDelivery.sync({});
 	await ChatEventReceipt.sync({});
+	await ChatSyncState.sync({});
 
 	(ChatDelivery as any).claimDue = (options) => claimDueChatDeliveries(
 		sequelize,
@@ -257,7 +319,8 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 		ChatEvent,
 		ChatEventRecipient,
 		ChatDelivery,
-		ChatEventReceipt
+		ChatEventReceipt,
+		ChatSyncState
 	};
 }
 

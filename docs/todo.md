@@ -431,7 +431,18 @@ Verification:
 - Docs review against [#782](https://github.com/galtproject/geesome-node/issues/782).
 - Targeted tests for any concrete auth/encryption fixes created from the review.
 
-### 9. Secure Chat E2EE Design
+<!-- todo-section: browser-first-chat-e2ee -->
+### 9. Browser-First Secure Chat E2EE
+
+Status: browser-held device keys, signed opaque envelopes, PostgreSQL event
+ordering/receipts, authenticated HTTPS inter-node delivery, durable offline
+retry leases, recipient-signed acknowledgements, and signed bounded
+head/missing-range reconciliation are implemented. Reconciliation keeps a
+restart-safe scan cursor separate from the fully verified source head so
+out-of-order live delivery cannot hide gaps. Remaining production work is
+automatic bounded reconciliation scheduling, browser device trust/recovery UX,
+group membership/key rotation, encrypted attachment lifecycle, quotas/retention
+policy, and real multi-node browser e2e/restart/NAT testing.
 
 Goal: replace the backend encryption PoC with an implementation plan that can become real end-to-end encrypted chat.
 
@@ -449,11 +460,11 @@ Cryptographic direction:
 Delivery and stability direction:
 
 - Do not treat libp2p PubSub/GossipSub as the durable chat database. It is useful for online propagation, but disconnected devices still need history backfill.
-- Persist signed opaque encrypted envelopes in `geesome-node` or another durable GeeSome/IPFS-backed message log so clients can reconnect and fetch missed messages.
-- Track `messageId`, `conversationId`, sender device, recipient device set, created timestamp, delivery attempts, and acknowledgement state separately from ciphertext.
-- Add idempotent send APIs and client-side dedupe by `messageId`; retries must not create duplicate chat messages.
-- Define ordering rules before UI work: append-only per-conversation sequence, Lamport/vector-style causal metadata, or another explicit merge rule for offline concurrent sends.
-- Add store-and-forward paths for offline recipients and multi-device users. libp2p direct streams/pubsub can accelerate delivery, but API/IPFS backfill should be the recovery path.
+- Persist signed opaque encrypted envelopes in `geesome-node` or another durable GeeSome/IPFS-backed message log so clients can reconnect and fetch missed messages. Status: implemented with model-sync chat event tables.
+- Track `messageId`, `conversationId`, sender device, recipient device set, created timestamp, delivery attempts, and acknowledgement state separately from ciphertext. Status: implemented.
+- Add idempotent send APIs and client-side dedupe by `messageId`; retries must not create duplicate chat messages. Status: backend idempotency and conflict rejection implemented; keep client dedupe aligned.
+- Define ordering rules before UI work: append-only per-conversation sequence, Lamport/vector-style causal metadata, or another explicit merge rule for offline concurrent sends. Status: transaction-safe local append sequence plus authenticated source sequence and verified reconciliation cursor implemented.
+- Add store-and-forward paths for offline recipients and multi-device users. libp2p direct streams/pubsub can accelerate delivery, but API/IPFS backfill should be the recovery path. Status: durable sender queue, signed HTTPS delivery, and signed bounded backfill implemented; automatic reconciliation scheduling remains.
 - Run realistic tests with restart, offline sender/recipient, NAT/browser clients, duplicate delivery, delayed delivery, and large attachments. Attachment bytes should be content-addressed separately and referenced from the encrypted envelope.
 
 Repo split:
@@ -462,19 +473,27 @@ Repo split:
 - `geesome-libs`: crypto helper APIs, manifest schemas, key wrapping, message envelope encoding, compatibility tests. Initial opaque envelope helpers are tracked in `geesome-libs` [#121](https://github.com/galtproject/geesome-libs/issues/121).
 - `geesome-node`: storage/routing APIs for encrypted envelopes, public key lookup, membership metadata, delivery status, and migration away from backend plaintext handling.
 
-First deliverable:
+Delivered backend foundation:
 
-- Write a protocol design note with threat model, device model, key lifecycle, group membership flow, offline recipients, recovery, and migration from the current PoC.
-- Mark backend encrypted chat endpoints as PoC/unsafe until frontend E2EE lands.
-- Add tests proving the node can persist and return opaque encrypted envelopes without needing plaintext.
-- Reuse the shared `geesome-libs` E2EE envelope helper contract from [#121](https://github.com/galtproject/geesome-libs/issues/121) for frontend/node compatibility tests.
-- Add transport stability tests proving chat still works when realtime libp2p delivery is unavailable and clients recover through stored envelope backfill.
+- The protocol/reliability boundary is documented in `app/modules/chat/docs/overview.md`; the broader IPFS chat reliability research remains on the planning-doc branch tracked by #1284 until that branch is merged.
+- Node tests prove opaque envelope persistence, browser-device signatures, static-identity transport signatures, delayed retry, signed acknowledgements, and source-head backfill without plaintext.
+- The shared `geesome-libs` browser E2EE envelope contract from [#121](https://github.com/galtproject/geesome-libs/issues/121) is used by node compatibility tests.
+
+Next deliverables:
+
+- Add an opt-in bounded reconciliation scheduler over durable `ChatSyncState` rows, with leases, backoff, restart recovery, and per-node/user quotas.
+- Complete browser device trust, key backup/recovery, verification, revocation, and multi-device UX without sending private keys to the node.
+- Define secure group membership changes and key rotation using a reviewed group protocol rather than extending the current pairwise envelope ad hoc.
+- Add encrypted attachment upload/download/key lifecycle and retention/quota policy.
+- Run real two-node browser e2e tests covering restart, temporary unreachability, duplicate/out-of-order delivery, bounded backfill, and NAT/bootstrap conditions.
 
 Verification:
 
 - Design review across `geesome-node`, `geesome-libs`, and `geesome-ui`.
-- Node tests for opaque envelope storage.
+- Node tests for opaque envelope storage, inter-node delivery, delayed retry, signed acknowledgements, and bounded missing-range repair.
 - Frontend/browser tests once client crypto exists.
+
+<!-- /todo-section -->
 
 ### 10. ActivityPub/Fediverse Integration MVP
 

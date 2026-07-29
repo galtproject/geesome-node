@@ -261,10 +261,14 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'chatConversationHeads', columns: ['lastSequence'], type: 'bigint'},
   {table: 'chatEvents', columns: ['sequence'], type: 'bigint'},
   {table: 'chatEvents', columns: ['sourceSequence'], type: 'bigint'},
+  {table: 'chatEvents', columns: ['sourceSyncUrl'], type: 'text'},
   {table: 'chatEvents', columns: ['senderBundleJson'], type: 'text'},
   {table: 'chatEventRecipients', columns: ['ownerId'], type: 'character varying'},
   {table: 'chatDeliveries', columns: ['acknowledgedSequence'], type: 'bigint'},
   {table: 'chatDeliveries', columns: ['acknowledgedHeadSequence'], type: 'bigint'},
+  {table: 'chatSyncStates', columns: ['verifiedSourceSequence'], type: 'bigint'},
+  {table: 'chatSyncStates', columns: ['scanAfterSourceSequence'], type: 'bigint'},
+  {table: 'chatSyncStates', columns: ['lastSourceHeadSequence'], type: 'bigint'},
 ];
 
 const expectedIndexes: ExpectedIndex[] = [
@@ -367,6 +371,17 @@ const expectedIndexes: ExpectedIndex[] = [
   {name: 'chat_deliveries_event_owner_unique', table: 'chatDeliveries', columns: ['chatEventId', 'recipientOwnerId'], unique: true},
   {name: 'chat_deliveries_due_idx', table: 'chatDeliveries', columns: ['state', 'nextAttemptAt']},
   {name: 'chat_deliveries_claim_idx', table: 'chatDeliveries', columns: ['state', 'nextAttemptAt', 'deliveryClaimExpiresAt', 'id']},
+  {
+    name: 'chat_sync_states_conversation_recipient_source_unique',
+    table: 'chatSyncStates',
+    columns: ['conversationId', 'recipientOwnerId', 'sourceOwnerId'],
+    unique: true
+  },
+  {
+    name: 'chat_sync_states_recipient_updated_idx',
+    table: 'chatSyncStates',
+    columns: ['recipientOwnerId', 'updatedAt', 'id']
+  },
 ];
 
 const storageObjectMetadataColumns = [
@@ -482,6 +497,27 @@ const countChecks: CountCheck[] = [
         ON head."conversationId" = stored."conversationId"
       WHERE head.id IS NULL
         OR head."lastSequence" < stored."maxSequence"
+    `,
+  },
+  {
+    name: 'chat sync cursors remain monotonic and bounded by observed heads',
+    requirements: [{
+      table: 'chatSyncStates',
+      columns: [
+        'verifiedSourceSequence',
+        'scanAfterSourceSequence',
+        'lastSourceHeadSequence',
+      ],
+    }],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "chatSyncStates"
+      WHERE "verifiedSourceSequence" < 0
+        OR "scanAfterSourceSequence" < "verifiedSourceSequence"
+        OR (
+          "lastSourceHeadSequence" IS NOT NULL
+          AND "scanAfterSourceSequence" > "lastSourceHeadSequence"
+        )
     `,
   },
   duplicateCheck('storage object storageId duplicates', 'storageObjects', ['storageId']),

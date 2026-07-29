@@ -1,4 +1,4 @@
-import {createHash} from 'node:crypto';
+import {createHash, randomUUID} from 'node:crypto';
 import {literal, Op} from 'sequelize';
 import browserE2eeHelper from 'geesome-libs/src/browserE2eeHelper.js';
 import ipfsHelper from 'geesome-libs/src/ipfsHelper.js';
@@ -9,19 +9,35 @@ import {
 	processChatDeliveryQueue,
 	serializeChatDelivery
 } from './delivery.js';
+import {
+	assertValidChatSyncPage,
+	createChatSyncResponse,
+	getChatSyncPageCursor,
+	parseSyncPageSize
+} from './reconciliation.js';
 import IGeesomeChatModule, {
 	ChatDeliveryState,
 	ChatEventState,
 	ChatReceiptState,
 	IChatDeliveryProcessOptions,
+	IChatReconcileOptions,
 	IChatRecipientEndpoint
 } from './interface.js';
+import {
+	chatSyncProtocol,
+	IChatSyncRequest,
+	requestChatSync,
+	signChatSyncRequest,
+	verifyChatSyncRequest,
+	verifyChatSyncResponse
+} from './sync.js';
 import {
 	assertPublicKeyMatchesOwner,
 	chatDeliveryProtocol,
 	IChatDeliveryPayload,
 	IChatTransportSigner,
 	normalizeChatInboxUrl,
+	normalizeChatSyncUrl,
 	signChatAcknowledgement,
 	verifyChatDelivery
 } from './transport.js';
@@ -29,6 +45,9 @@ import {
 const maxDeviceBundleBytes = 64 * 1024;
 const maxEnvelopeBytes = 1024 * 1024;
 const maxEventListLimit = 100;
+const maxSyncRequestBytes = 128 * 1024;
+const defaultSyncMaximumPages = 5;
+const maximumSyncMaximumPages = 20;
 
 export default async function initializeChatModule(app: IGeesomeApp, options: any = {}) {
 	app.checkModules(['database', 'api']);
@@ -60,6 +79,7 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 		async flushDatabase() {
 			await models.ChatEventReceipt.destroy({where: {}});
 			await models.ChatDelivery.destroy({where: {}});
+			await models.ChatSyncState.destroy({where: {}});
 			await models.ChatEventRecipient.destroy({where: {}});
 			await models.ChatEvent.destroy({where: {}});
 			await models.ChatConversationHead.destroy({where: {}});
@@ -130,8 +150,10 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 			const publicUrl = getChatPublicUrl(app);
 			return {
 				protocol: chatDeliveryProtocol,
+				syncProtocol: chatSyncProtocol,
 				publicUrl,
 				inboxUrl: publicUrl ? `${publicUrl}/v1/chat/inbox` : null,
+				syncUrl: publicUrl ? `${publicUrl}/v1/chat/sync` : null,
 				deviceDiscoveryTemplate: publicUrl
 					? `${publicUrl}/v1/chat/public/users/{ownerId}/devices`
 					: null
@@ -228,6 +250,7 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 						senderKeyId: envelope.sender.keyId,
 						senderBundleJson: senderDevice.bundleJson,
 						sourceSequence: sequence,
+						sourceSyncUrl: getChatSyncUrl(app),
 						eventHash,
 						envelopeJson,
 						state: ChatEventState.AcceptedLocal
@@ -349,6 +372,7 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 			if (existing) {
 				replayExistingEvent(existing, eventHash);
 			}
+			await rememberChatSyncSource(models, delivery);
 			const head = await models.ChatConversationHead.findOne({
 				where: {conversationId: envelope.conversationId}
 			});
@@ -366,13 +390,162 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 			}, signer);
 		}
 
+		async acceptSyncRequest(request: IChatSyncRequest) {
+			assertJsonSize(request, maxSyncRequestBytes, 'chat_sync_request_too_large');
+			await verifyChatSyncRequest(request);
+			requireIdentifier(request.requestId, 'chat_sync_request_id_required');
+			requireIdentifier(request.conversationId, 'conversation_id_required');
+			requireIdentifier(request.requesterOwnerId, 'chat_sync_requester_required');
+			requireIdentifier(request.sourceOwnerId, 'chat_sync_source_required');
+			parseSequence(request.afterSourceSequence);
+			parseSyncPageSize(request.limit);
+			const signer = await getChatTransportSigner(app, request.sourceOwnerId);
+			return createChatSyncResponse(
+				models,
+				request,
+				signer,
+				getChatSyncUrl(app)
+			);
+		}
+
+		async reconcileConversation(
+			userId: number,
+			conversationId: string,
+			reconcileOptions: IChatReconcileOptions = {} as IChatReconcileOptions
+		) {
+			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
+			const normalizedConversationId = requireIdentifier(
+				conversationId,
+				'conversation_id_required'
+			);
+			const recipientOwnerId = await getLocalOwnerId(app, userId);
+			const sourceOwnerId = requireIdentifier(
+				reconcileOptions?.sourceOwnerId,
+				'chat_sync_source_required'
+			);
+			let state = await models.ChatSyncState.findOne({
+				where: {
+					conversationId: normalizedConversationId,
+					recipientOwnerId,
+					sourceOwnerId
+				}
+			});
+			const sourcePublicKey = reconcileOptions?.sourcePublicKey ||
+				state?.sourcePublicKey;
+			const syncUrl = normalizeChatSyncUrl(
+				reconcileOptions?.syncUrl || state?.syncUrl,
+				{allowHttp: options.allowHttp === true}
+			);
+			await assertPublicKeyMatchesOwner(sourcePublicKey, sourceOwnerId);
+			if (!state) {
+				state = await models.ChatSyncState.create({
+					conversationId: normalizedConversationId,
+					recipientOwnerId,
+					sourceOwnerId,
+					sourcePublicKey,
+					syncUrl,
+					verifiedSourceSequence: '0',
+					scanAfterSourceSequence: '0'
+				});
+			} else if (
+				state.sourcePublicKey !== sourcePublicKey ||
+				state.syncUrl !== syncUrl
+			) {
+				await state.update({sourcePublicKey, syncUrl});
+			}
+
+			const signer = await getChatTransportSigner(app, recipientOwnerId);
+			const sendSyncRequest = reconcileOptions.requestChatSync ||
+				options.requestChatSync ||
+				((url, request) => requestChatSync(url, request, {
+					allowHttp: options.allowHttp === true
+				}));
+			const maximumPages = parseMaximumSyncPages(reconcileOptions.maxPages);
+			const pageSize = parseSyncPageSize(reconcileOptions.limit);
+			let scanAfterSourceSequence = String(state.scanAfterSourceSequence || '0');
+			let imported = 0;
+			let replayed = 0;
+			let pages = 0;
+			let complete = false;
+			let sourceHeadSequence = String(state.lastSourceHeadSequence || '0');
+			try {
+				while (pages < maximumPages && !complete) {
+					const request = await signChatSyncRequest({
+						version: chatSyncProtocol,
+						requestId: randomUUID(),
+						requestedAt: new Date().toISOString(),
+						requesterOwnerId: recipientOwnerId,
+						requesterPublicKey: signer.publicKey,
+						sourceOwnerId,
+						conversationId: normalizedConversationId,
+						afterSourceSequence: scanAfterSourceSequence,
+						limit: pageSize
+					}, signer);
+					const response = await sendSyncRequest(syncUrl, request);
+					await verifyChatSyncResponse(response, {
+						requestId: request.requestId,
+						requesterOwnerId: recipientOwnerId,
+						sourceOwnerId,
+						sourcePublicKey,
+						conversationId: normalizedConversationId
+					});
+					assertValidChatSyncPage(
+						response,
+						scanAfterSourceSequence,
+						pageSize
+					);
+					for (const delivery of response.deliveries) {
+						const existingEvent = await models.ChatEvent.findOne({
+							where: {messageId: delivery.envelope.messageId}
+						});
+						await this.acceptRemoteDelivery(delivery);
+						if (existingEvent) {
+							replayed += 1;
+						} else {
+							imported += 1;
+						}
+					}
+					pages += 1;
+					sourceHeadSequence = response.headSourceSequence;
+					scanAfterSourceSequence = getChatSyncPageCursor(
+						response,
+						scanAfterSourceSequence
+					);
+					state = await persistChatSyncProgress(app, models, state.id, {
+						scanAfterSourceSequence,
+						sourceHeadSequence,
+						pageComplete: !response.hasMore
+					});
+					scanAfterSourceSequence = String(state.scanAfterSourceSequence);
+					sourceHeadSequence = String(state.lastSourceHeadSequence);
+					complete = BigInt(parseSequence(state.verifiedSourceSequence)) >=
+						BigInt(parseSequence(state.lastSourceHeadSequence));
+				}
+			} catch (error) {
+				await state.update({lastError: getBoundedErrorMessage(error)});
+				throw error;
+			}
+			return {
+				conversationId: normalizedConversationId,
+				sourceOwnerId,
+				imported,
+				replayed,
+				pages,
+				complete,
+				scanAfterSourceSequence,
+				verifiedSourceSequence: String(state.verifiedSourceSequence),
+				sourceHeadSequence
+			};
+		}
+
 		async processDeliveryQueue(processOptions: IChatDeliveryProcessOptions = {}) {
 			return processChatDeliveryQueue(models, {
 				...processOptions,
 				allowHttp: options.allowHttp === true,
 				deliverChatRequest: processOptions.deliverChatRequest ||
 					options.deliverChatRequest,
-				getSigner: ownerId => getChatTransportSigner(app, ownerId)
+				getSigner: ownerId => getChatTransportSigner(app, ownerId),
+				sourceSyncUrl: getChatSyncUrl(app)
 			});
 		}
 
@@ -509,6 +682,7 @@ async function createRemoteChatEvent(
 		senderKeyId: envelope.sender.keyId,
 		senderBundleJson: JSON.stringify(delivery.sender.deviceBundle),
 		sourceSequence: parseSequence(delivery.sourceSequence),
+		sourceSyncUrl: delivery.sender.syncUrl,
 		eventHash,
 		envelopeJson: JSON.stringify(envelope),
 		state: ChatEventState.ReceivedRemote
@@ -526,6 +700,79 @@ async function createRemoteChatEvent(
 		{transaction}
 	);
 	return event;
+}
+
+async function rememberChatSyncSource(models, delivery: IChatDeliveryPayload) {
+	if (!delivery.sender.syncUrl) {
+		return;
+	}
+	const where = {
+		conversationId: delivery.envelope.conversationId,
+		recipientOwnerId: delivery.recipientOwnerId,
+		sourceOwnerId: delivery.sender.ownerId
+	};
+	const [state] = await models.ChatSyncState.findOrCreate({
+		where,
+		defaults: {
+			...where,
+			sourcePublicKey: delivery.sender.publicKey,
+			syncUrl: delivery.sender.syncUrl,
+			verifiedSourceSequence: '0',
+			scanAfterSourceSequence: '0'
+		}
+	});
+	if (
+		state.sourcePublicKey !== delivery.sender.publicKey ||
+		state.syncUrl !== delivery.sender.syncUrl
+	) {
+		await state.update({
+			sourcePublicKey: delivery.sender.publicKey,
+			syncUrl: delivery.sender.syncUrl
+		});
+	}
+}
+
+async function persistChatSyncProgress(
+	app: IGeesomeApp,
+	models,
+	stateId: number,
+	progress: {
+		scanAfterSourceSequence: string;
+		sourceHeadSequence: string;
+		pageComplete: boolean;
+	}
+) {
+	return app.ms.database.sequelize.transaction(async transaction => {
+		const state = await models.ChatSyncState.findByPk(stateId, {
+			transaction,
+			lock: transaction.LOCK.UPDATE
+		});
+		if (!state) {
+			throw chatError('chat_sync_state_not_found', 404);
+		}
+		const scanAfterSourceSequence = maximumSequence(
+			state.scanAfterSourceSequence,
+			progress.scanAfterSourceSequence
+		);
+		const lastSourceHeadSequence = maximumSequence(
+			state.lastSourceHeadSequence || '0',
+			progress.sourceHeadSequence
+		);
+		const verifiedSourceSequence = progress.pageComplete
+			? maximumSequence(
+				state.verifiedSourceSequence,
+				progress.sourceHeadSequence
+			)
+			: String(state.verifiedSourceSequence);
+		await state.update({
+			scanAfterSourceSequence,
+			lastSourceHeadSequence,
+			verifiedSourceSequence,
+			lastSyncedAt: new Date(),
+			lastError: null
+		}, {transaction});
+		return state;
+	});
 }
 
 async function enqueueChatDeliveries(
@@ -617,7 +864,7 @@ async function getLocalOwnerId(app: IGeesomeApp, userId: number): Promise<string
 }
 
 function getChatPublicUrl(app: IGeesomeApp): string | null {
-	const rawUrl = String(app.config.chatConfig?.publicUrl || '').trim();
+	const rawUrl = String(app.config?.chatConfig?.publicUrl || '').trim();
 	if (!rawUrl) {
 		return null;
 	}
@@ -630,6 +877,11 @@ function getChatPublicUrl(app: IGeesomeApp): string | null {
 	} catch (error) {
 		return null;
 	}
+}
+
+function getChatSyncUrl(app: IGeesomeApp): string | null {
+	const publicUrl = getChatPublicUrl(app);
+	return publicUrl ? `${publicUrl}/v1/chat/sync` : null;
 }
 
 function shouldAutoProcessChatDeliveries(app: IGeesomeApp): boolean {
@@ -861,16 +1113,34 @@ function parseListLimit(value): number {
 	return Math.min(parsed, maxEventListLimit);
 }
 
+function parseMaximumSyncPages(value): number {
+	const parsed = Number.parseInt(value, 10);
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return defaultSyncMaximumPages;
+	}
+	return Math.min(parsed, maximumSyncMaximumPages);
+}
+
 function parseSequence(value): string {
 	try {
 		const sequence = BigInt(value);
-		if (sequence < 0n) {
+		if (sequence < 0n || sequence > 9223372036854775807n) {
 			throw new Error();
 		}
 		return sequence.toString();
 	} catch {
 		throw chatError('after_sequence_invalid');
 	}
+}
+
+function maximumSequence(left, right): string {
+	const leftSequence = BigInt(parseSequence(left));
+	const rightSequence = BigInt(parseSequence(right));
+	return (leftSequence >= rightSequence ? leftSequence : rightSequence).toString();
+}
+
+function getBoundedErrorMessage(error): string {
+	return String(error?.message || error || 'chat_sync_failed').slice(0, 2000);
 }
 
 function isUniqueConstraintError(error): boolean {

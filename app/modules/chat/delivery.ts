@@ -17,6 +17,7 @@ export interface IProcessChatDeliveryOptions extends IChatDeliveryProcessOptions
 	getSigner(ownerId: string): Promise<IChatTransportSigner>;
 	maximumAttempts?: number;
 	allowHttp?: boolean;
+	sourceSyncUrl?: string | null;
 }
 
 export async function processChatDeliveryQueue(models, options: IProcessChatDeliveryOptions) {
@@ -76,19 +77,13 @@ async function processChatDelivery(
 	}
 	const signer = await options.getSigner(event.senderOwnerId);
 	const deliveryId = getChatDeliveryId(event.messageId, delivery.recipientOwnerId);
-	const payload = await signChatDelivery({
-		version: chatDeliveryProtocol,
-		deliveryId,
-		sentAt: now.toISOString(),
-		sender: {
-			ownerId: event.senderOwnerId,
-			publicKey: signer.publicKey,
-			deviceBundle: JSON.parse(event.senderBundleJson)
-		},
-		recipientOwnerId: delivery.recipientOwnerId,
-		sourceSequence: String(event.sourceSequence || event.sequence),
-		envelope: JSON.parse(event.envelopeJson)
-	}, signer);
+	const payload = await createSignedChatDeliveryPayload(
+		event,
+		delivery.recipientOwnerId,
+		signer,
+		options.sourceSyncUrl || null,
+		now
+	);
 	const send = options.deliverChatRequest || ((inboxUrl, input) =>
 		sendDefaultChatDeliveryRequest(inboxUrl, input, {allowHttp: options.allowHttp})
 	);
@@ -110,6 +105,29 @@ async function processChatDelivery(
 		deliveryClaimedAt: null,
 		deliveryClaimExpiresAt: null
 	});
+}
+
+export async function createSignedChatDeliveryPayload(
+	event,
+	recipientOwnerId: string,
+	signer: IChatTransportSigner,
+	sourceSyncUrl: string | null,
+	now = new Date()
+) {
+	return signChatDelivery({
+		version: chatDeliveryProtocol,
+		deliveryId: getChatDeliveryId(event.messageId, recipientOwnerId),
+		sentAt: now.toISOString(),
+		sender: {
+			ownerId: event.senderOwnerId,
+			publicKey: signer.publicKey,
+			deviceBundle: JSON.parse(event.senderBundleJson),
+			syncUrl: sourceSyncUrl
+		},
+		recipientOwnerId,
+		sourceSequence: String(event.sourceSequence || event.sequence),
+		envelope: JSON.parse(event.envelopeJson)
+	}, signer);
 }
 
 async function recordChatDeliveryFailure(

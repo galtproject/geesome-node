@@ -43,6 +43,21 @@ export default function registerChatApi(app: IGeesomeApp, chat: IGeesomeChatModu
 	});
 
 	/**
+	 * @api {post} /v1/chat/sync Fetch signed encrypted-event backfill
+	 * @apiName SyncEncryptedChatEvents
+	 * @apiGroup Chat
+	 * @apiDescription Verifies a recipient static-identity signature and returns a source-identity-signed bounded page containing only encrypted events addressed to that recipient. Every returned event also carries the normal delivery signature and is reverified by the receiving node.
+	 * @apiBody {Object} request Signed `geesome-chat-sync-v1` request.
+	 * @apiSuccess {String} headSourceSequence Highest source sequence addressed to the requester.
+	 * @apiSuccess {Boolean} hasMore Whether another bounded page remains.
+	 * @apiSuccess {Object[]} deliveries Signed encrypted event deliveries.
+	 * @apiSuccess {Object} signature Source static-identity signature.
+	 */
+	app.ms.api.onPost('chat/sync', async (req, res) => {
+		return res.send(await chat.acceptSyncRequest(req.body.request));
+	});
+
+	/**
 	 * @api {post} /v1/chat/devices Register browser chat device
 	 * @apiName RegisterChatDevice
 	 * @apiGroup Chat
@@ -161,6 +176,35 @@ export default function registerChatApi(app: IGeesomeApp, chat: IGeesomeChatModu
 	app.ms.api.onAuthorizedGet('chat/conversations/:conversationId/head', async (req, res) => {
 		return res.send(await chat.getConversationHead(req.user.id, req.params.conversationId));
 	});
+
+	/**
+	 * @api {post} /v1/chat/conversations/:conversationId/reconcile Reconcile encrypted conversation history
+	 * @apiName ReconcileEncryptedChatConversation
+	 * @apiGroup Chat
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiDescription Compares a durable per-recipient source cursor with a signed remote source head, imports bounded missing encrypted events through the normal verification path, and persists scan progress for restart-safe continuation.
+	 * @apiParam {String} conversationId Opaque conversation identifier.
+	 * @apiBody {String} sourceOwnerId Stable remote source identity.
+	 * @apiBody {String} [sourcePublicKey] Source static-identity public key. Required on the first reconciliation; later calls can reuse stored source metadata.
+	 * @apiBody {String} [syncUrl] Source HTTPS chat sync endpoint. Required on the first reconciliation; later calls can reuse the stored endpoint.
+	 * @apiBody {Number} [limit=10] Events requested per page, capped at 10.
+	 * @apiBody {Number} [maxPages=5] Pages processed in this call, capped at 20.
+	 * @apiSuccess {Number} imported Newly stored encrypted events.
+	 * @apiSuccess {Number} replayed Already present encrypted events reverified idempotently.
+	 * @apiSuccess {Boolean} complete Whether the durable verified cursor reached the signed source head.
+	 * @apiSuccess {String} verifiedSourceSequence Last fully reconciled source sequence.
+	 */
+	app.ms.api.onAuthorizedPost(
+		'chat/conversations/:conversationId/reconcile',
+		async (req, res) => {
+			return res.send(await chat.reconcileConversation(
+				req.user.id,
+				req.params.conversationId,
+				req.body
+			));
+		}
+	);
 
 	/**
 	 * @api {post} /v1/chat/events/:messageId/receipt Store local message receipt

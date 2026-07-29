@@ -41,7 +41,8 @@ describe('chat transport', function () {
 			sender: {
 				ownerId: senderIdentity.ownerId,
 				publicKey: senderIdentity.publicKey,
-				deviceBundle: senderDevice.publicBundle
+				deviceBundle: senderDevice.publicBundle,
+				syncUrl: 'https://sender.example/v1/chat/sync'
 			},
 			recipientOwnerId: recipientIdentity.ownerId,
 			sourceSequence: '1',

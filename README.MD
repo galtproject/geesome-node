@@ -272,7 +272,7 @@ geesomeClient.init().then(async () => {
 ```
 
 ## Current state and features:
-- Personal message encryption proof of concept; full secure chat groups still require frontend E2EE
+- Browser-first encrypted chat foundation with client-held device keys, opaque node storage, authenticated delayed inter-node delivery, and signed history repair; production group key rotation and trust/recovery UX remain
 - Public channels and posts
 - Streamable media api(video and audio)
 - Basic file manager
@@ -295,7 +295,7 @@ geesomeClient.init().then(async () => {
 - Run a focused security review of API authorization and encryption boundaries before expanding integrations and production E2EE.
 - Keep shared package versions aligned across `geesome-node`, `geesome-libs`, and `geesome-ui`, while treating Vue/ethers/mime major-line differences as separate migrations.
 - Improve static-site generation options, favicon handling, and frontend build delivery by IPFS.
-- Design real frontend E2EE for chat groups using user-held private keys, recipient/device public keys, and group key rotation.
+- Complete browser-first E2EE chat with automatic bounded history reconciliation, device trust/recovery, encrypted attachments, real multi-node e2e tests, and a reviewed group membership/key-rotation protocol. The node already stores only signed opaque envelopes and supports authenticated delayed delivery plus signed missing-range repair.
 - Integrate ActivityPub/Fediverse so GeeSome groups and posts can federate with compatible servers; the current MVP includes discovery, signed inbox/outbox exchange, queued delivery, moderation-gated remote import, source feeds and migration, canonical rich text, native Bluesky import/cross-post/account flows, and simplified user/admin UI. Deterministic and public live-read interoperability checks cover Mastodon, Bridgy Fed, native ATProto, and independent Fedify CLI parsing. Credentialed Bluesky writes and full public staging-node federation exchange remain operator release gates because they require disposable accounts and a reachable node; see the [live interoperability runbook](./app/modules/activityPub/docs/live-interoperability.md).
 - Expand group views toward thread/feed use cases while preserving existing post/group APIs.
 - Improve social backup/import workflows for Telegram and Twitter-compatible sources.
