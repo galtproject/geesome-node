@@ -35,6 +35,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiUse AsyncResponse
      *
      * @apiInterface (../../interface.ts) {IFileContentInput} apiBody
+     * @apiBody {String} [chatAttachmentReservationId] Opaque chat upload reservation. When present, the upload is excluded from the normal file catalog and bound to the reservation after persistence.
      *
      * @apiInterface (../database/interface.ts) {IContent} apiSuccess
      *
@@ -51,10 +52,19 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
                 fileSize: await app.getUserLimitRemained(req.user.id, UserLimitName.SaveContentSize)
             }
         });
+        const uploadFields = pick(body, [
+            'driver',
+            'groupId',
+            'folderId',
+            'path',
+            'async',
+            'chatAttachmentReservationId'
+        ]);
         const options = {
             userId: req.user.id,
             userApiKeyId: req.apiKey.id,
-            ...pick(body, ['driver', 'groupId', 'folderId', 'path', 'async'])
+            ...uploadFields,
+            skipFileCatalog: Boolean(uploadFields.chatAttachmentReservationId)
         };
         const asyncOperationRes = await app.ms.asyncOperation.asyncOperationWrapper('content', 'saveData', [req.user.id, files[0], files[0].filename, options], options);
         res.send(asyncOperationRes);

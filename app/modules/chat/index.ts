@@ -48,6 +48,12 @@ import {
 	assertOwnedChatAttachmentQuota,
 	pinRemoteChatAttachments
 } from './attachmentStorage.js';
+import {
+	attachChatAttachmentUploads,
+	bindChatAttachmentUpload,
+	cancelChatAttachmentUpload,
+	createChatAttachmentUploadReservation
+} from './attachmentLifecycle.js';
 
 const maxDeviceBundleBytes = 64 * 1024;
 const maxEnvelopeBytes = 1024 * 1024;
@@ -92,6 +98,7 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 			await models.ChatDelivery.destroy({where: {}});
 			await models.ChatSyncJob.destroy({where: {}});
 			await models.ChatSyncState.destroy({where: {}});
+			await models.ChatAttachmentUpload.destroy({where: {}});
 			await models.ChatEventAttachment.destroy({where: {}});
 			await models.ChatEventRecipient.destroy({where: {}});
 			await models.ChatEvent.destroy({where: {}});
@@ -175,6 +182,34 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 				await device.update({revokedAt: new Date()});
 			}
 			return serializeDevice(device);
+		}
+
+		async createAttachmentUploadReservation(userId: number, expectedBytes) {
+			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
+			return createChatAttachmentUploadReservation(
+				app,
+				models,
+				userId,
+				expectedBytes
+			);
+		}
+
+		async cancelAttachmentUploadReservation(userId: number, reservationId: string) {
+			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
+			return cancelChatAttachmentUpload(models, userId, reservationId);
+		}
+
+		async afterContentAdding(userId, content, contentOptions) {
+			return bindChatAttachmentUpload(
+				models,
+				userId,
+				content,
+				contentOptions?.chatAttachmentReservationId
+			);
+		}
+
+		async existsContentAdding(userId, content, contentOptions) {
+			return this.afterContentAdding(userId, content, contentOptions);
 		}
 
 		async acceptEncryptedEvent(
@@ -287,6 +322,13 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 							storageId: content.storageId
 						})),
 						{transaction}
+					);
+					await attachChatAttachmentUploads(
+						models,
+						userId,
+						attachmentContents,
+						event.id,
+						transaction
 					);
 					await enqueueChatDeliveries(
 						models,

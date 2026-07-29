@@ -3,6 +3,7 @@ import {Op} from 'sequelize';
 import browserE2eeHelper from 'geesome-libs/src/browserE2eeHelper.js';
 import {getModule as getChatModule} from '../app/modules/chat/index.js';
 import {ChatReceiptState} from '../app/modules/chat/interface.js';
+import {ChatAttachmentUploadState} from '../app/modules/chat/attachmentLifecycle.js';
 
 describe('chat module', () => {
 	it('binds signed public device bundles to the authenticated account identity', async () => {
@@ -147,6 +148,84 @@ describe('chat module', () => {
 		assert.equal(rows.attachments.length, 0);
 	});
 
+	it('tracks reserved ciphertext from upload through accepted event', async () => {
+		const content = {
+			id: 7,
+			userId: 1,
+			storageId: testAttachmentStorageId,
+			size: 32
+		};
+		const {chat, rows} = createChatHarness({
+			contents: [content],
+			chatConfig: {
+				maxPendingAttachmentReservations: 1,
+				maxPendingAttachmentBytes: 64
+			}
+		});
+		const reservation = await chat.createAttachmentUploadReservation(1, 32);
+		assert.equal(reservation.state, ChatAttachmentUploadState.Reserved);
+		await assert.rejects(
+			() => chat.createAttachmentUploadReservation(1, 32),
+			/chat_attachment_reservation_count_exceeded/
+		);
+
+		const uploaded = await chat.afterContentAdding(1, content, {
+			chatAttachmentReservationId: reservation.reservationId
+		});
+		assert.equal(uploaded.state, ChatAttachmentUploadState.Uploaded);
+
+		const alice = await createDevice('owner-alice', 'alice-browser');
+		const bob = await createDevice('owner-bob', 'bob-browser');
+		await chat.registerDevice(1, alice.publicBundle);
+		await chat.registerDevice(2, bob.publicBundle);
+		const envelope = await createEnvelope(
+			'encrypted attachment descriptor',
+			alice,
+			bob,
+			'message-reserved-attachment',
+			{attachmentStorageIds: [testAttachmentStorageId]}
+		);
+		await chat.acceptEncryptedEvent(1, envelope);
+
+		assert.equal(rows.uploads[0].state, ChatAttachmentUploadState.Attached);
+		assert.equal(rows.uploads[0].chatEventId, rows.events[0].id);
+		await assert.rejects(
+			() => chat.cancelAttachmentUploadReservation(
+				1,
+				reservation.reservationId
+			),
+			/chat_attachment_reservation_attached/
+		);
+	});
+
+	it('rejects cancelled and incorrectly sized attachment uploads', async () => {
+		const {chat} = createChatHarness();
+		const cancelled = await chat.createAttachmentUploadReservation(1, 32);
+		await chat.cancelAttachmentUploadReservation(1, cancelled.reservationId);
+		await assert.rejects(
+			() => chat.afterContentAdding(1, {
+				id: 8,
+				storageId: testAttachmentStorageId,
+				size: 32
+			}, {
+				chatAttachmentReservationId: cancelled.reservationId
+			}),
+			/chat_attachment_reservation_not_active/
+		);
+
+		const wrongSize = await chat.createAttachmentUploadReservation(1, 32);
+		await assert.rejects(
+			() => chat.afterContentAdding(1, {
+				id: 9,
+				storageId: testAttachmentStorageId,
+				size: 31
+			}, {
+				chatAttachmentReservationId: wrongSize.reservationId
+			}),
+			/chat_attachment_upload_size_mismatch/
+		);
+	});
+
 	it('rejects revoked sender and locally known recipient devices', async () => {
 		const {chat} = createChatHarness();
 		const alice = await createDevice('owner-alice', 'alice-browser');
@@ -246,6 +325,7 @@ function createChatHarness(options: any = {}) {
 		heads: [],
 		events: [],
 		attachments: [],
+		uploads: [],
 		recipients: [],
 		receipts: [],
 		contents: options.contents || []
@@ -258,6 +338,11 @@ function createChatHarness(options: any = {}) {
 		checkUserCan: async () => true,
 		ms: {
 			database: {
+				models: {
+					User: {
+						findByPk: async userId => ({id: userId})
+					}
+				},
 				getContentByStorageIdListAndUserId: async (storageIds, userId) => {
 					return rows.contents.filter(content =>
 						content.userId === userId && storageIds.includes(content.storageId)
@@ -346,6 +431,25 @@ function createModels(rows) {
 			bulkCreate: async records => records.map(record => addRow(rows.attachments, record)),
 			destroy: async () => clearRows(rows.attachments)
 		},
+		ChatAttachmentUpload: {
+			create: async data => addRow(rows.uploads, {
+				reservationId: `reservation-${rows.uploads.length + 1}`,
+				...data
+			}),
+			count: async ({where}) => rows.uploads.filter(row => matchesWhere(row, where)).length,
+			sum: async (field, {where}) => rows.uploads
+				.filter(row => matchesWhere(row, where))
+				.reduce((sum, row) => sum + Number(row[field]), 0),
+			findOne: async ({where}) => rows.uploads.find(row => matchesWhere(row, where)) || null,
+			update: async (updateData, {where}) => {
+				const matching = rows.uploads.filter(row => matchesWhere(row, where));
+				for (const row of matching) {
+					await row.update(updateData);
+				}
+				return [matching.length];
+			},
+			destroy: async () => clearRows(rows.uploads)
+		},
 		ChatEventReceipt: {
 			findOrCreate: async ({where, defaults}) => {
 				let receipt = rows.receipts.find(row => matchesWhere(row, where));
@@ -382,6 +486,9 @@ function matchesWhere(row, where) {
 			const symbols = Object.getOwnPropertySymbols(expected);
 			if (symbols.includes(Op.in)) {
 				return expected[Op.in].includes(row[field]);
+			}
+			if (symbols.includes(Op.gt)) {
+				return row[field] > expected[Op.gt];
 			}
 		}
 		return row[field] === expected;

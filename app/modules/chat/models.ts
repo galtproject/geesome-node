@@ -1,5 +1,6 @@
 import {DataTypes, Op, QueryTypes, Sequelize} from 'sequelize';
 import {ChatDeliveryState, ChatEventState, ChatReceiptState} from './interface.js';
+import {ChatAttachmentUploadState} from './attachmentLifecycle.js';
 
 export default async function initializeChatModels(sequelize: Sequelize) {
 	const ChatDevice = sequelize.define('chatDevice', {
@@ -164,6 +165,75 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 				unique: true
 			},
 			{name: 'chat_event_attachments_storage_idx', fields: ['storageId', 'chatEventId']}
+		]
+	} as any);
+
+	const ChatAttachmentUpload = sequelize.define('chatAttachmentUpload', {
+		reservationId: {
+			type: DataTypes.UUID,
+			allowNull: false,
+			defaultValue: DataTypes.UUIDV4
+		},
+		userId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		expectedBytes: {
+			type: DataTypes.BIGINT,
+			allowNull: false
+		},
+		contentId: {
+			type: DataTypes.INTEGER,
+			allowNull: true
+		},
+		storageId: {
+			type: DataTypes.STRING(200),
+			allowNull: true
+		},
+		chatEventId: {
+			type: DataTypes.INTEGER,
+			allowNull: true
+		},
+		state: {
+			type: DataTypes.STRING(30),
+			allowNull: false,
+			defaultValue: ChatAttachmentUploadState.Reserved
+		},
+		expiresAt: {
+			type: DataTypes.DATE,
+			allowNull: false
+		},
+		uploadedAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		attachedAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		cancelledAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		}
+	} as any, {
+		indexes: [
+			{
+				name: 'chat_attachment_uploads_reservation_unique',
+				fields: ['reservationId'],
+				unique: true
+			},
+			{
+				name: 'chat_attachment_uploads_user_state_expiry_idx',
+				fields: ['userId', 'state', 'expiresAt', 'id']
+			},
+			{
+				name: 'chat_attachment_uploads_content_state_idx',
+				fields: ['contentId', 'state', 'id']
+			},
+			{
+				name: 'chat_attachment_uploads_event_idx',
+				fields: ['chatEventId', 'id']
+			}
 		]
 	} as any);
 
@@ -373,6 +443,8 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 	ChatEventRecipient.belongsTo(ChatEvent, {as: 'event', foreignKey: 'chatEventId'});
 	ChatEvent.hasMany(ChatEventAttachment, {as: 'attachments', foreignKey: 'chatEventId'});
 	ChatEventAttachment.belongsTo(ChatEvent, {as: 'event', foreignKey: 'chatEventId'});
+	ChatEvent.hasMany(ChatAttachmentUpload, {as: 'attachmentUploads', foreignKey: 'chatEventId'});
+	ChatAttachmentUpload.belongsTo(ChatEvent, {as: 'event', foreignKey: 'chatEventId'});
 	ChatEvent.hasMany(ChatEventReceipt, {as: 'receipts', foreignKey: 'chatEventId'});
 	ChatEventReceipt.belongsTo(ChatEvent, {as: 'event', foreignKey: 'chatEventId'});
 	ChatEvent.hasMany(ChatDelivery, {as: 'deliveries', foreignKey: 'chatEventId'});
@@ -385,6 +457,7 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 	await ChatEvent.sync({});
 	await ChatEventRecipient.sync({});
 	await ChatEventAttachment.sync({});
+	await ChatAttachmentUpload.sync({});
 	await ChatDelivery.sync({});
 	await ChatEventReceipt.sync({});
 	await ChatSyncState.sync({});
@@ -411,6 +484,7 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 		ChatEvent,
 		ChatEventRecipient,
 		ChatEventAttachment,
+		ChatAttachmentUpload,
 		ChatDelivery,
 		ChatEventReceipt,
 		ChatSyncState,

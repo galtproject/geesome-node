@@ -113,6 +113,47 @@ export default function registerChatApi(app: IGeesomeApp, chat: IGeesomeChatModu
 	});
 
 	/**
+	 * @api {post} /v1/chat/attachments/reservations Reserve encrypted attachment upload
+	 * @apiName ReserveEncryptedChatAttachment
+	 * @apiGroup Chat
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiDescription Creates a bounded, expiring lifecycle identity before ciphertext upload. The reservation contains only expected ciphertext bytes and never receives plaintext metadata or keys.
+	 * @apiBody {Number} expectedBytes Exact ciphertext byte length that will be uploaded.
+	 * @apiSuccess {String} reservationId Opaque upload reservation identifier.
+	 * @apiSuccess {Number} expectedBytes Reserved ciphertext bytes.
+	 * @apiSuccess {String} state Reservation lifecycle state.
+	 * @apiSuccess {Date} expiresAt Upload binding deadline.
+	 */
+	app.ms.api.onAuthorizedPost('chat/attachments/reservations', async (req, res) => {
+		return res.send(await chat.createAttachmentUploadReservation(
+			req.user.id,
+			req.body.expectedBytes
+		));
+	});
+
+	/**
+	 * @api {post} /v1/chat/attachments/reservations/:reservationId/cancel Cancel encrypted attachment upload
+	 * @apiName CancelEncryptedChatAttachment
+	 * @apiGroup Chat
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiParam {String} reservationId Opaque reservation owned by the authenticated user.
+	 * @apiSuccess {String} reservationId Cancelled reservation identifier.
+	 * @apiSuccess {String} state Cancelled lifecycle state.
+	 * @apiError (409) AttachmentAlreadyAttached Attached uploads cannot be cancelled through the upload lifecycle.
+	 */
+	app.ms.api.onAuthorizedPost(
+		'chat/attachments/reservations/:reservationId/cancel',
+		async (req, res) => {
+			return res.send(await chat.cancelAttachmentUploadReservation(
+				req.user.id,
+				req.params.reservationId
+			));
+		}
+	);
+
+	/**
 	 * @api {post} /v1/chat/events Store signed encrypted chat event
 	 * @apiName StoreEncryptedChatEvent
 	 * @apiGroup Chat
