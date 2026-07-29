@@ -26,6 +26,7 @@ export interface IChatDeliveryPayload {
 		ownerId: string;
 		publicKey: string;
 		deviceBundle: any;
+		syncUrl: string | null;
 	};
 	recipientOwnerId: string;
 	sourceSequence: string;
@@ -84,7 +85,7 @@ export async function verifyChatDelivery(
 		'sourceSequence',
 		'version'
 	]);
-	assertExactKeys(delivery.sender, ['deviceBundle', 'ownerId', 'publicKey']);
+	assertExactKeys(delivery.sender, ['deviceBundle', 'ownerId', 'publicKey', 'syncUrl']);
 	assertTransportSignatureShape(delivery.signature);
 	if (delivery.version !== chatDeliveryProtocol) {
 		throw new Error('chat_delivery_version_invalid');
@@ -94,6 +95,9 @@ export async function verifyChatDelivery(
 		throw new Error('chat_delivery_signature_owner_mismatch');
 	}
 	await assertPublicKeyMatchesOwner(delivery.sender.publicKey, delivery.sender.ownerId);
+	if (delivery.sender.syncUrl !== null) {
+		normalizeChatSyncUrl(delivery.sender.syncUrl);
+	}
 	const {signature, ...unsignedDelivery} = delivery;
 	const valid = await peerIdHelper.verifyWithPublicKeyBase64(
 		delivery.sender.publicKey,
@@ -182,7 +186,27 @@ export async function deliverChatRequest(
 	delivery: IChatDeliveryPayload,
 	options: {timeoutMs?: number; allowHttp?: boolean; lookup?: typeof dnsLookup} = {}
 ): Promise<IChatDeliveryAcknowledgement> {
-	const url = normalizeChatInboxUrl(inboxUrl, options);
+	return postChatTransportJson(
+		normalizeChatInboxUrl(inboxUrl, options),
+		{delivery},
+		{
+			timeoutMs: options.timeoutMs,
+			lookup: options.lookup,
+			maximumResponseBytes
+		}
+	);
+}
+
+export async function postChatTransportJson(
+	url: string,
+	body: any,
+	options: {
+		timeoutMs?: number;
+		lookup?: typeof dnsLookup;
+		maximumResponseBytes?: number;
+		errorPrefix?: string;
+	} = {}
+): Promise<any> {
 	const controller = new AbortController();
 	const timeout = setTimeout(
 		() => controller.abort(),
@@ -191,15 +215,18 @@ export async function deliverChatRequest(
 	let httpsAgent;
 	try {
 		if (url.startsWith('https:')) {
-			httpsAgent = await createSafeHttpsAgent(new URL(url).hostname, {
-				lookup: options.lookup || dnsLookup,
-				errorPrefix: 'chat_inbox_url'
-			});
-		}
-		const response = await axios.post(url, {delivery}, {
+				httpsAgent = await createSafeHttpsAgent(new URL(url).hostname, {
+					lookup: options.lookup || dnsLookup,
+					errorPrefix: options.errorPrefix || 'chat_inbox_url'
+				});
+			}
+			const response = await axios.post(url, body, {
 			headers: {'content-type': 'application/json'},
 			maxRedirects: 0,
-			maxContentLength: maximumResponseBytes,
+			maxContentLength: parsePositiveInteger(
+				options.maximumResponseBytes,
+				maximumResponseBytes
+			),
 			signal: controller.signal,
 			timeout: parsePositiveInteger(options.timeoutMs, defaultRequestTimeoutMs),
 			httpsAgent
@@ -207,7 +234,7 @@ export async function deliverChatRequest(
 		return response.data as IChatDeliveryAcknowledgement;
 	} catch (error) {
 		if (error?.response?.status) {
-			throw new Error(`chat_delivery_http_${error.response.status}`);
+			throw new Error(`${options.errorPrefix || 'chat_delivery'}_http_${error.response.status}`);
 		}
 		throw error;
 	} finally {
@@ -220,24 +247,43 @@ export function normalizeChatInboxUrl(
 	value: string,
 	options: {allowHttp?: boolean} = {}
 ): string {
+	return normalizeChatTransportUrl(value, options, 'chat_inbox_url');
+}
+
+export function normalizeChatSyncUrl(
+	value: string,
+	options: {allowHttp?: boolean} = {}
+): string {
+	return normalizeChatTransportUrl(value, options, 'chat_sync_url');
+}
+
+function normalizeChatTransportUrl(
+	value: string,
+	options: {allowHttp?: boolean},
+	errorPrefix: string
+): string {
 	let url: URL;
 	try {
 		url = new URL(String(value || ''));
 	} catch (error) {
-		throw new Error('chat_inbox_url_invalid');
+		throw new Error(`${errorPrefix}_invalid`);
 	}
 	const allowHttp = options.allowHttp === true && url.protocol === 'http:';
 	if (url.protocol !== 'https:' && !allowHttp) {
-		throw new Error('chat_inbox_url_https_required');
+		throw new Error(`${errorPrefix}_https_required`);
 	}
 	if (url.username || url.password || url.search || url.hash) {
-		throw new Error('chat_inbox_url_invalid');
+		throw new Error(`${errorPrefix}_invalid`);
 	}
 	if (isPrivateChatHostname(url.hostname) && !allowHttp) {
-		throw new Error('chat_inbox_url_private_host');
+		throw new Error(`${errorPrefix}_private_host`);
 	}
 	url.pathname = url.pathname.replace(/\/+$/, '');
 	return url.toString();
+}
+
+export function getChatTransportSigningBytes(value): Buffer {
+	return Buffer.from(JSON.stringify(commonHelper.sortObject(value)), 'utf8');
 }
 
 export async function assertPublicKeyMatchesOwner(
@@ -251,7 +297,7 @@ export async function assertPublicKeyMatchesOwner(
 }
 
 function getSigningBytes(value): Buffer {
-	return Buffer.from(JSON.stringify(commonHelper.sortObject(value)), 'utf8');
+	return getChatTransportSigningBytes(value);
 }
 
 function assertSignerMatchesOwner(signer: IChatTransportSigner, ownerId: string): void {

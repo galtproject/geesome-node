@@ -28,6 +28,7 @@ describe('chat api', () => {
 		const chat: any = {
 			getPublicNodeInfo: async (...args) => record(calls, 'getPublicNodeInfo', args),
 			acceptRemoteDelivery: async (...args) => record(calls, 'acceptRemoteDelivery', args),
+			acceptSyncRequest: async (...args) => record(calls, 'acceptSyncRequest', args),
 			registerDevice: async (...args) => record(calls, 'registerDevice', args),
 			getOwnDevices: async (...args) => record(calls, 'getOwnDevices', args),
 			getPublicDevices: async (...args) => record(calls, 'getPublicDevices', args),
@@ -36,6 +37,7 @@ describe('chat api', () => {
 			getEventDeliveries: async (...args) => record(calls, 'getEventDeliveries', args),
 			getEncryptedEvents: async (...args) => record(calls, 'getEncryptedEvents', args),
 			getConversationHead: async (...args) => record(calls, 'getConversationHead', args),
+			reconcileConversation: async (...args) => record(calls, 'reconcileConversation', args),
 			setEventReceipt: async (...args) => record(calls, 'setEventReceipt', args)
 		};
 
@@ -44,6 +46,7 @@ describe('chat api', () => {
 			'GET chat/public/node',
 			'GET chat/public/users/:ownerId/devices',
 			'POST chat/inbox',
+			'POST chat/sync',
 			'POST chat/devices',
 			'GET chat/devices',
 			'GET chat/users/:ownerId/devices',
@@ -52,6 +55,7 @@ describe('chat api', () => {
 			'GET chat/events/:messageId/deliveries',
 			'GET chat/conversations/:conversationId/events',
 			'GET chat/conversations/:conversationId/head',
+			'POST chat/conversations/:conversationId/reconcile',
 			'POST chat/events/:messageId/receipt'
 		]);
 		assert.deepEqual(
@@ -60,7 +64,8 @@ describe('chat api', () => {
 			[
 				'GET chat/public/node',
 				'GET chat/public/users/:ownerId/devices',
-				'POST chat/inbox'
+				'POST chat/inbox',
+				'POST chat/sync'
 			]
 		);
 

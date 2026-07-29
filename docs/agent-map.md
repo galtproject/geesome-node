@@ -35,6 +35,16 @@ Useful live endpoints:
 - For review-first/auto-import policy or remote-source filters, also read
   `app/modules/remoteContentModeration/docs/overview.md`.
 
+## Browser-First Secure Chat
+
+- Run `npm run todo:context -- browser-first-chat-e2ee`.
+- Read `app/modules/chat/docs/overview.md` before changing device, envelope,
+  delivery, acknowledgement, or reconciliation contracts.
+- Keep browser private keys and plaintext outside `geesome-node`; node tests
+  should operate on signed opaque envelopes.
+- Treat realtime communicator/PubSub events as hints. Durable delivery, retry,
+  ordering, and missing-range repair belong to the stored chat log.
+
 ## Data Scale, Migrations, And Storage
 
 - Read [database-scalability-review.md](./database-scalability-review.md).
