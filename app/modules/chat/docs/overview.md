@@ -74,6 +74,13 @@ regress repair work. The following environment variables tune the bounded worker
 - `CHAT_ATTACHMENT_RESERVATION_TTL_MS`
 - `CHAT_MAX_PENDING_ATTACHMENT_RESERVATIONS`
 - `CHAT_MAX_PENDING_ATTACHMENT_BYTES`
+- `CHAT_ATTACHMENT_CLEANUP_WORKER`
+- `CHAT_ATTACHMENT_CLEANUP_WORKER_INTERVAL_MS`
+- `CHAT_ATTACHMENT_CLEANUP_WORKER_LIMIT`
+- `CHAT_ATTACHMENT_ABANDONED_RETENTION_MS`
+- `CHAT_ATTACHMENT_CANCELLED_RETENTION_MS`
+- `CHAT_ATTACHMENT_CLEANUP_CLAIM_TTL_MS`
+- `CHAT_ATTACHMENT_CLEANUP_RECORD_RETENTION_MS`
 
 Browser device creation, encrypted recovery/restore, revocation, and encrypted
 direct-message send/read UX and explicit device trust verification are present
@@ -99,7 +106,25 @@ from the normal file catalog, binds the resulting content row to the reservation
 and marks it attached in the same transaction that accepts the encrypted event.
 Active reservations are serialized per user and bounded by count and reserved
 bytes. Existing clients that do not send reservation IDs remain accepted during
-the rolling transition; browser wiring and expired-upload cleanup remain TODO.
+the rolling transition.
+
+Browsers reserve the exact encrypted blob size before upload and retain the
+reservation across event retries. The cleanup worker is enabled by default,
+runs every five minutes, and processes at most 25 lifecycle rows per pass.
+Unbound reservations expire after one hour, cancelled uploads are retained for
+one hour, and uploaded ciphertext that was never attached to an accepted event
+is retained for seven days. Cleanup audit rows are retained for 30 days. Every
+window and worker bound is configurable through the variables above.
+
+Cleanup locks the Content row shared with event acceptance, repairs any upload
+that already has an event attachment, and never cleans attached uploads.
+Eligible Content rows are soft-deleted before their storage IDs enter the
+storage-space async removal queue. That queue repeats reference and pin safety
+checks at execution time, so another user's row, an accepted chat event, a pin,
+or another registered storage reference prevents physical deletion. Operators
+can run the same bounded pass explicitly through
+`POST /v1/admin/chat/attachments/cleanup`. The lifecycle reads only ciphertext
+identity and byte counts; it never receives plaintext metadata or keys.
 
 See [Reliable IPFS Chat Research](../../../../docs/ipfs-chat-reliability-research.md)
 for the transport and delivery analysis behind these boundaries.

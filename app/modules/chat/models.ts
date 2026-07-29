@@ -233,6 +233,22 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 			{
 				name: 'chat_attachment_uploads_event_idx',
 				fields: ['chatEventId', 'id']
+			},
+			{
+				name: 'chat_attachment_uploads_state_expiry_idx',
+				fields: ['state', 'expiresAt', 'id']
+			},
+			{
+				name: 'chat_attachment_uploads_state_uploaded_idx',
+				fields: ['state', 'uploadedAt', 'id']
+			},
+			{
+				name: 'chat_attachment_uploads_state_cancelled_idx',
+				fields: ['state', 'cancelledAt', 'id']
+			},
+			{
+				name: 'chat_attachment_uploads_state_updated_idx',
+				fields: ['state', 'updatedAt', 'id']
 			}
 		]
 	} as any);

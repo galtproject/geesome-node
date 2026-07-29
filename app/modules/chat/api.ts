@@ -1,4 +1,5 @@
 import type {IGeesomeApp} from '../../interface.js';
+import {CorePermissionName} from '../database/interface.js';
 import type IGeesomeChatModule from './interface.js';
 
 export default function registerChatApi(app: IGeesomeApp, chat: IGeesomeChatModule) {
@@ -150,6 +151,30 @@ export default function registerChatApi(app: IGeesomeApp, chat: IGeesomeChatModu
 				req.user.id,
 				req.params.reservationId
 			));
+		}
+	);
+
+	/**
+	 * @api {post} /v1/admin/chat/attachments/cleanup Clean abandoned encrypted chat uploads
+	 * @apiName CleanupEncryptedChatAttachments
+	 * @apiGroup Chat
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiPermission AdminAll
+	 * @apiBody {Number} [limit=25] Maximum lifecycle rows to process, capped at 100.
+	 * @apiSuccess {Number} processed Lifecycle rows processed.
+	 * @apiSuccess {Number} cleaned Uploads tombstoned and queued for reference-safe storage removal.
+	 * @apiSuccess {Number} blocked Uploads retained because another content reference still exists.
+	 * @apiSuccess {Number} reconciled Uploads repaired to attached state from an accepted event reference.
+	 * @apiSuccess {Number} pruned Expired cleanup audit rows removed.
+	 * @apiSuccess {Number} failed Rows left retryable after a cleanup failure.
+	 * @apiDescription Uses configured retention windows unless explicit operator overrides are supplied. Plaintext names, MIME types, attachment keys, and message bodies are never read.
+	 */
+	app.ms.api.onAuthorizedPost(
+		'admin/chat/attachments/cleanup',
+		async (req, res) => {
+			await app.checkUserCan(req.user.id, CorePermissionName.AdminAll);
+			return res.send(await chat.processAttachmentCleanup(req.body));
 		}
 	);
 

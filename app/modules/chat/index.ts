@@ -52,8 +52,10 @@ import {
 	attachChatAttachmentUploads,
 	bindChatAttachmentUpload,
 	cancelChatAttachmentUpload,
-	createChatAttachmentUploadReservation
+	createChatAttachmentUploadReservation,
+	lockChatAttachmentContents
 } from './attachmentLifecycle.js';
+import {cleanupChatAttachmentUploads} from './attachmentCleanup.js';
 
 const maxDeviceBundleBytes = 64 * 1024;
 const maxEnvelopeBytes = 1024 * 1024;
@@ -199,8 +201,17 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 			return cancelChatAttachmentUpload(models, userId, reservationId);
 		}
 
+		async processAttachmentCleanup(cleanupOptions: any = {}) {
+			return cleanupChatAttachmentUploads(
+				app,
+				models,
+				cleanupOptions
+			);
+		}
+
 		async afterContentAdding(userId, content, contentOptions) {
 			return bindChatAttachmentUpload(
+				app,
 				models,
 				userId,
 				content,
@@ -280,6 +291,11 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 
 			try {
 				const result = await app.ms.database.sequelize.transaction(async transaction => {
+					await lockChatAttachmentContents(
+						app,
+						attachmentContents,
+						transaction
+					);
 					const sequence = await allocateConversationSequence(
 						models,
 						envelope.conversationId,
