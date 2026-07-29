@@ -111,11 +111,9 @@ Current safety boundary:
 
 Remaining delivery order:
 
-1. Complete encrypted attachments. Sender-side ownership checks and durable
-   event-to-storage references are implemented. Next, make the recipient fetch,
-   verify, persist, and pin every ciphertext object before signing delivery
-   acknowledgement; surface missing or corrupt objects as retryable delivery
-   failures. Then add browser encryption before upload, wrapped content-key
+1. Complete encrypted attachments. Sender-side ownership and retention checks,
+   durable event-to-storage references, and recipient fetch/pin-before-ack are
+   implemented. Next, add browser encryption before upload, wrapped content-key
    descriptors inside the encrypted envelope, authenticated download/decryption,
    previews, corruption behavior, deletion, quota, retry, and retention without
    exposing plaintext, original file metadata, or keys to the node.

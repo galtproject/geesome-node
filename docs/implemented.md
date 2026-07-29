@@ -214,6 +214,11 @@ TODO.
   stores normalized event-to-storage references, and registers them with the
   shared deletion-safety scanner so queued events cannot be orphaned by content
   cleanup.
+- Recipient nodes recursively fetch and pin every referenced attachment
+  ciphertext DAG before committing the remote event and signing its delivery
+  acknowledgement. Missing or unavailable objects return a retryable service
+  failure, and stalled IPFS pins are bounded below the sender request timeout,
+  so the sender queue cannot report a false delivery and will retry.
 - Authenticated HTTPS delivery has durable retry leases, bounded backoff,
   recipient-signed acknowledgements, source-head comparison, signed missing-range
   repair, and an opt-in bounded reconciliation worker.
@@ -226,6 +231,6 @@ TODO.
   sequence/head reconciliation as the correctness boundary.
 
 This is a browser-first encrypted direct-message foundation, not completion of
-production-secure chat. Recipient-side attachment fetch/pin acknowledgement,
-browser attachment UX, reviewed group membership/key rotation, retention/quota
-policy, and real two-node browser testing remain in the active TODO.
+production-secure chat. Browser attachment encryption and decryption UX,
+reviewed group membership/key rotation, retention/quota policy, and real
+two-node browser testing remain in the active TODO.

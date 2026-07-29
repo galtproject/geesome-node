@@ -44,6 +44,7 @@ import {
 	verifyChatDelivery
 } from './transport.js';
 import {buildChatPublicNodeInfoResponse} from './publicNodeInfo.js';
+import {pinRemoteChatAttachments} from './attachmentStorage.js';
 
 const maxDeviceBundleBytes = 64 * 1024;
 const maxEnvelopeBytes = 1024 * 1024;
@@ -368,6 +369,10 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 				throw chatError('chat_delivery_recipient_device_not_found', 404);
 			}
 
+			const attachmentStorageIds = getAttachmentStorageIds(envelope);
+			await pinRemoteChatAttachments(app.ms.storage, attachmentStorageIds, {
+				timeoutMs: app.config.chatConfig?.attachmentPinTimeoutMs
+			});
 			const eventHash = getEventHash(envelope);
 			const existing = await models.ChatEvent.findOne({
 				where: {messageId: envelope.messageId}
@@ -729,6 +734,14 @@ async function createRemoteChatEvent(
 			userId: localUsersByKey.get(recipient.keyId) || null,
 			ownerId: recipient.ownerId,
 			keyId: recipient.keyId
+		})),
+		{transaction}
+	);
+	await models.ChatEventAttachment.bulkCreate(
+		getAttachmentStorageIds(envelope).map(storageId => ({
+			chatEventId: event.id,
+			contentId: null,
+			storageId
 		})),
 		{transaction}
 	);

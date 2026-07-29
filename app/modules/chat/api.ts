@@ -32,11 +32,12 @@ export default function registerChatApi(app: IGeesomeApp, chat: IGeesomeChatModu
 	 * @api {post} /v1/chat/inbox Receive encrypted inter-node event
 	 * @apiName ReceiveEncryptedChatDelivery
 	 * @apiGroup Chat
-	 * @apiDescription Verifies the sender static-identity signature, browser device signature, encrypted envelope, destination owner, and active local recipient key before idempotently storing ciphertext. Returns a recipient-identity-signed acknowledgement.
+	 * @apiDescription Verifies the sender static-identity signature, browser device signature, encrypted envelope, destination owner, and active local recipient key. Referenced encrypted attachment objects are recursively fetched and pinned before the event is idempotently stored and a recipient-identity-signed acknowledgement is returned.
 	 * @apiBody {Object} delivery Signed `geesome-chat-delivery-v1` payload.
 	 * @apiSuccess {String} deliveryId Stable delivery identifier.
 	 * @apiSuccess {String} acceptedSequence Recipient node sequence.
 	 * @apiSuccess {Object} signature Recipient static-identity signature.
+	 * @apiError (503) AttachmentUnavailable Referenced attachment ciphertext could not be fetched and pinned; the sender may retry delivery.
 	 */
 	app.ms.api.onPost('chat/inbox', async (req, res) => {
 		return res.send(await chat.acceptRemoteDelivery(req.body.delivery));

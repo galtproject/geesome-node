@@ -168,7 +168,8 @@ describe('chat persistence', function () {
 			aliceDevice,
 			{
 				messageId: 'postgres-remote-message-1',
-				conversationId: 'postgres-remote-conversation'
+				conversationId: 'postgres-remote-conversation',
+				metadata: {attachmentStorageIds: [testAttachmentStorageId]}
 			}
 		);
 		const aliceTransportKey = await app.ms.accountStorage.getAccountPeerId(
@@ -195,7 +196,17 @@ describe('chat persistence', function () {
 			publicKey: aliceTransportPublicKey,
 			sign: async data => Buffer.from(await aliceTransportKey.privKey.sign(data))
 		});
-		const acknowledgement = await app.ms.chat.acceptRemoteDelivery(delivery);
+		const pinnedAttachmentStorageIds = [];
+		const addPin = app.ms.storage.addPin.bind(app.ms.storage);
+		app.ms.storage.addPin = async storageId => {
+			pinnedAttachmentStorageIds.push(storageId);
+		};
+		let acknowledgement;
+		try {
+			acknowledgement = await app.ms.chat.acceptRemoteDelivery(delivery);
+		} finally {
+			app.ms.storage.addPin = addPin;
+		}
 		const remoteEventHash = getEnvelopeHash(remoteEnvelope);
 		await verifyChatAcknowledgement(acknowledgement, {
 			deliveryId,
@@ -212,6 +223,12 @@ describe('chat persistence', function () {
 		assert.equal(remoteEvents.list[0].state, 'received_remote');
 		assert.equal(remoteEvents.list[0].sourceSequence, '15');
 		assert.equal(JSON.stringify(remoteEvents.list[0]).includes('remote transport secret'), false);
+		assert.deepEqual(pinnedAttachmentStorageIds, [testAttachmentStorageId]);
+		assert.equal(
+			(await app.ms.database.countStorageIdReferences(testAttachmentStorageId))
+				.derivedStorageRefs,
+			1
+		);
 
 		const firstReconciliation = await app.ms.chat.reconcileConversation(
 			bob.id,
