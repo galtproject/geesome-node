@@ -640,6 +640,9 @@ function createModels(rows) {
 			destroy: async () => clearRows(rows.attachments)
 		},
 		ChatEventAttachmentRetention: {
+			findOne: async ({where}) => rows.attachmentRetentions.find(
+				row => matchesWhere(row, where)
+			) || null,
 			findOrCreate: async ({where, defaults}) => {
 				let retention = rows.attachmentRetentions.find(
 					row => matchesWhere(row, where)

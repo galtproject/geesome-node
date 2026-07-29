@@ -111,35 +111,14 @@ Current safety boundary:
 
 Remaining delivery order:
 
-1. Complete encrypted attachments. Sender-side ownership and retention checks,
-   durable event-to-storage references, and recipient fetch/pin-before-ack are
-   implemented. Browsers now encrypt before upload, keep wrapped content-key
-   descriptors inside the encrypted envelope, authenticate downloads, render
-   safe raster previews, report corruption, and reuse successful uploads when
-   event submission is retried. Configurable byte admission now caps individual
-   ciphertext files and combined event attachments before local persistence or
-   remote pinning. The node now has expiring, count/byte-bounded upload
-   reservations that bind ciphertext content through the existing upload hook
-   and transition to attached state with event acceptance. Browsers now reserve
-   exact ciphertext bytes and reuse successful uploads across event retries.
-   Bounded cleanup expires unbound reservations, tombstones cancelled and
-   abandoned uploads after explicit retention windows, reconciles event-linked
-   rows, and delegates physical deletion to the reference-safe storage queue.
-   The node now records idempotent committed-attachment release intent per
-   participant and overlays released ciphertext IDs on that user's event reads
-   without changing the signed envelope or shared reference. Next, expose that
-   release action in the browser, then add bounded physical cleanup only after
-   every local participant released the attachment and every required outbound
-   delivery was acknowledged. Neither step may expose plaintext, original file
-   metadata, or keys to the node.
-2. Select and review the group protocol before extending pairwise envelopes.
+1. Select and review the group protocol before extending pairwise envelopes.
    Define membership epochs and rotate future-message keys when members/devices
    are added, removed, replaced, or revoked. Evaluate MLS, Matrix-style
    device/session handling, or another maintained browser-capable protocol.
-3. Run real two-node browser tests across restart, temporary unreachability,
+2. Run real two-node browser tests across restart, temporary unreachability,
    duplicate/out-of-order delivery, bounded repair, revoked devices, and
    NAT/bootstrap/reciprocal-peering conditions.
-4. Define operator-visible queue/reconciliation metrics and explicit encrypted
+3. Define operator-visible queue/reconciliation metrics and explicit encrypted
    event retention, retry deadline, quota, and cleanup policy. Migrate or
    explicitly retire the legacy server-encrypted path without relabelling old
    conversations as E2EE.
