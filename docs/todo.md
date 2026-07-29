@@ -120,10 +120,14 @@ Remaining delivery order:
    ciphertext files and combined event attachments before local persistence or
    remote pinning. The node now has expiring, count/byte-bounded upload
    reservations that bind ciphertext content through the existing upload hook
-   and transition to attached state with event acceptance. Next, wire browser
-   uploads to reservations, then define deletion, expired/abandoned-upload
-   cleanup, and retention policy without exposing plaintext, original file
-   metadata, or keys to the node.
+   and transition to attached state with event acceptance. Browsers now reserve
+   exact ciphertext bytes and reuse successful uploads across event retries.
+   Bounded cleanup expires unbound reservations, tombstones cancelled and
+   abandoned uploads after explicit retention windows, reconciles event-linked
+   rows, and delegates physical deletion to the reference-safe storage queue.
+   Next, define user-visible deletion and retention for attachments already
+   committed to events without exposing plaintext, original file metadata, or
+   keys to the node.
 2. Select and review the group protocol before extending pairwise envelopes.
    Define membership epochs and rotate future-message keys when members/devices
    are added, removed, replaced, or revoked. Evaluate MLS, Matrix-style

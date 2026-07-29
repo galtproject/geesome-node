@@ -24,6 +24,7 @@ describe('chat persistence', function () {
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
 		appConfig.chatConfig.deliveryWorker = false;
 		appConfig.chatConfig.reconciliationWorker = false;
+		appConfig.chatConfig.attachmentCleanupWorker = false;
 		appConfig.chatConfig.autoProcessDeliveries = false;
 		app = await (await import('../app/index.js')).default({
 			storageConfig: appConfig.storageConfig,
@@ -496,6 +497,66 @@ describe('chat persistence', function () {
 		});
 		assert.equal(upload.state, 'attached');
 		assert.ok(upload.chatEventId);
+	});
+
+	it('tombstones cancelled ciphertext and queues reference-safe physical cleanup', async () => {
+		const reservation = await app.ms.chat.createAttachmentUploadReservation(
+			alice.id,
+			32
+		);
+		const attachment = await app.ms.database.addContent({
+			userId: alice.id,
+			storageType: ContentStorageType.IPFS,
+			mimeType: 'application/octet-stream',
+			storageId: testAttachmentStorageId,
+			size: 32,
+			name: 'cancelled-encrypted-chat-attachment'
+		} as any);
+		await app.ms.database.addContent({
+			userId: bob.id,
+			storageType: ContentStorageType.IPFS,
+			mimeType: 'application/octet-stream',
+			storageId: testAttachmentStorageId,
+			size: 32,
+			name: 'shared-ciphertext-owner'
+		} as any);
+		await app.ms.chat.afterContentAdding(alice.id, attachment, {
+			chatAttachmentReservationId: reservation.reservationId
+		});
+		await app.ms.chat.cancelAttachmentUploadReservation(
+			alice.id,
+			reservation.reservationId
+		);
+
+		const cleanup = await app.ms.chat.processAttachmentCleanup({
+			now: new Date(Date.now() + 2 * 60 * 60 * 1000),
+			attachmentCancelledRetentionMs: 0,
+			processStorageRemoval: false
+		});
+
+		assert.equal(cleanup.cleaned, 1);
+		const deletedAttachment = await app.ms.database.getContent(
+			attachment.id,
+			{includeDeleted: true}
+		);
+		assert.equal(deletedAttachment.isDeleted, true);
+		const upload = await app.ms.database.sequelize.models.chatAttachmentUpload.findOne({
+			where: {reservationId: reservation.reservationId}
+		});
+		assert.equal(upload.state, 'cleaned');
+		const queue = await app.ms.database.sequelize.models.userOperationQueue.findOne({
+			where: {module: 'storage-space-storage-removal'}
+		});
+		assert.ok(queue);
+		assert.equal(
+			JSON.parse(queue.inputJson).storageId,
+			testAttachmentStorageId
+		);
+		const bobAttachment = await app.ms.database.getContentByStorageAndUserId(
+			testAttachmentStorageId,
+			bob.id
+		);
+		assert.ok(bobAttachment);
 	});
 });
 

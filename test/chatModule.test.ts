@@ -199,15 +199,25 @@ describe('chat module', () => {
 	});
 
 	it('rejects cancelled and incorrectly sized attachment uploads', async () => {
-		const {chat} = createChatHarness();
+		const cancelledContent = {
+			id: 8,
+			userId: 1,
+			storageId: testAttachmentStorageId,
+			size: 32
+		};
+		const wrongSizeContent = {
+			id: 9,
+			userId: 1,
+			storageId: testAttachmentStorageId,
+			size: 31
+		};
+		const {chat, rows} = createChatHarness({
+			contents: [cancelledContent, wrongSizeContent]
+		});
 		const cancelled = await chat.createAttachmentUploadReservation(1, 32);
 		await chat.cancelAttachmentUploadReservation(1, cancelled.reservationId);
 		await assert.rejects(
-			() => chat.afterContentAdding(1, {
-				id: 8,
-				storageId: testAttachmentStorageId,
-				size: 32
-			}, {
+			() => chat.afterContentAdding(1, rows.contents[0], {
 				chatAttachmentReservationId: cancelled.reservationId
 			}),
 			/chat_attachment_reservation_not_active/
@@ -215,14 +225,111 @@ describe('chat module', () => {
 
 		const wrongSize = await chat.createAttachmentUploadReservation(1, 32);
 		await assert.rejects(
-			() => chat.afterContentAdding(1, {
-				id: 9,
-				storageId: testAttachmentStorageId,
-				size: 31
-			}, {
+			() => chat.afterContentAdding(1, rows.contents[1], {
 				chatAttachmentReservationId: wrongSize.reservationId
 			}),
 			/chat_attachment_upload_size_mismatch/
+		);
+	});
+
+	it('cleans expired reservations and cancelled uploaded ciphertext', async () => {
+		const content = {
+			id: 10,
+			userId: 1,
+			storageId: testAttachmentStorageId,
+			size: 32
+		};
+		const {chat, rows} = createChatHarness({contents: [content]});
+		const expired = await chat.createAttachmentUploadReservation(1, 32);
+		const upload = await chat.createAttachmentUploadReservation(1, 32);
+		await chat.afterContentAdding(1, rows.contents[0], {
+			chatAttachmentReservationId: upload.reservationId
+		});
+		await chat.cancelAttachmentUploadReservation(1, upload.reservationId);
+
+		const result = await chat.processAttachmentCleanup({
+			now: new Date(Date.now() + 2 * 60 * 60 * 1000),
+			attachmentCancelledRetentionMs: 0,
+			processStorageRemoval: false
+		});
+
+		assert.equal(result.cleaned, 2);
+		assert.equal(rows.contents[0].isDeleted, true);
+		assert.equal(rows.uploads.find(row =>
+			row.reservationId === expired.reservationId
+		).state, ChatAttachmentUploadState.Cleaned);
+		assert.equal(rows.uploads.find(row =>
+			row.reservationId === upload.reservationId
+		).state, ChatAttachmentUploadState.Cleaned);
+		assert.equal(rows.storageRemovalQueue.length, 1);
+		assert.equal(rows.storageRemovalQueue[0][2], testAttachmentStorageId);
+	});
+
+	it('keeps ciphertext reused by a newer active upload reservation', async () => {
+		const content = {
+			id: 12,
+			userId: 1,
+			storageId: testAttachmentStorageId,
+			size: 32
+		};
+		const {chat, rows} = createChatHarness({contents: [content]});
+		const cancelled = await chat.createAttachmentUploadReservation(1, 32);
+		await chat.afterContentAdding(1, rows.contents[0], {
+			chatAttachmentReservationId: cancelled.reservationId
+		});
+		await chat.cancelAttachmentUploadReservation(
+			1,
+			cancelled.reservationId
+		);
+		const replacement = await chat.createAttachmentUploadReservation(1, 32);
+		await chat.afterContentAdding(1, rows.contents[0], {
+			chatAttachmentReservationId: replacement.reservationId
+		});
+
+		const result = await chat.processAttachmentCleanup({
+			now: new Date(Date.now() + 2 * 60 * 60 * 1000),
+			attachmentCancelledRetentionMs: 0,
+			processStorageRemoval: false
+		});
+
+		assert.equal(result.cleaned, 1);
+		assert.equal(rows.contents[0].isDeleted, false);
+		assert.equal(rows.storageRemovalQueue.length, 0);
+		assert.equal(rows.uploads.find(row =>
+			row.reservationId === replacement.reservationId
+		).state, ChatAttachmentUploadState.Uploaded);
+	});
+
+	it('rejects event attachment reservations already claimed for cleanup', async () => {
+		const content = {
+			id: 11,
+			userId: 1,
+			storageId: testAttachmentStorageId,
+			size: 32
+		};
+		const {chat, rows} = createChatHarness({contents: [content]});
+		const reservation = await chat.createAttachmentUploadReservation(1, 32);
+		await chat.afterContentAdding(1, rows.contents[0], {
+			chatAttachmentReservationId: reservation.reservationId
+		});
+		await rows.uploads[0].update({
+			state: ChatAttachmentUploadState.CleanupPending
+		});
+		const alice = await createDevice('owner-alice', 'alice-browser');
+		const bob = await createDevice('owner-bob', 'bob-browser');
+		await chat.registerDevice(1, alice.publicBundle);
+		await chat.registerDevice(2, bob.publicBundle);
+		const envelope = await createEnvelope(
+			'encrypted attachment descriptor',
+			alice,
+			bob,
+			'message-cleanup-claimed-attachment',
+			{attachmentStorageIds: [testAttachmentStorageId]}
+		);
+
+		await assert.rejects(
+			() => chat.acceptEncryptedEvent(1, envelope),
+			/chat_attachment_upload_not_attachable/
 		);
 	});
 
@@ -320,7 +427,7 @@ async function createEnvelope(message, sender, recipient, messageId: string, met
 }
 
 function createChatHarness(options: any = {}) {
-	const rows = {
+	const rows: any = {
 		devices: [],
 		heads: [],
 		events: [],
@@ -328,8 +435,12 @@ function createChatHarness(options: any = {}) {
 		uploads: [],
 		recipients: [],
 		receipts: [],
-		contents: options.contents || []
+		contents: [],
+		storageRemovalQueue: []
 	};
+	for (const content of options.contents || []) {
+		addRow(rows.contents, {isDeleted: false, ...content});
+	}
 	const models = createModels(rows);
 	const app: any = {
 		config: {
@@ -341,6 +452,14 @@ function createChatHarness(options: any = {}) {
 				models: {
 					User: {
 						findByPk: async userId => ({id: userId})
+					},
+					Content: {
+						findAll: async ({where}) => rows.contents.filter(
+							content => matchesWhere(content, where)
+						),
+						findByPk: async contentId => rows.contents.find(
+							content => content.id === contentId
+						) || null
 					}
 				},
 				getContentByStorageIdListAndUserId: async (storageIds, userId) => {
@@ -352,10 +471,27 @@ function createChatHarness(options: any = {}) {
 					id: userId,
 					storageAccountId: userId === 1 ? 'owner-alice' : 'owner-bob'
 				}),
+				getContentDeleteSafety: async content =>
+					options.getContentDeleteSafety?.(content) || {
+						safeToDestroyContent: true,
+						contentBlockers: []
+					},
+				getStorageObjectDeleteSafety: async () => ({
+					safeToRemovePhysical: true
+				}),
 				sequelize: {
 					escape: value => String(Number(value)),
 					transaction: async callback => callback({LOCK: {UPDATE: 'UPDATE'}})
 				}
+			},
+			storageSpace: {
+				queueStorageObjectRemoval: async (...args) => {
+					rows.storageRemovalQueue.push(args);
+				}
+			},
+			storage: {
+				unPin: async () => null,
+				remove: async () => null
 			}
 		}
 	};
@@ -429,6 +565,9 @@ function createModels(rows) {
 		},
 		ChatEventAttachment: {
 			bulkCreate: async records => records.map(record => addRow(rows.attachments, record)),
+			findOne: async ({where}) => rows.attachments.find(
+				row => matchesWhere(row, where)
+			) || null,
 			destroy: async () => clearRows(rows.attachments)
 		},
 		ChatAttachmentUpload: {
@@ -441,6 +580,16 @@ function createModels(rows) {
 				.filter(row => matchesWhere(row, where))
 				.reduce((sum, row) => sum + Number(row[field]), 0),
 			findOne: async ({where}) => rows.uploads.find(row => matchesWhere(row, where)) || null,
+			findByPk: async id => rows.uploads.find(row => row.id === id) || null,
+			findAll: async ({where, order = [['id', 'ASC']], limit}) => {
+				const direction = order[0][1];
+				const matching = rows.uploads
+					.filter(row => matchesWhere(row, where))
+					.sort((left, right) => direction === 'DESC'
+						? Number(right.id) - Number(left.id)
+						: Number(left.id) - Number(right.id));
+				return matching.slice(0, limit);
+			},
 			update: async (updateData, {where}) => {
 				const matching = rows.uploads.filter(row => matchesWhere(row, where));
 				for (const row of matching) {
@@ -476,11 +625,21 @@ function addRow(rows, data) {
 		Object.assign(row, updateData, {updatedAt: now});
 		return row;
 	};
+	row.destroy = async () => {
+		const index = rows.indexOf(row);
+		if (index >= 0) {
+			rows.splice(index, 1);
+		}
+	};
 	rows.push(row);
 	return row;
 }
 
 function matchesWhere(row, where) {
+	const alternatives = where?.[Op.or];
+	if (alternatives && !alternatives.some(item => matchesWhere(row, item))) {
+		return false;
+	}
 	return Object.entries(where || {}).every(([field, expected]: [string, any]) => {
 		if (expected && typeof expected === 'object') {
 			const symbols = Object.getOwnPropertySymbols(expected);
@@ -489,6 +648,12 @@ function matchesWhere(row, where) {
 			}
 			if (symbols.includes(Op.gt)) {
 				return row[field] > expected[Op.gt];
+			}
+			if (symbols.includes(Op.lte)) {
+				return row[field] <= expected[Op.lte];
+			}
+			if (symbols.includes(Op.ne)) {
+				return row[field] !== expected[Op.ne];
 			}
 		}
 		return row[field] === expected;

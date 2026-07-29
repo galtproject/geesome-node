@@ -79,4 +79,30 @@ describe('chat cron service', () => {
 			claimTtlMs: '4000'
 		});
 	});
+
+	it('runs bounded attachment cleanup when enabled', async () => {
+		let processOptions;
+		let signalRun;
+		const run = new Promise(resolve => {
+			signalRun = resolve;
+		});
+		const worker = startChatWorkers({
+			config: {
+				chatConfig: {
+					attachmentCleanupWorker: true,
+					attachmentCleanupWorkerIntervalMs: 60000,
+					attachmentCleanupWorkerLimit: '11'
+				}
+			}
+		} as any, {
+			processAttachmentCleanup: async options => {
+				processOptions = options;
+				signalRun();
+			}
+		} as any);
+
+		await run;
+		await worker.stop();
+		assert.deepEqual(processOptions, {limit: '11'});
+	});
 });

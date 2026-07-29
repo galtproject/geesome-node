@@ -4,7 +4,9 @@ import registerChatApi from '../app/modules/chat/api.js';
 describe('chat api', () => {
 	it('registers public transport routes and protects user chat operations', async () => {
 		const routes = [];
+		const permissions = [];
 		const app: any = {
+			checkUserCan: async (...args) => permissions.push(args),
 			ms: {
 				api: {
 					onGet: (path, callback) => routes.push({
@@ -37,6 +39,8 @@ describe('chat api', () => {
 				record(calls, 'createAttachmentUploadReservation', args),
 			cancelAttachmentUploadReservation: async (...args) =>
 				record(calls, 'cancelAttachmentUploadReservation', args),
+			processAttachmentCleanup: async (...args) =>
+				record(calls, 'processAttachmentCleanup', args),
 			acceptEncryptedEvent: async (...args) => record(calls, 'acceptEncryptedEvent', args),
 			getEventDeliveries: async (...args) => record(calls, 'getEventDeliveries', args),
 			getEncryptedEvents: async (...args) => record(calls, 'getEncryptedEvents', args),
@@ -57,6 +61,7 @@ describe('chat api', () => {
 			'POST chat/devices/:deviceId/revoke',
 			'POST chat/attachments/reservations',
 			'POST chat/attachments/reservations/:reservationId/cancel',
+			'POST admin/chat/attachments/cleanup',
 			'POST chat/events',
 			'GET chat/events/:messageId/deliveries',
 			'GET chat/conversations/:conversationId/events',
@@ -99,6 +104,14 @@ describe('chat api', () => {
 			user: {id: 7},
 			params: {reservationId: 'reservation-1'}
 		}, response);
+		await getRoute(
+			routes,
+			'POST',
+			'admin/chat/attachments/cleanup'
+		).callback({
+			user: {id: 7},
+			body: {limit: 5}
+		}, response);
 		await getRoute(routes, 'POST', 'chat/events/:messageId/receipt').callback({
 			user: {id: 7},
 			params: {messageId: 'message-1'},
@@ -123,10 +136,15 @@ describe('chat api', () => {
 				args: [7, 'reservation-1']
 			},
 			{
+				method: 'processAttachmentCleanup',
+				args: [{limit: 5}]
+			},
+			{
 				method: 'setEventReceipt',
 				args: [7, 'message-1', 'read']
 			}
 		]);
+		assert.deepEqual(permissions, [[7, 'admin:all']]);
 	});
 });
 

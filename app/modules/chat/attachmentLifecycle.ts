@@ -9,7 +9,10 @@ export enum ChatAttachmentUploadState {
 	Reserved = 'reserved',
 	Uploaded = 'uploaded',
 	Attached = 'attached',
-	Cancelled = 'cancelled'
+	Cancelled = 'cancelled',
+	CleanupPending = 'cleanup_pending',
+	CleanupBlocked = 'cleanup_blocked',
+	Cleaned = 'cleaned'
 }
 
 const defaultReservationTtlMs = 60 * 60 * 1000;
@@ -77,6 +80,7 @@ export async function createChatAttachmentUploadReservation(
 }
 
 export async function bindChatAttachmentUpload(
+	app: IGeesomeApp,
 	models,
 	userId: number,
 	content,
@@ -88,49 +92,38 @@ export async function bindChatAttachmentUpload(
 	}
 	const normalizedReservationId = requireReservationId(reservationId);
 	const now = getDate(options.now);
-	const reservation = await models.ChatAttachmentUpload.findOne({
-		where: {reservationId: normalizedReservationId, userId}
-	});
-	if (!reservation) {
-		throw attachmentLifecycleError('chat_attachment_reservation_not_found', 404);
-	}
-	if (
-		reservation.state === ChatAttachmentUploadState.Uploaded ||
-		reservation.state === ChatAttachmentUploadState.Attached
-	) {
-		assertSameReservationContent(reservation, content);
+	return app.ms.database.sequelize.transaction(async transaction => {
+		await lockChatAttachmentContents(app, [content], transaction);
+		const reservation = await models.ChatAttachmentUpload.findOne({
+			where: {reservationId: normalizedReservationId, userId},
+			transaction,
+			lock: transaction.LOCK.UPDATE
+		});
+		if (!reservation) {
+			throw attachmentLifecycleError('chat_attachment_reservation_not_found', 404);
+		}
+		if (
+			reservation.state === ChatAttachmentUploadState.Uploaded ||
+			reservation.state === ChatAttachmentUploadState.Attached
+		) {
+			assertSameReservationContent(reservation, content);
+			return serializeChatAttachmentUpload(reservation);
+		}
+		if (reservation.state !== ChatAttachmentUploadState.Reserved) {
+			throw attachmentLifecycleError('chat_attachment_reservation_not_active', 409);
+		}
+		if (new Date(reservation.expiresAt).getTime() <= now.getTime()) {
+			throw attachmentLifecycleError('chat_attachment_reservation_expired', 409);
+		}
+		assertExpectedContentSize(reservation, content);
+		await reservation.update({
+			contentId: content.id,
+			storageId: content.storageId,
+			state: ChatAttachmentUploadState.Uploaded,
+			uploadedAt: now
+		}, {transaction});
 		return serializeChatAttachmentUpload(reservation);
-	}
-	if (reservation.state !== ChatAttachmentUploadState.Reserved) {
-		throw attachmentLifecycleError('chat_attachment_reservation_not_active', 409);
-	}
-	if (new Date(reservation.expiresAt).getTime() <= now.getTime()) {
-		throw attachmentLifecycleError('chat_attachment_reservation_expired', 409);
-	}
-	assertExpectedContentSize(reservation, content);
-	const [updated] = await models.ChatAttachmentUpload.update({
-		contentId: content.id,
-		storageId: content.storageId,
-		state: ChatAttachmentUploadState.Uploaded,
-		uploadedAt: now
-	}, {
-		where: {
-			id: reservation.id,
-			state: ChatAttachmentUploadState.Reserved,
-			expiresAt: {[Op.gt]: now}
-		}
 	});
-	const current = await models.ChatAttachmentUpload.findOne({
-		where: {id: reservation.id}
-	});
-	if (!updated) {
-		if (current?.state === ChatAttachmentUploadState.Uploaded) {
-			assertSameReservationContent(current, content);
-			return serializeChatAttachmentUpload(current);
-		}
-		throw attachmentLifecycleError('chat_attachment_reservation_not_active', 409);
-	}
-	return serializeChatAttachmentUpload(current);
 }
 
 export async function attachChatAttachmentUploads(
@@ -146,6 +139,16 @@ export async function attachChatAttachmentUploads(
 		return 0;
 	}
 	const now = getDate(options.now);
+	const uploads = await models.ChatAttachmentUpload.findAll({
+		where: {
+			userId,
+			contentId: {[Op.in]: contentIds}
+		},
+		order: [['id', 'DESC']],
+		transaction,
+		lock: transaction.LOCK.UPDATE
+	});
+	assertLatestAttachmentUploadsCanAttach(uploads);
 	const [updated] = await models.ChatAttachmentUpload.update({
 		state: ChatAttachmentUploadState.Attached,
 		chatEventId,
@@ -159,6 +162,28 @@ export async function attachChatAttachmentUploads(
 		transaction
 	});
 	return Number(updated);
+}
+
+export async function lockChatAttachmentContents(
+	app: IGeesomeApp,
+	contents,
+	transaction
+) {
+	const contentIds = [...new Set(contents.map(content => Number(content.id)))];
+	if (!contentIds.length) {
+		return;
+	}
+	const locked = await app.ms.database.models.Content.findAll({
+		where: {
+			id: {[Op.in]: contentIds},
+			isDeleted: {[Op.ne]: true}
+		},
+		transaction,
+		lock: transaction.LOCK.UPDATE
+	});
+	if (locked.length !== contentIds.length) {
+		throw attachmentLifecycleError('chat_attachment_content_unavailable', 409);
+	}
 }
 
 export async function cancelChatAttachmentUpload(
@@ -230,6 +255,27 @@ export function getChatAttachmentUploadPolicy(
 			defaultMaximumPendingBytes
 		)
 	};
+}
+
+function assertLatestAttachmentUploadsCanAttach(uploads) {
+	const latestByContentId = new Map();
+	for (const upload of uploads) {
+		const contentId = Number(upload.contentId);
+		if (!latestByContentId.has(contentId)) {
+			latestByContentId.set(contentId, upload);
+		}
+	}
+	for (const upload of latestByContentId.values()) {
+		if (
+			upload.state !== ChatAttachmentUploadState.Uploaded &&
+			upload.state !== ChatAttachmentUploadState.Attached
+		) {
+			throw attachmentLifecycleError(
+				'chat_attachment_upload_not_attachable',
+				409
+			);
+		}
+	}
 }
 
 function parseExpectedBytes(

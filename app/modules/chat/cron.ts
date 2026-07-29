@@ -5,6 +5,7 @@ import type IGeesomeChatModule from './interface.js';
 
 const defaultChatDeliveryWorkerIntervalMs = 30 * 1000;
 const defaultChatReconciliationWorkerIntervalMs = 60 * 1000;
+const defaultChatAttachmentCleanupWorkerIntervalMs = 5 * 60 * 1000;
 
 export default function startChatDeliveryWorker(
 	app: IGeesomeApp,
@@ -16,7 +17,10 @@ export default function startChatDeliveryWorker(
 	const reconciliationEnabled = isEnabled(
 		app.config.chatConfig?.reconciliationWorker
 	);
-	if (!deliveryEnabled && !reconciliationEnabled) {
+	const attachmentCleanupEnabled = isEnabled(
+		app.config.chatConfig?.attachmentCleanupWorker
+	);
+	if (!deliveryEnabled && !reconciliationEnabled && !attachmentCleanupEnabled) {
 		return null;
 	}
 	const workerGroup = createIntervalWorkerGroup();
@@ -48,6 +52,24 @@ export default function startChatDeliveryWorker(
 			}
 		);
 	}
+	if (attachmentCleanupEnabled) {
+		workerGroup.add(
+			() => chat.processAttachmentCleanup(
+				getChatAttachmentCleanupWorkerOptions(app)
+			),
+			{
+				intervalMs: parsePositiveInteger(
+					app.config.chatConfig?.attachmentCleanupWorkerIntervalMs,
+					defaultChatAttachmentCleanupWorkerIntervalMs
+				),
+				runImmediately: true,
+				onError: error => console.error(
+					'processChatAttachmentCleanup error',
+					error
+				)
+			}
+		);
+	}
 	return workerGroup;
 }
 
@@ -72,6 +94,12 @@ function getChatReconciliationWorkerOptions(app: IGeesomeApp) {
 		continuationDelayMs: config.reconciliationContinuationDelayMs,
 		pageLimit: config.reconciliationPageLimit,
 		maxPages: config.reconciliationMaxPages
+	};
+}
+
+function getChatAttachmentCleanupWorkerOptions(app: IGeesomeApp) {
+	return {
+		limit: app.config.chatConfig?.attachmentCleanupWorkerLimit
 	};
 }
 
