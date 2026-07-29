@@ -36,7 +36,16 @@ export default {
     autoProcessDeliveries: process.env.CHAT_AUTO_PROCESS_DELIVERIES !== '0',
     deliveryWorkerIntervalMs: process.env.CHAT_DELIVERY_WORKER_INTERVAL_MS,
     deliveryWorkerLimit: process.env.CHAT_DELIVERY_WORKER_LIMIT,
-    deliveryClaimTtlMs: process.env.CHAT_DELIVERY_CLAIM_TTL_MS
+    deliveryClaimTtlMs: process.env.CHAT_DELIVERY_CLAIM_TTL_MS,
+    reconciliationWorker: process.env.CHAT_RECONCILIATION_WORKER === '1',
+    reconciliationWorkerIntervalMs: process.env.CHAT_RECONCILIATION_WORKER_INTERVAL_MS,
+    reconciliationWorkerLimit: process.env.CHAT_RECONCILIATION_WORKER_LIMIT,
+    reconciliationPerRecipientLimit: process.env.CHAT_RECONCILIATION_PER_RECIPIENT_LIMIT,
+    reconciliationClaimTtlMs: process.env.CHAT_RECONCILIATION_CLAIM_TTL_MS,
+    reconciliationRefreshIntervalMs: process.env.CHAT_RECONCILIATION_REFRESH_INTERVAL_MS,
+    reconciliationContinuationDelayMs: process.env.CHAT_RECONCILIATION_CONTINUATION_DELAY_MS,
+    reconciliationPageLimit: process.env.CHAT_RECONCILIATION_PAGE_LIMIT,
+    reconciliationMaxPages: process.env.CHAT_RECONCILIATION_MAX_PAGES
   },
   activityPubConfig: {
     enabled: process.env.ACTIVITYPUB_ENABLED === '1',

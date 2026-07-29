@@ -37,7 +37,26 @@ restart, and advances the verified cursor only when the signed response says no
 pages remain. This avoids treating the greatest event seen during out-of-order
 live retries as proof that earlier events were received.
 
+Automatic repair is disabled by default. Set `CHAT_RECONCILIATION_WORKER=1` to
+enable the interval worker. A separate model-synced `ChatSyncJob` row carries
+the next-attempt time, failure count, and expiring claim without changing the
+already-deployed cursor table. Missing job rows are restored idempotently from
+`ChatSyncState` before each bounded sweep. Workers use
+`FOR UPDATE SKIP LOCKED`, exponential retry backoff, a global batch limit, and
+a per-recipient batch limit. Claim tokens fence stale workers that finish after
+their lease expires, so restart or concurrent node processes cannot lose or
+regress repair work. The following environment variables tune the bounded worker:
+
+- `CHAT_RECONCILIATION_WORKER_INTERVAL_MS`
+- `CHAT_RECONCILIATION_WORKER_LIMIT`
+- `CHAT_RECONCILIATION_PER_RECIPIENT_LIMIT`
+- `CHAT_RECONCILIATION_CLAIM_TTL_MS`
+- `CHAT_RECONCILIATION_REFRESH_INTERVAL_MS`
+- `CHAT_RECONCILIATION_CONTINUATION_DELAY_MS`
+- `CHAT_RECONCILIATION_PAGE_LIMIT`
+- `CHAT_RECONCILIATION_MAX_PAGES`
+
 The backend delivery and repair foundation is now present. Remaining chat work
-includes automatic bounded reconciliation scheduling, browser trust/recovery
-UX, group membership and key rotation, encrypted attachment lifecycle, and
-multi-node browser e2e coverage.
+includes browser trust/recovery UX, group membership and key rotation,
+encrypted attachment lifecycle, retention policy, and multi-node browser e2e
+coverage.

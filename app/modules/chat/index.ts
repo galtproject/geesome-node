@@ -15,12 +15,14 @@ import {
 	getChatSyncPageCursor,
 	parseSyncPageSize
 } from './reconciliation.js';
+import {processChatReconciliationQueue} from './reconciliationQueue.js';
 import IGeesomeChatModule, {
 	ChatDeliveryState,
 	ChatEventState,
 	ChatReceiptState,
 	IChatDeliveryProcessOptions,
 	IChatReconcileOptions,
+	IChatReconciliationProcessOptions,
 	IChatRecipientEndpoint
 } from './interface.js';
 import {
@@ -79,6 +81,7 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 		async flushDatabase() {
 			await models.ChatEventReceipt.destroy({where: {}});
 			await models.ChatDelivery.destroy({where: {}});
+			await models.ChatSyncJob.destroy({where: {}});
 			await models.ChatSyncState.destroy({where: {}});
 			await models.ChatEventRecipient.destroy({where: {}});
 			await models.ChatEvent.destroy({where: {}});
@@ -538,6 +541,26 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 			};
 		}
 
+		async processReconciliationQueue(
+			processOptions: IChatReconciliationProcessOptions = {}
+		) {
+			return processChatReconciliationQueue(models, {
+				...processOptions,
+				reconcile: (userId, state) => this.reconcileConversation(
+					userId,
+					state.conversationId,
+					{
+						sourceOwnerId: state.sourceOwnerId,
+						sourcePublicKey: state.sourcePublicKey,
+						syncUrl: state.syncUrl,
+						limit: processOptions.pageLimit,
+						maxPages: processOptions.maxPages,
+						requestChatSync: processOptions.requestChatSync
+					}
+				)
+			});
+		}
+
 		async processDeliveryQueue(processOptions: IChatDeliveryProcessOptions = {}) {
 			return processChatDeliveryQueue(models, {
 				...processOptions,
@@ -706,29 +729,59 @@ async function rememberChatSyncSource(models, delivery: IChatDeliveryPayload) {
 	if (!delivery.sender.syncUrl) {
 		return;
 	}
+	const now = new Date();
 	const where = {
 		conversationId: delivery.envelope.conversationId,
 		recipientOwnerId: delivery.recipientOwnerId,
 		sourceOwnerId: delivery.sender.ownerId
 	};
-	const [state] = await models.ChatSyncState.findOrCreate({
+	const [state, created] = await models.ChatSyncState.findOrCreate({
 		where,
 		defaults: {
 			...where,
 			sourcePublicKey: delivery.sender.publicKey,
 			syncUrl: delivery.sender.syncUrl,
 			verifiedSourceSequence: '0',
-			scanAfterSourceSequence: '0'
+			scanAfterSourceSequence: '0',
+			lastSourceHeadSequence: delivery.sourceSequence
 		}
 	});
+	const observedSourceHeadSequence = maximumSequence(
+		state.lastSourceHeadSequence || '0',
+		delivery.sourceSequence
+	);
+	const hasNewSourceHead = observedSourceHeadSequence !==
+		String(state.lastSourceHeadSequence || '0');
 	if (
 		state.sourcePublicKey !== delivery.sender.publicKey ||
-		state.syncUrl !== delivery.sender.syncUrl
+		state.syncUrl !== delivery.sender.syncUrl ||
+		hasNewSourceHead
 	) {
 		await state.update({
 			sourcePublicKey: delivery.sender.publicKey,
-			syncUrl: delivery.sender.syncUrl
+			syncUrl: delivery.sender.syncUrl,
+			lastSourceHeadSequence: observedSourceHeadSequence
 		});
+	}
+	await scheduleChatSyncJob(models, state, now, created || hasNewSourceHead);
+}
+
+async function scheduleChatSyncJob(
+	models,
+	state,
+	now: Date,
+	expedite: boolean
+) {
+	const [job, created] = await models.ChatSyncJob.findOrCreate({
+		where: {chatSyncStateId: state.id},
+		defaults: {
+			chatSyncStateId: state.id,
+			recipientOwnerId: state.recipientOwnerId,
+			nextAttemptAt: now
+		}
+	});
+	if (!created && expedite && job.nextAttemptAt > now) {
+		await job.update({nextAttemptAt: now});
 	}
 }
 
