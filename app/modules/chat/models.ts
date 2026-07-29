@@ -1,6 +1,7 @@
 import {DataTypes, Op, QueryTypes, Sequelize} from 'sequelize';
 import {ChatDeliveryState, ChatEventState, ChatReceiptState} from './interface.js';
 import {ChatAttachmentUploadState} from './attachmentLifecycle.js';
+import {ChatEventAttachmentRetentionState} from './attachmentRetention.js';
 
 export default async function initializeChatModels(sequelize: Sequelize) {
 	const ChatDevice = sequelize.define('chatDevice', {
@@ -167,6 +168,54 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 			{name: 'chat_event_attachments_storage_idx', fields: ['storageId', 'chatEventId']}
 		]
 	} as any);
+
+	const ChatEventAttachmentRetention = sequelize.define(
+		'chatEventAttachmentRetention',
+		{
+			chatEventId: {
+				type: DataTypes.INTEGER,
+				allowNull: false
+			},
+			contentId: {
+				type: DataTypes.INTEGER,
+				allowNull: true
+			},
+			storageId: {
+				type: DataTypes.STRING(200),
+				allowNull: false
+			},
+			userId: {
+				type: DataTypes.INTEGER,
+				allowNull: false
+			},
+			state: {
+				type: DataTypes.STRING(30),
+				allowNull: false,
+				defaultValue: ChatEventAttachmentRetentionState.Released
+			},
+			releasedAt: {
+				type: DataTypes.DATE,
+				allowNull: false
+			}
+		} as any,
+		{
+			indexes: [
+				{
+					name: 'chat_attachment_retention_event_storage_user_unique',
+					fields: ['chatEventId', 'storageId', 'userId'],
+					unique: true
+				},
+				{
+					name: 'chat_attachment_retention_user_event_idx',
+					fields: ['userId', 'chatEventId', 'id']
+				},
+				{
+					name: 'chat_attachment_retention_event_storage_idx',
+					fields: ['chatEventId', 'storageId', 'state', 'id']
+				}
+			]
+		} as any
+	);
 
 	const ChatAttachmentUpload = sequelize.define('chatAttachmentUpload', {
 		reservationId: {
@@ -459,6 +508,14 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 	ChatEventRecipient.belongsTo(ChatEvent, {as: 'event', foreignKey: 'chatEventId'});
 	ChatEvent.hasMany(ChatEventAttachment, {as: 'attachments', foreignKey: 'chatEventId'});
 	ChatEventAttachment.belongsTo(ChatEvent, {as: 'event', foreignKey: 'chatEventId'});
+	ChatEvent.hasMany(ChatEventAttachmentRetention, {
+		as: 'attachmentRetentions',
+		foreignKey: 'chatEventId'
+	});
+	ChatEventAttachmentRetention.belongsTo(ChatEvent, {
+		as: 'event',
+		foreignKey: 'chatEventId'
+	});
 	ChatEvent.hasMany(ChatAttachmentUpload, {as: 'attachmentUploads', foreignKey: 'chatEventId'});
 	ChatAttachmentUpload.belongsTo(ChatEvent, {as: 'event', foreignKey: 'chatEventId'});
 	ChatEvent.hasMany(ChatEventReceipt, {as: 'receipts', foreignKey: 'chatEventId'});
@@ -473,6 +530,7 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 	await ChatEvent.sync({});
 	await ChatEventRecipient.sync({});
 	await ChatEventAttachment.sync({});
+	await ChatEventAttachmentRetention.sync({});
 	await ChatAttachmentUpload.sync({});
 	await ChatDelivery.sync({});
 	await ChatEventReceipt.sync({});
@@ -500,6 +558,7 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 		ChatEvent,
 		ChatEventRecipient,
 		ChatEventAttachment,
+		ChatEventAttachmentRetention,
 		ChatAttachmentUpload,
 		ChatDelivery,
 		ChatEventReceipt,

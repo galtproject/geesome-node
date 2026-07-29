@@ -56,6 +56,10 @@ import {
 	lockChatAttachmentContents
 } from './attachmentLifecycle.js';
 import {cleanupChatAttachmentUploads} from './attachmentCleanup.js';
+import {
+	getReleasedChatEventAttachments,
+	releaseChatEventAttachment
+} from './attachmentRetention.js';
 
 const maxDeviceBundleBytes = 64 * 1024;
 const maxEnvelopeBytes = 1024 * 1024;
@@ -101,6 +105,7 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 			await models.ChatSyncJob.destroy({where: {}});
 			await models.ChatSyncState.destroy({where: {}});
 			await models.ChatAttachmentUpload.destroy({where: {}});
+			await models.ChatEventAttachmentRetention.destroy({where: {}});
 			await models.ChatEventAttachment.destroy({where: {}});
 			await models.ChatEventRecipient.destroy({where: {}});
 			await models.ChatEvent.destroy({where: {}});
@@ -199,6 +204,20 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 		async cancelAttachmentUploadReservation(userId: number, reservationId: string) {
 			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
 			return cancelChatAttachmentUpload(models, userId, reservationId);
+		}
+
+		async releaseEventAttachment(
+			userId: number,
+			messageId: string,
+			storageId: string
+		) {
+			return releaseChatEventAttachment(
+				app,
+				models,
+				userId,
+				messageId,
+				storageId
+			);
 		}
 
 		async processAttachmentCleanup(cleanupOptions: any = {}) {
@@ -699,8 +718,16 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 				order: [['sequence', 'ASC'], ['id', 'ASC']],
 				limit
 			});
+			const releasedStorageIds = await getReleasedChatEventAttachments(
+				models,
+				userId,
+				result.rows.map(event => event.id)
+			);
 			return {
-				list: result.rows.map(serializeEvent),
+				list: result.rows.map(event => serializeEvent(
+					event,
+					releasedStorageIds.get(event.id) || []
+				)),
 				total: Number(result.count)
 			};
 		}
@@ -1073,8 +1100,8 @@ function serializeDevice(device) {
 	};
 }
 
-function serializeEvent(event) {
-	return {
+function serializeEvent(event, releasedAttachmentStorageIds?: string[]) {
+	const serialized: any = {
 		messageId: event.messageId,
 		conversationId: event.conversationId,
 		sequence: String(event.sequence),
@@ -1084,6 +1111,10 @@ function serializeEvent(event) {
 		envelope: JSON.parse(event.envelopeJson),
 		acceptedAt: event.createdAt
 	};
+	if (releasedAttachmentStorageIds) {
+		serialized.releasedAttachmentStorageIds = releasedAttachmentStorageIds;
+	}
+	return serialized;
 }
 
 function serializeReceipt(receipt, messageId: string) {

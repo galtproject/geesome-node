@@ -499,6 +499,74 @@ describe('chat persistence', function () {
 		assert.ok(upload.chatEventId);
 	});
 
+	it('persists committed attachment release per local participant', async () => {
+		const aliceDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: alice.storageAccountId,
+			deviceId: 'alice-release-browser'
+		});
+		const bobDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: bob.storageAccountId,
+			deviceId: 'bob-release-browser'
+		});
+		await app.ms.chat.registerDevice(alice.id, aliceDevice.publicBundle);
+		await app.ms.chat.registerDevice(bob.id, bobDevice.publicBundle);
+		const attachment = await app.ms.database.addContent({
+			userId: alice.id,
+			storageType: ContentStorageType.IPFS,
+			mimeType: 'application/octet-stream',
+			storageId: testAttachmentStorageId,
+			size: 32,
+			name: 'released-encrypted-chat-attachment'
+		} as any);
+		const envelope = await browserE2eeHelper.encryptEnvelope(
+			JSON.stringify({text: '', attachments: [{storageId: testAttachmentStorageId}]}),
+			[bobDevice.publicBundle],
+			aliceDevice,
+			{
+				messageId: 'postgres-attachment-release-1',
+				conversationId: 'postgres-attachment-release-conversation',
+				metadata: {attachmentStorageIds: [testAttachmentStorageId]}
+			}
+		);
+		await app.ms.chat.acceptEncryptedEvent(alice.id, envelope);
+
+		const release = await app.ms.chat.releaseEventAttachment(
+			alice.id,
+			'postgres-attachment-release-1',
+			testAttachmentStorageId
+		);
+		await app.ms.chat.releaseEventAttachment(
+			alice.id,
+			'postgres-attachment-release-1',
+			testAttachmentStorageId
+		);
+		assert.equal(release.state, 'released');
+		const releases = app.ms.database.sequelize.models
+			.chatEventAttachmentRetention;
+		assert.equal(await releases.count(), 1);
+
+		const aliceEvents = await app.ms.chat.getEncryptedEvents(
+			alice.id,
+			'postgres-attachment-release-conversation'
+		);
+		const bobEvents = await app.ms.chat.getEncryptedEvents(
+			bob.id,
+			'postgres-attachment-release-conversation'
+		);
+		assert.deepEqual(
+			aliceEvents.list[0].releasedAttachmentStorageIds,
+			[testAttachmentStorageId]
+		);
+		assert.deepEqual(bobEvents.list[0].releasedAttachmentStorageIds, []);
+		assert.equal(
+			(await app.ms.database.countStorageIdReferences(
+				testAttachmentStorageId,
+				attachment.id
+			)).derivedStorageRefs,
+			1
+		);
+	});
+
 	it('tombstones cancelled ciphertext and queues reference-safe physical cleanup', async () => {
 		const reservation = await app.ms.chat.createAttachmentUploadReservation(
 			alice.id,

@@ -120,6 +120,71 @@ describe('chat module', () => {
 		assert.equal(rows.events.length, 1);
 	});
 
+	it('records committed attachment release separately for each participant', async () => {
+		const {chat, rows} = createChatHarness({
+			contents: [{id: 7, userId: 1, storageId: testAttachmentStorageId, size: 32}]
+		});
+		const alice = await createDevice('owner-alice', 'alice-browser');
+		const bob = await createDevice('owner-bob', 'bob-browser');
+		await chat.registerDevice(1, alice.publicBundle);
+		await chat.registerDevice(2, bob.publicBundle);
+		const envelope = await createEnvelope(
+			'encrypted attachment descriptor',
+			alice,
+			bob,
+			'message-release-attachment',
+			{attachmentStorageIds: [testAttachmentStorageId]}
+		);
+		await chat.acceptEncryptedEvent(1, envelope);
+
+		const aliceRelease = await chat.releaseEventAttachment(
+			1,
+			'message-release-attachment',
+			testAttachmentStorageId
+		);
+		const replay = await chat.releaseEventAttachment(
+			1,
+			'message-release-attachment',
+			testAttachmentStorageId
+		);
+		assert.equal(aliceRelease.state, 'released');
+		assert.equal(replay.releasedAt, aliceRelease.releasedAt);
+		assert.equal(rows.attachmentRetentions.length, 1);
+		assert.equal(rows.attachments.length, 1);
+		assert.equal(rows.contents[0].isDeleted, false);
+
+		const aliceEvents = await chat.getEncryptedEvents(1, 'conversation-1');
+		const bobEvents = await chat.getEncryptedEvents(2, 'conversation-1');
+		assert.deepEqual(
+			aliceEvents.list[0].releasedAttachmentStorageIds,
+			[testAttachmentStorageId]
+		);
+		assert.deepEqual(bobEvents.list[0].releasedAttachmentStorageIds, []);
+
+		await chat.releaseEventAttachment(
+			2,
+			'message-release-attachment',
+			testAttachmentStorageId
+		);
+		assert.equal(rows.attachmentRetentions.length, 2);
+		await assert.rejects(
+			() => chat.releaseEventAttachment(
+				3,
+				'message-release-attachment',
+				testAttachmentStorageId
+			),
+			/event_not_found/
+		);
+		await assert.rejects(
+			() => chat.releaseEventAttachment(
+				1,
+				'message-release-attachment',
+				testUnownedAttachmentStorageId
+			),
+			/chat_attachment_not_found/
+		);
+	});
+
 	it('rejects sender-owned ciphertext that exceeds configured chat limits', async () => {
 		const {chat, rows} = createChatHarness({
 			contents: [{id: 7, userId: 1, storageId: testAttachmentStorageId, size: 33}],
@@ -432,6 +497,7 @@ function createChatHarness(options: any = {}) {
 		heads: [],
 		events: [],
 		attachments: [],
+		attachmentRetentions: [],
 		uploads: [],
 		recipients: [],
 		receipts: [],
@@ -561,6 +627,9 @@ function createModels(rows) {
 		},
 		ChatEventRecipient: {
 			bulkCreate: async records => records.map(record => addRow(rows.recipients, record)),
+			findOne: async ({where}) => rows.recipients.find(
+				row => matchesWhere(row, where)
+			) || null,
 			destroy: async () => clearRows(rows.recipients)
 		},
 		ChatEventAttachment: {
@@ -569,6 +638,22 @@ function createModels(rows) {
 				row => matchesWhere(row, where)
 			) || null,
 			destroy: async () => clearRows(rows.attachments)
+		},
+		ChatEventAttachmentRetention: {
+			findOrCreate: async ({where, defaults}) => {
+				let retention = rows.attachmentRetentions.find(
+					row => matchesWhere(row, where)
+				);
+				if (!retention) {
+					retention = addRow(rows.attachmentRetentions, defaults);
+					return [retention, true];
+				}
+				return [retention, false];
+			},
+			findAll: async ({where}) => rows.attachmentRetentions.filter(
+				row => matchesWhere(row, where)
+			),
+			destroy: async () => clearRows(rows.attachmentRetentions)
 		},
 		ChatAttachmentUpload: {
 			create: async data => addRow(rows.uploads, {

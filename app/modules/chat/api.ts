@@ -155,6 +155,33 @@ export default function registerChatApi(app: IGeesomeApp, chat: IGeesomeChatModu
 	);
 
 	/**
+	 * @api {post} /v1/chat/events/:messageId/attachments/release Release an encrypted event attachment
+	 * @apiName ReleaseEncryptedChatEventAttachment
+	 * @apiGroup Chat
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiParam {String} messageId Encrypted event identifier visible to the authenticated user.
+	 * @apiBody {String} storageId Ciphertext storage identifier referenced by the event.
+	 * @apiSuccess {String} messageId Encrypted event identifier.
+	 * @apiSuccess {String} storageId Released ciphertext storage identifier.
+	 * @apiSuccess {String="released"} state Per-user retention state.
+	 * @apiSuccess {Date} releasedAt Time the authenticated user released the attachment.
+	 * @apiError (404) EventNotFound The event is missing or does not belong to the authenticated participant.
+	 * @apiError (404) AttachmentNotFound The event does not reference the requested ciphertext.
+	 * @apiDescription Records an idempotent per-user release intent. It does not alter the signed envelope, remove another participant's access, or unpin ciphertext needed for pending delivery and repair.
+	 */
+	app.ms.api.onAuthorizedPost(
+		'chat/events/:messageId/attachments/release',
+		async (req, res) => {
+			return res.send(await chat.releaseEventAttachment(
+				req.user.id,
+				req.params.messageId,
+				req.body.storageId
+			));
+		}
+	);
+
+	/**
 	 * @api {post} /v1/admin/chat/attachments/cleanup Clean abandoned encrypted chat uploads
 	 * @apiName CleanupEncryptedChatAttachments
 	 * @apiGroup Chat
@@ -225,6 +252,7 @@ export default function registerChatApi(app: IGeesomeApp, chat: IGeesomeChatModu
 	 * @apiQuery {String} [afterSequence] Return events after this sequence.
 	 * @apiQuery {Number} [limit=50] Maximum events, capped at 100.
 	 * @apiSuccess {Object[]} list Ordered opaque events.
+	 * @apiSuccess {String[]} list.releasedAttachmentStorageIds Ciphertext attachments released by the authenticated user and hidden from their local history.
 	 * @apiSuccess {Number} total Matching event count.
 	 */
 	app.ms.api.onAuthorizedGet('chat/conversations/:conversationId/events', async (req, res) => {
