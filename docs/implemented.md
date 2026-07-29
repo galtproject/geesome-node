@@ -204,9 +204,16 @@ TODO.
 - `geesome-ui` generates and stores private device keys in the browser, supports
   encrypted recovery/restore and revocation, discovers identity-bound recipient
   devices, encrypts/decrypts direct messages locally, deduplicates by message ID,
-  reads ordered sequence pages, and exposes delivery/setup states.
+  reads ordered sequence pages, exposes delivery/setup states, and lets users
+  compare stable fingerprints, verify devices, review key changes, and distinguish
+  unverified, verified, changed, and revoked devices.
 - `geesome-node` registers only public device bundles and persists only signed
   opaque envelopes plus routing, sequence, receipt, and delivery metadata.
+- Outgoing encrypted-attachment references are accepted only when every
+  content-addressed ciphertext object belongs to the authenticated sender. Chat
+  stores normalized event-to-storage references, and registers them with the
+  shared deletion-safety scanner so queued events cannot be orphaned by content
+  cleanup.
 - Authenticated HTTPS delivery has durable retry leases, bounded backoff,
   recipient-signed acknowledgements, source-head comparison, signed missing-range
   repair, and an opt-in bounded reconciliation worker.
@@ -219,6 +226,6 @@ TODO.
   sequence/head reconciliation as the correctness boundary.
 
 This is a browser-first encrypted direct-message foundation, not completion of
-production-secure chat. Explicit device trust, encrypted attachments, reviewed
-group membership/key rotation, retention/quota policy, and real two-node browser
-testing remain in the active TODO.
+production-secure chat. Recipient-side attachment fetch/pin acknowledgement,
+browser attachment UX, reviewed group membership/key rotation, retention/quota
+policy, and real two-node browser testing remain in the active TODO.

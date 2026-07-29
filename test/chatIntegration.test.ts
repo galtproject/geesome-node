@@ -1,7 +1,10 @@
 import assert from 'node:assert';
 import {createHash} from 'node:crypto';
 import browserE2eeHelper from 'geesome-libs/src/browserE2eeHelper.js';
-import {CorePermissionName} from '../app/modules/database/interface.js';
+import {
+	ContentStorageType,
+	CorePermissionName
+} from '../app/modules/database/interface.js';
 import type {IGeesomeApp} from '../app/interface.js';
 import {
 	chatDeliveryProtocol,
@@ -420,7 +423,48 @@ describe('chat persistence', function () {
 			2
 		);
 	});
+
+	it('protects sender-owned attachment ciphertext from content cleanup', async () => {
+		const aliceDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: alice.storageAccountId,
+			deviceId: 'alice-attachment-browser'
+		});
+		const bobDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: bob.storageAccountId,
+			deviceId: 'bob-attachment-browser'
+		});
+		await app.ms.chat.registerDevice(alice.id, aliceDevice.publicBundle);
+		await app.ms.chat.registerDevice(bob.id, bobDevice.publicBundle);
+		const attachment = await app.ms.database.addContent({
+			userId: alice.id,
+			storageType: ContentStorageType.IPFS,
+			mimeType: 'application/octet-stream',
+			storageId: testAttachmentStorageId,
+			size: 32,
+			name: 'encrypted-chat-attachment'
+		} as any);
+		const envelope = await browserE2eeHelper.encryptEnvelope(
+			JSON.stringify({text: '', attachments: [{storageId: testAttachmentStorageId}]}),
+			[bobDevice.publicBundle],
+			aliceDevice,
+			{
+				messageId: 'postgres-attachment-message-1',
+				conversationId: 'postgres-attachment-conversation-1',
+				metadata: {attachmentStorageIds: [testAttachmentStorageId]}
+			}
+		);
+
+		await app.ms.chat.acceptEncryptedEvent(alice.id, envelope);
+		const references = await app.ms.database.countStorageIdReferences(
+			testAttachmentStorageId,
+			attachment.id
+		);
+
+		assert.equal(references.derivedStorageRefs, 1);
+	});
 });
+
+const testAttachmentStorageId = 'QmYwAPJzv5CZsnAzt8auVZRnGi9iS3hBghG9V1sA9j3z2H';
 
 function getEnvelopeHash(envelope): string {
 	return createHash('sha256').update([

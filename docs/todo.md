@@ -106,26 +106,27 @@ Current safety boundary:
   state instead of falling back to plaintext.
 - Direct messages are the implemented E2EE foundation. Chat must not be
   described as production-secure for attachments or groups until explicit
-  device trust, attachment lifecycle, membership/key rotation, retention, and
-  real multi-node browser tests are complete.
+  attachment lifecycle, membership/key rotation, retention, and real multi-node
+  browser tests are complete.
 
 Remaining delivery order:
 
-1. Add explicit device trust verification and multi-device trust UX. Users must
-   be able to compare stable fingerprints, distinguish unverified/new/revoked
-   devices, and deliberately accept key changes without exposing private keys.
-2. Encrypt attachments in the browser before content-addressed upload. Define
-   wrapped content-key metadata, authenticated download/decryption, corruption
-   behavior, deletion, quota, retry, and retention without exposing plaintext or
-   keys to the node.
-3. Select and review the group protocol before extending pairwise envelopes.
+1. Complete encrypted attachments. Sender-side ownership checks and durable
+   event-to-storage references are implemented. Next, make the recipient fetch,
+   verify, persist, and pin every ciphertext object before signing delivery
+   acknowledgement; surface missing or corrupt objects as retryable delivery
+   failures. Then add browser encryption before upload, wrapped content-key
+   descriptors inside the encrypted envelope, authenticated download/decryption,
+   previews, corruption behavior, deletion, quota, retry, and retention without
+   exposing plaintext, original file metadata, or keys to the node.
+2. Select and review the group protocol before extending pairwise envelopes.
    Define membership epochs and rotate future-message keys when members/devices
    are added, removed, replaced, or revoked. Evaluate MLS, Matrix-style
    device/session handling, or another maintained browser-capable protocol.
-4. Run real two-node browser tests across restart, temporary unreachability,
+3. Run real two-node browser tests across restart, temporary unreachability,
    duplicate/out-of-order delivery, bounded repair, revoked devices, and
    NAT/bootstrap/reciprocal-peering conditions.
-5. Define operator-visible queue/reconciliation metrics and explicit encrypted
+4. Define operator-visible queue/reconciliation metrics and explicit encrypted
    event retention, retry deadline, quota, and cleanup policy. Migrate or
    explicitly retire the legacy server-encrypted path without relabelling old
    conversations as E2EE.
