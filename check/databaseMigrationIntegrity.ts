@@ -269,6 +269,11 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'chatSyncStates', columns: ['verifiedSourceSequence'], type: 'bigint'},
   {table: 'chatSyncStates', columns: ['scanAfterSourceSequence'], type: 'bigint'},
   {table: 'chatSyncStates', columns: ['lastSourceHeadSequence'], type: 'bigint'},
+  {table: 'chatSyncJobs', columns: ['nextAttemptAt'], type: 'timestamp with time zone'},
+  {table: 'chatSyncJobs', columns: ['failureCount'], type: 'integer'},
+  {table: 'chatSyncJobs', columns: ['claimedAt'], type: 'timestamp with time zone'},
+  {table: 'chatSyncJobs', columns: ['claimExpiresAt'], type: 'timestamp with time zone'},
+  {table: 'chatSyncJobs', columns: ['claimToken'], type: 'character varying'},
 ];
 
 const expectedIndexes: ExpectedIndex[] = [
@@ -381,6 +386,22 @@ const expectedIndexes: ExpectedIndex[] = [
     name: 'chat_sync_states_recipient_updated_idx',
     table: 'chatSyncStates',
     columns: ['recipientOwnerId', 'updatedAt', 'id']
+  },
+  {
+    name: 'chat_sync_jobs_state_unique',
+    table: 'chatSyncJobs',
+    columns: ['chatSyncStateId'],
+    unique: true
+  },
+  {
+    name: 'chat_sync_jobs_due_idx',
+    table: 'chatSyncJobs',
+    columns: ['nextAttemptAt', 'claimExpiresAt', 'id']
+  },
+  {
+    name: 'chat_sync_jobs_recipient_due_idx',
+    table: 'chatSyncJobs',
+    columns: ['recipientOwnerId', 'nextAttemptAt', 'id']
   },
 ];
 
@@ -518,6 +539,51 @@ const countChecks: CountCheck[] = [
           "lastSourceHeadSequence" IS NOT NULL
           AND "scanAfterSourceSequence" > "lastSourceHeadSequence"
         )
+    `,
+  },
+  {
+    name: 'chat sync retry and lease state is valid',
+    requirements: [{
+      table: 'chatSyncJobs',
+      columns: [
+        'nextAttemptAt',
+        'failureCount',
+        'claimedAt',
+        'claimExpiresAt',
+        'claimToken',
+      ],
+    }],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "chatSyncJobs"
+      WHERE "nextAttemptAt" IS NULL
+        OR "failureCount" < 0
+        OR (
+          ("claimedAt" IS NULL) <>
+          ("claimExpiresAt" IS NULL)
+        )
+        OR (
+          ("claimedAt" IS NULL) <>
+          ("claimToken" IS NULL)
+        )
+        OR (
+          "claimedAt" IS NOT NULL
+          AND "claimExpiresAt" <= "claimedAt"
+        )
+    `,
+  },
+  {
+    name: 'chat sync jobs point to existing sync states',
+    requirements: [
+      {table: 'chatSyncJobs', columns: ['chatSyncStateId']},
+      {table: 'chatSyncStates', columns: ['id']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "chatSyncJobs" job
+      LEFT JOIN "chatSyncStates" state
+        ON state.id = job."chatSyncStateId"
+      WHERE state.id IS NULL
     `,
   },
   duplicateCheck('storage object storageId duplicates', 'storageObjects', ['storageId']),

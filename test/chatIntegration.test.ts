@@ -20,6 +20,7 @@ describe('chat persistence', function () {
 		const appConfig: any = (await import('../app/config.js')).default;
 		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
 		appConfig.chatConfig.deliveryWorker = false;
+		appConfig.chatConfig.reconciliationWorker = false;
 		appConfig.chatConfig.autoProcessDeliveries = false;
 		app = await (await import('../app/index.js')).default({
 			storageConfig: appConfig.storageConfig,
@@ -300,6 +301,124 @@ describe('chat persistence', function () {
 		assert.equal(slowReconciliation.complete, true);
 		assert.equal(slowReconciliation.scanAfterSourceSequence, '4');
 		assert.equal(slowReconciliation.verifiedSourceSequence, '4');
+
+		const fifthEnvelope = await browserE2eeHelper.encryptEnvelope(
+			'fifth queued transport secret',
+			[bobDevice.publicBundle],
+			aliceDevice,
+			{
+				messageId: 'postgres-queued-message-5',
+				conversationId: queuedEnvelope.conversationId
+			}
+		);
+		await app.ms.chat.acceptEncryptedEvent(alice.id, fifthEnvelope);
+		const ChatSyncState: any = app.ms.database.sequelize.models.chatSyncState;
+		let syncState = await ChatSyncState.findOne({
+			where: {
+				conversationId: queuedEnvelope.conversationId,
+				recipientOwnerId: bob.storageAccountId,
+				sourceOwnerId: alice.storageAccountId
+			}
+			});
+			const ChatSyncJob: any = app.ms.database.sequelize.models.chatSyncJob;
+			const queueNow = new Date('2026-06-01T00:00:00.000Z');
+			await ChatSyncJob.backfillMissing({
+				now: queueNow,
+				limit: 10,
+				perRecipientLimit: 10
+			});
+			let syncJob = await ChatSyncJob.findOne({
+				where: {chatSyncStateId: syncState.id}
+			});
+			await syncJob.update({
+			nextAttemptAt: new Date(queueNow.getTime() - 1000),
+			claimedAt: queueNow,
+			claimExpiresAt: new Date(queueNow.getTime() + 60000),
+			claimToken: 'live-worker-claim'
+		});
+		const liveLeaseResult = await app.ms.chat.processReconciliationQueue({
+			now: queueNow,
+			requestChatSync: (_syncUrl, request) =>
+				app.ms.chat.acceptSyncRequest(request)
+		});
+		assert.equal(liveLeaseResult.processed, 0);
+
+		await syncJob.update({
+			claimExpiresAt: new Date(queueNow.getTime() - 1)
+		});
+		const recoveredLeaseResult = await app.ms.chat.processReconciliationQueue({
+			now: queueNow,
+			refreshIntervalMs: 60000,
+			requestChatSync: (_syncUrl, request) =>
+				app.ms.chat.acceptSyncRequest(request)
+		});
+		assert.equal(recoveredLeaseResult.completed, 1);
+		syncState = await ChatSyncState.findByPk(syncState.id);
+		syncJob = await ChatSyncJob.findByPk(syncJob.id);
+		assert.equal(String(syncState.verifiedSourceSequence), '5');
+		assert.equal(syncJob.failureCount, 0);
+		assert.equal(syncJob.claimedAt, null);
+		assert.equal(syncJob.claimExpiresAt, null);
+		assert.equal(syncJob.claimToken, null);
+		assert.equal(syncJob.nextAttemptAt.toISOString(), '2026-06-01T00:01:00.000Z');
+
+		await syncJob.update({
+			nextAttemptAt: new Date(queueNow.getTime() - 1000)
+		});
+		const failedQueueResult = await app.ms.chat.processReconciliationQueue({
+			now: queueNow,
+			requestChatSync: async () => {
+				throw new Error('temporary_sync_failure');
+			}
+		});
+		assert.equal(failedQueueResult.failed, 1);
+		syncJob = await ChatSyncJob.findByPk(syncJob.id);
+		assert.equal(syncJob.failureCount, 1);
+		assert.equal(syncJob.lastError, 'temporary_sync_failure');
+		assert.equal(syncJob.claimedAt, null);
+		assert.equal(syncJob.claimExpiresAt, null);
+		assert.equal(syncJob.nextAttemptAt.toISOString(), '2026-06-01T00:00:05.000Z');
+
+		await ChatSyncState.bulkCreate([
+			{
+				conversationId: 'quota-conversation-1',
+				recipientOwnerId: bob.storageAccountId,
+				sourceOwnerId: 'quota-source-1',
+				sourcePublicKey: aliceTransportPublicKey,
+				syncUrl: 'https://alice.example/v1/chat/sync'
+			},
+			{
+				conversationId: 'quota-conversation-2',
+				recipientOwnerId: bob.storageAccountId,
+				sourceOwnerId: 'quota-source-2',
+				sourcePublicKey: aliceTransportPublicKey,
+				syncUrl: 'https://alice.example/v1/chat/sync'
+			},
+			{
+				conversationId: 'quota-conversation-3',
+				recipientOwnerId: alice.storageAccountId,
+				sourceOwnerId: 'quota-source-3',
+				sourcePublicKey: aliceTransportPublicKey,
+				syncUrl: 'https://alice.example/v1/chat/sync'
+			}
+		]);
+		await ChatSyncJob.backfillMissing({
+			now: queueNow,
+			limit: 10,
+			perRecipientLimit: 1
+		});
+		const quotaClaims = await ChatSyncJob.claimDue({
+			now: queueNow,
+			claimExpiresAt: new Date(queueNow.getTime() + 60000),
+			claimToken: 'quota-claim',
+			limit: 10,
+			perRecipientLimit: 1
+		});
+		assert.equal(quotaClaims.length, 2);
+		assert.equal(
+			new Set(quotaClaims.map(job => job.recipientOwnerId)).size,
+			2
+		);
 	});
 });
 

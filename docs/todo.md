@@ -437,12 +437,13 @@ Verification:
 Status: browser-held device keys, signed opaque envelopes, PostgreSQL event
 ordering/receipts, authenticated HTTPS inter-node delivery, durable offline
 retry leases, recipient-signed acknowledgements, and signed bounded
-head/missing-range reconciliation are implemented. Reconciliation keeps a
-restart-safe scan cursor separate from the fully verified source head so
-out-of-order live delivery cannot hide gaps. Remaining production work is
-automatic bounded reconciliation scheduling, browser device trust/recovery UX,
-group membership/key rotation, encrypted attachment lifecycle, quotas/retention
-policy, and real multi-node browser e2e/restart/NAT testing.
+head/missing-range reconciliation are implemented. An opt-in bounded worker now
+claims durable reconciliation state with restart-safe leases, per-node and
+per-recipient batch limits, and retry backoff. Reconciliation keeps a restart-safe
+scan cursor separate from the fully verified source head so out-of-order live
+delivery cannot hide gaps. Remaining production work is browser device
+trust/recovery UX, group membership/key rotation, encrypted attachment lifecycle,
+storage/retention quotas, and real multi-node browser e2e/restart/NAT testing.
 
 Goal: replace the backend encryption PoC with an implementation plan that can become real end-to-end encrypted chat.
 
@@ -464,7 +465,7 @@ Delivery and stability direction:
 - Track `messageId`, `conversationId`, sender device, recipient device set, created timestamp, delivery attempts, and acknowledgement state separately from ciphertext. Status: implemented.
 - Add idempotent send APIs and client-side dedupe by `messageId`; retries must not create duplicate chat messages. Status: backend idempotency and conflict rejection implemented; keep client dedupe aligned.
 - Define ordering rules before UI work: append-only per-conversation sequence, Lamport/vector-style causal metadata, or another explicit merge rule for offline concurrent sends. Status: transaction-safe local append sequence plus authenticated source sequence and verified reconciliation cursor implemented.
-- Add store-and-forward paths for offline recipients and multi-device users. libp2p direct streams/pubsub can accelerate delivery, but API/IPFS backfill should be the recovery path. Status: durable sender queue, signed HTTPS delivery, and signed bounded backfill implemented; automatic reconciliation scheduling remains.
+- Add store-and-forward paths for offline recipients and multi-device users. libp2p direct streams/pubsub can accelerate delivery, but API/IPFS backfill should be the recovery path. Status: durable sender queue, signed HTTPS delivery, signed bounded backfill, and opt-in leased reconciliation scheduling are implemented.
 - Run realistic tests with restart, offline sender/recipient, NAT/browser clients, duplicate delivery, delayed delivery, and large attachments. Attachment bytes should be content-addressed separately and referenced from the encrypted envelope.
 
 Repo split:
@@ -481,7 +482,6 @@ Delivered backend foundation:
 
 Next deliverables:
 
-- Add an opt-in bounded reconciliation scheduler over durable `ChatSyncState` rows, with leases, backoff, restart recovery, and per-node/user quotas.
 - Complete browser device trust, key backup/recovery, verification, revocation, and multi-device UX without sending private keys to the node.
 - Define secure group membership changes and key rotation using a reviewed group protocol rather than extending the current pairwise envelope ad hoc.
 - Add encrypted attachment upload/download/key lifecycle and retention/quota policy.
@@ -490,7 +490,9 @@ Next deliverables:
 Verification:
 
 - Design review across `geesome-node`, `geesome-libs`, and `geesome-ui`.
-- Node tests for opaque envelope storage, inter-node delivery, delayed retry, signed acknowledgements, and bounded missing-range repair.
+- Node tests for opaque envelope storage, inter-node delivery, delayed retry,
+  signed acknowledgements, bounded missing-range repair, expired reconciliation
+  lease recovery, stale-worker fencing, and per-recipient claim quotas.
 - Frontend/browser tests once client crypto exists.
 
 <!-- /todo-section -->

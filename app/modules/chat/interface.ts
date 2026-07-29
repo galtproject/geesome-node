@@ -38,6 +38,18 @@ export interface IChatReconcileOptions {
 	requestChatSync?: (syncUrl: string, request: any) => Promise<any>;
 }
 
+export interface IChatReconciliationProcessOptions {
+	limit?: number;
+	perRecipientLimit?: number;
+	claimTtlMs?: number;
+	refreshIntervalMs?: number;
+	continuationDelayMs?: number;
+	pageLimit?: number;
+	maxPages?: number;
+	now?: Date;
+	requestChatSync?: (syncUrl: string, request: any) => Promise<any>;
+}
+
 export interface IChatDeviceBundleRecord {
 	id?: number;
 	userId: number;
@@ -71,6 +83,9 @@ export default interface IGeesomeChatModule {
 		userId: number,
 		conversationId: string,
 		options: IChatReconcileOptions
+	): Promise<any>;
+	processReconciliationQueue(
+		options?: IChatReconciliationProcessOptions
 	): Promise<any>;
 	processDeliveryQueue(options?: IChatDeliveryProcessOptions): Promise<any>;
 	getEventDeliveries(userId: number, messageId: string): Promise<any[]>;

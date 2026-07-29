@@ -292,12 +292,67 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 		]
 	} as any);
 
+	const ChatSyncJob = sequelize.define('chatSyncJob', {
+		chatSyncStateId: {
+			type: DataTypes.INTEGER,
+			allowNull: false
+		},
+		recipientOwnerId: {
+			type: DataTypes.STRING(500),
+			allowNull: false
+		},
+		nextAttemptAt: {
+			type: DataTypes.DATE,
+			allowNull: false,
+			defaultValue: DataTypes.NOW
+		},
+		failureCount: {
+			type: DataTypes.INTEGER,
+			allowNull: false,
+			defaultValue: 0
+		},
+		claimedAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		claimExpiresAt: {
+			type: DataTypes.DATE,
+			allowNull: true
+		},
+		claimToken: {
+			type: DataTypes.STRING(64),
+			allowNull: true
+		},
+		lastError: {
+			type: DataTypes.TEXT,
+			allowNull: true
+		}
+	} as any, {
+		indexes: [
+			{
+				name: 'chat_sync_jobs_state_unique',
+				fields: ['chatSyncStateId'],
+				unique: true
+			},
+			{
+				name: 'chat_sync_jobs_due_idx',
+				fields: ['nextAttemptAt', 'claimExpiresAt', 'id']
+			},
+			{
+				name: 'chat_sync_jobs_recipient_due_idx',
+				fields: ['recipientOwnerId', 'nextAttemptAt', 'id']
+			}
+		]
+	} as any);
+
 	ChatEvent.hasMany(ChatEventRecipient, {as: 'recipients', foreignKey: 'chatEventId'});
 	ChatEventRecipient.belongsTo(ChatEvent, {as: 'event', foreignKey: 'chatEventId'});
 	ChatEvent.hasMany(ChatEventReceipt, {as: 'receipts', foreignKey: 'chatEventId'});
 	ChatEventReceipt.belongsTo(ChatEvent, {as: 'event', foreignKey: 'chatEventId'});
 	ChatEvent.hasMany(ChatDelivery, {as: 'deliveries', foreignKey: 'chatEventId'});
 	ChatDelivery.belongsTo(ChatEvent, {as: 'event', foreignKey: 'chatEventId'});
+	ChatSyncState.hasOne(ChatSyncJob, {as: 'syncJob', foreignKey: 'chatSyncStateId'});
+	ChatSyncJob.belongsTo(ChatSyncState, {as: 'syncState', foreignKey: 'chatSyncStateId'});
 
 	await ChatDevice.sync({});
 	await ChatConversationHead.sync({});
@@ -306,10 +361,20 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 	await ChatDelivery.sync({});
 	await ChatEventReceipt.sync({});
 	await ChatSyncState.sync({});
+	await ChatSyncJob.sync({});
 
 	(ChatDelivery as any).claimDue = (options) => claimDueChatDeliveries(
 		sequelize,
 		ChatDelivery,
+		options
+	);
+	(ChatSyncJob as any).claimDue = (options) => claimDueChatSyncJobs(
+		sequelize,
+		ChatSyncJob,
+		options
+	);
+	(ChatSyncJob as any).backfillMissing = (options) => backfillMissingChatSyncJobs(
+		sequelize,
 		options
 	);
 
@@ -320,8 +385,119 @@ export default async function initializeChatModels(sequelize: Sequelize) {
 		ChatEventRecipient,
 		ChatDelivery,
 		ChatEventReceipt,
-		ChatSyncState
+		ChatSyncState,
+		ChatSyncJob
 	};
+}
+
+async function claimDueChatSyncJobs(
+	sequelize: Sequelize,
+	ChatSyncJob,
+	{now, claimExpiresAt, claimToken, limit, perRecipientLimit}
+) {
+	const claimedRows = await sequelize.query<{id: number}>(`
+		WITH ranked_jobs AS (
+			SELECT
+				id,
+				ROW_NUMBER() OVER (
+					PARTITION BY "recipientOwnerId"
+					ORDER BY "nextAttemptAt" ASC, id ASC
+				) AS recipient_rank
+			FROM "chatSyncJobs"
+			WHERE "nextAttemptAt" <= :now
+				AND ("claimExpiresAt" IS NULL OR "claimExpiresAt" <= :now)
+		),
+		due_jobs AS (
+			SELECT sync_job.id
+			FROM "chatSyncJobs" AS sync_job
+			JOIN ranked_jobs ON ranked_jobs.id = sync_job.id
+			WHERE ranked_jobs.recipient_rank <= :perRecipientLimit
+			ORDER BY sync_job."nextAttemptAt" ASC, sync_job.id ASC
+			FOR UPDATE OF sync_job SKIP LOCKED
+			LIMIT :limit
+		)
+		UPDATE "chatSyncJobs" AS sync_job
+		SET
+			"claimedAt" = :now,
+			"claimExpiresAt" = :claimExpiresAt,
+			"claimToken" = :claimToken,
+			"updatedAt" = :now
+		FROM due_jobs
+		WHERE sync_job.id = due_jobs.id
+		RETURNING sync_job.id
+	`, {
+		replacements: {
+			now,
+			claimExpiresAt,
+			claimToken,
+			limit,
+			perRecipientLimit
+		},
+		type: QueryTypes.SELECT
+	});
+	const claimedIds = claimedRows.map(row => row.id);
+	if (!claimedIds.length) {
+		return [];
+	}
+	const jobs = await ChatSyncJob.findAll({
+		where: {id: {[Op.in]: claimedIds}},
+		include: [{association: 'syncState', required: true}]
+	});
+	const jobById = new Map(
+		jobs.map(job => [Number(job.id), job])
+	);
+	return claimedIds
+		.map(id => jobById.get(Number(id)))
+		.filter(Boolean);
+}
+
+async function backfillMissingChatSyncJobs(
+	sequelize: Sequelize,
+	{now, limit, perRecipientLimit}
+) {
+	await sequelize.query(`
+		WITH missing_states AS (
+			SELECT
+				sync_state.id,
+				sync_state."recipientOwnerId",
+				ROW_NUMBER() OVER (
+					PARTITION BY sync_state."recipientOwnerId"
+					ORDER BY sync_state.id ASC
+				) AS recipient_rank
+			FROM "chatSyncStates" AS sync_state
+			WHERE NOT EXISTS (
+				SELECT 1
+				FROM "chatSyncJobs" AS sync_job
+				WHERE sync_job."chatSyncStateId" = sync_state.id
+			)
+		),
+		bounded_states AS (
+			SELECT id, "recipientOwnerId"
+			FROM missing_states
+			WHERE recipient_rank <= :perRecipientLimit
+			ORDER BY id ASC
+			LIMIT :limit
+		)
+		INSERT INTO "chatSyncJobs" (
+			"chatSyncStateId",
+			"recipientOwnerId",
+			"nextAttemptAt",
+			"failureCount",
+			"createdAt",
+			"updatedAt"
+		)
+		SELECT
+			bounded_state.id,
+			bounded_state."recipientOwnerId",
+			:now,
+			0,
+			:now,
+			:now
+		FROM bounded_states AS bounded_state
+		ON CONFLICT ("chatSyncStateId") DO NOTHING
+	`, {
+		replacements: {now, limit, perRecipientLimit}
+	});
 }
 
 async function claimDueChatDeliveries(
