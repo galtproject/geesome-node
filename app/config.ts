@@ -37,6 +37,7 @@ export default {
     deliveryWorkerIntervalMs: process.env.CHAT_DELIVERY_WORKER_INTERVAL_MS,
     deliveryWorkerLimit: process.env.CHAT_DELIVERY_WORKER_LIMIT,
     deliveryClaimTtlMs: process.env.CHAT_DELIVERY_CLAIM_TTL_MS,
+    attachmentPinTimeoutMs: process.env.CHAT_ATTACHMENT_PIN_TIMEOUT_MS,
     reconciliationWorker: process.env.CHAT_RECONCILIATION_WORKER === '1',
     reconciliationWorkerIntervalMs: process.env.CHAT_RECONCILIATION_WORKER_INTERVAL_MS,
     reconciliationWorkerLimit: process.env.CHAT_RECONCILIATION_WORKER_LIMIT,

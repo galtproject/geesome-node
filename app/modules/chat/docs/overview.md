@@ -16,6 +16,15 @@ receiving node verifies that identity, the browser device bundle, and the
 encrypted envelope before storing it. The recipient signs the acknowledgement
 with its own static-account key.
 
+Encrypted attachment objects remain opaque content-addressed bytes. The sender
+accepts only attachment CIDs owned by the authenticated user and keeps durable
+event references so cleanup cannot orphan queued delivery. The recipient
+recursively fetches and pins every referenced CID before committing the remote
+event and signing its acknowledgement. Missing or stalled pins return a
+retryable service error. `CHAT_ATTACHMENT_PIN_TIMEOUT_MS` can lower the
+whole attachment-batch deadline; it is capped below the sender's HTTPS request
+timeout so stalled IPFS operations cannot hold delivery indefinitely.
+
 One database delivery row is maintained per event and remote recipient owner.
 Claims use `FOR UPDATE SKIP LOCKED`, failed attempts are released with bounded
 exponential backoff, and the optional interval worker retries recipients that
@@ -62,10 +71,10 @@ regress repair work. The following environment variables tune the bounded worker
 - `CHAT_RECONCILIATION_MAX_PAGES`
 
 Browser device creation, encrypted recovery/restore, revocation, and encrypted
-direct-message send/read UX are present in `geesome-ui`. Remaining chat work
-includes explicit device trust verification, group membership and key rotation,
-encrypted attachment lifecycle, retention/quota policy, and real multi-node
-browser e2e coverage.
+direct-message send/read UX and explicit device trust verification are present
+in `geesome-ui`. Remaining chat work includes browser attachment
+encryption/decryption UX, group membership and key rotation, retention/quota
+policy, and real multi-node browser e2e coverage.
 
 See [Reliable IPFS Chat Research](../../../../docs/ipfs-chat-reliability-research.md)
 for the transport and delivery analysis behind these boundaries.
