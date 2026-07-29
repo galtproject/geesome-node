@@ -71,6 +71,9 @@ regress repair work. The following environment variables tune the bounded worker
 - `CHAT_RECONCILIATION_MAX_PAGES`
 - `CHAT_MAX_ATTACHMENT_BYTES`
 - `CHAT_MAX_EVENT_ATTACHMENT_BYTES`
+- `CHAT_ATTACHMENT_RESERVATION_TTL_MS`
+- `CHAT_MAX_PENDING_ATTACHMENT_RESERVATIONS`
+- `CHAT_MAX_PENDING_ATTACHMENT_BYTES`
 
 Browser device creation, encrypted recovery/restore, revocation, and encrypted
 direct-message send/read UX and explicit device trust verification are present
@@ -88,6 +91,15 @@ across one event. Operators can override them with
 `CHAT_MAX_ATTACHMENT_BYTES` and `CHAT_MAX_EVENT_ATTACHMENT_BYTES`. Objects that
 cannot be resolved return a retryable service error; objects over either limit
 return a permanent `413` and are not pinned or stored as chat events.
+
+The node also exposes expiring attachment upload reservations. A browser can
+reserve the exact ciphertext byte length before upload and pass the opaque
+reservation ID to `user/save-file`. The content hook excludes that ciphertext
+from the normal file catalog, binds the resulting content row to the reservation,
+and marks it attached in the same transaction that accepts the encrypted event.
+Active reservations are serialized per user and bounded by count and reserved
+bytes. Existing clients that do not send reservation IDs remain accepted during
+the rolling transition; browser wiring and expired-upload cleanup remain TODO.
 
 See [Reliable IPFS Chat Research](../../../../docs/ipfs-chat-reliability-research.md)
 for the transport and delivery analysis behind these boundaries.

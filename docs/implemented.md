@@ -224,6 +224,12 @@ TODO.
   before event persistence and resolve remote ciphertext sizes before pinning.
   Defaults cap one attachment at 25 MiB and one event at 100 MiB; unavailable
   ciphertext remains retryable while quota rejection is a permanent `413`.
+- Expiring, user-scoped attachment upload reservations record expected
+  ciphertext bytes before upload. The content hook binds reserved uploads without
+  adding them to the normal file catalog, and event acceptance moves matching
+  uploads to attached state in the event transaction. Active reservations are
+  bounded by count and reserved bytes; reservation-less clients remain compatible
+  until browser adoption and cleanup policy are complete.
 - Recipient nodes recursively fetch and pin every referenced attachment
   ciphertext DAG before committing the remote event and signing its delivery
   acknowledgement. Missing or unavailable objects return a retryable service
@@ -241,7 +247,7 @@ TODO.
   sequence/head reconciliation as the correctness boundary.
 
 This is a browser-first encrypted direct-message foundation, not completion of
-production-secure chat. Attachment deletion, aggregate per-account lifecycle
-quota, abandoned-upload cleanup, and retention policy, reviewed group
+production-secure chat. Browser reservation adoption, attachment deletion,
+expired/abandoned-upload cleanup, and retention policy, reviewed group
 membership/key rotation, and real two-node browser testing remain in the active
 TODO.

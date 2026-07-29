@@ -458,6 +458,10 @@ describe('chat persistence', function () {
 		});
 		await app.ms.chat.registerDevice(alice.id, aliceDevice.publicBundle);
 		await app.ms.chat.registerDevice(bob.id, bobDevice.publicBundle);
+		const reservation = await app.ms.chat.createAttachmentUploadReservation(
+			alice.id,
+			32
+		);
 		const attachment = await app.ms.database.addContent({
 			userId: alice.id,
 			storageType: ContentStorageType.IPFS,
@@ -466,6 +470,9 @@ describe('chat persistence', function () {
 			size: 32,
 			name: 'encrypted-chat-attachment'
 		} as any);
+		await app.ms.chat.afterContentAdding(alice.id, attachment, {
+			chatAttachmentReservationId: reservation.reservationId
+		});
 		const envelope = await browserE2eeHelper.encryptEnvelope(
 			JSON.stringify({text: '', attachments: [{storageId: testAttachmentStorageId}]}),
 			[bobDevice.publicBundle],
@@ -484,6 +491,11 @@ describe('chat persistence', function () {
 		);
 
 		assert.equal(references.derivedStorageRefs, 1);
+		const upload = await app.ms.database.sequelize.models.chatAttachmentUpload.findOne({
+			where: {reservationId: reservation.reservationId}
+		});
+		assert.equal(upload.state, 'attached');
+		assert.ok(upload.chatEventId);
 	});
 });
 

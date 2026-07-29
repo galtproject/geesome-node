@@ -33,6 +33,10 @@ describe('chat api', () => {
 			getOwnDevices: async (...args) => record(calls, 'getOwnDevices', args),
 			getPublicDevices: async (...args) => record(calls, 'getPublicDevices', args),
 			revokeDevice: async (...args) => record(calls, 'revokeDevice', args),
+			createAttachmentUploadReservation: async (...args) =>
+				record(calls, 'createAttachmentUploadReservation', args),
+			cancelAttachmentUploadReservation: async (...args) =>
+				record(calls, 'cancelAttachmentUploadReservation', args),
 			acceptEncryptedEvent: async (...args) => record(calls, 'acceptEncryptedEvent', args),
 			getEventDeliveries: async (...args) => record(calls, 'getEventDeliveries', args),
 			getEncryptedEvents: async (...args) => record(calls, 'getEncryptedEvents', args),
@@ -51,6 +55,8 @@ describe('chat api', () => {
 			'GET chat/devices',
 			'GET chat/users/:ownerId/devices',
 			'POST chat/devices/:deviceId/revoke',
+			'POST chat/attachments/reservations',
+			'POST chat/attachments/reservations/:reservationId/cancel',
 			'POST chat/events',
 			'GET chat/events/:messageId/deliveries',
 			'GET chat/conversations/:conversationId/events',
@@ -81,6 +87,18 @@ describe('chat api', () => {
 			params: {conversationId: 'conversation-1'},
 			query: {afterSequence: '4'}
 		}, response);
+		await getRoute(routes, 'POST', 'chat/attachments/reservations').callback({
+			user: {id: 7},
+			body: {expectedBytes: 32}
+		}, response);
+		await getRoute(
+			routes,
+			'POST',
+			'chat/attachments/reservations/:reservationId/cancel'
+		).callback({
+			user: {id: 7},
+			params: {reservationId: 'reservation-1'}
+		}, response);
 		await getRoute(routes, 'POST', 'chat/events/:messageId/receipt').callback({
 			user: {id: 7},
 			params: {messageId: 'message-1'},
@@ -95,6 +113,14 @@ describe('chat api', () => {
 			{
 				method: 'getEncryptedEvents',
 				args: [7, 'conversation-1', {afterSequence: '4'}]
+			},
+			{
+				method: 'createAttachmentUploadReservation',
+				args: [7, 32]
+			},
+			{
+				method: 'cancelAttachmentUploadReservation',
+				args: [7, 'reservation-1']
 			},
 			{
 				method: 'setEventReceipt',
