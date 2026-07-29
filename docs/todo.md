@@ -442,8 +442,14 @@ claims durable reconciliation state with restart-safe leases, per-node and
 per-recipient batch limits, and retry backoff. Reconciliation keeps a restart-safe
 scan cursor separate from the fully verified source head so out-of-order live
 delivery cannot hide gaps. Remaining production work is browser device
-trust/recovery UX, group membership/key rotation, encrypted attachment lifecycle,
+trust verification, group membership/key rotation, encrypted attachment lifecycle,
 storage/retention quotas, and real multi-node browser e2e/restart/NAT testing.
+Browser device creation, protected local key storage, encrypted recovery,
+restore, fingerprint display, registration, and revocation are implemented in
+`geesome-ui`. Configured nodes now also advertise canonical chat transport
+metadata in signed user manifests so a browser can discover remote devices and
+route ciphertext to the identity-bound recipient node; older profiles omit the
+field and remain valid.
 
 Goal: replace the backend encryption PoC with an implementation plan that can become real end-to-end encrypted chat.
 
@@ -482,7 +488,12 @@ Delivered backend foundation:
 
 Next deliverables:
 
-- Complete browser device trust, key backup/recovery, verification, revocation, and multi-device UX without sending private keys to the node.
+- Add direct-message browser send/read UX using the advertised recipient
+  transport, local device keys, opaque event API, ordered reads, and client-side
+  dedupe. Show an actionable unavailable state for old recipient profiles that
+  have not yet republished a transport hint.
+- Complete explicit device trust verification and multi-device UX without
+  sending private keys to the node.
 - Define secure group membership changes and key rotation using a reviewed group protocol rather than extending the current pairwise envelope ad hoc.
 - Add encrypted attachment upload/download/key lifecycle and retention/quota policy.
 - Run real two-node browser e2e tests covering restart, temporary unreachability, duplicate/out-of-order delivery, bounded backfill, and NAT/bootstrap conditions.

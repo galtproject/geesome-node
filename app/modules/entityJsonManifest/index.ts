@@ -16,6 +16,7 @@ import IGeesomeEntityJsonManifestModule from "./interface.js";
 import {IGroupCategory} from "../groupCategory/interface.js";
 import {IContent, IUser} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
+import {normalizeChatPublicNodeInfo} from "../chat/publicNodeInfo.js";
 import {
   addPostLocalIdToRemovedChanges,
   addPostManifestRefToChangedChanges,
@@ -59,7 +60,7 @@ export default async (app: IGeesomeApp) => {
   return getModule(app);
 };
 
-function getModule(app: IGeesomeApp) {
+export function getModule(app: IGeesomeApp) {
   app.checkModules(['database', 'group', 'accountStorage', 'staticId', 'storage']);
 
   class EntityJsonManifest implements IGeesomeEntityJsonManifestModule {
@@ -116,6 +117,13 @@ function getModule(app: IGeesomeApp) {
 
         if (user.avatarImage) {
           userManifest.avatarImage = this.getStorageRef(user.avatarImage.manifestStorageId);
+        }
+
+        const chatTransport = normalizeChatPublicNodeInfo(
+          await app.ms.chat?.getPublicNodeInfo?.()
+        );
+        if (chatTransport) {
+          userManifest.chatTransport = chatTransport;
         }
 
         this.setManifestMeta(userManifest, name);
@@ -238,6 +246,10 @@ function getModule(app: IGeesomeApp) {
         }
 
         user.manifestStaticStorageId = manifest.staticId;
+        const chatTransport = normalizeChatPublicNodeInfo(manifest.chatTransport);
+        if (chatTransport) {
+          user['chatTransport'] = chatTransport;
+        }
         log('manifestIdToDbObject:user', user);
 
         //TODO: check ipns for valid bound to ipld

@@ -22,6 +22,11 @@ exponential backoff, and the optional interval worker retries recipients that
 were offline. Configure the public endpoint with `CHAT_PUBLIC_URL` or `DOMAIN`;
 set `CHAT_DELIVERY_WORKER=1` to enable background retries or
 `CHAT_AUTO_PROCESS_DELIVERIES=0` to disable the immediate post-write attempt.
+When a public endpoint is configured, the same canonical transport contract is
+included as `chatTransport` in signed user manifests. Browser clients can use
+that identity-bound hint to discover active recipient devices and submit the
+recipient endpoint with an encrypted event. Older user manifests and nodes
+without a public URL omit the field and remain valid.
 
 The communicator or PubSub layer may later wake peers sooner, but it is never
 the source of truth. Missing-range repair uses the signed

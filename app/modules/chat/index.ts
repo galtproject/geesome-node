@@ -43,6 +43,7 @@ import {
 	signChatAcknowledgement,
 	verifyChatDelivery
 } from './transport.js';
+import {buildChatPublicNodeInfoResponse} from './publicNodeInfo.js';
 
 const maxDeviceBundleBytes = 64 * 1024;
 const maxEnvelopeBytes = 1024 * 1024;
@@ -150,17 +151,7 @@ export function getModule(app: IGeesomeApp, models, options: any = {}): IGeesome
 		}
 
 		async getPublicNodeInfo() {
-			const publicUrl = getChatPublicUrl(app);
-			return {
-				protocol: chatDeliveryProtocol,
-				syncProtocol: chatSyncProtocol,
-				publicUrl,
-				inboxUrl: publicUrl ? `${publicUrl}/v1/chat/inbox` : null,
-				syncUrl: publicUrl ? `${publicUrl}/v1/chat/sync` : null,
-				deviceDiscoveryTemplate: publicUrl
-					? `${publicUrl}/v1/chat/public/users/{ownerId}/devices`
-					: null
-			};
+			return buildChatPublicNodeInfoResponse(getChatPublicUrl(app));
 		}
 
 		async revokeDevice(userId: number, deviceId: string) {
