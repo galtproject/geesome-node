@@ -19,8 +19,8 @@ the same pull request.
 
 ## Current Priority
 
-1. Complete the ActivityPub/Bluesky operator-run release gates.
-2. Start browser-first secure chat as the next major product phase.
+1. Complete browser-first secure chat beyond direct messages.
+2. Complete the ActivityPub/Bluesky operator-run release gates.
 3. Finish API route ownership and public-route abuse coverage.
 4. Complete static-site settings and delivery polish.
 5. Attribute content-serving CPU incidents before changing runtime behavior.
@@ -70,9 +70,9 @@ Release gate:
 <!-- todo-section: browser-first-chat-e2ee -->
 ## Secure Chat: Browser-First E2EE
 
-Goal: replace the server-encryption proof of concept with real end-to-end
-encryption in which GeeSome nodes never receive plaintext messages, plaintext
-attachments, or user/device private keys.
+Goal: complete the browser-first end-to-end encrypted chat foundation without
+allowing GeeSome nodes to receive plaintext messages, plaintext attachments, or
+user/device private keys.
 
 Architecture decision:
 
@@ -94,50 +94,41 @@ Architecture decision:
 
 Current safety boundary:
 
-- Existing chat encryption is a proof of concept because encryption and key
-  handling occur on the node.
-- Chat must not be described as production-secure until browser/device crypto,
-  durable opaque node-to-node delivery, and E2EE tests are complete.
-- Existing UI chat surfaces should identify the current path as experimental and
-  insecure where a user could otherwise interpret it as E2EE.
+- Browser/device key generation, protected local storage, encrypted recovery,
+  registration, revocation, direct-message encryption/decryption, ordered
+  reads, client dedupe, and delivery-state UI are implemented in `geesome-ui`.
+- `geesome-node` stores signed opaque envelopes, assigns deterministic local
+  sequence numbers, retries authenticated HTTPS delivery, verifies
+  recipient-signed acknowledgements, and repairs missing ranges from signed
+  source heads. It does not receive browser private keys or message plaintext.
+- Signed user manifests advertise canonical identity-bound chat transport when
+  configured. Older profiles remain valid and produce an actionable unavailable
+  state instead of falling back to plaintext.
+- Direct messages are the implemented E2EE foundation. Chat must not be
+  described as production-secure for attachments or groups until explicit
+  device trust, attachment lifecycle, membership/key rotation, retention, and
+  real multi-node browser tests are complete.
 
-Delivery order:
+Remaining delivery order:
 
-1. Freeze a transport-independent protocol for immutable encrypted events,
-   membership/key epochs, device identity, deterministic sequence/log heads,
-   remote persistence acknowledgements, retries, head reconciliation, and
-   authenticated GeeSome/IPFS node identity binding.
-2. Select a maintained browser-capable E2EE/device protocol. Evaluate MLS,
-   Matrix's device/session model, and other reviewed implementations; do not
-   promote the current Node-specific RSA envelope experiment as a custom
-   production group protocol.
-3. Add versioned opaque event and sync contracts to `geesome-libs`, keeping the
-   cryptographic payload replaceable and independent of the transport.
-4. Make `geesome-node` idempotently persist and route opaque encrypted events,
-   public device material, sequence heads, remote persistence acknowledgements,
-   and persistent outbound retry state. Publish only after local commit/pin;
-   acknowledge remotely only after fetch, verification, and remote commit/pin.
-5. Add an acknowledged repair carrier: authenticated node-to-node HTTPS first
-   when bound node URLs are available, with a dedicated libp2p protocol or
-   version-pinned Kubo P2P tunnel as the P2P-only option. Do not run repair only
-   through PubSub.
-6. Add a persistent encrypted outbound queue with transactional worker leases,
-   bounded backoff/jitter, peer-reconnect wake-up, quotas, a configurable retry
-   deadline, categorized permanent failures, membership/key-epoch rechecks, and
-   restart recovery. Keep referenced ciphertext pinned until remote
-   acknowledgement or explicit cleanup.
-7. Implement stable `messageId` handling, local event verification, and precise
-   saving/accepted-local/queued/received-remote/delivery-failed/read states in
-   `geesome-ui`.
-8. Implement browser/device key generation, protected local private-key storage,
-   encryption/decryption, device trust, recovery, membership changes, and key
-   rotation.
-9. Encrypt attachments in the browser before content-addressed upload; store
-   only encrypted bytes and opaque envelope references on the node.
-10. Add communicator notifications and reciprocal peering as latency and
-   availability improvements after durable send/sync works without them.
-11. Migrate or explicitly retire the legacy server-encrypted path. Do not
-   silently label old conversations as E2EE.
+1. Add explicit device trust verification and multi-device trust UX. Users must
+   be able to compare stable fingerprints, distinguish unverified/new/revoked
+   devices, and deliberately accept key changes without exposing private keys.
+2. Encrypt attachments in the browser before content-addressed upload. Define
+   wrapped content-key metadata, authenticated download/decryption, corruption
+   behavior, deletion, quota, retry, and retention without exposing plaintext or
+   keys to the node.
+3. Select and review the group protocol before extending pairwise envelopes.
+   Define membership epochs and rotate future-message keys when members/devices
+   are added, removed, replaced, or revoked. Evaluate MLS, Matrix-style
+   device/session handling, or another maintained browser-capable protocol.
+4. Run real two-node browser tests across restart, temporary unreachability,
+   duplicate/out-of-order delivery, bounded repair, revoked devices, and
+   NAT/bootstrap/reciprocal-peering conditions.
+5. Define operator-visible queue/reconciliation metrics and explicit encrypted
+   event retention, retry deadline, quota, and cleanup policy. Migrate or
+   explicitly retire the legacy server-encrypted path without relabelling old
+   conversations as E2EE.
 
 Transport requirements:
 

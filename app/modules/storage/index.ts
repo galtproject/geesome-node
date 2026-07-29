@@ -1,5 +1,6 @@
 import {IGeesomeApp} from "../../interface.js";
 import IGeesomeStorageModule from "./interface.js";
+import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
 
 export default async (app: IGeesomeApp, options = {implementation: null}) => {
 	const implementation = options.implementation || app.config.storageConfig.implementation;
@@ -53,44 +54,20 @@ function normalizeStorageAddresses(module: IGeesomeStorageModule): IGeesomeStora
 }
 
 function suppressStoragePinLogs(module: IGeesomeStorageModule): IGeesomeStorageModule {
-	const addPin = (module as any).addPin?.bind(module);
-	if (!addPin) {
+	if (!(module as any).addPin) {
 		return module;
 	}
-	(module as any).addPin = (hash, ...args) => addStoragePinWithoutDependencyLog(addPin, hash, args);
-	return module;
-}
-
-async function addStoragePinWithoutDependencyLog(addPin, hash, args) {
-	return withSuppressedStoragePinLogs(() => addPin(hash, ...args));
-}
-
-function withSuppressedStoragePinLogs(callback) {
-	const originalLog = console.log;
-	console.log = (...args) => {
-		if (isStoragePinLog(args)) {
+	(module as any).addPin = async hash => {
+		const cid = ipfsHelper.ipfsHashToCid(hash);
+		if ((module as any).type === 'helia') {
+			for await (const _value of module.node.pins.add(cid)) {
+				// Iterating completes the Helia pin operation.
+			}
 			return;
 		}
-		originalLog.apply(console, args);
+		await module.node.pin.add(cid);
 	};
-
-	try {
-		const result = callback();
-		if (result && typeof result.finally === 'function') {
-			return result.finally(() => {
-				console.log = originalLog;
-			});
-		}
-		console.log = originalLog;
-		return result;
-	} catch (e) {
-		console.log = originalLog;
-		throw e;
-	}
-}
-
-function isStoragePinLog(args) {
-	return args.length >= 2 && args[1] === 'pinned:';
+	return module;
 }
 
 function makeStorageStopIdempotent(module: IGeesomeStorageModule): IGeesomeStorageModule {

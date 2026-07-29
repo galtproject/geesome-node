@@ -47,14 +47,18 @@ Useful live endpoints:
 
 ## Secure Chat
 
-- Treat the current node-encryption path as an insecure proof of concept, not
-  E2EE.
+- Treat browser-encrypted direct messages as the implemented foundation, not as
+  completion of production-secure group chat.
 - Read [Reliable IPFS Chat Research](./ipfs-chat-reliability-research.md) before
   changing chat storage, delivery, PubSub, peering, or browser transport.
+- Read `app/modules/chat/docs/overview.md` before changing device, envelope,
+  delivery, acknowledgement, or reconciliation contracts.
 - Load the `browser-first-chat-e2ee` TODO section before chat implementation.
 - Coordinate protocol/envelope changes through `geesome-libs`, browser/device
   key handling through `geesome-ui`, and opaque storage/delivery through
   `geesome-node`.
+- Keep private keys, plaintext messages, and plaintext attachments outside
+  `geesome-node`; realtime communicator/PubSub events remain optional hints.
 
 ## Data Scale, Migrations, And Storage
 

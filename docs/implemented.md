@@ -10,7 +10,7 @@ Current unfinished work lives in [todo.md](./todo.md). Detailed design and
 operational notes remain in their dedicated documents and module-local `docs`
 directories.
 
-Last consolidated: 2026-07-28.
+Last consolidated: 2026-07-29.
 
 ## Runtime And Test Foundation
 
@@ -198,16 +198,27 @@ TODO.
 
 ## Secure Chat Status
 
-Only the server-encryption proof of concept is implemented. It is intentionally
-not recorded as secure E2EE. The active plan requires browser/device-held private
-keys, browser-side message and attachment encryption, opaque durable node
-storage, reliable delivery between running nodes, membership key rotation, and
-end-to-end tests before chat can be presented as production-secure.
+- `geesome-libs` defines browser-capable signed device bundles, encrypted
+  envelopes, recipient key wrapping, recovery bundles, and compatibility
+  fixtures.
+- `geesome-ui` generates and stores private device keys in the browser, supports
+  encrypted recovery/restore and revocation, discovers identity-bound recipient
+  devices, encrypts/decrypts direct messages locally, deduplicates by message ID,
+  reads ordered sequence pages, and exposes delivery/setup states.
+- `geesome-node` registers only public device bundles and persists only signed
+  opaque envelopes plus routing, sequence, receipt, and delivery metadata.
+- Authenticated HTTPS delivery has durable retry leases, bounded backoff,
+  recipient-signed acknowledgements, source-head comparison, signed missing-range
+  repair, and an opt-in bounded reconciliation worker.
+- Configured nodes advertise canonical delivery, sync, and device-discovery
+  endpoints in signed user manifests. Older profiles omit this additive field
+  and remain valid.
+- The IPFS chat reliability research records that bootstrap and PubSub cannot
+  guarantee delivery, recommends reciprocal peering only as a live connectivity
+  aid, and defines persist-before-publish, remote acknowledgement, retry, and
+  sequence/head reconciliation as the correctness boundary.
 
-The IPFS chat reliability research is complete. It records that bootstrap and
-PubSub cannot guarantee delivery, recommends reciprocal peering only as a live
-connectivity aid, and defines persist-before-publish, remote acknowledgement,
-retry, and sequence/head reconciliation as the correctness boundary. The active
-plan also requires a persistent encrypted sender-side queue for delayed delivery
-when a recipient node is temporarily unavailable. Implementation remains in the
-active TODO.
+This is a browser-first encrypted direct-message foundation, not completion of
+production-secure chat. Explicit device trust, encrypted attachments, reviewed
+group membership/key rotation, retention/quota policy, and real two-node browser
+testing remain in the active TODO.

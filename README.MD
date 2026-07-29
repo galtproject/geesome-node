@@ -48,7 +48,7 @@ GeeSome protocol created to provide communication tool between communities of pr
 
 Galt Project team is aware of many cases of censorship and blocking in different social networks. These cases forced us to develop a new decentralized protocol and node application that would allow anyone to upload any content to his personal node and to share this content with the whole world without the risk of being blocked.
 
-Using the GeeSome protocol, communities in the Galt Project should eventually be able to communicate in end-to-end encrypted chat groups, share images, video, text or any data. Current chat encryption runs on the node and is only a proof of concept, not end-to-end encryption. Real secure chat requires browser/device-side encryption with user-held private keys, recipient device public keys, encrypted attachments, and node storage limited to opaque ciphertext.
+Using the GeeSome protocol, communities in the Galt Project should eventually be able to communicate in end-to-end encrypted chat groups, share images, video, text or any data. Browser-encrypted direct messages now keep device private keys and plaintext outside GeeSome nodes, which store and route opaque ciphertext. Production-secure group chat still requires explicit device trust, encrypted attachments, a reviewed membership/key-rotation protocol, and real multi-node browser verification.
 
 We are sure that this tool should be used not only by the project's communities, but also by anyone who is concerned about the safety of their data, censorship and blocking in web.
 
@@ -272,7 +272,7 @@ geesomeClient.init().then(async () => {
 ```
 
 ## Current state and features:
-- Personal message encryption proof of concept; full secure chat groups still require frontend E2EE
+- Browser-first encrypted direct messages with client-held device keys, opaque node storage, authenticated delayed inter-node delivery, and signed history repair; production device trust, attachments, group key rotation, and multi-node browser testing remain
 - Public channels and posts
 - Streamable media api(video and audio)
 - Basic file manager
@@ -292,7 +292,7 @@ geesomeClient.init().then(async () => {
 ## TODO:
 
 - Complete the remaining operator-run ActivityPub/Bluesky release gates: credentialed native Bluesky writes, public staging-node inbox/outbox exchange, and external signed-ownership proof compatibility.
-- Replace the node-encryption chat proof of concept with browser-first E2EE. Private keys, plaintext messages, and plaintext attachments must stay on user devices; the node should persist and route only opaque encrypted envelopes plus delivery metadata. Use persist-before-publish, remote acknowledgement, retry, and sequence/head reconciliation to prevent content loss; treat PubSub/communicator events and reciprocal peering only as live-delivery accelerators. When a recipient node is unavailable, retain a quota- and expiry-bounded encrypted outbound queue and deliver after it returns.
+- Complete browser-first secure chat with explicit device trust, encrypted attachments, a reviewed group membership/key-rotation protocol, retention quotas, and real multi-node browser tests. Private keys and plaintext remain on user devices; nodes persist and route only opaque encrypted envelopes and delivery metadata.
 - Finish API route ownership and public-route abuse coverage before expanding federation and secure-chat surfaces.
 - Complete static-site settings validation and generated frontend delivery while preserving the stabilized renderer.
 - Attribute reported content-serving CPU saturation across GeeSome, Kubo, PostgreSQL, nginx, media conversion, and storage I/O before changing runtime behavior.

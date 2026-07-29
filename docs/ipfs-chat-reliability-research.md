@@ -169,9 +169,9 @@ Matrix reinforces two relevant boundaries: delayed server-to-server delivery
 must be persistent, and account identity alone is insufficient for E2EE.
 Browser/device key ownership and membership-key changes must still be explicit.
 
-## Current GeeSome Behavior
+## Baseline At Research Time
 
-The current implementation is not reliable E2EE:
+At the start of this research, the implementation was not reliable E2EE:
 
 - `geesome-ui` saves plaintext content and asks `geesome-node` to create a post.
 - `geesome-node` encrypts a manifest reference for personal chat using key
@@ -190,6 +190,29 @@ The current implementation is not reliable E2EE:
 
 These details mean changing Fluence to Kubo PubSub would not solve delivery or
 E2EE. The message and synchronization contract must be made durable first.
+
+## Implemented Since This Research
+
+The direct-message foundation now follows the recommended correctness boundary:
+
+- `geesome-libs` provides browser-capable signed device bundles, opaque
+  envelopes, recipient key wrapping, and encrypted recovery bundles.
+- `geesome-ui` owns browser private keys and performs direct-message
+  encryption/decryption locally.
+- `geesome-node` persists signed opaque envelopes, deterministic local sequence
+  heads, recipient indexes, receipts, and per-recipient delivery state.
+- Authenticated HTTPS delivery persists before attempting remote delivery,
+  retries unavailable recipients with durable leases and bounded backoff, and
+  accepts recipient-identity-signed acknowledgements.
+- Signed source-head reconciliation repairs missing encrypted events without
+  depending on PubSub history, and an opt-in bounded worker schedules restart-safe
+  repair.
+- Signed user manifests advertise canonical delivery, sync, and public-device
+  discovery endpoints when configured.
+
+The remaining recommendations still apply to explicit device trust, encrypted
+attachments, retention and quota policy, a reviewed group membership/key-rotation
+protocol, and real multi-node browser/NAT/peering tests.
 
 ## Recommended GeeSome Architecture
 
