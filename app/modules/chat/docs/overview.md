@@ -69,6 +69,8 @@ regress repair work. The following environment variables tune the bounded worker
 - `CHAT_RECONCILIATION_CONTINUATION_DELAY_MS`
 - `CHAT_RECONCILIATION_PAGE_LIMIT`
 - `CHAT_RECONCILIATION_MAX_PAGES`
+- `CHAT_MAX_ATTACHMENT_BYTES`
+- `CHAT_MAX_EVENT_ATTACHMENT_BYTES`
 
 Browser device creation, encrypted recovery/restore, revocation, and encrypted
 direct-message send/read UX and explicit device trust verification are present
@@ -76,8 +78,16 @@ in `geesome-ui`. The browser also encrypts attachment bytes before upload, keeps
 private attachment descriptors inside the encrypted envelope, authenticates
 downloaded ciphertext before preview/download, and preserves the text-only
 envelope for rolling compatibility. Remaining chat work includes attachment
-deletion, quota, abandoned-upload cleanup, and retention policy, group membership
-and key rotation, and real multi-node browser e2e coverage.
+deletion, aggregate quota, abandoned-upload cleanup, and retention policy, group
+membership and key rotation, and real multi-node browser e2e coverage.
+
+Attachment admission is bounded without inspecting plaintext. Local events use
+the sender-owned `Content.size`, while remote deliveries resolve the ciphertext
+size before pinning. The default limits are 25 MiB per attachment and 100 MiB
+across one event. Operators can override them with
+`CHAT_MAX_ATTACHMENT_BYTES` and `CHAT_MAX_EVENT_ATTACHMENT_BYTES`. Objects that
+cannot be resolved return a retryable service error; objects over either limit
+return a permanent `413` and are not pinned or stored as chat events.
 
 See [Reliable IPFS Chat Research](../../../../docs/ipfs-chat-reliability-research.md)
 for the transport and delivery analysis behind these boundaries.

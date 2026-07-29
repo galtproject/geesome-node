@@ -69,7 +69,7 @@ describe('chat module', () => {
 
 	it('retains only attachment ciphertext owned by the authenticated sender', async () => {
 		const {chat, rows} = createChatHarness({
-			contents: [{id: 7, userId: 1, storageId: testAttachmentStorageId}]
+			contents: [{id: 7, userId: 1, storageId: testAttachmentStorageId, size: 32}]
 		});
 		const alice = await createDevice('owner-alice', 'alice-browser');
 		const bob = await createDevice('owner-bob', 'bob-browser');
@@ -117,6 +117,34 @@ describe('chat module', () => {
 			/encrypted_envelope_fields_invalid/
 		);
 		assert.equal(rows.events.length, 1);
+	});
+
+	it('rejects sender-owned ciphertext that exceeds configured chat limits', async () => {
+		const {chat, rows} = createChatHarness({
+			contents: [{id: 7, userId: 1, storageId: testAttachmentStorageId, size: 33}],
+			chatConfig: {
+				maxAttachmentBytes: 32,
+				maxEventAttachmentBytes: 64
+			}
+		});
+		const alice = await createDevice('owner-alice', 'alice-browser');
+		const bob = await createDevice('owner-bob', 'bob-browser');
+		await chat.registerDevice(1, alice.publicBundle);
+		await chat.registerDevice(2, bob.publicBundle);
+		const envelope = await createEnvelope(
+			'encrypted attachment descriptor',
+			alice,
+			bob,
+			'message-oversized-attachment',
+			{attachmentStorageIds: [testAttachmentStorageId]}
+		);
+
+		await assert.rejects(
+			() => chat.acceptEncryptedEvent(1, envelope),
+			/chat_attachment_too_large/
+		);
+		assert.equal(rows.events.length, 0);
+		assert.equal(rows.attachments.length, 0);
 	});
 
 	it('rejects revoked sender and locally known recipient devices', async () => {
@@ -224,6 +252,9 @@ function createChatHarness(options: any = {}) {
 	};
 	const models = createModels(rows);
 	const app: any = {
+		config: {
+			chatConfig: options.chatConfig || {}
+		},
 		checkUserCan: async () => true,
 		ms: {
 			database: {
