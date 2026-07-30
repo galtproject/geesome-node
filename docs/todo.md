@@ -121,13 +121,57 @@ Remaining delivery order:
    event retention, retry deadline, quota, and cleanup policy. Migrate or
    explicitly retire the legacy server-encrypted path without relabelling old
    conversations as E2EE.
-3. Revisit the group-chat browser library when a maintained candidate is
-   available. In the July 2026 browser check, membership changes were not
-   applied consistently: after one device was removed from the test group, that
-   device could still process a group message sent afterward. The reviewed
-   packages also lacked the complete browser restart, device-management, and
-   interrupted-update recovery features GeeSome needs. Do not add group-chat
-   node schemas or routes until a dependency passes all of these behavior tests.
+3. Integrate MLS group chat through the staged checklist below. Start with a
+   maintained browser dependency that passes GeeSome's required behavior tests;
+   do not add partial production routes around a dependency that fails them.
+
+MLS group-chat integration checklist:
+
+1. Select and pin a maintained browser dependency. Run the same deterministic
+   create, join, add, remove, restart, interrupted-update, and larger-group
+   scenarios against every candidate.
+2. Add a small `geesome-libs` adapter that owns versioned MLS byte encoding,
+   GeeSome device identity binding, application-message framing, and shared
+   cross-package fixtures. Keep package-specific calls out of product modules.
+3. Add browser-owned MLS state storage in `geesome-ui`, including atomic state
+   updates, restart recovery, clear-on-logout/device-removal behavior, and an
+   explicit unrecoverable-state screen. GeeSome nodes must receive only opaque
+   protocol values.
+4. After the dependency passes, add bounded node storage and delivery contracts
+   for group metadata, one-time join packages, device-specific Welcome values,
+   proposals, commits, and application events. Reuse the existing durable event
+   log, queue, acknowledgement, and missing-range repair machinery.
+5. Implement group creation and device join first. Then add another device,
+   remove a device, remove an account's remaining devices, restore a device as a
+   new member, and reconcile database membership with the current MLS epoch as
+   explicit user actions.
+6. Serialize membership updates through the canonical group node. Reject stale
+   expected epochs, reload the accepted update, discard interrupted local work,
+   and let the browser rebuild the requested change when it is still allowed.
+7. Add group-message and encrypted-attachment UI using the existing chat
+   conversation surface. Show joining, waiting for an update, retrying,
+   unsupported client, removed device, and unavailable older history states in
+   ordinary user language.
+8. Add real two-browser/two-node tests for restart, temporary node
+   unreachability, duplicate and reordered events, interrupted membership
+   updates, simultaneous updates, device removal, attachment delivery, and
+   bounded history repair.
+9. Enable the feature only for newly created group conversations behind a
+   capability flag. Keep direct messages unchanged and keep older group chats
+   visibly on their existing mode until an explicit migration flow exists.
+
+MLS implementation findings:
+
+- **Open:** In the July 2026 browser check, membership changes were not applied
+  consistently. After one device was removed from the test group, that device
+  could still process a group message sent afterward.
+- **Open:** The reviewed packages did not provide all browser restart,
+  device-management, and interrupted-update recovery operations required by
+  the checklist.
+- During implementation, add every unexpected behavior here with its date,
+  affected flow, smallest reproduction, expected result, actual result, package
+  version, and status (`open`, `verified`, `resolved`, or `deferred`). Resolve or
+  explicitly defer each entry before enabling the capability by default.
 
 Transport requirements:
 
