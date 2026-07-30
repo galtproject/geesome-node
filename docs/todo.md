@@ -121,9 +121,13 @@ Remaining delivery order:
    event retention, retry deadline, quota, and cleanup policy. Migrate or
    explicitly retire the legacy server-encrypted path without relabelling old
    conversations as E2EE.
-3. Re-run the MLS browser compatibility gate only when a maintained dependency
-   exposes the required persistence, device lifecycle, and commit-recovery
-   surface. Do not add MLS node schemas or routes before a dependency passes.
+3. Revisit the group-chat browser library when a maintained candidate is
+   available. In the July 2026 browser check, membership changes were not
+   applied consistently: after one device was removed from the test group, that
+   device could still process a group message sent afterward. The reviewed
+   packages also lacked the complete browser restart, device-management, and
+   interrupted-update recovery features GeeSome needs. Do not add group-chat
+   node schemas or routes until a dependency passes all of these behavior tests.
 
 Transport requirements:
 
