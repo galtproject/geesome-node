@@ -32,6 +32,31 @@ ChatConversation
 This is a domain separation decision, not a requirement to duplicate storage,
 pagination, or rendering helpers.
 
+Posts and chats share more timeline behavior than their current tables expose.
+Both can use ordered events, edits represented as later events, missing-item
+reconciliation, attachments, and configurable delivery policies. A future
+generic timeline/space foundation may sit below both products:
+
+```text
+Timeline / Space
+  |-- members
+  |-- ordered events
+  |-- attachments
+  |-- reconciliation state
+  `-- delivery policy
+
+Social Group
+  `-- Post projection and publishing behavior
+
+Private Conversation
+  `-- ChatEvent projection and device/group-key behavior
+```
+
+The recommendation is therefore not that posts and chats are fundamentally
+unrelated. It is that the current publishing tables already own behavior that
+must not be activated implicitly for private chat. Shared primitives should be
+extracted deliberately instead of making chat rows masquerade as social posts.
+
 ## Findings From The Current Implementation
 
 Social publishing currently uses:
@@ -76,10 +101,28 @@ independent GeeSome processes using separate Kubo nodes.
 
 ### Different lifecycle
 
-Posts are mutable publishing records. Chat events are signed append-only
-records. Editing or deleting a chat message must be represented by a new event
-or explicit local retention state rather than silently rewriting the signed
-event.
+The current `Post` row is a mutable publishing projection. The current
+`ChatEvent` row is a signed append-only event.
+
+Append-only storage does not mean a message cannot be edited. A modern editable
+message can be represented as an ordered event history:
+
+```text
+event 1: create message A
+event 2: edit message A
+event 3: delete message A
+```
+
+The browser projects those events into the latest visible message. Group posts
+could use the same approach: append post-change events while retaining `Post`
+as the current feed/manifests projection. GeeSome already records some post
+lifecycle events, but they are not yet the complete source of truth for every
+post revision.
+
+The difference is therefore in the current source-of-truth contract, not in
+whether users should be allowed to edit. Signed chat events should not be
+silently rewritten; edits and deletes should be later events. A future post
+event log could follow the same rule.
 
 ### Different delivery contract
 
@@ -88,12 +131,35 @@ possibly external integrations. Sending a chat event requires recipient
 routing, acknowledgements, retries, missing-range repair, and ordered
 source-head comparison.
 
+Acknowledgements and retries do not need to be mandatory for every timeline.
+They can be an explicit delivery policy:
+
+- `best-effort`: send once without claiming remote delivery;
+- `durable`: retain and retry until acknowledged, rejected, or expired;
+- `pull-only`: publish a head and let another node fetch missing items;
+- `replicated`: require selected nodes to acknowledge storage.
+
+The UI and API must describe the selected guarantee accurately. A
+best-effort send cannot be shown as delivered without an acknowledgement.
+Subscribed group-post replication could reuse the durable or replicated modes;
+public feeds may prefer pull-only behavior.
+
 ### Different membership level
 
 Social group membership is primarily account and permission based. Encrypted
 chat must also account for browser devices, revoked devices, recipient keys,
 and future MLS epochs. A user can remain a conversation member while one of
 that user's devices is removed.
+
+`ChatEventRecipient` identifies concrete device keys, not only a user account.
+For example, Bob may have a phone, laptop, and tablet. The browser encrypts the
+message content once and wraps its content key separately for each allowed
+device. Removing Bob's tablet excludes that device from future events while Bob
+remains a conversation member through his phone and laptop.
+
+This device-level recipient list is required by the current direct-message
+envelope. It can coexist with account-level membership in a generic timeline or
+conversation.
 
 ### Different metadata boundary
 
@@ -156,6 +222,26 @@ For direct conversations, policy should enforce the intended two-account
 membership. Whether one account pair can have multiple conversations is a
 product decision and should be explicit rather than inferred from table shape.
 
+### Membership and key epochs
+
+For encrypted multi-member chat, an epoch is the version of the current group
+membership and shared group-key state:
+
+```text
+epoch 12: Alice, Bob, Carol
+epoch 13: Alice, Bob
+```
+
+Removing Carol creates a new epoch with new key material. Carol may retain
+access to messages she was allowed to read in older epochs, but her removed
+devices must not read messages created in epoch 13. Removing only Bob's laptop
+changes device membership without necessarily removing Bob's phone or Bob's
+account from the conversation.
+
+Public group posts do not need encrypted-group key epochs. A private encrypted
+group feed would need an equivalent membership/version mechanism even if its
+visible items were presented as posts.
+
 ### Device membership
 
 Keep global public device bundles in `ChatDevice`. Direct-message events can
@@ -175,11 +261,51 @@ Sender-owned ciphertext should continue to reuse `Content`, `StorageObject`,
 IPFS pinning, and reference-safe cleanup. Recipient copies should not require
 fabricated user-owned `Content` records.
 
+Per-user attachment release means that one local participant no longer wants an
+attachment retained in that participant's chat history. It does not immediately
+delete shared ciphertext that another participant, pending delivery, or
+missing-range repair still needs.
+
+For example, Alice can release her local attachment view while Bob still keeps
+it. Physical cleanup waits until all required local releases, remote delivery
+acknowledgements, retention windows, and reference checks allow removal.
+
+Published post attachments usually follow author/publication retention rather
+than one retention row for every unknown reader. Both products can share
+reference counting and physical cleanup while keeping different release
+policies.
+
+### Missing-item reconciliation
+
+Missing-range repair should not be chat-only. A group reader may know from a
+group head or manifest that items 1 through 20 exist while the local node has
+all except item 18. The node should fetch, verify, persist, and display the
+missing post.
+
+Both products can share a bounded reconciliation algorithm:
+
+```text
+compare local and remote heads
+identify missing identities or sequences
+fetch bounded pages
+verify product-specific rules
+persist items
+advance the local cursor
+```
+
+Chat applies recipient, signature, and encrypted-envelope checks. Group posts
+apply author, group, manifest, publication, and moderation checks. The chunked
+group post index and chat sequence/head contracts are different projections of
+the same general recovery requirement.
+
 ## Infrastructure That Should Be Shared
 
 Separate domain models do not require duplicate infrastructure. Chat should
 continue to reuse:
 
+- ordered timeline/change-event helpers where post and chat invariants match;
+- head comparison, bounded page repair, and cursor checkpoint helpers;
+- configurable best-effort, durable, pull-only, or replicated delivery policy;
 - `Content` and `StorageObject` identity for sender-owned ciphertext;
 - storage reference counting and deletion safety;
 - IPFS fetch, pin, and bounded size checks;
@@ -207,6 +333,12 @@ Private encrypted group feeds may eventually combine durable posts with
 conversation-like membership. They should be reviewed as a separate product
 mode rather than introduced implicitly by storing chat events in `Post`.
 
+At the product level it is reasonable to describe a direct conversation as a
+private group of two users. That language does not require using the current
+social `Group` database model. A future `Space` or `Timeline` aggregate could
+support both social groups and private conversations while each keeps its own
+projection and policy modules.
+
 ## Adoption Plan
 
 1. Add `ChatConversation` and `ChatConversationMember` as additive model-sync
@@ -215,14 +347,20 @@ mode rather than introduced implicitly by storing chat events in `Post`.
    Do not rewrite or resign existing `ChatEvent` envelopes.
 3. Keep current direct-message APIs compatible while moving membership and
    authorization reads behind conversation helpers.
-4. Define explicit direct-conversation uniqueness and invitation policy before
+4. Extract shared timeline/head/reconciliation helpers only after post and chat
+   invariants are compared and covered by common behavior tests.
+5. Define explicit delivery policies and ensure UI delivery labels match the
+   selected guarantee.
+6. Define explicit direct-conversation uniqueness and invitation policy before
    enforcing database constraints.
-5. Add bounded member and conversation listing without exposing encrypted
+7. Add bounded member and conversation listing without exposing encrypted
    presentation metadata.
-6. Integrate MLS group state only after the browser dependency gate passes.
-7. Add two-browser/two-node tests covering conversation creation, membership,
+8. Add missing-post reconciliation tests using group heads and chunked manifest
+   indexes without routing public posts through chat delivery rows.
+9. Integrate MLS group state only after the browser dependency gate passes.
+10. Add two-browser/two-node tests covering conversation creation, membership,
    device changes, restart, missing-range repair, and attachments.
-8. Retire temporary membership inference only after existing conversations
+11. Retire temporary membership inference only after existing conversations
    have been materialized and verified.
 
 ## Invariants
@@ -240,6 +378,10 @@ mode rather than introduced implicitly by storing chat events in `Post`.
 - Recipient attachment rows can remain storage-only references.
 - Social publishing hooks never process chat events unless an explicit publish
   action creates a real post.
+- Message and post edits can use later ordered events while retaining separate
+  current-state projections.
+- Missing-item reconciliation is available to both chat and group timelines,
+  with product-specific verification.
 
 ## Open Decisions
 
@@ -249,6 +391,10 @@ mode rather than introduced implicitly by storing chat events in `Post`.
 - How long removed membership and old epoch metadata must be retained.
 - Whether encrypted conversation metadata should use a distinguished chat event
   or a separately versioned encrypted conversation document.
+- Whether a generic `Space`/`Timeline` aggregate should be introduced after
+  shared behavior has been proven in both chat and group-post tests.
+- Which delivery policies should be available for public groups, private group
+  feeds, and direct conversations.
 
 These decisions should be resolved before making group conversations available
 by default, but they do not require replacing the working direct-message event
