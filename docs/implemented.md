@@ -261,8 +261,14 @@ TODO.
   guarantee delivery, recommends reciprocal peering only as a live connectivity
   aid, and defines persist-before-publish, remote acknowledgement, retry, and
   sequence/head reconciliation as the correctness boundary.
+- The group E2EE protocol review selects MLS 1.0 instead of extending pairwise
+  envelopes or embedding Matrix. It defines one MLS leaf per browser device,
+  signed GeeSome credential binding, explicit Add/Remove epoch changes,
+  application-level admin authorization, canonical compare-and-set commit
+  ordering, no automatic history sharing, opaque node transport, and a required
+  OpenMLS/WASM browser compatibility gate before implementation.
 
 This is a browser-first encrypted direct-message foundation, not completion of
-production-secure chat. Reviewed group membership/key rotation, real two-node
-browser testing, explicit operator policy, and legacy-path retirement remain in
-the active TODO.
+production-secure group chat. The browser MLS compatibility spike, real
+two-node browser testing, explicit operator policy, and legacy-path retirement
+remain in the active TODO.

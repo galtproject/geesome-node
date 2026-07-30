@@ -210,9 +210,10 @@ The direct-message foundation now follows the recommended correctness boundary:
 - Signed user manifests advertise canonical delivery, sync, and public-device
   discovery endpoints when configured.
 
-The remaining recommendations still apply to explicit device trust, encrypted
-attachments, retention and quota policy, a reviewed group membership/key-rotation
-protocol, and real multi-node browser/NAT/peering tests.
+The remaining recommendations now apply to the MLS browser compatibility gate,
+retention and aggregate quota policy, and real multi-node
+browser/NAT/peering tests. Device trust, encrypted attachment lifecycle, and the
+group protocol decision have moved into the implemented foundation.
 
 ## Recommended GeeSome Architecture
 
@@ -395,11 +396,11 @@ streams. Apply padding or batching only after measuring the threat and cost.
 ### Cryptographic protocol choice
 
 Do not turn the existing envelope experiment into a custom production group
-protocol without a focused review. Choose and document a maintained,
-browser-capable implementation of MLS, Matrix's established device/session
-model, or another reviewed protocol. The transport envelope should carry an
-opaque versioned protocol payload so the storage and sync layer does not depend
-on one cryptographic suite.
+protocol. The focused review selected MLS 1.0 and defined the browser, identity,
+membership, ordering, and rollout constraints in
+[Group Chat E2EE Protocol Decision](./chat-group-e2ee-protocol-decision.md).
+The transport envelope should carry an opaque versioned protocol payload so the
+storage and sync layer does not depend on one cryptographic suite.
 
 Required decisions include:
 

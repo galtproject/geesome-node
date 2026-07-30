@@ -45,4 +45,5 @@ can be used for the generated API page, this portal, and module docs.
 - [Database scalability review](./database-scalability-review.md)
 - [Group manifest IPLD scalability](./group-manifest-ipld-scalability.md)
 - [Reliable IPFS chat research](./ipfs-chat-reliability-research.md)
+- [Group chat E2EE protocol decision](./chat-group-e2ee-protocol-decision.md)
 - [Manifest examples](./manifests-example.md)
