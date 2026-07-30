@@ -262,12 +262,15 @@ TODO.
   whose peer identities are verified as distinct. Its first real HTTP scenario
   stops the recipient, records a failed delivery, restarts both nodes, and
   proves the persisted sender queue delivers exactly one opaque event to the
-  recipient database. Its reordered-delivery scenario sends source event three
-  first, repairs events one and two through the signed HTTP sync endpoint,
-  revalidates event three without duplicating it, and proves a repeated repair
-  imports nothing. Its revoked-device scenario proves the recipient stores no
-  event and the sender records one visible failed delivery instead of retrying
-  a permanent HTTP rejection.
+  recipient database. Its encrypted-attachment scenario directly peers the two
+  Kubo daemons, uploads browser-produced ciphertext to the sender only, proves
+  the recipient fetches and pins the CID before acknowledgement, and decrypts
+  the recipient copy only in the test client. Its reordered-delivery scenario
+  sends source event three first, repairs events one and two through the signed
+  HTTP sync endpoint, revalidates event three without duplicating it, and proves
+  a repeated repair imports nothing. Its revoked-device scenario proves the
+  recipient stores no event and the sender records one visible failed delivery
+  instead of retrying a permanent HTTP rejection.
 - Configured nodes advertise canonical delivery, sync, and device-discovery
   endpoints in signed user manifests. Older profiles omit this additive field
   and remain valid.
