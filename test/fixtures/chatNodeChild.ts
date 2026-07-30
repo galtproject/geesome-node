@@ -67,6 +67,9 @@ async function runCommand(command: string, payload: any) {
 	if (command === 'register-device') {
 		return app.ms.chat.registerDevice(payload.userId, payload.publicBundle);
 	}
+	if (command === 'revoke-device') {
+		return app.ms.chat.revokeDevice(payload.userId, payload.deviceId);
+	}
 	if (command === 'get-transport-public-key') {
 		return app.ms.accountStorage.getStaticIdPublicKeyByOr(payload.ownerId);
 	}

@@ -141,7 +141,7 @@ async function recordChatDeliveryFailure(
 		options.maximumAttempts,
 		defaultMaximumAttempts
 	);
-	const failed = attempts >= maximumAttempts;
+	const failed = error?.retryable === false || attempts >= maximumAttempts;
 	await delivery.update({
 		state: failed ? ChatDeliveryState.Failed : ChatDeliveryState.Pending,
 		attempts,

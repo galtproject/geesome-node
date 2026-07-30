@@ -297,6 +297,74 @@ describe('two-node chat reliability', function () {
 		assert.equal(repeatedReconciliation.replayed, 0);
 		assert.equal(repeatedReconciliation.verifiedSourceSequence, '3');
 	});
+
+	it('stops retrying after the recipient device is revoked', async () => {
+		const {
+			alice,
+			bob,
+			aliceDevice,
+			bobDevice
+		} = await setupChatParticipants(nodeA, nodeB, 'revoked');
+		const bobTransportPublicKey = await nodeB.request(
+			'get-transport-public-key',
+			{ownerId: bob.storageAccountId}
+		);
+		const envelope = await browserE2eeHelper.encryptEnvelope(
+			'two-node revoked device message',
+			[bobDevice.publicBundle],
+			aliceDevice,
+			{
+				messageId: 'two-node-revoked-message-1',
+				conversationId: 'two-node-revoked-conversation-1'
+			}
+		);
+		await nodeB.request('revoke-device', {
+			userId: bob.id,
+			deviceId: bobDevice.publicBundle.deviceId
+		});
+		await nodeA.request('accept-event', {
+			userId: alice.id,
+			envelope,
+			options: {
+				recipientEndpoints: [{
+					ownerId: bob.storageAccountId,
+					publicKey: bobTransportPublicKey,
+					inboxUrl: `http://127.0.0.1:${portB}/v1/chat/inbox`
+				}]
+			}
+		});
+
+		const rejected = await nodeA.request('process-deliveries');
+		assert.deepEqual(rejected, {
+			processed: 1,
+			delivered: 0,
+			failed: 1,
+			pending: 0
+		});
+		const deliveries = await nodeA.request('get-deliveries', {
+			userId: alice.id,
+			messageId: envelope.messageId
+		});
+		assert.equal(deliveries.length, 1);
+		assert.equal(deliveries[0].state, 'failed');
+		assert.equal(deliveries[0].attempts, 1);
+		assert.equal(deliveries[0].lastError, 'chat_delivery_http_404');
+		const received = await nodeB.request('get-events', {
+			userId: bob.id,
+			conversationId: envelope.conversationId
+		});
+		assert.equal(received.total, 0);
+
+		const repeated = await nodeA.request('process-deliveries', {
+			options: {now: new Date(Date.now() + 6000).toISOString()}
+		});
+		assert.deepEqual(repeated, {
+			processed: 0,
+			delivered: 0,
+			failed: 0,
+			pending: 0
+		});
+	});
 });
 
 type ChatNodeConfig = {
@@ -444,6 +512,46 @@ function createNodeConfig(
 	port: number
 ): ChatNodeConfig {
 	return {databaseName, dataDir, port};
+}
+
+async function setupChatParticipants(
+	nodeA: ChatNodeProcess,
+	nodeB: ChatNodeProcess,
+	name: string
+) {
+	const aliceSetup = await nodeA.request('setup', {
+		user: {
+			email: `alice-${name}@example.com`,
+			name: `alice_${name}`,
+			password: 'alice'
+		}
+	});
+	const bobSetup = await nodeB.request('setup', {
+		user: {
+			email: `bob-${name}@example.com`,
+			name: `bob_${name}`,
+			password: 'bob'
+		}
+	});
+	const alice = aliceSetup.user;
+	const bob = bobSetup.user;
+	const aliceDevice = await browserE2eeHelper.generateDeviceKeys({
+		ownerId: alice.storageAccountId,
+		deviceId: `alice-${name}-browser`
+	});
+	const bobDevice = await browserE2eeHelper.generateDeviceKeys({
+		ownerId: bob.storageAccountId,
+		deviceId: `bob-${name}-browser`
+	});
+	await nodeA.request('register-device', {
+		userId: alice.id,
+		publicBundle: aliceDevice.publicBundle
+	});
+	await nodeB.request('register-device', {
+		userId: bob.id,
+		publicBundle: bobDevice.publicBundle
+	});
+	return {alice, bob, aliceDevice, bobDevice};
 }
 
 async function createTestDatabase(databaseName: string): Promise<void> {
