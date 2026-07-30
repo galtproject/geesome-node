@@ -91,8 +91,12 @@ Architecture decision:
 - Keep PostgreSQL as the operational authorization, head, acknowledgement, and
   retry index. Consider encrypted IPLD event batches or checkpoints for portable
   replication only after the operational path is proven.
-- Model direct and multi-member chat as dedicated conversations rather than
-  reusing the social `Group`, `Post`, and `PostsContents` tables. Follow the
+- Model encrypted multi-member chat as a `PrivateGroup` specialization that
+  reuses `Group`, `Post`, `PostsContents`, group heads, and missing-post repair.
+  Keep device-key membership, membership/key epochs, delivery policy, and
+  private publication callbacks inside the `PrivateGroup` module. Preserve the
+  existing direct `ChatEvent` path until a tested compatibility/migration
+  decision is made. Follow the
   [conversation data model review](../app/modules/chat/docs/conversation-data-model-review.md)
   before adding group membership persistence.
 - Use MLS 1.0 for group membership and future-message key rotation according to
@@ -139,17 +143,19 @@ MLS group-chat integration checklist:
 2. Add a small `geesome-libs` adapter that owns versioned MLS byte encoding,
    GeeSome device identity binding, application-message framing, and shared
    cross-package fixtures. Keep package-specific calls out of product modules.
-3. Add the additive `ChatConversation` and `ChatConversationMember` aggregate,
-   lazily materialize existing direct-conversation IDs without rewriting
-   events, and move membership/authorization reads behind conversation helpers.
+3. Add a stable private-group capability and a `PrivateGroup` module that owns
+   private post callbacks, versioned account/device membership, epoch
+   transitions, and delivery policy. Do not rewrite existing direct
+   `ChatEvent` envelopes.
 4. Add browser-owned MLS state storage in `geesome-ui`, including atomic state
    updates, restart recovery, clear-on-logout/device-removal behavior, and an
    explicit unrecoverable-state screen. GeeSome nodes must receive only opaque
    protocol values.
 5. After the dependency passes, add bounded node storage and delivery contracts
-   for group metadata, one-time join packages, device-specific Welcome values,
-   proposals, commits, and application events. Reuse the existing durable event
-   log, queue, acknowledgement, and missing-range repair machinery.
+   for private-group metadata, one-time join packages, device-specific Welcome
+   values, proposals, commits, and encrypted posts. Reuse group post/content
+   relations and missing-post repair together with the existing durable queue
+   and acknowledgement machinery.
 6. Implement group creation and device join first. Then add another device,
    remove a device, remove an account's remaining devices, restore a device as a
    new member, and reconcile database membership with the current MLS epoch as
@@ -157,17 +163,18 @@ MLS group-chat integration checklist:
 7. Serialize membership updates through the canonical group node. Reject stale
    expected epochs, reload the accepted update, discard interrupted local work,
    and let the browser rebuild the requested change when it is still allowed.
-8. Add group-message and encrypted-attachment UI using the existing chat
-   conversation surface. Show joining, waiting for an update, retrying,
-   unsupported client, removed device, and unavailable older history states in
-   ordinary user language.
+8. Add private-group post and encrypted-attachment UI using the existing chat
+   surface. Only authors may delete their shared messages/attachments; other
+   members may only hide an item or evict its local cache. Show joining, waiting
+   for an update, retrying, unsupported client, removed device, and unavailable
+   older history states in ordinary user language.
 9. Add real two-browser/two-node tests for restart, temporary node
    unreachability, duplicate and reordered events, interrupted membership
    updates, simultaneous updates, device removal, attachment delivery, and
    bounded history repair.
-10. Enable the feature only for newly created group conversations behind a
-   capability flag. Keep direct messages unchanged and keep older group chats
-   visibly on their existing mode until an explicit migration flow exists.
+10. Enable the feature only for newly created private groups behind a capability
+   flag. Keep direct messages unchanged and keep older group chats visibly on
+   their existing mode until an explicit migration flow exists.
 
 MLS implementation findings:
 

@@ -8,29 +8,30 @@ message represented as a `Post` and each attachment connected through
 
 ## Decision
 
-Treat direct and multi-member chat as the same **conversation** concept, but do
-not reuse the existing social `Group`, `Post`, or `PostsContents` tables.
-
-A direct chat is conceptually a private conversation with two account members.
-A multi-member chat is the same conversation type with more members and
-additional membership state. Both should continue to use the append-only
-`ChatEvent` log and `ChatEventAttachment` references.
-
-Before MLS group chat is introduced, add an explicit conversation aggregate
-around the existing event log:
+Model an encrypted multi-member chat as a private group specialization. Reuse
+`Group`, `Post`, `PostsContents`, and the group reconciliation path where their
+existing contracts fit, while a dedicated `PrivateGroup` module owns the
+private-only policy:
 
 ```text
-ChatConversation
-  |-- ChatConversationMember
-  |-- ChatConversationHead
-  |-- ChatEvent
-  |     |-- ChatEventRecipient
-  |     `-- ChatEventAttachment
-  `-- protocol-specific device membership state
+Group
+  |-- GroupMember
+  |     `-- versioned member-device public keys
+  |-- Post
+  |     `-- PostsContents
+  `-- group head / missing-post reconciliation
+
+PrivateGroup module
+  |-- validates private-group publication
+  |-- resolves the active member-device key snapshot
+  |-- owns membership/key epoch transitions
+  |-- adds delivery acknowledgement/retry policy
+  `-- prevents public publishing integrations from running
 ```
 
-This is a domain separation decision, not a requirement to duplicate storage,
-pagination, or rendering helpers.
+The existing direct-message `ChatEvent` path remains compatible while this
+specialization is developed. It should not be rewritten until common post/chat
+event behavior and migration rules are proven by tests.
 
 Posts and chats share more timeline behavior than their current tables expose.
 Both can use ordered events, edits represented as later events, missing-item
@@ -48,14 +49,15 @@ Timeline / Space
 Social Group
   `-- Post projection and publishing behavior
 
-Private Conversation
-  `-- ChatEvent projection and device/group-key behavior
+Private Group
+  `-- Post projection plus device/group-key behavior
 ```
 
-The recommendation is therefore not that posts and chats are fundamentally
-unrelated. It is that the current publishing tables already own behavior that
-must not be activated implicitly for private chat. Shared primitives should be
-extracted deliberately instead of making chat rows masquerade as social posts.
+The key boundary is now the `PrivateGroup` policy module rather than a separate
+conversation database aggregate. Existing post callbacks must dispatch through
+that module for private groups so public manifests, ActivityPub/Bluesky,
+static-site generation, RSS, and other public side effects are not activated
+implicitly.
 
 ## Findings From The Current Implementation
 
@@ -91,13 +93,14 @@ envelope with durable retry, acknowledgement, and missing-range repair.
 - A failed fetch leaves delivery pending and creates no recipient event.
 - Attachment order, filename, media type, original size, and content key stay
   inside the encrypted browser payload.
-- Per-user release intent is stored separately in
-  `ChatEventAttachmentRetention`.
+- The current direct-message implementation stores per-user local retention
+  intent in `ChatEventAttachmentRetention`; it does not grant a recipient
+  permission to delete the sender's message or attachment.
 
 These behaviors are now covered across PostgreSQL-backed restart tests and
 independent GeeSome processes using separate Kubo nodes.
 
-## Why Social Groups And Posts Should Not Be Reused
+## What Cannot Be Reused Unchanged
 
 ### Different lifecycle
 
@@ -144,7 +147,7 @@ best-effort send cannot be shown as delivered without an acknowledgement.
 Subscribed group-post replication could reuse the durable or replicated modes;
 public feeds may prefer pull-only behavior.
 
-### Different membership level
+### Private membership extends normal group membership
 
 Social group membership is primarily account and permission based. Encrypted
 chat must also account for browser devices, revoked devices, recipient keys,
@@ -157,24 +160,33 @@ message content once and wraps its content key separately for each allowed
 device. Removing Bob's tablet excludes that device from future events while Bob
 remains a conversation member through his phone and laptop.
 
-This device-level recipient list is required by the current direct-message
-envelope. It can coexist with account-level membership in a generic timeline or
-conversation.
+The same device-level recipient approach can be used for private groups. Normal
+group membership identifies the accounts; private-group membership data adds
+the active public keys for each account's allowed devices.
+
+The key list must not be read as one mutable global list when decrypting old
+posts. Each accepted private post must identify the membership/key version used
+when it was created. Otherwise a later device addition or removal would make it
+ambiguous which devices were valid recipients of an earlier post.
 
 ### Different metadata boundary
 
-Post content names, views, and ordering are ordinary server-readable metadata.
-Chat attachment names, media types, display order, and keys are intentionally
-inside the encrypted envelope. Reusing `PostsContents` would either expose that
-metadata or create misleading empty join fields.
+Normal post content names, views, and ordering are server-readable metadata.
+Private-group attachment names, media types, display details, and keys must stay
+inside the browser-encrypted post payload. `PostsContents` may carry relation
+identity and stable ciphertext ordering, but private fields must not be copied
+into its visible metadata columns.
 
 ### Different remote representation
 
-A remote chat recipient can pin ciphertext without owning a normal `Content`
-row. `PostsContents` requires a `Content` entity, while
-`ChatEventAttachment.contentId` is deliberately nullable on recipient nodes.
+A remote private-group member can pin ciphertext without becoming its author or
+owner. Reusing `PostsContents` therefore requires the shared-content identity
+path: a replicated `Content` reference may point at the canonical
+`StorageObject`, but must preserve the original author/remote identity and must
+not fabricate local ownership. The current direct-message path may continue to
+use nullable `ChatEventAttachment.contentId` during compatibility.
 
-### Unwanted product coupling
+### Public product coupling must be disabled explicitly
 
 Reusing `Group` and `Post` would make chat changes interact with unrelated
 publishing behavior:
@@ -186,41 +198,33 @@ publishing behavior:
 - moderation and feed queries;
 - social-import identity and derived-state jobs.
 
-Preventing every one of those paths from treating chat messages as publishable
-posts would be more fragile than maintaining the smaller chat model.
+The `PrivateGroup` module must define which of these callbacks are disabled,
+replaced, or safe to reuse. This is preferable to scattering `if private`
+conditions throughout each integration. Private posts may reuse group heads,
+pagination, replies, attachment relations, and missing-post repair while public
+distribution callbacks remain off.
 
-## Recommended Conversation Aggregate
+## Recommended Private Group Specialization
 
-### `ChatConversation`
+### `PrivateGroup` module
 
-The first-class conversation row should own only server-required state:
+The module should be selected from a stable group privacy/type field and own:
 
-- stable `conversationId`;
-- conversation kind (`direct` or `group`);
-- protocol/capability version;
-- lifecycle state;
-- creation and update timestamps.
+- private publication validation;
+- account and device membership resolution;
+- membership/key version transitions;
+- acknowledgement and retry policy;
+- encrypted-post callback dispatch;
+- private-group capability/version state.
 
 User-visible title, description, avatar, and other private presentation fields
 should stay in browser-encrypted state unless a specific public or
 operator-visible field is intentionally designed.
 
-The existing `ChatConversationHead` can become an association of this aggregate
-without changing sequence semantics or rewriting existing events.
-
-### `ChatConversationMember`
-
-Membership should identify account owners independently from devices:
-
-- `conversationId`;
-- stable account owner ID;
-- nullable local `userId`;
-- role and active/removed state;
-- accepted membership sequence or epoch where needed.
-
-For direct conversations, policy should enforce the intended two-account
-membership. Whether one account pair can have multiple conversations is a
-product decision and should be explicit rather than inferred from table shape.
+The module may use existing group extension/property data while the shape is
+small. Promote it to a typed relation when atomic updates, bounded member
+queries, uniqueness, or history verification cannot be enforced reliably in
+embedded data.
 
 ### Membership and key epochs
 
@@ -238,9 +242,10 @@ devices must not read messages created in epoch 13. Removing only Bob's laptop
 changes device membership without necessarily removing Bob's phone or Bob's
 account from the conversation.
 
-Public group posts do not need encrypted-group key epochs. A private encrypted
-group feed would need an equivalent membership/version mechanism even if its
-visible items were presented as posts.
+Public group posts do not need encrypted-group key epochs. Private groups do.
+The epoch can be stored as versioned private-group membership data and
+referenced by each encrypted post; it does not require a separate conversation
+aggregate.
 
 ### Device membership
 
@@ -254,26 +259,24 @@ columns to the social group model.
 
 ### Messages and attachments
 
-Keep messages as `ChatEvent`, not `Post`. Keep attachment routing and retention
-in `ChatEventAttachment` and `ChatEventAttachmentRetention`.
+Private-group messages can be encrypted `Post` records and use
+`PostsContents`. The browser must encrypt message and attachment bytes before
+upload; the node stores only the ciphertext and the minimum routing metadata.
 
-Sender-owned ciphertext should continue to reuse `Content`, `StorageObject`,
-IPFS pinning, and reference-safe cleanup. Recipient copies should not require
-fabricated user-owned `Content` records.
+Only the post author may issue a message or attachment deletion for the shared
+private-group history, subject to group policy. Other members cannot delete the
+author's post or attachment for everyone.
 
-Per-user attachment release means that one local participant no longer wants an
-attachment retained in that participant's chat history. It does not immediately
-delete shared ciphertext that another participant, pending delivery, or
-missing-range repair still needs.
+A recipient may still hide an item in their own browser or evict a downloaded
+ciphertext copy from a local cache. That is local presentation/storage behavior,
+not a shared deletion and not an authoring permission. The recipient can fetch
+the item again while the author-owned post and its retention policy still make
+it available.
 
-For example, Alice can release her local attachment view while Bob still keeps
-it. Physical cleanup waits until all required local releases, remote delivery
-acknowledgements, retention windows, and reference checks allow removal.
-
-Published post attachments usually follow author/publication retention rather
-than one retention row for every unknown reader. Both products can share
-reference counting and physical cleanup while keeping different release
-policies.
+Physical storage cleanup therefore follows author deletion, group retention,
+pending delivery/repair references, and ordinary `Content`/`StorageObject`
+reference safety. A per-recipient “attachment release” entity is not part of
+the private-group product model.
 
 ### Missing-item reconciliation
 
@@ -300,13 +303,13 @@ the same general recovery requirement.
 
 ## Infrastructure That Should Be Shared
 
-Separate domain models do not require duplicate infrastructure. Chat should
-continue to reuse:
+The private-group specialization should reuse:
 
 - ordered timeline/change-event helpers where post and chat invariants match;
 - head comparison, bounded page repair, and cursor checkpoint helpers;
 - configurable best-effort, durable, pull-only, or replicated delivery policy;
-- `Content` and `StorageObject` identity for sender-owned ciphertext;
+- `Group`, `Post`, `PostsContents`, `Content`, and `StorageObject` identity for
+  author-owned ciphertext;
 - storage reference counting and deletion safety;
 - IPFS fetch, pin, and bounded size checks;
 - cursor and keyset pagination helpers;
@@ -315,69 +318,69 @@ continue to reuse:
   decryption;
 - common user, role, and permission vocabulary where the semantics match.
 
-If repeated relation behavior emerges across posts, chat, generated outputs,
-and other entities, extract a small generic helper or storage-reference
-contract. Do not make `PostsContents` itself generic after the fact.
+If repeated relation behavior emerges across posts, direct chat, generated
+outputs, and other entities, extract a small generic helper or
+storage-reference contract.
 
 ## Product Interactions
 
-A post can be shared into a chat by sending a typed encrypted reference to its
-public identity or by attaching a browser-encrypted private copy. This does not
-turn the post into the chat message or make the conversation a social group.
+A public post can be shared into a private group by sending a typed encrypted
+reference to its public identity or by attaching a browser-encrypted private
+copy.
 
-Similarly, a conversation may offer a user action to publish selected content
-as a post. That action should create an explicit post through the normal group
-publishing flow.
+Similarly, a private group may offer a user action to publish selected content
+publicly. That action must create a separate public post through the normal
+public-group flow; changing the private post's visibility in place risks
+exposing private metadata or ciphertext policy.
 
-Private encrypted group feeds may eventually combine durable posts with
-conversation-like membership. They should be reviewed as a separate product
-mode rather than introduced implicitly by storing chat events in `Post`.
-
-At the product level it is reasonable to describe a direct conversation as a
-private group of two users. That language does not require using the current
-social `Group` database model. A future `Space` or `Timeline` aggregate could
-support both social groups and private conversations while each keeps its own
-projection and policy modules.
+A direct conversation can eventually be represented as a private group of two
+accounts. Keep the current direct `ChatEvent` path during the transition so the
+new private-group contract can be validated without rewriting existing signed
+events.
 
 ## Adoption Plan
 
-1. Add `ChatConversation` and `ChatConversationMember` as additive model-sync
-   tables while this work remains unreleased on `dev`.
-2. Lazily materialize a conversation row for existing `conversationId` values.
-   Do not rewrite or resign existing `ChatEvent` envelopes.
-3. Keep current direct-message APIs compatible while moving membership and
-   authorization reads behind conversation helpers.
-4. Extract shared timeline/head/reconciliation helpers only after post and chat
+1. Define a stable private-group type/capability and route its post-publication
+   callbacks through a `PrivateGroup` module.
+2. Define versioned account/device membership data and require every encrypted
+   private post to reference its accepted membership/key epoch.
+3. Keep current direct-message APIs and signed `ChatEvent` envelopes compatible
+   while the private-group path is introduced.
+4. Extract shared timeline/head/reconciliation helpers only after post,
+   private-group, and direct-chat
    invariants are compared and covered by common behavior tests.
 5. Define explicit delivery policies and ensure UI delivery labels match the
    selected guarantee.
-6. Define explicit direct-conversation uniqueness and invitation policy before
-   enforcing database constraints.
-7. Add bounded member and conversation listing without exposing encrypted
-   presentation metadata.
+6. Define explicit private-group invitation, member role, and direct
+   two-account uniqueness policy.
+7. Add bounded private-group/member listing without exposing encrypted
+   presentation metadata or mutable key-history ambiguity.
 8. Add missing-post reconciliation tests using group heads and chunked manifest
-   indexes without routing public posts through chat delivery rows.
+   indexes, including private encrypted posts and membership-epoch references.
 9. Integrate MLS group state only after the browser dependency gate passes.
-10. Add two-browser/two-node tests covering conversation creation, membership,
-   device changes, restart, missing-range repair, and attachments.
-11. Retire temporary membership inference only after existing conversations
-   have been materialized and verified.
+10. Add two-browser/two-node tests covering private-group creation, membership,
+    device changes, restart, missing-range repair, author deletion, recipient
+    local hiding/cache eviction, and attachments.
+11. Consider migrating direct conversations to two-member private groups only
+    after compatibility, identity, ordering, and retention behavior is proven.
 
 ## Invariants
 
 - GeeSome nodes never receive chat plaintext, attachment keys, or browser
   private keys.
-- `conversationId` remains stable across local database IDs and node replicas.
-- Accepted message identity remains `messageId`; retries do not create another
-  event.
-- Conversation sequence remains deterministic and append-only.
-- Direct and group membership are explicit and independently testable.
+- Group/post identity remains stable across local database IDs and node
+  replicas.
+- Accepted private-post identity is idempotent; retries do not create another
+  post.
+- Private-group event order and membership/key epochs remain deterministic.
+- Account and device membership are explicit and independently testable.
 - Removing a device does not silently remove its account from the conversation.
 - Removing an account from a group conversation eventually removes all of its
   active protocol device memberships.
-- Recipient attachment rows can remain storage-only references.
-- Social publishing hooks never process chat events unless an explicit publish
-  action creates a real post.
+- Only the author may delete a shared private post or its attachments.
+- Recipient local hiding or cache eviction never deletes the shared post.
+- Public publishing hooks never process private-group posts unless an explicit
+  publish action creates a separate public post.
 - Message and post edits can use later ordered events while retaining separate
   current-state projections.
 - Missing-item reconciliation is available to both chat and group timelines,
@@ -385,17 +388,17 @@ projection and policy modules.
 
 ## Open Decisions
 
-- Whether one pair of accounts may create multiple direct conversations.
-- Which conversation metadata, if any, should be visible to the node.
-- How invitations and member roles map to the first MLS group creation flow.
+- Whether one pair of accounts may create multiple direct private groups.
+- Which private-group metadata, if any, should be visible to the node.
+- How invitations and member roles map to the first private-group/MLS creation
+  flow.
 - How long removed membership and old epoch metadata must be retained.
-- Whether encrypted conversation metadata should use a distinguished chat event
-  or a separately versioned encrypted conversation document.
-- Whether a generic `Space`/`Timeline` aggregate should be introduced after
-  shared behavior has been proven in both chat and group-post tests.
+- Whether encrypted private-group metadata should use a distinguished post
+  event or a separately versioned encrypted group document.
+- Whether direct `ChatEvent` conversations should eventually migrate to
+  two-member private groups or remain a compatible specialized projection.
 - Which delivery policies should be available for public groups, private group
   feeds, and direct conversations.
 
-These decisions should be resolved before making group conversations available
-by default, but they do not require replacing the working direct-message event
-log.
+These decisions should be resolved before private groups are available by
+default. They do not require replacing the working direct-message event log.
