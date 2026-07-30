@@ -364,6 +364,141 @@ events.
 11. Consider migrating direct conversations to two-member private groups only
     after compatibility, identity, ordering, and retention behavior is proven.
 
+## Migration Plan
+
+This is a compatibility migration from the current direct-chat entities to the
+private-group architecture. It is not a one-time table rewrite. The legacy path
+must remain readable until native private groups and projected legacy
+conversations produce equivalent user-visible results.
+
+### Migration states
+
+Every chat exposed through the common API must be in one explicit state:
+
+- `legacy-only`: current `ChatEvent` entities remain the source of truth;
+- `projected`: immutable legacy events have an idempotent private-group
+  projection, while the legacy rows remain authoritative;
+- `native-private-group`: the private `Group`/`Post` timeline is authoritative.
+
+The API must deduplicate by stable source identity so a projected event is not
+shown beside its legacy source. Mixed-version nodes must not infer migration
+state from the presence of a few posts.
+
+### Phase 1: improve the shared group foundation
+
+Before storing chat in groups:
+
+1. Add a `PrivateGroup` module selected by a stable group capability/type.
+2. Route post lifecycle callbacks through the group-type module. Private groups
+   must not trigger public manifests, RSS, static-site, ActivityPub, Bluesky, or
+   social-import behavior.
+3. Add ordered create/edit/delete event identities for posts while retaining
+   `Post` as the current-state projection.
+4. Make group heads and bounded missing-post reconciliation deterministic.
+5. Support remote `Content` references without fabricating local ownership.
+6. Keep private attachment names, display metadata, and keys in the encrypted
+   browser payload while using `PostsContents` for ciphertext relations.
+7. Define author-controlled shared deletion separately from recipient-local
+   hiding and cache eviction.
+
+These improvements should be covered for ordinary groups too where the
+invariants are shared.
+
+### Phase 2: implement native private groups
+
+1. Store account membership plus versioned active device public keys.
+2. Require every encrypted post to identify the accepted membership/key epoch.
+3. Let browsers create message and attachment ciphertext before upload.
+4. Reuse the durable queue, acknowledgement, retry, and missing-item repair
+   machinery behind the private-group delivery policy.
+5. Expose private groups through the existing chat-facing API and UI so callers
+   do not depend on database entity names.
+6. Add a capability flag for creating native private groups. Keep it disabled
+   by default until the two-node verification gate passes.
+
+### Phase 3: add the legacy projection
+
+Build a deterministic, resumable projector with the following mapping:
+
+```text
+legacy conversationId       -> private Group legacy-source identity
+ChatEvent.messageId         -> Post legacy-source identity
+ChatEvent sequence/time     -> ordered post event sequence/time
+ChatEvent author/signature  -> preserved author and source evidence
+ChatEvent encrypted payload -> encrypted private Post payload
+ChatEventAttachment         -> PostsContents ciphertext relation
+recipient/device records    -> referenced membership/key version
+delivery acknowledgement   -> retained delivery evidence
+```
+
+The projector must:
+
+- never decrypt, rewrite, or re-sign a legacy event;
+- preserve message IDs, ordering, timestamps, authors, attachment order, edits,
+  deletes, and source signatures;
+- use unique legacy-source identities so reruns cannot create duplicates;
+- process bounded batches with durable checkpoints and per-conversation status;
+- leave a failed conversation in `legacy-only` state rather than exposing a
+  partial projection;
+- produce a machine-readable comparison report before marking a conversation
+  `projected`.
+
+If a field cannot be represented without losing meaning, retain it as immutable
+legacy evidence and keep that conversation on the compatibility reader.
+
+### Phase 4: verify equivalence
+
+For projected conversations, compare both representations:
+
+- conversation/member/device identity;
+- message count and stable identities;
+- create/edit/delete order and current visible state;
+- author and timestamp attribution;
+- attachment count, order, ciphertext CID, and availability;
+- delivery/acknowledgement state;
+- missing-range repair after restart;
+- author deletion and recipient-local hiding behavior.
+
+Run unit tests for mapping and idempotency, PostgreSQL restart tests, and real
+two-browser/two-node tests. Include interrupted projection, duplicate input,
+out-of-order legacy events, unavailable attachment ciphertext, removed devices,
+and mixed legacy/native listing.
+
+### Phase 5: change the default
+
+After the equivalence gate passes:
+
+1. Enable native private groups for newly created multi-member chats.
+2. Enable them for newly created direct chats only after two-member uniqueness,
+   invitation, and UI behavior is verified.
+3. Keep legacy reads enabled and migrate existing conversations in bounded
+   background batches.
+4. Show migration failures to operators without blocking unaffected chats.
+5. Stop creating new legacy conversations only after all supported clients can
+   read native private groups.
+
+Avoid dual-writing new messages to both schemas. It creates two competing
+sources of truth during partial failure. Use one authoritative representation
+per conversation and a read-only projection for comparison.
+
+### Phase 6: retirement and rollback
+
+Rollback means switching API routing back to the legacy reader for projected
+conversations; it must not require restoring rewritten events. Keep legacy rows,
+attachments, and delivery evidence through at least one stable release after
+native private groups become the default.
+
+Remove legacy write/read code and tables only after:
+
+- no supported client requires them;
+- every retained conversation is verified as native or projected;
+- backup/restore and migration reports have been reviewed;
+- rollback has not been needed for the agreed observation period;
+- storage-reference checks prove cleanup cannot remove live ciphertext.
+
+Table cleanup is a separate release decision, not part of enabling
+`PrivateGroup`.
+
 ## Invariants
 
 - GeeSome nodes never receive chat plaintext, attachment keys, or browser

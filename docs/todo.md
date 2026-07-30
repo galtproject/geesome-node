@@ -175,6 +175,12 @@ MLS group-chat integration checklist:
 10. Enable the feature only for newly created private groups behind a capability
    flag. Keep direct messages unchanged and keep older group chats visibly on
    their existing mode until an explicit migration flow exists.
+11. Implement the staged
+    [legacy chat to private-group migration plan](../app/modules/chat/docs/conversation-data-model-review.md#migration-plan):
+    keep `legacy-only`, `projected`, and `native-private-group` states explicit;
+    project immutable events idempotently without decrypting or re-signing;
+    verify both representations; then change the new-chat default. Retain the
+    legacy reader and rows through the rollback observation period.
 
 MLS implementation findings:
 
