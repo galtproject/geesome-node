@@ -9,7 +9,7 @@
 
 //TODO: move communicator and fileCatalog to improve
 const modulePacks = {
-  'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'staticId', 'asyncOperation', 'group', 'chat', 'fileCatalog', 'entityJsonManifest', 'imageComposition', 'remoteGroup'],
+  'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'staticId', 'asyncOperation', 'privateGroup', 'group', 'chat', 'fileCatalog', 'entityJsonManifest', 'imageComposition', 'remoteGroup'],
   'improve': ['groupCategory', 'invite', 'staticSiteGenerator', 'rss', 'activityPub', 'autoActions', 'pin', 'foreignAccounts', 'ethereumAuthorization', 'storageSpace', 'gateway'],
   'socNet': ['socNetAccount', 'socNetImport', 'bluesky', 'telegramClient', 'twitterClient', 'tgContentBot']
 };
@@ -59,6 +59,9 @@ export default {
     reconciliationContinuationDelayMs: process.env.CHAT_RECONCILIATION_CONTINUATION_DELAY_MS,
     reconciliationPageLimit: process.env.CHAT_RECONCILIATION_PAGE_LIMIT,
     reconciliationMaxPages: process.env.CHAT_RECONCILIATION_MAX_PAGES
+  },
+  privateGroupConfig: {
+    enabled: process.env.PRIVATE_GROUP_ENABLED === '1'
   },
   activityPubConfig: {
     enabled: process.env.ACTIVITYPUB_ENABLED === '1',
