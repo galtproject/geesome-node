@@ -114,9 +114,9 @@ Current safety boundary:
 
 Remaining delivery order:
 
-1. Run real two-node browser tests across restart, temporary unreachability,
-   duplicate/out-of-order delivery, bounded repair, revoked devices, and
-   NAT/bootstrap/reciprocal-peering conditions.
+1. Extend the independent-process HTTP harness into real two-browser/two-node
+   tests for duplicate/out-of-order delivery, bounded repair, revoked devices,
+   separate IPFS nodes, and NAT/bootstrap/reciprocal-peering conditions.
 2. Define operator-visible queue/reconciliation metrics and explicit encrypted
    event retention, retry deadline, quota, and cleanup policy. Migrate or
    explicitly retire the legacy server-encrypted path without relabelling old
@@ -210,9 +210,8 @@ Verification:
   resubmission after a rejected local save, brief network partition,
   reciprocal-peering reconnect, remote fetch/pin failure, and database/storage
   failure scenarios.
-- Recipient-node downtime followed by queued delivery, concurrent worker lease
-  recovery, quota/expiry, permanent rejection, and membership-removal
-  cancellation.
+- Concurrent worker lease recovery, quota/expiry, permanent rejection, and
+  membership-removal cancellation.
 - Membership removal and key rotation proving removed devices cannot decrypt new
   messages.
 - Encrypted attachment upload/download and corruption/tamper failure tests.

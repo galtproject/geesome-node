@@ -257,6 +257,11 @@ TODO.
 - A PostgreSQL-backed restart regression proves a failed opaque delivery remains
   queued across sender shutdown, resumes after app restart, records the signed
   acknowledgement, and does not duplicate the encrypted event.
+- An independent-process reliability harness starts two GeeSome apps with
+  separate PostgreSQL databases and account-data directories. Its first real
+  HTTP scenario stops the recipient, records a failed delivery, restarts both
+  nodes, and proves the persisted sender queue delivers exactly one opaque event
+  to the recipient database.
 - Configured nodes advertise canonical delivery, sync, and device-discovery
   endpoints in signed user manifests. Older profiles omit this additive field
   and remain valid.
