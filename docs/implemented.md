@@ -264,7 +264,9 @@ TODO.
   to the recipient database. Its reordered-delivery scenario sends source event
   three first, repairs events one and two through the signed HTTP sync endpoint,
   revalidates event three without duplicating it, and proves a repeated repair
-  imports nothing.
+  imports nothing. Its revoked-device scenario proves the recipient stores no
+  event and the sender records one visible failed delivery instead of retrying a
+  permanent HTTP rejection.
 - Configured nodes advertise canonical delivery, sync, and device-discovery
   endpoints in signed user manifests. Older profiles omit this additive field
   and remain valid.

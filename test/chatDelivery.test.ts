@@ -9,9 +9,17 @@ import {
 
 describe('chat delivery queue', function () {
 	this.timeout(10000);
+	let sender;
+	let recipient;
+
+	before(async () => {
+		[sender, recipient] = await Promise.all([
+			createTransportIdentity(),
+			createTransportIdentity()
+		]);
+	});
+
 	it('records a recipient-signed acknowledgement', async () => {
-		const sender = await createTransportIdentity();
-		const recipient = await createTransportIdentity();
 		const row = createDeliveryRow(sender, recipient);
 		const models = {
 			ChatDelivery: {
@@ -47,8 +55,6 @@ describe('chat delivery queue', function () {
 	});
 
 	it('releases a failed claim for bounded retry', async () => {
-		const sender = await createTransportIdentity();
-		const recipient = await createTransportIdentity();
 		const row = createDeliveryRow(sender, recipient);
 		const result = await processChatDeliveryQueue({
 			ChatDelivery: {
@@ -69,6 +75,34 @@ describe('chat delivery queue', function () {
 		assert.equal(row.deliveryClaimedAt, null);
 		assert.equal(row.deliveryClaimExpiresAt, null);
 		assert.ok(row.nextAttemptAt > new Date('2026-07-28T12:00:00.000Z'));
+	});
+
+	it('stops retrying a permanent recipient rejection immediately', async () => {
+		const row = createDeliveryRow(sender, recipient);
+		const result = await processChatDeliveryQueue({
+			ChatDelivery: {
+				claimDue: async () => [row]
+			}
+		}, {
+			getSigner: async () => sender,
+			deliverChatRequest: async () => {
+				const error: any = new Error('chat_delivery_http_404');
+				error.retryable = false;
+				throw error;
+			}
+		});
+
+		assert.deepEqual(result, {
+			processed: 1,
+			delivered: 0,
+			failed: 1,
+			pending: 0
+		});
+		assert.equal(row.state, ChatDeliveryState.Failed);
+		assert.equal(row.attempts, 1);
+		assert.equal(row.lastError, 'chat_delivery_http_404');
+		assert.equal(row.deliveryClaimedAt, null);
+		assert.equal(row.deliveryClaimExpiresAt, null);
 	});
 });
 

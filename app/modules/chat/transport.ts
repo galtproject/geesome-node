@@ -234,7 +234,10 @@ export async function postChatTransportJson(
 		return response.data as IChatDeliveryAcknowledgement;
 	} catch (error) {
 		if (error?.response?.status) {
-			throw new Error(`${options.errorPrefix || 'chat_delivery'}_http_${error.response.status}`);
+			throw createChatTransportHttpError(
+				options.errorPrefix || 'chat_delivery',
+				error.response.status
+			);
 		}
 		throw error;
 	} finally {
@@ -367,4 +370,15 @@ function parsePositiveInteger(value, fallback: number): number {
 		return parsed;
 	}
 	return fallback;
+}
+
+function createChatTransportHttpError(prefix: string, statusValue): Error {
+	const status = Number(statusValue);
+	const error: any = new Error(`${prefix}_http_${status}`);
+	error.statusCode = status;
+	error.retryable = status === 408 ||
+		status === 425 ||
+		status === 429 ||
+		status >= 500;
+	return error;
 }
