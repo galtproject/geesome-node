@@ -56,6 +56,8 @@ Useful live endpoints:
   state, KeyPackages, Welcome messages, or group-chat wire contracts.
 - Read `app/modules/chat/docs/overview.md` before changing device, envelope,
   delivery, acknowledgement, or reconciliation contracts.
+- Read `app/modules/chat/docs/conversation-data-model-review.md` before changing
+  conversation, membership, direct-chat, or group-chat persistence.
 - Load the `browser-first-chat-e2ee` TODO section before chat implementation.
 - Coordinate protocol/envelope changes through `geesome-libs`, browser/device
   key handling through `geesome-ui`, and opaque storage/delivery through
