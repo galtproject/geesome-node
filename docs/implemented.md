@@ -261,7 +261,10 @@ TODO.
   separate PostgreSQL databases and account-data directories. Its first real
   HTTP scenario stops the recipient, records a failed delivery, restarts both
   nodes, and proves the persisted sender queue delivers exactly one opaque event
-  to the recipient database.
+  to the recipient database. Its reordered-delivery scenario sends source event
+  three first, repairs events one and two through the signed HTTP sync endpoint,
+  revalidates event three without duplicating it, and proves a repeated repair
+  imports nothing.
 - Configured nodes advertise canonical delivery, sync, and device-discovery
   endpoints in signed user manifests. Older profiles omit this additive field
   and remain valid.

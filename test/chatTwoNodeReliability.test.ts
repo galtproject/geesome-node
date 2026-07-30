@@ -158,6 +158,145 @@ describe('two-node chat reliability', function () {
 			false
 		);
 	});
+
+	it('repairs earlier events after receiving a later event first', async () => {
+		const aliceSetup = await nodeA.request('setup', {
+			user: {
+				email: 'alice-repair@example.com',
+				name: 'alice_repair',
+				password: 'alice'
+			}
+		});
+		const bobSetup = await nodeB.request('setup', {
+			user: {
+				email: 'bob-repair@example.com',
+				name: 'bob_repair',
+				password: 'bob'
+			}
+		});
+		const alice = aliceSetup.user;
+		const bob = bobSetup.user;
+		const aliceDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: alice.storageAccountId,
+			deviceId: 'alice-repair-browser'
+		});
+		const bobDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: bob.storageAccountId,
+			deviceId: 'bob-repair-browser'
+		});
+		await nodeA.request('register-device', {
+			userId: alice.id,
+			publicBundle: aliceDevice.publicBundle
+		});
+		await nodeB.request('register-device', {
+			userId: bob.id,
+			publicBundle: bobDevice.publicBundle
+		});
+		const conversationId = 'two-node-repair-conversation-1';
+		const envelopes = [];
+		for (let sequence = 1; sequence <= 3; sequence += 1) {
+			envelopes.push(await browserE2eeHelper.encryptEnvelope(
+				`two-node repair message ${sequence}`,
+				[bobDevice.publicBundle],
+				aliceDevice,
+				{
+					messageId: `two-node-repair-message-${sequence}`,
+					conversationId
+				}
+			));
+		}
+		await nodeA.request('accept-event', {
+			userId: alice.id,
+			envelope: envelopes[0]
+		});
+		await nodeA.request('accept-event', {
+			userId: alice.id,
+			envelope: envelopes[1]
+		});
+		const bobTransportPublicKey = await nodeB.request(
+			'get-transport-public-key',
+			{ownerId: bob.storageAccountId}
+		);
+		await nodeA.request('accept-event', {
+			userId: alice.id,
+			envelope: envelopes[2],
+			options: {
+				recipientEndpoints: [{
+					ownerId: bob.storageAccountId,
+					publicKey: bobTransportPublicKey,
+					inboxUrl: `http://127.0.0.1:${portB}/v1/chat/inbox`
+				}]
+			}
+		});
+
+		const delivered = await nodeA.request('process-deliveries');
+		assert.deepEqual(delivered, {
+			processed: 1,
+			delivered: 1,
+			failed: 0,
+			pending: 0
+		});
+		const receivedOutOfOrder = await nodeB.request('get-events', {
+			userId: bob.id,
+			conversationId
+		});
+		assert.equal(receivedOutOfOrder.total, 1);
+		assert.equal(
+			receivedOutOfOrder.list[0].envelope.messageId,
+			envelopes[2].messageId
+		);
+		assert.equal(receivedOutOfOrder.list[0].sourceSequence, '3');
+
+		const aliceTransportPublicKey = await nodeA.request(
+			'get-transport-public-key',
+			{ownerId: alice.storageAccountId}
+		);
+		const reconciliation = await nodeB.request('reconcile-conversation', {
+			userId: bob.id,
+			conversationId,
+			options: {
+				sourceOwnerId: alice.storageAccountId,
+				sourcePublicKey: aliceTransportPublicKey,
+				syncUrl: `http://127.0.0.1:${portA}/v1/chat/sync`,
+				limit: 2,
+				maxPages: 2
+			}
+		});
+		assert.equal(reconciliation.complete, true);
+		assert.equal(reconciliation.imported, 2);
+		assert.equal(reconciliation.replayed, 1);
+		assert.equal(reconciliation.pages, 2);
+		assert.equal(reconciliation.verifiedSourceSequence, '3');
+
+		const receivedAfterRepair = await nodeB.request('get-events', {
+			userId: bob.id,
+			conversationId
+		});
+		assert.equal(receivedAfterRepair.total, 3);
+		assert.deepEqual(
+			receivedAfterRepair.list
+				.map(event => event.envelope.messageId)
+				.sort(),
+			envelopes.map(envelope => envelope.messageId).sort()
+		);
+		assert.equal(
+			JSON.stringify(receivedAfterRepair).includes('two-node repair message'),
+			false
+		);
+
+		const repeatedReconciliation = await nodeB.request(
+			'reconcile-conversation',
+			{
+				userId: bob.id,
+				conversationId,
+				options: {sourceOwnerId: alice.storageAccountId}
+			}
+		);
+		assert.equal(repeatedReconciliation.complete, true);
+		assert.equal(repeatedReconciliation.imported, 0);
+		assert.equal(repeatedReconciliation.replayed, 0);
+		assert.equal(repeatedReconciliation.verifiedSourceSequence, '3');
+	});
 });
 
 type ChatNodeConfig = {

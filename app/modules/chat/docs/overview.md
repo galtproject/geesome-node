@@ -85,8 +85,11 @@ regress repair work. The following environment variables tune the bounded worker
 The process-level reliability harness runs two independent GeeSome app
 processes with separate PostgreSQL databases and account-data directories. It
 proves that recipient downtime and both-node restart do not lose or duplicate a
-queued event when delivery resumes through the real HTTP inbox. This is the
-durable HTTP baseline; separate IPFS-node, browser, reordered-event, and
+queued event when delivery resumes through the real HTTP inbox. A second
+scenario delivers source event three before events one and two, then proves the
+real signed HTTP sync path repairs the missing range, revalidates the already
+stored event without duplicating it, and makes a repeated repair a no-op. This
+is the durable HTTP baseline; separate IPFS-node, browser, revoked-device, and
 network-shape scenarios remain in the active TODO.
 
 Browser device creation, encrypted recovery/restore, revocation, and encrypted

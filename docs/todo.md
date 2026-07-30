@@ -114,9 +114,9 @@ Current safety boundary:
 
 Remaining delivery order:
 
-1. Extend the independent-process HTTP harness into real two-browser/two-node
-   tests for duplicate/out-of-order delivery, bounded repair, revoked devices,
-   separate IPFS nodes, and NAT/bootstrap/reciprocal-peering conditions.
+1. Promote the independent-process restart and reordered-repair scenarios into
+   real two-browser/two-node tests. Add revoked-device, separate-IPFS-node, and
+   NAT/bootstrap/reciprocal-peering conditions.
 2. Define operator-visible queue/reconciliation metrics and explicit encrypted
    event retention, retry deadline, quota, and cleanup policy. Migrate or
    explicitly retire the legacy server-encrypted path without relabelling old
