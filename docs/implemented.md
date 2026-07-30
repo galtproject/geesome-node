@@ -254,6 +254,9 @@ TODO.
 - Authenticated HTTPS delivery has durable retry leases, bounded backoff,
   recipient-signed acknowledgements, source-head comparison, signed missing-range
   repair, and an opt-in bounded reconciliation worker.
+- A PostgreSQL-backed restart regression proves a failed opaque delivery remains
+  queued across sender shutdown, resumes after app restart, records the signed
+  acknowledgement, and does not duplicate the encrypted event.
 - Configured nodes advertise canonical delivery, sync, and device-discovery
   endpoints in signed user manifests. Older profiles omit this additive field
   and remain valid.
@@ -266,9 +269,11 @@ TODO.
   signed GeeSome credential binding, explicit Add/Remove epoch changes,
   application-level admin authorization, canonical compare-and-set commit
   ordering, no automatic history sharing, opaque node transport, and a required
-  OpenMLS/WASM browser compatibility gate before implementation.
+  browser compatibility gate before implementation. The July 2026 dependency
+  pass selected no production browser implementation, so no experimental
+  dependency or partial MLS node contract was retained.
 
 This is a browser-first encrypted direct-message foundation, not completion of
-production-secure group chat. The browser MLS compatibility spike, real
-two-node browser testing, explicit operator policy, and legacy-path retirement
+production-secure group chat. Real two-node browser testing, explicit operator
+policy, legacy-path retirement, and a future successful MLS dependency gate
 remain in the active TODO.

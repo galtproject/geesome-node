@@ -1,7 +1,7 @@
 # Group Chat E2EE Protocol Decision
 
-Status: accepted architecture; browser implementation library remains gated by
-the compatibility spike below.
+Status: accepted architecture; no reviewed browser implementation currently
+passes the compatibility gate below.
 
 ## Decision
 
@@ -86,6 +86,15 @@ The spike may add a thin maintained GeeSome binding around OpenMLS. It must not
 reimplement MLS cryptography. If OpenMLS cannot satisfy these requirements,
 evaluate another RFC 9420 implementation against the same fixture before
 changing the protocol decision.
+
+The July 2026 compatibility pass did not select a production dependency. The
+reviewed browser packages did not provide the complete persistence, device
+lifecycle, pending-commit recovery, and maintained interoperability surface
+required by this gate. Experimental dependencies and fixtures were therefore
+discarded rather than added to the runtime. Group MLS implementation remains
+paused until a maintained browser implementation can pass this gate as a
+dependency; GeeSome will not fill missing protocol behavior with custom
+cryptographic code.
 
 ## Identity And Device Rules
 
@@ -185,10 +194,10 @@ retroactively re-encrypt old attachment objects.
 
 ## Rollout And Compatibility
 
-1. Land the browser compatibility spike and shared fixtures without changing
-   production chat behavior.
-2. Add opaque node contracts for KeyPackages and MLS event kinds only after the
-   spike selects a pinned library/binding.
+1. Re-run the browser compatibility gate when a maintained candidate exposes
+   the required lifecycle and persistence surface.
+2. Add shared fixtures and opaque node contracts for KeyPackages and MLS event
+   kinds only after the spike selects a pinned library/binding.
 3. Implement new MLS group conversations behind an explicit capability flag.
 4. Exercise add/remove/revoke, concurrent commits, restart, and delivery repair
    in real two-browser/two-node tests.

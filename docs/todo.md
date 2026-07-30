@@ -114,17 +114,16 @@ Current safety boundary:
 
 Remaining delivery order:
 
-1. Run the browser MLS compatibility spike defined by the protocol decision.
-   Prove OpenMLS/WASM persistence, restart, add/remove/revoke, concurrent-commit
-   recovery, shared fixture interoperability, and acceptable bundle/runtime
-   cost before adding node schemas or routes.
-2. Run real two-node browser tests across restart, temporary unreachability,
+1. Run real two-node browser tests across restart, temporary unreachability,
    duplicate/out-of-order delivery, bounded repair, revoked devices, and
    NAT/bootstrap/reciprocal-peering conditions.
-3. Define operator-visible queue/reconciliation metrics and explicit encrypted
+2. Define operator-visible queue/reconciliation metrics and explicit encrypted
    event retention, retry deadline, quota, and cleanup policy. Migrate or
    explicitly retire the legacy server-encrypted path without relabelling old
    conversations as E2EE.
+3. Re-run the MLS browser compatibility gate only when a maintained dependency
+   exposes the required persistence, device lifecycle, and commit-recovery
+   surface. Do not add MLS node schemas or routes before a dependency passes.
 
 Transport requirements:
 
@@ -159,13 +158,13 @@ Verification:
   between otherwise running nodes.
 - A test that drops 100% of PubSub/communicator notifications and still
   recovers every locally accepted event through sequence/head reconciliation.
-- Node restart immediately before and after acknowledgement, browser
+- Recipient restart after persistence but before acknowledgement, browser
   resubmission after a rejected local save, brief network partition,
   reciprocal-peering reconnect, remote fetch/pin failure, and database/storage
   failure scenarios.
-- Recipient-node downtime followed by queued delivery, sender-node restart with
-  queue recovery, concurrent worker lease recovery, quota/expiry, permanent
-  rejection, and membership-removal cancellation.
+- Recipient-node downtime followed by queued delivery, concurrent worker lease
+  recovery, quota/expiry, permanent rejection, and membership-removal
+  cancellation.
 - Membership removal and key rotation proving removed devices cannot decrypt new
   messages.
 - Encrypted attachment upload/download and corruption/tamper failure tests.

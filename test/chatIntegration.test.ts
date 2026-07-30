@@ -20,16 +20,7 @@ describe('chat persistence', function () {
 	let bob;
 
 	beforeEach(async () => {
-		const appConfig: any = (await import('../app/config.js')).default;
-		appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
-		appConfig.chatConfig.deliveryWorker = false;
-		appConfig.chatConfig.reconciliationWorker = false;
-		appConfig.chatConfig.attachmentCleanupWorker = false;
-		appConfig.chatConfig.autoProcessDeliveries = false;
-		app = await (await import('../app/index.js')).default({
-			storageConfig: appConfig.storageConfig,
-			port: 7771
-		});
+		app = await startChatTestApp();
 		await app.flushDatabase();
 		alice = await app.setup({
 			email: 'alice@example.com',
@@ -45,7 +36,7 @@ describe('chat persistence', function () {
 	});
 
 	afterEach(async () => {
-		await app.stop();
+		await app?.stop();
 	});
 
 	it('persists encrypted events, sequences, recipient reads, and receipts in PostgreSQL', async () => {
@@ -446,6 +437,80 @@ describe('chat persistence', function () {
 			new Set(quotaClaims.map(job => job.recipientOwnerId)).size,
 			2
 		);
+	});
+
+	it('resumes a pending encrypted delivery after restart without duplicating it', async () => {
+		const aliceDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: alice.storageAccountId,
+			deviceId: 'alice-restart-browser'
+		});
+		const bobDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: bob.storageAccountId,
+			deviceId: 'bob-restart-browser'
+		});
+		await app.ms.chat.registerDevice(alice.id, aliceDevice.publicBundle);
+		await app.ms.chat.registerDevice(bob.id, bobDevice.publicBundle);
+		const recipientPublicKey = await app.ms.accountStorage
+			.getStaticIdPublicKeyByOr(bob.storageAccountId);
+		const envelope = await browserE2eeHelper.encryptEnvelope(
+			'restart queue secret',
+			[bobDevice.publicBundle],
+			aliceDevice,
+			{
+				messageId: 'postgres-restart-message-1',
+				conversationId: 'postgres-restart-conversation-1'
+			}
+		);
+		await app.ms.chat.acceptEncryptedEvent(alice.id, envelope, {
+			recipientEndpoints: [{
+				ownerId: bob.storageAccountId,
+				publicKey: recipientPublicKey,
+				inboxUrl: 'https://recipient.example/v1/chat/inbox'
+			}]
+		});
+		const failedAt = new Date();
+		const failedAttempt = await app.ms.chat.processDeliveryQueue({
+			now: failedAt,
+			deliverChatRequest: async () => {
+				throw new Error('recipient_temporarily_unreachable');
+			}
+		});
+		assert.deepEqual(failedAttempt, {
+			processed: 1,
+			delivered: 0,
+			failed: 0,
+			pending: 1
+		});
+
+		await app.stop();
+		app = await startChatTestApp();
+		const retryResult = await app.ms.chat.processDeliveryQueue({
+			now: new Date(failedAt.getTime() + 6000),
+			deliverChatRequest: (_inboxUrl, delivery) =>
+				app.ms.chat.acceptRemoteDelivery(delivery)
+		});
+		assert.deepEqual(retryResult, {
+			processed: 1,
+			delivered: 1,
+			failed: 0,
+			pending: 0
+		});
+		const deliveries = await app.ms.chat.getEventDeliveries(
+			alice.id,
+			envelope.messageId
+		);
+		assert.equal(deliveries.length, 1);
+		assert.equal(deliveries[0].state, 'delivered');
+		assert.equal(deliveries[0].attempts, 2);
+		assert.equal(deliveries[0].lastError, null);
+		assert.ok(deliveries[0].acknowledgedSequence);
+		const receivedEvents = await app.ms.chat.getEncryptedEvents(
+			bob.id,
+			envelope.conversationId
+		);
+		assert.equal(receivedEvents.total, 1);
+		assert.equal(receivedEvents.list[0].envelope.messageId, envelope.messageId);
+		assert.equal(JSON.stringify(receivedEvents.list[0]).includes('restart queue secret'), false);
 	});
 
 	it('protects sender-owned attachment ciphertext from content cleanup', async () => {
@@ -933,6 +998,19 @@ describe('chat persistence', function () {
 });
 
 const testAttachmentStorageId = 'QmYwAPJzv5CZsnAzt8auVZRnGi9iS3hBghG9V1sA9j3z2H';
+
+async function startChatTestApp(): Promise<IGeesomeApp> {
+	const appConfig: any = (await import('../app/config.js')).default;
+	appConfig.storageConfig.jsNode.pass = 'test test test test test test test test test test';
+	appConfig.chatConfig.deliveryWorker = false;
+	appConfig.chatConfig.reconciliationWorker = false;
+	appConfig.chatConfig.attachmentCleanupWorker = false;
+	appConfig.chatConfig.autoProcessDeliveries = false;
+	return (await import('../app/index.js')).default({
+		storageConfig: appConfig.storageConfig,
+		port: 7771
+	});
+}
 
 function getEnvelopeHash(envelope): string {
 	return createHash('sha256').update([
