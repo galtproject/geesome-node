@@ -84,6 +84,13 @@ async function runCommand(command: string, payload: any) {
 		}
 		return app.ms.chat.processDeliveryQueue(options);
 	}
+	if (command === 'reconcile-conversation') {
+		return app.ms.chat.reconcileConversation(
+			payload.userId,
+			payload.conversationId,
+			payload.options
+		);
+	}
 	if (command === 'get-deliveries') {
 		return app.ms.chat.getEventDeliveries(payload.userId, payload.messageId);
 	}
