@@ -9,14 +9,45 @@ export interface IPrivateGroupPostManifestResult {
 	private: true;
 }
 
+export interface IPrivateGroupMembershipDevice {
+	userId: number;
+	ownerId: string;
+	deviceId: string;
+	keyId: string;
+	publicBundle: any;
+}
+
+export interface IPrivateGroupMembershipSnapshot {
+	id: number;
+	groupId: number;
+	version: string;
+	createdByUserId: number;
+	membershipHash: string;
+	memberCount: number;
+	deviceCount: number;
+	devices: IPrivateGroupMembershipDevice[];
+	createdAt?: Date;
+}
+
 export default interface IGeesomePrivateGroupModule {
 	isEnabled(): boolean;
 	isPrivateGroup(group: Partial<IGroup> | null | undefined): boolean;
 	normalizeGroupData(groupData: Partial<IGroup>): Partial<IGroup>;
 	getPostManifestHook(group: Partial<IGroup> | null | undefined): string;
 	canMutateSharedPost(userId: number, post: Partial<IPost>): boolean;
+	createMembershipSnapshot(
+		userId: number,
+		groupId: number,
+		expectedVersion: string | number
+	): Promise<IPrivateGroupMembershipSnapshot>;
+	getMembershipSnapshot(
+		userId: number,
+		groupId: number,
+		version?: string | number
+	): Promise<IPrivateGroupMembershipSnapshot | null>;
 	afterPrivatePostManifestUpdate(
 		userId: number,
 		postId: number
 	): Promise<IPrivateGroupPostManifestResult>;
+	flushDatabase(): Promise<void>;
 }

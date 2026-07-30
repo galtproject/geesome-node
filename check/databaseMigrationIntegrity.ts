@@ -274,6 +274,8 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'chatSyncJobs', columns: ['claimedAt'], type: 'timestamp with time zone'},
   {table: 'chatSyncJobs', columns: ['claimExpiresAt'], type: 'timestamp with time zone'},
   {table: 'chatSyncJobs', columns: ['claimToken'], type: 'character varying'},
+  {table: 'privateGroupMembershipSnapshots', columns: ['version'], type: 'bigint'},
+  {table: 'privateGroupMembershipDevices', columns: ['bundleJson'], type: 'text'},
 ];
 
 const expectedIndexes: ExpectedIndex[] = [
@@ -402,6 +404,28 @@ const expectedIndexes: ExpectedIndex[] = [
     name: 'chat_sync_jobs_recipient_due_idx',
     table: 'chatSyncJobs',
     columns: ['recipientOwnerId', 'nextAttemptAt', 'id']
+  },
+  {
+    name: 'private_group_membership_group_version_unique',
+    table: 'privateGroupMembershipSnapshots',
+    columns: ['groupId', 'version'],
+    unique: true
+  },
+  {
+    name: 'private_group_membership_group_created_idx',
+    table: 'privateGroupMembershipSnapshots',
+    columns: ['groupId', 'createdAt', 'id']
+  },
+  {
+    name: 'private_group_membership_devices_snapshot_key_unique',
+    table: 'privateGroupMembershipDevices',
+    columns: ['privateGroupMembershipSnapshotId', 'keyId'],
+    unique: true
+  },
+  {
+    name: 'private_group_membership_devices_user_snapshot_idx',
+    table: 'privateGroupMembershipDevices',
+    columns: ['userId', 'privateGroupMembershipSnapshotId', 'id']
   },
 ];
 
@@ -584,6 +608,66 @@ const countChecks: CountCheck[] = [
       LEFT JOIN "chatSyncStates" state
         ON state.id = job."chatSyncStateId"
       WHERE state.id IS NULL
+    `,
+  },
+  {
+    name: 'private group membership snapshot counts match immutable device rows',
+    requirements: [
+      {
+        table: 'privateGroupMembershipSnapshots',
+        columns: ['id', 'memberCount', 'deviceCount'],
+      },
+      {
+        table: 'privateGroupMembershipDevices',
+        columns: ['privateGroupMembershipSnapshotId', 'userId'],
+      },
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "privateGroupMembershipSnapshots" snapshot
+      LEFT JOIN (
+        SELECT
+          device."privateGroupMembershipSnapshotId" AS "snapshotId",
+          COUNT(*) AS "deviceCount",
+          COUNT(DISTINCT device."userId") AS "memberCount"
+        FROM "privateGroupMembershipDevices" device
+        GROUP BY device."privateGroupMembershipSnapshotId"
+      ) stored
+        ON stored."snapshotId" = snapshot.id
+      WHERE COALESCE(stored."deviceCount", 0) <> snapshot."deviceCount"
+        OR COALESCE(stored."memberCount", 0) <> snapshot."memberCount"
+    `,
+  },
+  {
+    name: 'private group membership devices reference existing snapshots',
+    requirements: [
+      {
+        table: 'privateGroupMembershipDevices',
+        columns: ['privateGroupMembershipSnapshotId'],
+      },
+      {table: 'privateGroupMembershipSnapshots', columns: ['id']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "privateGroupMembershipDevices" device
+      LEFT JOIN "privateGroupMembershipSnapshots" snapshot
+        ON snapshot.id = device."privateGroupMembershipSnapshotId"
+      WHERE snapshot.id IS NULL
+    `,
+  },
+  {
+    name: 'private group membership snapshots reference private groups',
+    requirements: [
+      {table: 'privateGroupMembershipSnapshots', columns: ['groupId']},
+      {table: 'groups', columns: ['id', 'type']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "privateGroupMembershipSnapshots" snapshot
+      LEFT JOIN groups
+        ON groups.id = snapshot."groupId"
+      WHERE groups.id IS NULL
+        OR groups.type <> 'private_group'
     `,
   },
   duplicateCheck('storage object storageId duplicates', 'storageObjects', ['storageId']),

@@ -10,6 +10,7 @@
 import assert from 'assert';
 import commonHelper from "geesome-libs/src/common.js";
 import trieHelper from "geesome-libs/src/base36Trie.js";
+import browserE2eeHelper from "geesome-libs/src/browserE2eeHelper.js";
 import {ContentStorageType, ContentView, CorePermissionName} from "../app/modules/database/interface.js";
 import {
 	GroupType,
@@ -78,6 +79,16 @@ describe("group", function () {
 			password: 'private-group-member',
 			permissions: [CorePermissionName.UserAll]
 		});
+		const creatorDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: testUser.storageAccountId,
+			deviceId: 'private-group-creator-browser'
+		});
+		const memberDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: secondUser.storageAccountId,
+			deviceId: 'private-group-member-browser'
+		});
+		await app.ms.chat.registerDevice(testUser.id, creatorDevice.publicBundle);
+		await app.ms.chat.registerDevice(secondUser.id, memberDevice.publicBundle);
 		const privateGroup = await app.ms.group.createGroup(testUser.id, {
 			name: 'private-group',
 			title: 'Private group',
@@ -88,6 +99,16 @@ describe("group", function () {
 		});
 		await app.ms.group.addMemberToGroup(testUser.id, privateGroup.id, secondUser.id);
 		await app.ms.group.addAdminToGroup(testUser.id, privateGroup.id, secondUser.id);
+		const firstMembership = await app.ms.privateGroup.createMembershipSnapshot(
+			testUser.id,
+			privateGroup.id,
+			'0'
+		);
+		const replayedMembership = await app.ms.privateGroup.createMembershipSnapshot(
+			testUser.id,
+			privateGroup.id,
+			'0'
+		);
 
 		let privateHookCalls = 0;
 		let publicHookCalls = 0;
@@ -111,6 +132,10 @@ describe("group", function () {
 		assert.equal(privateGroup.isOpen, false);
 		assert.equal(privateGroup.isEncrypted, true);
 		assert.equal(await app.ms.group.isMemberInGroup(testUser.id, privateGroup.id), true);
+		assert.equal(firstMembership.version, '1');
+		assert.equal(firstMembership.memberCount, 2);
+		assert.equal(firstMembership.deviceCount, 2);
+		assert.equal(replayedMembership.id, firstMembership.id);
 		assert.equal(privateHookCalls, 1);
 		assert.equal(publicHookCalls, 0);
 		await app.ms.group.updateGroup(testUser.id, privateGroup.id, {
@@ -140,6 +165,56 @@ describe("group", function () {
 
 		const updatedPost = await app.ms.group.getPostPure(post.id);
 		assert.equal(updatedPost.view, 'author-edit');
+
+		const secondCreatorDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: testUser.storageAccountId,
+			deviceId: 'private-group-creator-second-browser'
+		});
+		await app.ms.chat.registerDevice(testUser.id, secondCreatorDevice.publicBundle);
+		await assert.rejects(
+			() => app.ms.privateGroup.createMembershipSnapshot(
+				testUser.id,
+				privateGroup.id,
+				'0'
+			),
+			(error: Error) => error.message === 'private_group_membership_version_conflict'
+		);
+		const secondMembership = await app.ms.privateGroup.createMembershipSnapshot(
+			testUser.id,
+			privateGroup.id,
+			'1'
+		);
+		assert.equal(secondMembership.version, '2');
+		assert.equal(secondMembership.deviceCount, 3);
+
+		await app.ms.chat.revokeDevice(secondUser.id, memberDevice.publicBundle.deviceId);
+		await assert.rejects(
+			() => app.ms.privateGroup.createMembershipSnapshot(
+				testUser.id,
+				privateGroup.id,
+				'2'
+			),
+			(error: Error) => error.message === 'private_group_member_device_required'
+		);
+		await app.ms.group.removeMemberFromGroup(testUser.id, privateGroup.id, secondUser.id);
+		const thirdMembership = await app.ms.privateGroup.createMembershipSnapshot(
+			testUser.id,
+			privateGroup.id,
+			'2'
+		);
+		const historicalMembership = await app.ms.privateGroup.getMembershipSnapshot(
+			testUser.id,
+			privateGroup.id,
+			'1'
+		);
+		assert.equal(thirdMembership.version, '3');
+		assert.equal(thirdMembership.memberCount, 1);
+		assert.equal(thirdMembership.deviceCount, 2);
+		assert.equal(historicalMembership.deviceCount, 2);
+		assert.equal(
+			historicalMembership.devices.some(device => device.userId === secondUser.id),
+			true
+		);
 
 		app.ms.privateGroup.afterPrivatePostManifestUpdate = privateManifestHook;
 		app.ms.activityPub.afterPostManifestUpdate = activityPubManifestHook;
