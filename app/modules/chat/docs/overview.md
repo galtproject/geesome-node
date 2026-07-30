@@ -83,16 +83,17 @@ regress repair work. The following environment variables tune the bounded worker
 - `CHAT_ATTACHMENT_CLEANUP_RECORD_RETENTION_MS`
 
 The process-level reliability harness runs two independent GeeSome app
-processes with separate PostgreSQL databases and account-data directories. It
-proves that recipient downtime and both-node restart do not lose or duplicate a
-queued event when delivery resumes through the real HTTP inbox. A second
-scenario delivers source event three before events one and two, then proves the
-real signed HTTP sync path repairs the missing range, revalidates the already
-stored event without duplicating it, and makes a repeated repair a no-op. The
-revoked-device scenario proves the recipient stores no event and the sender
-records one visible failed delivery without retrying a permanent HTTP response.
-This is the durable HTTP baseline; separate IPFS-node, browser, and network-shape
-scenarios remain in the active TODO.
+processes with separate PostgreSQL databases, account-data directories, and
+Kubo storage daemons. The harness verifies the Kubo peer identities differ
+before running delivery scenarios. It proves that recipient downtime and
+both-node restart do not lose or duplicate a queued event when delivery resumes
+through the real HTTP inbox. A second scenario delivers source event three
+before events one and two, then proves the real signed HTTP sync path repairs
+the missing range, revalidates the already stored event without duplicating it,
+and makes a repeated repair a no-op. The revoked-device scenario proves the
+recipient stores no event and the sender records one visible failed delivery
+without retrying a permanent HTTP response. This is the durable HTTP baseline;
+browser and network-shape scenarios remain in the active TODO.
 
 Browser device creation, encrypted recovery/restore, revocation, and encrypted
 direct-message send/read UX and explicit device trust verification are present

@@ -362,7 +362,14 @@ When a Docker image has already been built and you need to rerun the exact same 
 npm run test:docker:no-build
 ```
 
-The Docker test flow builds a Node 22 test image with `ffmpeg`, starts PostgreSQL and IPFS through `test/docker-compose.yml`, waits for those services, generates deterministic media/archive fixtures under `test/resources`, then runs `yarn test` inside the test container. A Kubo RPC storage service is treated as externally owned and is not stopped during app teardown. Set `STORAGE_STOP_REMOTE_NODE=1` only when the GeeSome process intentionally owns that Kubo daemon and should stop it with the app.
+The Docker test flow builds a Node 22 test image with `ffmpeg`, starts PostgreSQL
+and two isolated Kubo daemons through `test/docker-compose.yml`, waits for those
+services, generates deterministic media/archive fixtures under `test/resources`,
+then runs the test suite inside the test container. The second Kubo daemon gives
+the independent chat-node harness a distinct storage peer. Kubo RPC storage
+services are treated as externally owned and are not stopped during app
+teardown. Set `STORAGE_STOP_REMOTE_NODE=1` only when the GeeSome process
+intentionally owns that Kubo daemon and should stop it with the app.
 
 ## Links
 - [Manifests example](./docs/manifests-example.md)

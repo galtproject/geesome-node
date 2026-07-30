@@ -50,6 +50,8 @@ if [[ "$cold" -eq 1 ]]; then
 		test/.geesome-data \
 		test/.geesome-frontend \
 		test/.geesome-test-output \
+		test/.chat-ipfs \
+		test/.chat-ipfs-data \
 		test/.ipfs \
 		test/.ipfs-data \
 		test/.postgres-data

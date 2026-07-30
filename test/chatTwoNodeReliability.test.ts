@@ -33,6 +33,10 @@ describe('two-node chat reliability', function () {
 	let dataDirB: string;
 	let portA: number;
 	let portB: number;
+	let storageNodeIdA: string;
+	let storageNodeIdB: string;
+	let storageUrlA: string;
+	let storageUrlB: string;
 
 	beforeEach(async () => {
 		const suffix = `${process.pid}_${Date.now()}`;
@@ -40,11 +44,27 @@ describe('two-node chat reliability', function () {
 		databaseB = `geesome_chat_b_${suffix}`;
 		dataDirA = path.join(os.tmpdir(), databaseA);
 		dataDirB = path.join(os.tmpdir(), databaseB);
+		storageUrlA = process.env.STORAGE_URL || 'http://127.0.0.1:5001';
+		storageUrlB = process.env.CHAT_TEST_STORAGE_URL_B || storageUrlA;
 		[portA, portB] = await Promise.all([findFreePort(), findFreePort()]);
 		await createTestDatabase(databaseA);
 		await createTestDatabase(databaseB);
-		nodeA = await ChatNodeProcess.start(createNodeConfig(databaseA, dataDirA, portA));
-		nodeB = await ChatNodeProcess.start(createNodeConfig(databaseB, dataDirB, portB));
+		nodeA = await ChatNodeProcess.start(createNodeConfig(
+			databaseA,
+			dataDirA,
+			portA,
+			storageUrlA
+		));
+		nodeB = await ChatNodeProcess.start(createNodeConfig(
+			databaseB,
+			dataDirB,
+			portB,
+			storageUrlB
+		));
+		[storageNodeIdA, storageNodeIdB] = await Promise.all([
+			nodeA.request('get-storage-node-id'),
+			nodeB.request('get-storage-node-id')
+		]);
 	});
 
 	afterEach(async () => {
@@ -57,6 +77,13 @@ describe('two-node chat reliability', function () {
 			fs.rm(dataDirA, {recursive: true, force: true}),
 			fs.rm(dataDirB, {recursive: true, force: true})
 		]);
+	});
+
+	it('runs each GeeSome process against a distinct IPFS node', function () {
+		if (!process.env.CHAT_TEST_STORAGE_URL_B) {
+			this.skip();
+		}
+		assert.notEqual(storageNodeIdA, storageNodeIdB);
 	});
 
 	it('delivers one queued event after both independent nodes restart', async () => {
@@ -129,8 +156,18 @@ describe('two-node chat reliability', function () {
 		await nodeA.stop();
 		nodeA = null;
 
-		nodeB = await ChatNodeProcess.start(createNodeConfig(databaseB, dataDirB, portB));
-		nodeA = await ChatNodeProcess.start(createNodeConfig(databaseA, dataDirA, portA));
+		nodeB = await ChatNodeProcess.start(createNodeConfig(
+			databaseB,
+			dataDirB,
+			portB,
+			storageUrlB
+		));
+		nodeA = await ChatNodeProcess.start(createNodeConfig(
+			databaseA,
+			dataDirA,
+			portA,
+			storageUrlA
+		));
 		const delivered = await nodeA.request('process-deliveries', {
 			options: {now: new Date(Date.now() + 6000).toISOString()}
 		});
@@ -371,6 +408,7 @@ type ChatNodeConfig = {
 	databaseName: string;
 	dataDir: string;
 	port: number;
+	storageUrl: string;
 };
 
 class ChatNodeProcess {
@@ -419,6 +457,7 @@ class ChatNodeProcess {
 				DATABASE_APPLICATION_NAME: `geesome-chat-test-${config.databaseName}`,
 				DATA_DIR: config.dataDir,
 				PORT: String(config.port),
+				STORAGE_URL: config.storageUrl,
 				MODULES: requiredModules,
 				STORAGE_MODULE: 'ipfs-http-client',
 				CHAT_AUTO_PROCESS_DELIVERIES: '0',
@@ -509,9 +548,10 @@ class ChatNodeProcess {
 function createNodeConfig(
 	databaseName: string,
 	dataDir: string,
-	port: number
+	port: number,
+	storageUrl: string
 ): ChatNodeConfig {
-	return {databaseName, dataDir, port};
+	return {databaseName, dataDir, port, storageUrl};
 }
 
 async function setupChatParticipants(
