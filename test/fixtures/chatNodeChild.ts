@@ -73,6 +73,10 @@ async function runCommand(command: string, payload: any) {
 	if (command === 'get-transport-public-key') {
 		return app.ms.accountStorage.getStaticIdPublicKeyByOr(payload.ownerId);
 	}
+	if (command === 'get-storage-node-id') {
+		const nodeInfo = await app.ms.storage.node.id();
+		return String(nodeInfo.id);
+	}
 	if (command === 'accept-event') {
 		return app.ms.chat.acceptEncryptedEvent(
 			payload.userId,
