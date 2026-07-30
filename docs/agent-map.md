@@ -51,6 +51,9 @@ Useful live endpoints:
   completion of production-secure group chat.
 - Read [Reliable IPFS Chat Research](./ipfs-chat-reliability-research.md) before
   changing chat storage, delivery, PubSub, peering, or browser transport.
+- Read [Group Chat E2EE Protocol Decision](./chat-group-e2ee-protocol-decision.md)
+  before changing group membership, device leaves, epoch ordering, MLS browser
+  state, KeyPackages, Welcome messages, or group-chat wire contracts.
 - Read `app/modules/chat/docs/overview.md` before changing device, envelope,
   delivery, acknowledgement, or reconciliation contracts.
 - Load the `browser-first-chat-e2ee` TODO section before chat implementation.

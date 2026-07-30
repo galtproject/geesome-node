@@ -87,8 +87,9 @@ direct-message send/read UX and explicit device trust verification are present
 in `geesome-ui`. The browser also encrypts attachment bytes before upload, keeps
 private attachment descriptors inside the encrypted envelope, authenticates
 downloaded ciphertext before preview/download, and preserves the text-only
-envelope for rolling compatibility. Remaining chat work includes attachment
-deletion, aggregate quota, abandoned-upload cleanup, and retention policy, group
+envelope for rolling compatibility. The node and browser implement reservation,
+release, abandoned-upload cleanup, and gated ciphertext deletion. Remaining
+chat work includes aggregate event quota and retention policy, MLS group
 membership and key rotation, and real multi-node browser e2e coverage.
 
 Attachment admission is bounded without inspecting plaintext. Local events use
@@ -137,4 +138,7 @@ and repair no longer depend on the ciphertext. A later bounded reconciliation
 step must enforce those gates before physical unpinning.
 
 See [Reliable IPFS Chat Research](../../../../docs/ipfs-chat-reliability-research.md)
-for the transport and delivery analysis behind these boundaries.
+for the transport and delivery analysis behind these boundaries. Group chat
+uses the separate
+[MLS protocol decision](../../../../docs/chat-group-e2ee-protocol-decision.md);
+the node remains an opaque delivery service and does not own MLS private state.

@@ -91,6 +91,9 @@ Architecture decision:
 - Keep PostgreSQL as the operational authorization, head, acknowledgement, and
   retry index. Consider encrypted IPLD event batches or checkpoints for portable
   replication only after the operational path is proven.
+- Use MLS 1.0 for group membership and future-message key rotation according to
+  [Group Chat E2EE Protocol Decision](./chat-group-e2ee-protocol-decision.md).
+  Matrix remains an operational reference rather than the group wire protocol.
 
 Current safety boundary:
 
@@ -104,17 +107,17 @@ Current safety boundary:
 - Signed user manifests advertise canonical identity-bound chat transport when
   configured. Older profiles remain valid and produce an actionable unavailable
   state instead of falling back to plaintext.
-- Direct messages are the implemented E2EE foundation. Chat must not be
-  described as production-secure for attachments or groups until explicit
-  attachment lifecycle, membership/key rotation, retention, and real multi-node
+- Direct messages and encrypted attachment lifecycle are the implemented E2EE
+  foundation. Chat must not be described as production-secure for groups until
+  MLS membership/key rotation, explicit event retention, and real multi-node
   browser tests are complete.
 
 Remaining delivery order:
 
-1. Select and review the group protocol before extending pairwise envelopes.
-   Define membership epochs and rotate future-message keys when members/devices
-   are added, removed, replaced, or revoked. Evaluate MLS, Matrix-style
-   device/session handling, or another maintained browser-capable protocol.
+1. Run the browser MLS compatibility spike defined by the protocol decision.
+   Prove OpenMLS/WASM persistence, restart, add/remove/revoke, concurrent-commit
+   recovery, shared fixture interoperability, and acceptable bundle/runtime
+   cost before adding node schemas or routes.
 2. Run real two-node browser tests across restart, temporary unreachability,
    duplicate/out-of-order delivery, bounded repair, revoked devices, and
    NAT/bootstrap/reciprocal-peering conditions.
