@@ -115,9 +115,9 @@ Current safety boundary:
 Remaining delivery order:
 
 1. Promote the independent-process restart and reordered-repair scenarios into
-   real two-browser/two-node tests. Add NAT/bootstrap/reciprocal-peering
-   conditions and encrypted attachment transfer between the separate IPFS
-   nodes.
+   real two-browser/two-node tests. Add NAT, bootstrap discovery, peer
+   reconnection, and reciprocal-peering conditions around the now-covered
+   encrypted attachment transfer between separate IPFS nodes.
 2. Define operator-visible queue/reconciliation metrics and explicit encrypted
    event retention, retry deadline, quota, and cleanup policy. Migrate or
    explicitly retire the legacy server-encrypted path without relabelling old

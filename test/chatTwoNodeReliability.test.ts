@@ -86,6 +86,121 @@ describe('two-node chat reliability', function () {
 		assert.notEqual(storageNodeIdA, storageNodeIdB);
 	});
 
+	it('fetches and pins an encrypted attachment on the recipient IPFS node', async function () {
+		if (!process.env.CHAT_TEST_STORAGE_URL_B) {
+			this.skip();
+		}
+		const {
+			alice,
+			bob,
+			aliceDevice,
+			bobDevice
+		} = await setupChatParticipants(nodeA, nodeB, 'attachment');
+		await nodeB.request('connect-storage-peer', {
+			address: createStoragePeerAddress(storageUrlA, storageNodeIdA)
+		});
+		const plaintext = Buffer.from('two-node encrypted attachment');
+		const encryptedAttachment = await browserE2eeHelper.encryptAttachment(
+			plaintext,
+			{
+				name: 'attachment.txt',
+				mimeType: 'text/plain'
+			}
+		);
+		const uploaded = await nodeA.request('save-owned-attachment', {
+			userId: alice.id,
+			dataBase64: Buffer.from(
+				encryptedAttachment.attachment.ciphertext
+			).toString('base64')
+		});
+		const attachmentReference = {
+			storageId: uploaded.storageId,
+			encryption: {
+				version: encryptedAttachment.attachment.version,
+				algorithm: encryptedAttachment.attachment.algorithm,
+				mimeType: encryptedAttachment.attachment.mimeType,
+				name: encryptedAttachment.attachment.name,
+				size: encryptedAttachment.attachment.size,
+				iv: encryptedAttachment.attachment.iv,
+				key: browserE2eeHelper.encodeBase64Url(encryptedAttachment.key)
+			}
+		};
+		const envelope = await browserE2eeHelper.encryptEnvelope(
+			{
+				text: '',
+				attachments: [attachmentReference]
+			},
+			[bobDevice.publicBundle],
+			aliceDevice,
+			{
+				messageId: 'two-node-attachment-message-1',
+				conversationId: 'two-node-attachment-conversation-1',
+				metadata: {attachmentStorageIds: [uploaded.storageId]}
+			}
+		);
+		const bobTransportPublicKey = await nodeB.request(
+			'get-transport-public-key',
+			{ownerId: bob.storageAccountId}
+		);
+		await nodeA.request('accept-event', {
+			userId: alice.id,
+			envelope,
+			options: {
+				recipientEndpoints: [{
+					ownerId: bob.storageAccountId,
+					publicKey: bobTransportPublicKey,
+					inboxUrl: `http://127.0.0.1:${portB}/v1/chat/inbox`
+				}]
+			}
+		});
+
+		const delivery = await nodeA.request('process-deliveries');
+		assert.deepEqual(delivery, {
+			processed: 1,
+			delivered: 1,
+			failed: 0,
+			pending: 0
+		});
+		const received = await nodeB.request('get-events', {
+			userId: bob.id,
+			conversationId: envelope.conversationId
+		});
+		assert.equal(received.total, 1);
+		const message = await browserE2eeHelper.decryptEnvelopeJson(
+			received.list[0].envelope,
+			bobDevice,
+			aliceDevice.publicBundle
+		);
+		const fetched = await nodeB.request('get-storage-data', {
+			storageId: message.attachments[0].storageId
+		});
+		assert.equal(await nodeB.request('is-storage-pinned', {
+			storageId: message.attachments[0].storageId
+		}), true);
+		const expectedCiphertext = Buffer.from(
+			encryptedAttachment.attachment.ciphertext
+		);
+		assert.equal(
+			fetched.dataBase64,
+			expectedCiphertext.toString('base64')
+		);
+		assert.equal(
+			message.attachments[0].encryption.key,
+			browserE2eeHelper.encodeBase64Url(encryptedAttachment.key)
+		);
+		const decrypted = await browserE2eeHelper.decryptAttachment(
+			{
+				...message.attachments[0].encryption,
+				key: undefined,
+				ciphertext: Buffer.from(fetched.dataBase64, 'base64')
+			},
+			browserE2eeHelper.decodeBase64Url(
+				message.attachments[0].encryption.key
+			)
+		);
+		assert.deepEqual(Buffer.from(decrypted), plaintext);
+	});
+
 	it('delivers one queued event after both independent nodes restart', async () => {
 		const aliceSetup = await nodeA.request('setup', {
 			user: {
@@ -552,6 +667,11 @@ function createNodeConfig(
 	storageUrl: string
 ): ChatNodeConfig {
 	return {databaseName, dataDir, port, storageUrl};
+}
+
+function createStoragePeerAddress(storageUrl: string, peerId: string): string {
+	const hostname = new URL(storageUrl).hostname;
+	return `/dns4/${hostname}/tcp/4001/p2p/${peerId}`;
 }
 
 async function setupChatParticipants(

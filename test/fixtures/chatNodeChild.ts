@@ -77,6 +77,19 @@ async function runCommand(command: string, payload: any) {
 		const nodeInfo = await app.ms.storage.node.id();
 		return String(nodeInfo.id);
 	}
+	if (command === 'connect-storage-peer') {
+		await app.ms.storage.swarmConnect(payload.address);
+		return {connected: true};
+	}
+	if (command === 'save-owned-attachment') {
+		return saveOwnedAttachment(payload);
+	}
+	if (command === 'get-storage-data') {
+		return getStorageData(payload.storageId);
+	}
+	if (command === 'is-storage-pinned') {
+		return isStoragePinned(payload.storageId);
+	}
 	if (command === 'accept-event') {
 		return app.ms.chat.acceptEncryptedEvent(
 			payload.userId,
@@ -119,4 +132,47 @@ function toPlainValue(value) {
 		return null;
 	}
 	return JSON.parse(JSON.stringify(value));
+}
+
+async function saveOwnedAttachment(payload: any) {
+	const data = Buffer.from(payload.dataBase64, 'base64');
+	const reservation = await app.ms.chat.createAttachmentUploadReservation(
+		payload.userId,
+		data.length
+	);
+	const storageFile = await app.ms.storage.saveFileByData(data);
+	await app.ms.storage.addPin(storageFile.id);
+	const content = await app.ms.database.addContent({
+		userId: payload.userId,
+		storageType: 'ipfs',
+		mimeType: 'application/octet-stream',
+		storageId: storageFile.id,
+		size: data.length,
+		name: payload.name || 'encrypted-chat-attachment'
+	});
+	await app.ms.chat.afterContentAdding(payload.userId, content, {
+		chatAttachmentReservationId: reservation.reservationId
+	});
+	return {
+		storageId: storageFile.id,
+		size: data.length,
+		reservationId: reservation.reservationId
+	};
+}
+
+async function getStorageData(storageId: string) {
+	const data = await app.ms.storage.getFileData(storageId);
+	const bytes = typeof data?.slice === 'function'
+		? data.slice()
+		: data;
+	return {dataBase64: Buffer.from(bytes).toString('base64')};
+}
+
+async function isStoragePinned(storageId: string) {
+	for await (const pin of app.ms.storage.node.pin.ls({paths: [storageId]})) {
+		if (String(pin.cid) === storageId) {
+			return true;
+		}
+	}
+	return false;
 }
