@@ -89,16 +89,20 @@ before running delivery scenarios. With an explicit direct peer connection, an
 attachment scenario encrypts bytes in the test client, stores only ciphertext
 on the sender Kubo daemon, and proves the recipient Kubo daemon fetches and pins
 that CID before the HTTP acknowledgement. The test client then retrieves and
-decrypts the recipient copy. The harness also proves that recipient downtime
-and both-node restart do not lose or duplicate a queued event when delivery
-resumes through the real HTTP inbox. A reordered scenario delivers source event
-three before events one and two, then proves the real signed HTTP sync path
-repairs the missing range, revalidates the already stored event without
-duplicating it, and makes a repeated repair a no-op. The revoked-device scenario
-proves the recipient stores no event and the sender records one visible failed
-delivery without retrying a permanent HTTP response. This is the durable HTTP
-and separate-storage baseline; browser and network-shape scenarios remain in
-the active TODO.
+decrypts the recipient copy. A retry scenario reserves the real ciphertext CID
+before those bytes are available, proves the recipient rejects the event with a
+retryable response, then materializes the same CID and makes the sender peer
+reachable. The queued delivery succeeds on its second attempt without creating
+an event during the failed attempt. The harness also proves that recipient
+downtime and both-node restart do not lose or duplicate a queued event when
+delivery resumes through the real HTTP inbox. A reordered scenario delivers
+source event three before events one and two, then proves the real signed HTTP
+sync path repairs the missing range, revalidates the already stored event
+without duplicating it, and makes a repeated repair a no-op. The revoked-device
+scenario proves the recipient stores no event and the sender records one visible
+failed delivery without retrying a permanent HTTP response. This is the durable
+HTTP and separate-storage baseline; browser and broader network-shape scenarios
+remain in the active TODO.
 
 Browser device creation, encrypted recovery/restore, revocation, and encrypted
 direct-message send/read UX and explicit device trust verification are present

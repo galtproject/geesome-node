@@ -116,8 +116,9 @@ Remaining delivery order:
 
 1. Promote the independent-process restart and reordered-repair scenarios into
    real two-browser/two-node tests. Add NAT, bootstrap discovery, peer
-   reconnection, and reciprocal-peering conditions around the now-covered
-   encrypted attachment transfer between separate IPFS nodes.
+   reconnection after daemon restart, and reciprocal-peering persistence around
+   the now-covered encrypted attachment transfer and retryable fetch recovery
+   between separate IPFS nodes.
 2. Define operator-visible queue/reconciliation metrics and explicit encrypted
    event retention, retry deadline, quota, and cleanup policy. Migrate or
    explicitly retire the legacy server-encrypted path without relabelling old
@@ -209,8 +210,7 @@ Verification:
   recovers every locally accepted event through sequence/head reconciliation.
 - Recipient restart after persistence but before acknowledgement, browser
   resubmission after a rejected local save, brief network partition,
-  reciprocal-peering reconnect, remote fetch/pin failure, and database/storage
-  failure scenarios.
+  reciprocal-peering reconnect, and database/storage failure scenarios.
 - Concurrent worker lease recovery, quota/expiry, permanent rejection, and
   membership-removal cancellation.
 - Membership removal and key rotation proving removed devices cannot decrypt new

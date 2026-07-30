@@ -265,7 +265,10 @@ TODO.
   recipient database. Its encrypted-attachment scenario directly peers the two
   Kubo daemons, uploads browser-produced ciphertext to the sender only, proves
   the recipient fetches and pins the CID before acknowledgement, and decrypts
-  the recipient copy only in the test client. Its reordered-delivery scenario
+  the recipient copy only in the test client. Its unavailable-attachment
+  scenario proves the recipient commits no event after a retryable fetch
+  failure, then materializes the same CID, connects the sender storage peer, and
+  delivers once on the second queued attempt. Its reordered-delivery scenario
   sends source event three first, repairs events one and two through the signed
   HTTP sync endpoint, revalidates event three without duplicating it, and proves
   a repeated repair imports nothing. Its revoked-device scenario proves the
