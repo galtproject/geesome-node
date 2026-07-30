@@ -11,7 +11,13 @@ import assert from 'assert';
 import commonHelper from "geesome-libs/src/common.js";
 import trieHelper from "geesome-libs/src/base36Trie.js";
 import {ContentStorageType, ContentView, CorePermissionName} from "../app/modules/database/interface.js";
-import {PostContentAttachmentReason, PostEventAction, PostEventType, PostStatus} from "../app/modules/group/interface.js";
+import {
+	GroupType,
+	PostContentAttachmentReason,
+	PostEventAction,
+	PostEventType,
+	PostStatus
+} from "../app/modules/group/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
 import {RICH_TEXT_MIME_TYPE, createRichTextDocument} from "../app/richText.js";
 import {
@@ -61,6 +67,82 @@ describe("group", function () {
 
 	afterEach(async () => {
 		await app.stop();
+	});
+
+	it('routes private-group posts through private policy and keeps author mutation control', async () => {
+		app.config.privateGroupConfig.enabled = true;
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const secondUser = await app.registerUser({
+			email: 'private-group-member@user.com',
+			name: 'private-group-member',
+			password: 'private-group-member',
+			permissions: [CorePermissionName.UserAll]
+		});
+		const privateGroup = await app.ms.group.createGroup(testUser.id, {
+			name: 'private-group',
+			title: 'Private group',
+			type: GroupType.PrivateGroup,
+			isPublic: true,
+			isOpen: true,
+			isEncrypted: false
+		});
+		await app.ms.group.addMemberToGroup(testUser.id, privateGroup.id, secondUser.id);
+		await app.ms.group.addAdminToGroup(testUser.id, privateGroup.id, secondUser.id);
+
+		let privateHookCalls = 0;
+		let publicHookCalls = 0;
+		const privateManifestHook = app.ms.privateGroup.afterPrivatePostManifestUpdate;
+		const activityPubManifestHook = app.ms.activityPub.afterPostManifestUpdate;
+		app.ms.privateGroup.afterPrivatePostManifestUpdate = async (_userId, postId) => {
+			privateHookCalls += 1;
+			return privateManifestHook.call(app.ms.privateGroup, testUser.id, postId);
+		};
+		app.ms.activityPub.afterPostManifestUpdate = async () => {
+			publicHookCalls += 1;
+			return {queued: 0, deliveryIds: []};
+		};
+
+		const post = await app.ms.group.createPost(testUser.id, {
+			groupId: privateGroup.id,
+			status: PostStatus.Published
+		}, {asyncDerivedState: false});
+
+		assert.equal(privateGroup.isPublic, false);
+		assert.equal(privateGroup.isOpen, false);
+		assert.equal(privateGroup.isEncrypted, true);
+		assert.equal(await app.ms.group.isMemberInGroup(testUser.id, privateGroup.id), true);
+		assert.equal(privateHookCalls, 1);
+		assert.equal(publicHookCalls, 0);
+		await app.ms.group.updateGroup(testUser.id, privateGroup.id, {
+			isPublic: true,
+			isOpen: true,
+			isEncrypted: false
+		});
+		const normalizedPrivateGroup = await app.ms.group.getGroup(privateGroup.id);
+		assert.equal(normalizedPrivateGroup.isPublic, false);
+		assert.equal(normalizedPrivateGroup.isOpen, false);
+		assert.equal(normalizedPrivateGroup.isEncrypted, true);
+		await assert.rejects(
+			() => app.ms.group.updateGroup(testUser.id, privateGroup.id, {
+				type: GroupType.Channel
+			}),
+			(error: Error) => error.message === 'group_type_change_not_supported'
+		);
+		await assert.rejects(
+			() => app.ms.group.updatePost(secondUser.id, post.id, {view: 'forbidden'}),
+			(error: Error) => error.message === 'not_permitted'
+		);
+		await assert.rejects(
+			() => app.ms.group.deletePosts(secondUser.id, [post.id]),
+			(error: Error) => error.message === 'not_permitted'
+		);
+		await app.ms.group.updatePost(testUser.id, post.id, {view: 'author-edit'});
+
+		const updatedPost = await app.ms.group.getPostPure(post.id);
+		assert.equal(updatedPost.view, 'author-edit');
+
+		app.ms.privateGroup.afterPrivatePostManifestUpdate = privateManifestHook;
+		app.ms.activityPub.afterPostManifestUpdate = activityPubManifestHook;
 	});
 
 	it('requires actor-scoped content rows for post attachments', async () => {
