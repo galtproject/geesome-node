@@ -99,44 +99,16 @@ describe('two-node chat reliability', function () {
 		await nodeB.request('connect-storage-peer', {
 			address: createStoragePeerAddress(storageUrlA, storageNodeIdA)
 		});
-		const plaintext = Buffer.from('two-node encrypted attachment');
-		const encryptedAttachment = await browserE2eeHelper.encryptAttachment(
-			plaintext,
-			{
-				name: 'attachment.txt',
-				mimeType: 'text/plain'
-			}
+		const attachment = await prepareEncryptedAttachment(
+			nodeA,
+			alice.id,
+			'save-owned-attachment'
 		);
-		const uploaded = await nodeA.request('save-owned-attachment', {
-			userId: alice.id,
-			dataBase64: Buffer.from(
-				encryptedAttachment.attachment.ciphertext
-			).toString('base64')
-		});
-		const attachmentReference = {
-			storageId: uploaded.storageId,
-			encryption: {
-				version: encryptedAttachment.attachment.version,
-				algorithm: encryptedAttachment.attachment.algorithm,
-				mimeType: encryptedAttachment.attachment.mimeType,
-				name: encryptedAttachment.attachment.name,
-				size: encryptedAttachment.attachment.size,
-				iv: encryptedAttachment.attachment.iv,
-				key: browserE2eeHelper.encodeBase64Url(encryptedAttachment.key)
-			}
-		};
-		const envelope = await browserE2eeHelper.encryptEnvelope(
-			{
-				text: '',
-				attachments: [attachmentReference]
-			},
-			[bobDevice.publicBundle],
+		const envelope = await createAttachmentEnvelope(
+			attachment.reference,
 			aliceDevice,
-			{
-				messageId: 'two-node-attachment-message-1',
-				conversationId: 'two-node-attachment-conversation-1',
-				metadata: {attachmentStorageIds: [uploaded.storageId]}
-			}
+			bobDevice,
+			'two-node-attachment'
 		);
 		const bobTransportPublicKey = await nodeB.request(
 			'get-transport-public-key',
@@ -166,39 +138,108 @@ describe('two-node chat reliability', function () {
 			conversationId: envelope.conversationId
 		});
 		assert.equal(received.total, 1);
-		const message = await browserE2eeHelper.decryptEnvelopeJson(
+		await assertReceivedAttachment(
+			nodeB,
 			received.list[0].envelope,
+			attachment,
+			aliceDevice,
+			bobDevice
+		);
+	});
+
+	it('retries an unavailable attachment after the storage peer becomes reachable', async function () {
+		if (!process.env.CHAT_TEST_STORAGE_URL_B) {
+			this.skip();
+		}
+		const {
+			alice,
+			bob,
+			aliceDevice,
+			bobDevice
+		} = await setupChatParticipants(nodeA, nodeB, 'attachment-retry');
+		const attachment = await prepareEncryptedAttachment(
+			nodeA,
+			alice.id,
+			'reserve-missing-owned-attachment'
+		);
+		const envelope = await createAttachmentEnvelope(
+			attachment.reference,
+			aliceDevice,
 			bobDevice,
-			aliceDevice.publicBundle
+			'two-node-attachment-retry'
 		);
-		const fetched = await nodeB.request('get-storage-data', {
-			storageId: message.attachments[0].storageId
+		const bobTransportPublicKey = await nodeB.request(
+			'get-transport-public-key',
+			{ownerId: bob.storageAccountId}
+		);
+		await nodeA.request('accept-event', {
+			userId: alice.id,
+			envelope,
+			options: {
+				recipientEndpoints: [{
+					ownerId: bob.storageAccountId,
+					publicKey: bobTransportPublicKey,
+					inboxUrl: `http://127.0.0.1:${portB}/v1/chat/inbox`
+				}]
+			}
 		});
-		assert.equal(await nodeB.request('is-storage-pinned', {
-			storageId: message.attachments[0].storageId
-		}), true);
-		const expectedCiphertext = Buffer.from(
-			encryptedAttachment.attachment.ciphertext
+
+		const unavailable = await nodeA.request('process-deliveries');
+		assert.deepEqual(unavailable, {
+			processed: 1,
+			delivered: 0,
+			failed: 0,
+			pending: 1
+		});
+		const pendingDeliveries = await nodeA.request('get-deliveries', {
+			userId: alice.id,
+			messageId: envelope.messageId
+		});
+		assert.equal(pendingDeliveries.length, 1);
+		assert.equal(pendingDeliveries[0].state, 'pending');
+		assert.equal(pendingDeliveries[0].attempts, 1);
+		assert.equal(pendingDeliveries[0].lastError, 'chat_delivery_http_503');
+		const missingEvents = await nodeB.request('get-events', {
+			userId: bob.id,
+			conversationId: envelope.conversationId
+		});
+		assert.equal(missingEvents.total, 0);
+
+		const stored = await nodeA.request('save-storage-data', {
+			dataBase64: attachment.ciphertextBase64
+		});
+		assert.equal(stored.storageId, attachment.reference.storageId);
+		await nodeB.request('connect-storage-peer', {
+			address: createStoragePeerAddress(storageUrlA, storageNodeIdA)
+		});
+		const delivered = await nodeA.request('process-deliveries', {
+			options: {now: new Date(Date.now() + 6000).toISOString()}
+		});
+		assert.deepEqual(delivered, {
+			processed: 1,
+			delivered: 1,
+			failed: 0,
+			pending: 0
+		});
+		const deliveries = await nodeA.request('get-deliveries', {
+			userId: alice.id,
+			messageId: envelope.messageId
+		});
+		assert.equal(deliveries.length, 1);
+		assert.equal(deliveries[0].state, 'delivered');
+		assert.equal(deliveries[0].attempts, 2);
+		const received = await nodeB.request('get-events', {
+			userId: bob.id,
+			conversationId: envelope.conversationId
+		});
+		assert.equal(received.total, 1);
+		await assertReceivedAttachment(
+			nodeB,
+			received.list[0].envelope,
+			attachment,
+			aliceDevice,
+			bobDevice
 		);
-		assert.equal(
-			fetched.dataBase64,
-			expectedCiphertext.toString('base64')
-		);
-		assert.equal(
-			message.attachments[0].encryption.key,
-			browserE2eeHelper.encodeBase64Url(encryptedAttachment.key)
-		);
-		const decrypted = await browserE2eeHelper.decryptAttachment(
-			{
-				...message.attachments[0].encryption,
-				key: undefined,
-				ciphertext: Buffer.from(fetched.dataBase64, 'base64')
-			},
-			browserE2eeHelper.decodeBase64Url(
-				message.attachments[0].encryption.key
-			)
-		);
-		assert.deepEqual(Buffer.from(decrypted), plaintext);
 	});
 
 	it('delivers one queued event after both independent nodes restart', async () => {
@@ -672,6 +713,95 @@ function createNodeConfig(
 function createStoragePeerAddress(storageUrl: string, peerId: string): string {
 	const hostname = new URL(storageUrl).hostname;
 	return `/dns4/${hostname}/tcp/4001/p2p/${peerId}`;
+}
+
+async function prepareEncryptedAttachment(
+	node: ChatNodeProcess,
+	userId: number,
+	command: string
+) {
+	const plaintext = Buffer.from('two-node encrypted attachment');
+	const encrypted = await browserE2eeHelper.encryptAttachment(plaintext, {
+		name: 'attachment.txt',
+		mimeType: 'text/plain'
+	});
+	const ciphertextBase64 = Buffer.from(
+		encrypted.attachment.ciphertext
+	).toString('base64');
+	const uploaded = await node.request(command, {
+		userId,
+		dataBase64: ciphertextBase64
+	});
+	return {
+		plaintext,
+		encrypted,
+		ciphertextBase64,
+		reference: {
+			storageId: uploaded.storageId,
+			encryption: {
+				version: encrypted.attachment.version,
+				algorithm: encrypted.attachment.algorithm,
+				mimeType: encrypted.attachment.mimeType,
+				name: encrypted.attachment.name,
+				size: encrypted.attachment.size,
+				iv: encrypted.attachment.iv,
+				key: browserE2eeHelper.encodeBase64Url(encrypted.key)
+			}
+		}
+	};
+}
+
+function createAttachmentEnvelope(
+	reference: any,
+	senderDevice: any,
+	recipientDevice: any,
+	idPrefix: string
+) {
+	return browserE2eeHelper.encryptEnvelope(
+		{text: '', attachments: [reference]},
+		[recipientDevice.publicBundle],
+		senderDevice,
+		{
+			messageId: `${idPrefix}-message-1`,
+			conversationId: `${idPrefix}-conversation-1`,
+			metadata: {attachmentStorageIds: [reference.storageId]}
+		}
+	);
+}
+
+async function assertReceivedAttachment(
+	node: ChatNodeProcess,
+	envelope: any,
+	attachment: any,
+	senderDevice: any,
+	recipientDevice: any
+) {
+	const message = await browserE2eeHelper.decryptEnvelopeJson(
+		envelope,
+		recipientDevice,
+		senderDevice.publicBundle
+	);
+	const reference = message.attachments[0];
+	const fetched = await node.request('get-storage-data', {
+		storageId: reference.storageId
+	});
+	assert.equal(await node.request('is-storage-pinned', {
+		storageId: reference.storageId
+	}), true);
+	assert.equal(fetched.dataBase64, attachment.ciphertextBase64);
+	assert.equal(
+		reference.encryption.key,
+		browserE2eeHelper.encodeBase64Url(attachment.encrypted.key)
+	);
+	const decrypted = await browserE2eeHelper.decryptAttachment(
+		{
+			...reference.encryption,
+			key: undefined,
+			ciphertext: Buffer.from(fetched.dataBase64, 'base64')
+		},
+		browserE2eeHelper.decodeBase64Url(reference.encryption.key)
+	);
+	assert.deepEqual(Buffer.from(decrypted), attachment.plaintext);
 }
 
 async function setupChatParticipants(

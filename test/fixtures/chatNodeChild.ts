@@ -84,6 +84,12 @@ async function runCommand(command: string, payload: any) {
 	if (command === 'save-owned-attachment') {
 		return saveOwnedAttachment(payload);
 	}
+	if (command === 'reserve-missing-owned-attachment') {
+		return reserveMissingOwnedAttachment(payload);
+	}
+	if (command === 'save-storage-data') {
+		return saveStorageData(payload.dataBase64);
+	}
 	if (command === 'get-storage-data') {
 		return getStorageData(payload.storageId);
 	}
@@ -136,26 +142,54 @@ function toPlainValue(value) {
 
 async function saveOwnedAttachment(payload: any) {
 	const data = Buffer.from(payload.dataBase64, 'base64');
-	const reservation = await app.ms.chat.createAttachmentUploadReservation(
-		payload.userId,
-		data.length
-	);
 	const storageFile = await app.ms.storage.saveFileByData(data);
 	await app.ms.storage.addPin(storageFile.id);
+	return registerOwnedAttachment(payload, storageFile.id, data.length);
+}
+
+async function reserveMissingOwnedAttachment(payload: any) {
+	const data = Buffer.from(payload.dataBase64, 'base64');
+	const storageFile = await app.ms.storage.node.add(
+		{content: data},
+		{onlyHash: true, pin: false, cidVersion: 1}
+	);
+	return registerOwnedAttachment(
+		payload,
+		String(storageFile.cid),
+		data.length
+	);
+}
+
+async function saveStorageData(dataBase64: string) {
+	const data = Buffer.from(dataBase64, 'base64');
+	const storageFile = await app.ms.storage.saveFileByData(data);
+	await app.ms.storage.addPin(storageFile.id);
+	return {storageId: storageFile.id, size: data.length};
+}
+
+async function registerOwnedAttachment(
+	payload: any,
+	storageId: string,
+	size: number
+) {
+	const reservation = await app.ms.chat.createAttachmentUploadReservation(
+		payload.userId,
+		size
+	);
 	const content = await app.ms.database.addContent({
 		userId: payload.userId,
 		storageType: 'ipfs',
 		mimeType: 'application/octet-stream',
-		storageId: storageFile.id,
-		size: data.length,
+		storageId,
+		size,
 		name: payload.name || 'encrypted-chat-attachment'
 	});
 	await app.ms.chat.afterContentAdding(payload.userId, content, {
 		chatAttachmentReservationId: reservation.reservationId
 	});
 	return {
-		storageId: storageFile.id,
-		size: data.length,
+		storageId,
+		size,
 		reservationId: reservation.reservationId
 	};
 }
