@@ -242,6 +242,7 @@ function getModule(app: IGeesomeApp, models) {
 
 	class GroupModule implements IGeesomeGroupModule {
 		async createGroup(userId, groupData) {
+			groupData = normalizePrivateGroupData(app, groupData);
 			log('groupData', groupData);
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
 
@@ -266,6 +267,9 @@ function getModule(app: IGeesomeApp, models) {
 
 			if (groupData.type !== GroupType.PersonalChat) {
 				await this.addAdminToGroupPure(userId, group.id);
+			}
+			if (isPrivateGroup(group)) {
+				await this.addMemberToGroupPure(userId, group.id);
 			}
 
 			await this.updateGroupManifest(userId, group.id);
@@ -416,6 +420,7 @@ function getModule(app: IGeesomeApp, models) {
 				throw new Error("incorrect_name");
 			}
 			const group = await this.getGroup(groupId);
+			updateData = normalizePrivateGroupUpdateData(app, group, updateData);
 			if (updateData['name'] && updateData['name'] !== group.name) {
 				await app.ms.staticId.renameGroupStaticAccountId(userId, groupId, group.name, updateData['name']);
 			}
@@ -530,9 +535,10 @@ function getModule(app: IGeesomeApp, models) {
 
 		async callAfterPostManifestUpdateHooks(userId, post) {
 			try {
-				await app.callHook('group', 'afterPostManifestUpdate', [userId, post.id]);
+				const hookName = getPostManifestHook(app, post.group);
+				await app.callHook('group', hookName, [userId, post.id]);
 			} catch (e) {
-				log('afterPostManifestUpdate hook error', e);
+				log('post manifest hook error', e);
 			}
 		}
 
@@ -1040,6 +1046,16 @@ function getModule(app: IGeesomeApp, models) {
 			groupId = await this.checkGroupId(groupId);
 			const group = await this.getLocalGroup(userId, groupId);
 			const post = await this.getPostPure(postId);
+			const privateGroupModule = getPrivateGroupModule(app);
+			if (isPrivateGroup(group)) {
+				if (!privateGroupModule) {
+					throw new Error('private_group_module_required');
+				}
+				const isGroupParticipant = (await this.isAdminInGroupPure(userId, groupId))
+					|| (await this.isMemberInGroupPure(userId, groupId));
+				return isGroupParticipant
+					&& privateGroupModule.canMutateSharedPost(userId, post);
+			}
 			let canEdit = (await this.isAdminInGroupPure(userId, groupId))
 				|| (!group.isOpen && await this.isMemberInGroupPure(userId, groupId) && post.userId === userId);
 			if(canEdit) {
@@ -1788,7 +1804,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async addGroup(group) {
-			return models.Group.create(group);
+			return models.Group.create(normalizePrivateGroupData(app, group));
 		}
 
 		async updateGroupPure(id, updateData) {
@@ -2271,4 +2287,49 @@ function getModule(app: IGeesomeApp, models) {
 	}
 
 	return new GroupModule();
+}
+
+function getPrivateGroupModule(app: IGeesomeApp) {
+	return app.ms.privateGroup || null;
+}
+
+function isPrivateGroup(group) {
+	return group?.type === GroupType.PrivateGroup;
+}
+
+function normalizePrivateGroupData(app: IGeesomeApp, groupData) {
+	const privateGroupModule = getPrivateGroupModule(app);
+	if (privateGroupModule) {
+		return privateGroupModule.normalizeGroupData(groupData);
+	}
+	if (isPrivateGroup(groupData)) {
+		throw new Error('private_group_module_required');
+	}
+	return groupData;
+}
+
+function normalizePrivateGroupUpdateData(app: IGeesomeApp, group, updateData) {
+	const currentIsPrivate = isPrivateGroup(group);
+	const nextType = updateData?.type === undefined ? group.type : updateData.type;
+	if (currentIsPrivate !== (nextType === GroupType.PrivateGroup)) {
+		throw new Error('group_type_change_not_supported');
+	}
+	if (!currentIsPrivate) {
+		return updateData;
+	}
+	return normalizePrivateGroupData(app, {
+		...updateData,
+		type: GroupType.PrivateGroup
+	});
+}
+
+function getPostManifestHook(app: IGeesomeApp, group) {
+	const privateGroupModule = getPrivateGroupModule(app);
+	if (privateGroupModule) {
+		return privateGroupModule.getPostManifestHook(group);
+	}
+	if (isPrivateGroup(group)) {
+		throw new Error('private_group_module_required');
+	}
+	return 'afterPostManifestUpdate';
 }

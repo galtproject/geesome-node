@@ -27,6 +27,7 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 - `imageComposition`: [overview](../app/modules/imageComposition/docs/overview.md)
 - `invite`: [overview](../app/modules/invite/docs/overview.md)
 - `pin`: [overview](../app/modules/pin/docs/overview.md)
+- `privateGroup`: [overview](../app/modules/privateGroup/docs/overview.md)
 - `remoteContentModeration`: [overview](../app/modules/remoteContentModeration/docs/overview.md)
 - `remoteGroup`: [overview](../app/modules/remoteGroup/docs/overview.md)
 - `rss`: [overview](../app/modules/rss/docs/overview.md)
@@ -65,6 +66,7 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 | `imageComposition` | Owns semantic SVG overlays, composition persistence, idempotency, optimistic revisions, and the compatible group-scoped composition API facade. | [Overview](../app/modules/imageComposition/docs/overview.md) |
 | `invite` | Manages invite-code status, rate-limited public join/register flows, invite-derived permissions/limits, optional group joins, and invite lifecycle. | [Overview](../app/modules/invite/docs/overview.md) |
 | `pin` | Stores pinning accounts and sends storage pin requests. | [Overview](../app/modules/pin/docs/overview.md) |
+| `privateGroup` | Applies encrypted private-group publication and author-control policy while reusing group/post storage. | [Overview](../app/modules/privateGroup/docs/overview.md) |
 | `remoteContentModeration` | Provides reusable policy helpers for review-first/auto-import decisions and bounded keyword/regex/source/group filters before remote content becomes visible posts. | [Overview](../app/modules/remoteContentModeration/docs/overview.md) |
 | `remoteGroup` | Imports or refreshes GeeSome groups/posts from remote manifest storage IDs or static IDs, and backs local-or-remote group lookup. | [Overview](../app/modules/remoteGroup/docs/overview.md) |
 | `rss` | Generates bounded public RSS XML feeds for group posts. | [Overview](../app/modules/rss/docs/overview.md) |

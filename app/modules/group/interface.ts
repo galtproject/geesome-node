@@ -310,6 +310,7 @@ export interface IGroup {
 export enum GroupType {
 	Channel = 'channel',
 	Chat = 'chat',
+	PrivateGroup = 'private_group',
 	PersonalChat = 'personal_chat'
 }
 
