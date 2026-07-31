@@ -21,6 +21,13 @@ credentials, upload and verify immutable assets idempotently, follow async
 work, and resume a multi-file release without source-code knowledge or
 deployment-specific path guesses.
 
+Implementation status: completed on `codex/agent-friendly-api` for issue #1312.
+The delivered surface includes origin-only discovery, problem responses,
+immutable asset upload/read verification, stable operation resources, scoped
+credential introspection, resumable batches, deterministic manifests,
+production-shaped nginx coverage, generated inventories, and executable docs.
+The items under Deferred Follow-Ups remain intentionally out of scope.
+
 The implementation should extend the existing `api`, `content`, `storage`,
 `gateway`, `asyncOperation`, `database`, and `pin` foundations. It should not
 create a second HTTP server, a second content store, or an unrelated job system.

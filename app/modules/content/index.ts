@@ -29,6 +29,7 @@ import {DriverInput, OutputSize} from "../drivers/interface.js";
 import helpers from "../../helpers";
 import {recordMemorySnapshot} from "../../memoryProfiler.js";
 import {rtrim} from "telegram/Utils";
+import {ApiProblemError, sendApiProblem} from '../api/problem.js';
 const {pick, isArray, isNumber, isTypedArray, isString, isBuffer, isObject, isUndefined, merge, last, startsWith, trimStart} = _;
 const log = debug('geesome:app');
 const {getDirSize} = driverHelpers;
@@ -1318,7 +1319,7 @@ function getModule(app: IGeesomeApp) {
 				if (!content) {
 					const storageIdAllowed = await isStorageIdAllowedForApi(storageId);
 					if (!storageIdAllowed) {
-						return res.send(423);
+						return sendApiProblem(res, new ApiProblemError(423, 'content_locked', 'Content locked', 'The supplied storage ID is not publicly readable.'), req.requestId);
 					}
 					storageResponseHeaders = await getStorageResponseHeadersForApi(storageId);
 				}
@@ -1327,7 +1328,7 @@ function getModule(app: IGeesomeApp) {
 				const fileStat = await getGatewayFileStat(dataPath);
 				log('getFileStat', fileStat);
 				if (!fileStat) {
-					return res.send(404);
+					return sendApiProblem(res, new ApiProblemError(404, 'content_not_found', 'Content not found', 'No readable content exists for the supplied storage ID.'), req.requestId);
 				}
 				if (fileStat.cid) {
 					content = await app.ms.database.getSharedStorageMetadataByStorageId(ipfsHelper.cidToIpfsHash(fileStat.cid), {includePreviews: true});
@@ -1347,7 +1348,7 @@ function getModule(app: IGeesomeApp) {
 			if (!content) {
 				const storageIdAllowed = await isStorageIdAllowedForApi(storageId);
 				if (!storageIdAllowed) {
-					return res.send(423);
+					return sendApiProblem(res, new ApiProblemError(423, 'content_locked', 'Content locked', 'The supplied storage ID is not publicly readable.'), req.requestId);
 				}
 				storageResponseHeaders = await getStorageResponseHeadersForApi(storageId);
 			}
@@ -1356,7 +1357,7 @@ function getModule(app: IGeesomeApp) {
 			dataPath = this.prepareContentStorageDataPath(dataPath, content);
 			const dataSize = await this.getGatewayFileSize(dataPath, content);
 			if (dataSize === null) {
-				return res.send(404);
+				return sendApiProblem(res, new ApiProblemError(404, 'content_not_found', 'Content not found', 'No readable content exists for the supplied storage ID.'), req.requestId);
 			}
 			log('dataSize', dataSize);
 
@@ -1453,13 +1454,19 @@ function getModule(app: IGeesomeApp) {
 				contentData['x-ipfs-datasize'] = dataSize;
 			}
 			const mimeType = contentData['Content-Type'];
+			const storageId = content?.storageId || dataPath.split('/')[0];
+			if (content?.sha256 && /^[a-f0-9]{64}$/i.test(content.sha256)) {
+				contentData['Content-Digest'] = `sha-256=:${Buffer.from(content.sha256, 'hex').toString('base64')}:`;
+			}
 			return {
 				...contentData,
 				...extraHeaders,
 				...getContentServingSecurityHeaders(mimeType),
 				'Accept-Ranges': 'bytes',
 				'Cross-Origin-Resource-Policy': 'cross-origin',
-				'cache-control': 'public, max-age=29030400, immutable',
+				'cache-control': 'public, max-age=31536000, immutable',
+				'ETag': `"${storageId}"`,
+				'X-Geesome-Storage-Id': storageId,
 				'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
 				'x-ipfs-path': dataPath,
 				'x-ipfs-roots': last(dataPath.split('/')),

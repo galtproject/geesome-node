@@ -30,7 +30,8 @@ describe("api callback handling", function () {
 						res.send({ok: true}, 200);
 					});
 
-					assert.deepEqual(response.sent, [[{ok: true}, 200]]);
+					assert.equal(response.statusCode, 200);
+					assert.deepEqual(response.sent, [[{ok: true}]]);
 				} finally {
 					api?.stop();
 				}

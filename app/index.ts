@@ -32,6 +32,7 @@ import IGeesomePrivateGroupModule from "./modules/privateGroup/interface.js";
 import IGeesomeChatModule from "./modules/chat/interface.js";
 import IGeesomeImageCompositionModule from "./modules/imageComposition/interface.js";
 import IGeesomeApiModule from "./modules/api/interface.js";
+import IGeesomeAssetModule from "./modules/asset/interface.js";
 import {IGeesomeApp, IUserInput} from "./interface.js";
 import {GeesomeEmitter} from "./events.js";
 import {
@@ -50,6 +51,7 @@ import config from './config.js';
 import {startMemoryProfiler} from './memoryProfiler.js';
 import type {MemoryProfilerHandle} from './memoryProfiler.js';
 import {cleanupAndRethrow, cleanupResource} from './resourceCleanup.js';
+import {getScopePermissions, normalizeIntegrationScopes, serializeApiKey} from './modules/api/integrationScopes.js';
 const {pick, merge, isUndefined, startsWith, reverse, clone, extend, isString} = _;
 const log = debug('geesome:app');
 const apiKeyListParams: IListParamsOptions = {
@@ -137,6 +139,7 @@ function getModule(config, appPass) {
       drivers: IGeesomeDriversModule,
       api: IGeesomeApiModule,
       asyncOperation: IGeesomeAsyncOperationModule,
+      asset: IGeesomeAssetModule,
       staticId: IGeesomeStaticIdModule,
       invite: IGeesomeInviteModule,
       group: IGeesomeGroupModule,
@@ -377,6 +380,18 @@ function getModule(config, appPass) {
       data.userId = userId;
       data.valueHash = generated.uuid;
 
+      if (data.scopes) {
+        const scopes = normalizeIntegrationScopes(data.scopes);
+        const permissions = getScopePermissions(scopes);
+        for (const permission of permissions) {
+          if (!await this.isUserCan(userId, permission)) {
+            throw new Error('not_permitted');
+          }
+        }
+        data.scopes = JSON.stringify(scopes);
+        data.permissions = JSON.stringify(permissions);
+      }
+
       if (!data.permissions) {
         data.permissions = JSON.stringify(await this.ms.database.getCorePermissions(userId).then(list => list.map(i => i.name)));
       } else if (Array.isArray(data.permissions)) {
@@ -420,6 +435,12 @@ function getModule(config, appPass) {
       if (!this.isApiKeyActive(keyObj)) {
         return {user: null, apiKey: null};
       }
+      const now = new Date();
+      const lastUsedAt = keyObj.lastUsedAt ? new Date(keyObj.lastUsedAt).getTime() : 0;
+      if (!lastUsedAt || now.getTime() - lastUsedAt >= 5 * 60 * 1000) {
+        await this.ms.database.updateApiKey(keyObj.id, {lastUsedAt: now});
+        keyObj.lastUsedAt = now;
+      }
       return {
         user: await this.ms.database.getUser(keyObj.userId),
         apiKey: keyObj,
@@ -438,7 +459,7 @@ function getModule(config, appPass) {
       listParams = helpers.prepareListParams(listParams, apiKeyListParams);
       await this.checkUserCan(userId, CorePermissionName.UserApiKeyManagement);
       return {
-        list: await this.ms.database.getApiKeysByUser(userId, isDisabled, search, listParams),
+        list: (await this.ms.database.getApiKeysByUser(userId, isDisabled, search, listParams)).map(serializeApiKey),
         total: await this.ms.database.getApiKeysCountByUser(userId, isDisabled, search)
       };
     }

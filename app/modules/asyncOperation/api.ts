@@ -1,8 +1,44 @@
 import {IGeesomeApp} from "../../interface.js";
 import IGeesomeAsyncOperationModule from "./interface.js";
 import helpers from "../../helpers";
+import {ApiProblemError} from '../api/problem.js';
+import {getPublicApiContext} from '../api/publicUrls.js';
+import {requireIntegrationScopes} from '../api/integrationScopes.js';
 
 export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationModule) => {
+
+    /**
+     * @api {get} /v1/operations/:id Get operation resource
+     * @apiName OperationGet
+     * @apiGroup Operations
+     * @apiUse ApiKey
+     * @apiParam {Number} id Operation identifier.
+     * @apiSuccess {String="pending","running","succeeded","failed","cancelled"} status Stable operation state.
+     * @apiSuccess {Object} [result] Completed operation result.
+     * @apiSuccess {Object} [problem] Standard problem document for failed work.
+     */
+    app.ms.api.onAuthorizedGet('operations/:id', async (req, res) => {
+        requireIntegrationScopes(req.apiKey, ['operations:read']);
+        const operation = await asyncOperationModule.getAsyncOperation(req.user.id, req.params.id);
+        if (!operation) {
+            throw new ApiProblemError(404, 'operation_not_found', 'Operation not found');
+        }
+        res.send(serializeOperation(app, operation));
+    });
+
+    /**
+     * @api {post} /v1/operations/:id/cancel Cancel operation
+     * @apiName OperationCancel
+     * @apiGroup Operations
+     * @apiUse ApiKey
+     * @apiParam {Number} id Operation identifier.
+     */
+    app.ms.api.onAuthorizedPost('operations/:id/cancel', async (req, res) => {
+        requireIntegrationScopes(req.apiKey, ['operations:read']);
+        await asyncOperationModule.cancelAsyncOperation(req.user.id, req.params.id);
+        const operation = await asyncOperationModule.getAsyncOperation(req.user.id, req.params.id);
+        res.send(serializeOperation(app, operation));
+    });
 
     /**
      * @api {post} /v1/user/get-operation-queue/:operationId Get operation queue item
@@ -87,4 +123,54 @@ export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationMo
     app.ms.api.onAuthorizedPost('user/cancel-async-operation/:id', async (req, res) => {
         res.send(await asyncOperationModule.cancelAsyncOperation(req.user.id, req.params.id));
     });
+}
+
+function serializeOperation(app: IGeesomeApp, operation: any) {
+    const context = getPublicApiContext(app);
+    const output = parseOperationOutput(operation.output);
+    const status = getOperationStatus(operation);
+    return {
+        schemaVersion: 1,
+        operationId: `op_${operation.id}`,
+        status,
+        percent: Number(operation.percent || 0),
+        statusUrl: `${context.apiBaseUrl}/operations/${operation.id}`,
+        requestId: operation.requestId || null,
+        result: status === 'succeeded' ? output : null,
+        problem: status === 'failed' ? output?.problem || {
+            type: 'about:blank',
+            title: 'Operation failed',
+            status: 500,
+            code: operation.errorType || 'operation_failed',
+            detail: operation.errorMessage || 'The operation failed.',
+            requestId: operation.requestId || null
+        } : null
+    };
+}
+
+function getOperationStatus(operation: any): string {
+    if (operation.cancel) {
+        return 'cancelled';
+    }
+    if (operation.inProcess) {
+        return Number(operation.percent || 0) > 0 ? 'running' : 'pending';
+    }
+    if (operation.errorType || operation.errorMessage) {
+        return 'failed';
+    }
+    return 'succeeded';
+}
+
+function parseOperationOutput(output: any) {
+    if (!output) {
+        return null;
+    }
+    if (typeof output !== 'string') {
+        return output;
+    }
+    try {
+        return JSON.parse(output);
+    } catch (e) {
+        return null;
+    }
 }

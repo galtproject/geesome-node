@@ -9,7 +9,7 @@
 
 //TODO: move communicator and fileCatalog to improve
 const modulePacks = {
-  'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'staticId', 'asyncOperation', 'privateGroup', 'group', 'chat', 'fileCatalog', 'entityJsonManifest', 'imageComposition', 'remoteGroup'],
+  'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'staticId', 'asyncOperation', 'asset', 'privateGroup', 'group', 'chat', 'fileCatalog', 'entityJsonManifest', 'imageComposition', 'remoteGroup'],
   'improve': ['groupCategory', 'invite', 'staticSiteGenerator', 'rss', 'activityPub', 'autoActions', 'pin', 'foreignAccounts', 'ethereumAuthorization', 'storageSpace', 'gateway'],
   'socNet': ['socNetAccount', 'socNetImport', 'bluesky', 'telegramClient', 'twitterClient', 'tgContentBot']
 };
@@ -17,6 +17,12 @@ const modulePacks = {
 //TODO: refactor modules config
 export default {
   domain: process.env.DOMAIN || '',
+  apiConfig: {
+    publicUrl: process.env.GEESOME_PUBLIC_URL || getPublicUrlFromDomainEnv(process.env.DOMAIN),
+    publicBasePath: normalizeApiBasePath(process.env.GEESOME_API_BASE_PATH || '/api/v1'),
+    deploymentVersion: process.env.GEESOME_VERSION || process.env.npm_package_version || 'unknown',
+    maxUploadBytes: process.env.GEESOME_MAX_UPLOAD_BYTES || 2000 * 1024 * 1024
+  },
   databaseModule: 'sql',
   databaseConfig: {
 
@@ -133,4 +139,9 @@ function getPublicUrlFromDomainEnv(domain): string {
   } catch (e) {
     return '';
   }
+}
+
+function normalizeApiBasePath(value): string {
+  const path = `/${String(value || '').trim().replace(/^\/+|\/+$/g, '')}`;
+  return path === '/' ? '/api/v1' : path;
 }

@@ -346,7 +346,9 @@ describe("async operation ownership controls", function () {
 		assert.equal(operations[0].inProcess, false);
 		assert.equal(operations[0].contentId, 42);
 		assert.equal(operations[1].inProcess, false);
-		assert.equal(operations[1].errorMessage, "expected_async_failure");
+		assert.equal(operations[1].errorType, "internal_error");
+		assert.equal(operations[1].errorMessage, "The server could not complete the request.");
+		assert.equal(JSON.parse(operations[1].output).problem.code, "internal_error");
 	});
 
 	it("closes completed queue heads before processing the next module queue item", async () => {
