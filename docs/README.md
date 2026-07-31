@@ -12,6 +12,8 @@ API reference output with handwritten architecture, operations, and module notes
 - [Agent docs map](./agent-map.md): task-to-doc routing for agents and maintainers.
 - [Agent-friendly API recommendations](./agent-friendly-api-recommendations.md):
   public discovery, immutable asset, auth, error, async, and batch contracts.
+- [Agent-friendly API implementation plan](./agent-friendly-api-implementation-plan.md):
+  current-state gaps, delivery phases, workstreams, rollout, and verification.
 - [Active TODO](./todo.md): unfinished deterministic implementation sections.
 - [Implemented work](./implemented.md): delivered foundations and verification
   history previously mixed into the TODO.

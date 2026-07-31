@@ -254,6 +254,36 @@ Verification:
 - Focused authorization and abuse tests for every changed route.
 <!-- /todo-section -->
 
+<!-- todo-section: agent-friendly-api -->
+## Agent-Friendly Public API
+
+Goal: let an integration discover, authenticate, upload, verify, and resume
+immutable asset publication when it starts with only the public site origin.
+
+Source of truth:
+
+- [Recommendations](./agent-friendly-api-recommendations.md)
+- [Implementation plan](./agent-friendly-api-implementation-plan.md)
+
+Delivery order:
+
+1. Freeze versioned response fixtures and public-origin rules.
+2. Standardize request IDs/problems and expose absolute discovery through the
+   production-shaped proxy.
+3. Add the idempotent SHA-256-verified asset façade and verifiable reads.
+4. Normalize operation resources and least-privilege integration credentials.
+5. Add resumable batches, deterministic hash-bound manifests, executable
+   examples, and the Meat Master consumer contract smoke.
+
+Verification:
+
+- Use the per-workstream gates and verification matrix in the implementation
+  plan.
+- Run API docs generation and route/security inventory checks for route changes.
+- Run migration integrity/scalability checks for asset and batch persistence.
+- Run the final cross-module suite with `npm run test:docker`.
+<!-- /todo-section -->
+
 <!-- todo-section: static-site-settings-delivery -->
 ## Static Sites: Settings And Delivery
 

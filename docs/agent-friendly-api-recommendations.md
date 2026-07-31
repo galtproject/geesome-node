@@ -12,6 +12,10 @@ This document records recommendations from the Meat Master character-asset
 integration performed on 2026-07-31. It is an API roadmap, not a claim that the
 target contracts are already implemented.
 
+See [Agent-Friendly API Implementation Plan](./agent-friendly-api-implementation-plan.md)
+for the current-state gap analysis, phased delivery sequence, workstream scopes,
+and verification gates.
+
 ## Integration Findings
 
 The repository-level API contract was understandable after reading the
