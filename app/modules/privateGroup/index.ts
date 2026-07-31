@@ -13,7 +13,9 @@ export default async function (app: IGeesomeApp): Promise<IGeesomePrivateGroupMo
 	const models = await (await import('./models.js')).default(
 		app.ms.database.sequelize
 	);
-	return getModule(app, models);
+	const module = getModule(app, models);
+	(await import('./api.js')).default(app, module);
+	return module;
 }
 
 export function getModule(app: IGeesomeApp, models: any = null): IGeesomePrivateGroupModule {

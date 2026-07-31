@@ -106,6 +106,10 @@ function notesFor(route: RouteRow, block: string): string[] {
       notes.add('recipe detail restricted to the catalog owner');
     }
   }
+  if (route.moduleName === 'privateGroup') {
+    notes.add('encryption/key boundary');
+    notes.add('module enforces private-group membership or administrator authorization');
+  }
   if (routeLower === '/v1/content/:contentid' && blockLower.includes('getpubliccontentmetadata')) {
     notes.add('public-safe metadata projection; private DB ids hidden');
   }

@@ -70,6 +70,29 @@ describe("group", function () {
 		await app.stop();
 	});
 
+	it('registers private-group membership routes as authenticated API operations', async () => {
+		const port = process.env.PORT || 7771;
+		const response = await fetch(`http://127.0.0.1:${port}/v1`);
+		const discovery: any = await response.json();
+		const membershipRoutes = discovery.routes.filter(
+			route => route.path === '/v1/private-groups/:groupId/membership'
+		);
+
+		assert.equal(response.status, 200);
+		assert.deepEqual(membershipRoutes, [
+			{
+				method: 'GET',
+				path: '/v1/private-groups/:groupId/membership',
+				authorized: true
+			},
+			{
+				method: 'POST',
+				path: '/v1/private-groups/:groupId/membership',
+				authorized: true
+			}
+		]);
+	});
+
 	it('routes private-group posts through private policy and keeps author mutation control', async () => {
 		app.config.privateGroupConfig.enabled = true;
 		const testUser = (await app.ms.database.getAllUserList('user'))[0];
