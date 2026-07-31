@@ -62,12 +62,25 @@ describe('private group policy', () => {
 				}
 			}
 		};
-		const module = getModule(app);
+		const module = getModule(app, {
+			PrivateGroupMembershipSnapshot: {},
+			PrivateGroupMembershipDevice: {},
+			PrivateGroupPostMembership: {
+				findOne: async () => ({
+					id: 51,
+					postId: 41,
+					groupId: 12,
+					privateGroupMembershipSnapshotId: 31,
+					membershipVersion: '3'
+				})
+			}
+		});
 
 		assert.deepEqual(await module.afterPrivatePostManifestUpdate(7, 41), {
 			groupId: 12,
 			postId: 41,
-			private: true
+			private: true,
+			membershipVersion: '3'
 		});
 
 		app.ms.group.getPostPure = async () => ({

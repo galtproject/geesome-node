@@ -87,6 +87,41 @@ export default async function initializePrivateGroupModels(sequelize: Sequelize)
 		} as any
 	);
 
+	const PrivateGroupPostMembership = sequelize.define(
+		'privateGroupPostMembership',
+		{
+			postId: {
+				type: DataTypes.INTEGER,
+				allowNull: false
+			},
+			groupId: {
+				type: DataTypes.INTEGER,
+				allowNull: false
+			},
+			privateGroupMembershipSnapshotId: {
+				type: DataTypes.INTEGER,
+				allowNull: false
+			},
+			membershipVersion: {
+				type: DataTypes.BIGINT,
+				allowNull: false
+			}
+		} as any,
+		{
+			indexes: [
+				{
+					name: 'private_group_post_membership_post_unique',
+					fields: ['postId'],
+					unique: true
+				},
+				{
+					name: 'private_group_post_membership_group_version_idx',
+					fields: ['groupId', 'membershipVersion', 'postId']
+				}
+			]
+		} as any
+	);
+
 	PrivateGroupMembershipSnapshot.hasMany(PrivateGroupMembershipDevice, {
 		as: 'devices',
 		foreignKey: 'privateGroupMembershipSnapshotId',
@@ -96,12 +131,23 @@ export default async function initializePrivateGroupModels(sequelize: Sequelize)
 		as: 'snapshot',
 		foreignKey: 'privateGroupMembershipSnapshotId'
 	});
+	PrivateGroupMembershipSnapshot.hasMany(PrivateGroupPostMembership, {
+		as: 'posts',
+		foreignKey: 'privateGroupMembershipSnapshotId',
+		onDelete: 'RESTRICT'
+	});
+	PrivateGroupPostMembership.belongsTo(PrivateGroupMembershipSnapshot, {
+		as: 'snapshot',
+		foreignKey: 'privateGroupMembershipSnapshotId'
+	});
 
 	await PrivateGroupMembershipSnapshot.sync({});
 	await PrivateGroupMembershipDevice.sync({});
+	await PrivateGroupPostMembership.sync({});
 
 	return {
 		PrivateGroupMembershipSnapshot,
-		PrivateGroupMembershipDevice
+		PrivateGroupMembershipDevice,
+		PrivateGroupPostMembership
 	};
 }

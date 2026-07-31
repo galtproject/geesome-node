@@ -4,6 +4,7 @@ import type {IGeesomeApp} from '../../interface.js';
 import {GroupType, IGroup, IPost} from '../group/interface.js';
 import IGeesomePrivateGroupModule, {
 	IPrivateGroupMembershipSnapshot,
+	IPrivateGroupPostMembership,
 	privateGroupPostManifestHook,
 	publicPostManifestHook
 } from './interface.js';
@@ -156,6 +157,73 @@ export function getModule(app: IGeesomeApp, models: any = null): IGeesomePrivate
 			return loadMembershipSnapshot(models, snapshot.id);
 		},
 
+		async bindPostMembership(userId, post, membershipVersion, transaction) {
+			assertMembershipModels(models);
+			if (!transaction) {
+				throw new Error('private_group_post_transaction_required');
+			}
+			const normalizedUserId = normalizeId(userId, 'private_group_user_id_invalid');
+			const postId = normalizeId(post?.id, 'private_group_post_id_invalid');
+			const groupId = normalizeId(post?.groupId, 'private_group_id_invalid');
+			const requestedVersion = normalizeRequiredVersion(
+				membershipVersion,
+				'private_group_membership_version_required'
+			);
+			const dependencies = getMembershipDependencies(app.ms.database.sequelize);
+			const lockedGroup = await dependencies.Group.findByPk(groupId, {
+				transaction,
+				lock: transaction.LOCK.UPDATE
+			});
+			if (!this.isPrivateGroup(lockedGroup)) {
+				throw new Error('private_group_required');
+			}
+			if (Number(post.userId) !== normalizedUserId) {
+				throw new Error('private_group_post_author_mismatch');
+			}
+
+			const latestSnapshot = await models.PrivateGroupMembershipSnapshot.findOne({
+				where: {groupId},
+				order: [['version', 'DESC']],
+				transaction
+			});
+			if (!latestSnapshot) {
+				throw new Error('private_group_membership_snapshot_required');
+			}
+			if (normalizeVersion(latestSnapshot.version) !== requestedVersion) {
+				throw new Error('private_group_membership_snapshot_stale');
+			}
+			const authorDeviceCount = await models.PrivateGroupMembershipDevice.count({
+				where: {
+					privateGroupMembershipSnapshotId: latestSnapshot.id,
+					userId: normalizedUserId
+				},
+				transaction
+			});
+			if (!authorDeviceCount) {
+				throw new Error('private_group_post_author_not_in_membership');
+			}
+
+			const binding = await models.PrivateGroupPostMembership.create({
+				postId,
+				groupId,
+				privateGroupMembershipSnapshotId: latestSnapshot.id,
+				membershipVersion: requestedVersion
+			}, {transaction});
+			return serializePostMembership(binding);
+		},
+
+		async getPostMembership(postId, transaction?) {
+			assertMembershipModels(models);
+			const binding = await models.PrivateGroupPostMembership.findOne({
+				where: {postId: normalizeId(postId, 'private_group_post_id_invalid')},
+				transaction
+			});
+			if (!binding) {
+				return null;
+			}
+			return serializePostMembership(binding);
+		},
+
 		async afterPrivatePostManifestUpdate(
 			_userId: number,
 			postId: number
@@ -164,10 +232,15 @@ export function getModule(app: IGeesomeApp, models: any = null): IGeesomePrivate
 			if (!post || !this.isPrivateGroup(post.group)) {
 				throw new Error('private_group_post_required');
 			}
+			const membership = await this.getPostMembership(postId);
+			if (!membership) {
+				throw new Error('private_group_post_membership_required');
+			}
 			return {
 				groupId: Number(post.groupId),
 				postId: Number(post.id),
-				private: true
+				private: true,
+				membershipVersion: membership.membershipVersion
 			};
 		},
 
@@ -175,6 +248,7 @@ export function getModule(app: IGeesomeApp, models: any = null): IGeesomePrivate
 			if (!models) {
 				return;
 			}
+			await models.PrivateGroupPostMembership.destroy({where: {}});
 			await models.PrivateGroupMembershipDevice.destroy({where: {}});
 			await models.PrivateGroupMembershipSnapshot.destroy({where: {}});
 		}
@@ -221,7 +295,11 @@ function getMembershipDependencies(sequelize) {
 }
 
 function assertMembershipModels(models) {
-	if (!models?.PrivateGroupMembershipSnapshot || !models?.PrivateGroupMembershipDevice) {
+	if (
+		!models?.PrivateGroupMembershipSnapshot
+		|| !models?.PrivateGroupMembershipDevice
+		|| !models?.PrivateGroupPostMembership
+	) {
 		throw new Error('private_group_membership_models_unavailable');
 	}
 }
@@ -278,12 +356,29 @@ async function loadMembershipSnapshot(
 	};
 }
 
+function serializePostMembership(binding): IPrivateGroupPostMembership {
+	return {
+		id: Number(binding.id),
+		postId: Number(binding.postId),
+		groupId: Number(binding.groupId),
+		membershipSnapshotId: Number(binding.privateGroupMembershipSnapshotId),
+		membershipVersion: normalizeVersion(binding.membershipVersion)
+	};
+}
+
 function normalizeId(value, errorCode: string): number {
 	const id = Number(value);
 	if (!Number.isSafeInteger(id) || id <= 0) {
 		throw new Error(errorCode);
 	}
 	return id;
+}
+
+function normalizeRequiredVersion(value, errorCode: string): string {
+	if (value === undefined || value === null || value === '') {
+		throw new Error(errorCode);
+	}
+	return normalizeVersion(value);
 }
 
 function normalizeVersion(value): string {

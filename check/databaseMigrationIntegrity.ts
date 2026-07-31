@@ -276,6 +276,7 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'chatSyncJobs', columns: ['claimToken'], type: 'character varying'},
   {table: 'privateGroupMembershipSnapshots', columns: ['version'], type: 'bigint'},
   {table: 'privateGroupMembershipDevices', columns: ['bundleJson'], type: 'text'},
+  {table: 'privateGroupPostMemberships', columns: ['membershipVersion'], type: 'bigint'},
 ];
 
 const expectedIndexes: ExpectedIndex[] = [
@@ -426,6 +427,17 @@ const expectedIndexes: ExpectedIndex[] = [
     name: 'private_group_membership_devices_user_snapshot_idx',
     table: 'privateGroupMembershipDevices',
     columns: ['userId', 'privateGroupMembershipSnapshotId', 'id']
+  },
+  {
+    name: 'private_group_post_membership_post_unique',
+    table: 'privateGroupPostMemberships',
+    columns: ['postId'],
+    unique: true
+  },
+  {
+    name: 'private_group_post_membership_group_version_idx',
+    table: 'privateGroupPostMemberships',
+    columns: ['groupId', 'membershipVersion', 'postId']
   },
 ];
 
@@ -668,6 +680,71 @@ const countChecks: CountCheck[] = [
         ON groups.id = snapshot."groupId"
       WHERE groups.id IS NULL
         OR groups.type <> 'private_group'
+    `,
+  },
+  {
+    name: 'every private group post is encrypted and has a membership snapshot binding',
+    requirements: [
+      {table: 'posts', columns: ['id', 'groupId', 'isEncrypted']},
+      {table: 'groups', columns: ['id', 'type']},
+      {table: 'privateGroupPostMemberships', columns: ['postId']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM posts
+      JOIN groups
+        ON groups.id = posts."groupId"
+      LEFT JOIN "privateGroupPostMemberships" binding
+        ON binding."postId" = posts.id
+      WHERE groups.type = 'private_group'
+        AND (
+          posts."isEncrypted" IS NOT TRUE
+          OR binding.id IS NULL
+        )
+    `,
+  },
+  {
+    name: 'private group post membership bindings match posts and snapshots',
+    requirements: [
+      {
+        table: 'privateGroupPostMemberships',
+        columns: [
+          'postId',
+          'groupId',
+          'privateGroupMembershipSnapshotId',
+          'membershipVersion',
+        ],
+      },
+      {table: 'privateGroupMembershipDevices', columns: ['privateGroupMembershipSnapshotId', 'userId']},
+      {table: 'posts', columns: ['id', 'groupId', 'userId']},
+      {table: 'groups', columns: ['id', 'type']},
+      {
+        table: 'privateGroupMembershipSnapshots',
+        columns: ['id', 'groupId', 'version'],
+      },
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "privateGroupPostMemberships" binding
+      LEFT JOIN posts
+        ON posts.id = binding."postId"
+      LEFT JOIN groups
+        ON groups.id = posts."groupId"
+      LEFT JOIN "privateGroupMembershipSnapshots" snapshot
+        ON snapshot.id = binding."privateGroupMembershipSnapshotId"
+      WHERE posts.id IS NULL
+        OR groups.id IS NULL
+        OR groups.type <> 'private_group'
+        OR binding."groupId" <> posts."groupId"
+        OR snapshot.id IS NULL
+        OR snapshot."groupId" <> binding."groupId"
+        OR snapshot.version <> binding."membershipVersion"
+        OR NOT EXISTS (
+          SELECT 1
+          FROM "privateGroupMembershipDevices" device
+          WHERE device."privateGroupMembershipSnapshotId" = snapshot.id
+            AND device."userId" = posts."userId"
+        )
     `,
   },
   duplicateCheck('storage object storageId duplicates', 'storageObjects', ['storageId']),
