@@ -485,10 +485,11 @@ function modelRows(): ModelRow[] {
 			model: 'AssetBatch / AssetBatchItem',
 			indexes: [
 				has(assetSource, 'asset_batches_user_key_unique') ? 'userId,idempotencyKey unique batch identity' : 'missing batch idempotency uniqueness',
+				has(assetSource, 'asset_batches_status_updated_idx') ? 'status,updatedAt,id retention scan' : 'missing completed-batch retention index',
 				has(assetSource, 'asset_batch_items_batch_logical_unique') ? 'assetBatchId,logicalId unique item identity' : 'missing batch logical-item uniqueness',
 				has(assetSource, 'asset_batch_items_batch_status_idx') ? 'assetBatchId,status,id completion scan' : 'missing batch status scan index'
 			],
-			notes: ['batch preflight is bounded by the submitted item list and completion loads only one owner-scoped batch with its indexed items']
+			notes: ['batch preflight is bounded by the submitted item list and completion loads only one owner-scoped batch with its indexed items; completed item rows are compacted after a configurable 30-day retention window in bounded cleanup runs while the idempotency/manifest batch record and assets remain']
 		},
     {
       area: 'Storage object references',

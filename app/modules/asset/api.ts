@@ -58,6 +58,7 @@ export default (app: IGeesomeApp, assetModule: IGeesomeAssetModule) => {
 	 * @apiBody {Object[]} items Expected manifest items.
 	 * @apiSuccess {Number} batchId Batch identifier.
 	 * @apiSuccess {Object[]} items Batch item upload requirements.
+	 * @apiSuccess {Boolean} itemsRetained Whether resumable item metadata is still inside its retention window.
 	 */
 	app.ms.api.onAuthorizedPost('asset-batches', async (req, res) => {
 		requireIntegrationScopes(req.apiKey, ['asset-batches:write']);
@@ -71,6 +72,9 @@ export default (app: IGeesomeApp, assetModule: IGeesomeAssetModule) => {
 	 * @apiGroup AssetBatches
 	 * @apiUse ApiKey
 	 * @apiParam {Number} batchId Batch identifier.
+	 * @apiSuccess {String="pending","processing","completed"} status Stable batch status.
+	 * @apiSuccess {Object[]} items Retained batch item metadata, or an empty array after compaction.
+	 * @apiSuccess {Boolean} itemsRetained Whether resumable item metadata is still inside its retention window.
 	 */
 	app.ms.api.onAuthorizedGet('asset-batches/:batchId', async (req, res) => {
 		requireIntegrationScopes(req.apiKey, ['asset-batches:write']);
@@ -85,6 +89,7 @@ export default (app: IGeesomeApp, assetModule: IGeesomeAssetModule) => {
 	 * @apiParam {Number} batchId Batch identifier.
 	 * @apiSuccess {String="completed"} status Completed status.
 	 * @apiSuccess {Object} manifest Immutable hash-bound manifest.
+	 * @apiSuccess {Boolean} itemsRetained Whether resumable item metadata is still inside its retention window.
 	 */
 	app.ms.api.onAuthorizedPost('asset-batches/:batchId/complete', async (req, res) => {
 		requireIntegrationScopes(req.apiKey, ['asset-batches:write']);

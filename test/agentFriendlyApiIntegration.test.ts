@@ -216,6 +216,27 @@ describe('agent-friendly asset integration', function () {
 		assert.equal(completed.manifest.url, `${advertisedOrigin}/ipfs/${completed.manifest.storageId}`);
 		const completionReplay = await app.ms.asset.completeBatch(user.id, batch.batchId, apiKey.id);
 		assert.equal(completionReplay.manifest.sha256, completed.manifest.sha256);
+		assert.equal(completionReplay.itemsRetained, true);
+
+		const cleanup = await app.ms.asset.cleanupCompletedBatches({
+			retentionDays: 0,
+			now: new Date(Date.now() + 1000),
+			limit: 10
+		});
+		assert.deepEqual(cleanup, {examined: 1, compacted: 1, itemsDeleted: 2});
+		const compactedReplay = await app.ms.asset.createBatch(user.id, {items: [
+			{logicalId: 'one', logicalPath: 'release/one.txt', sha256: firstSha, bytes: firstBytes.length, mimeType: 'text/plain'},
+			{logicalId: 'two', logicalPath: 'release/two.txt', sha256: secondSha, bytes: secondBytes.length, mimeType: 'text/plain'}
+		]}, 'release:batch');
+		assert.equal(compactedReplay.status, 'completed');
+		assert.equal(compactedReplay.itemsRetained, false);
+		assert.equal(compactedReplay.items.length, 0);
+		assert.equal(compactedReplay.manifest.sha256, completed.manifest.sha256);
+		const compactedCompletionReplay = await app.ms.asset.completeBatch(user.id, batch.batchId, apiKey.id);
+		assert.equal(compactedCompletionReplay.manifest.sha256, completed.manifest.sha256);
+		const [retainedAssetRows]: any = await (app.ms.database as any).sequelize.query('SELECT COUNT(*)::int AS count FROM assets');
+		assert.equal(retainedAssetRows[0].count, 2);
+		assert.equal(await (app.ms.database as any).models.Content.count({where: {storageId: completed.manifest.storageId}}), 1);
 
 		const fiftyItems = Array.from({length: 50}, (_, index) => ({
 			logicalId: `item-${String(index).padStart(2, '0')}`,

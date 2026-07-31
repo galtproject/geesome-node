@@ -1,22 +1,54 @@
 import {createHash} from 'node:crypto';
+import debug from 'debug';
 import {Op} from 'sequelize';
+import {startIntervalWorker} from '../../backgroundWorker.js';
+import type {IBackgroundWorker} from '../../backgroundWorker.js';
+import helpers from '../../helpers.js';
 import {IGeesomeApp} from '../../interface.js';
 import {ApiProblemError} from '../api/problem.js';
 import {getPublicApiContext} from '../api/publicUrls.js';
 import IGeesomeAssetModule from './interface.js';
+
+const log = debug('geesome:app:asset');
+const completedBatchItemRetentionDays = parseNonNegativeInteger(process.env.ASSET_BATCH_ITEM_RETENTION_DAYS, 30);
+const completedBatchCleanupIntervalMs = helpers.parsePositiveInteger(process.env.ASSET_BATCH_CLEANUP_INTERVAL_MS, 24 * 60 * 60 * 1000);
+const completedBatchCleanupLimit = helpers.parsePositiveInteger(process.env.ASSET_BATCH_CLEANUP_LIMIT, 100);
 
 export default async (app: IGeesomeApp) => {
 	app.checkModules(['api', 'database', 'content', 'asyncOperation']);
 	const database: any = app.ms.database;
 	const models = await (await import('./models.js')).default(database.sequelize, database.models);
 	const module = getModule(app, models);
+	await module.cleanupCompletedBatches();
+	module.startCompletedBatchCleanupWorker();
 	(await import('./api.js')).default(app, module);
 	return module;
 };
 
 export function getModule(app: IGeesomeApp, models: any): IGeesomeAssetModule {
+	let cleanupWorker: IBackgroundWorker | null = null;
+
 	class AssetModule implements IGeesomeAssetModule {
 		supportsBatches = true;
+
+		async stop() {
+			const worker = cleanupWorker;
+			cleanupWorker = null;
+			await worker?.stop();
+		}
+
+		startCompletedBatchCleanupWorker() {
+			if (cleanupWorker) {
+				return;
+			}
+			cleanupWorker = startIntervalWorker(
+				() => this.cleanupCompletedBatches(),
+				{
+					intervalMs: completedBatchCleanupIntervalMs,
+					onError: error => log('cleanupCompletedBatches error', error)
+				}
+			);
+		}
 
 		async flushDatabase() {
 			await models.AssetBatchItem.destroy({where: {}});
@@ -175,7 +207,7 @@ export function getModule(app: IGeesomeApp, models: any): IGeesomeAssetModule {
 			if (!batch) {
 				throw new ApiProblemError(404, 'asset_batch_not_found', 'Asset batch not found');
 			}
-			if (batch.status === 'completed') {
+			if (batch.status === 'completed' || batch.status === 'compacted') {
 				return this.serializeBatch(batch);
 			}
 			const missing = batch.items.filter(item => !item.assetId || item.status !== 'available');
@@ -204,6 +236,44 @@ export function getModule(app: IGeesomeApp, models: any): IGeesomeAssetModule {
 				await models.AssetBatch.update({status: 'pending'}, {where: {id: batch.id, status: 'processing'}});
 				throw error;
 			}
+		}
+
+		async cleanupCompletedBatches(options: any = {}) {
+			const retentionDays = parseNonNegativeInteger(options.retentionDays, completedBatchItemRetentionDays);
+			const limit = helpers.parsePositiveInteger(options.limit, completedBatchCleanupLimit);
+			const now = options.now instanceof Date ? options.now : new Date();
+			const cutoff = new Date(now.getTime() - retentionDays * 24 * 60 * 60 * 1000);
+			const batches = await models.AssetBatch.findAll({
+				attributes: ['id'],
+				where: {status: 'completed', updatedAt: {[Op.lte]: cutoff}},
+				order: [['updatedAt', 'ASC'], ['id', 'ASC']],
+				limit
+			});
+			let compacted = 0;
+			let itemsDeleted = 0;
+			for (const batch of batches) {
+				const transaction = await models.AssetBatch.sequelize.transaction();
+				try {
+					const [claimed] = await models.AssetBatch.update(
+						{status: 'compacting'},
+						{where: {id: batch.id, status: 'completed', updatedAt: {[Op.lte]: cutoff}}, transaction}
+					);
+					if (!claimed) {
+						await transaction.commit();
+						continue;
+					}
+					itemsDeleted += await models.AssetBatchItem.destroy({where: {assetBatchId: batch.id}, transaction});
+					await models.AssetBatch.update({status: 'compacted'}, {where: {id: batch.id, status: 'compacting'}, transaction});
+					await transaction.commit();
+					compacted++;
+				} catch (error) {
+					if (!transaction.finished) {
+						await transaction.rollback();
+					}
+					throw error;
+				}
+			}
+			return {examined: batches.length, compacted, itemsDeleted};
 		}
 
 		async attachAssetToBatch(userId: number, asset: any, batchId?: number, logicalId?: string) {
@@ -246,10 +316,12 @@ export function getModule(app: IGeesomeApp, models: any): IGeesomeAssetModule {
 		serializeBatch(batch: any) {
 			const data = typeof batch.toJSON === 'function' ? batch.toJSON() : batch;
 			const context = getPublicApiContext(app);
+			const isCompacted = data.status === 'compacted';
 			return {
 				schemaVersion: 1,
 				batchId: data.id,
-				status: data.status,
+				status: isCompacted ? 'completed' : data.status,
+				itemsRetained: !isCompacted,
 				manifest: data.manifestStorageId ? {
 					storageId: data.manifestStorageId,
 					sha256: data.manifestSha256,
@@ -362,6 +434,14 @@ function buildBatchManifest(batch: any) {
 
 function sha256(value: string): string {
 	return createHash('sha256').update(value).digest('hex');
+}
+
+function parseNonNegativeInteger(value: any, fallback: number): number {
+	const parsed = Number.parseInt(value, 10);
+	if (!Number.isFinite(parsed) || parsed < 0) {
+		return fallback;
+	}
+	return parsed;
 }
 
 async function setStorageObjectSha256(app: IGeesomeApp, storageId: string, digest: string) {

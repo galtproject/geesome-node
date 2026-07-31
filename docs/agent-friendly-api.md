@@ -37,6 +37,13 @@ and an `items` array of `logicalId`, `logicalPath`, `sha256`, `bytes`, and
 `POST {apiBaseUrl}/asset-batches/{batchId}/complete` and verify the returned
 manifest SHA-256.
 
+Completed batch item rows are retained for 30 days by default so interrupted
+clients can inspect recent uploads. A bounded daily cleanup then removes only
+the item rows and returns `itemsRetained: false`; the compact completed batch,
+its idempotency key, manifest, and all uploaded assets remain available.
+Operators can configure `ASSET_BATCH_ITEM_RETENTION_DAYS`,
+`ASSET_BATCH_CLEANUP_INTERVAL_MS`, and `ASSET_BATCH_CLEANUP_LIMIT`.
+
 The executable Node example is
 `examples/agent-friendly-assets.mjs`. It discovers the API, uploads one file,
 and verifies the immutable read headers without a hardcoded API prefix.

@@ -1,6 +1,8 @@
 export default interface IGeesomeAssetModule {
 	supportsBatches: boolean;
 
+	stop(): Promise<void>;
+
 	flushDatabase(): Promise<void>;
 
 	prepareAssetRequest(userId: number, key: string, requestHash: string): Promise<any>;
@@ -16,4 +18,8 @@ export default interface IGeesomeAssetModule {
 	getBatch(userId: number, batchId: number): Promise<any>;
 
 	completeBatch(userId: number, batchId: number, userApiKeyId: number): Promise<any>;
+
+	cleanupCompletedBatches(options?: any): Promise<{examined: number; compacted: number; itemsDeleted: number}>;
+
+	startCompletedBatchCleanupWorker(): void;
 }

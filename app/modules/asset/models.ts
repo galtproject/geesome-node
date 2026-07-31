@@ -40,7 +40,8 @@ export default async function (sequelize: Sequelize, databaseModels: any) {
   } as any, {
     indexes: [
       {name: 'asset_batches_user_key_unique', fields: ['userId', 'idempotencyKey'], unique: true},
-      {name: 'asset_batches_user_created_idx', fields: ['userId', 'createdAt', 'id']}
+      {name: 'asset_batches_user_created_idx', fields: ['userId', 'createdAt', 'id']},
+      {name: 'asset_batches_status_updated_idx', fields: ['status', 'updatedAt', 'id']}
     ]
   } as any);
 
