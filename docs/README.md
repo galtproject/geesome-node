@@ -10,6 +10,8 @@ API reference output with handwritten architecture, operations, and module notes
 - [Module docs index](./modules.md): map of modules and module-owned docs under
   `app/modules/<module>/docs/`.
 - [Agent docs map](./agent-map.md): task-to-doc routing for agents and maintainers.
+- [Agent-friendly API recommendations](./agent-friendly-api-recommendations.md):
+  public discovery, immutable asset, auth, error, async, and batch contracts.
 - [Active TODO](./todo.md): unfinished deterministic implementation sections.
 - [Implemented work](./implemented.md): delivered foundations and verification
   history previously mixed into the TODO.

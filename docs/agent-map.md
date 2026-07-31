@@ -17,6 +17,9 @@ Use this map after loading the repo instructions in `AGENTS.md`.
 - Read `AGENTS.md` for required API-doc and security-inventory upkeep.
 - Update apiDoc annotations near changed route handlers.
 - Check [module docs](./modules.md) for the owner module.
+- Read [Agent-friendly API recommendations](./agent-friendly-api-recommendations.md)
+  when changing public discovery, reverse-proxy paths, uploads, immutable
+  gateway reads, auth scopes, async responses, errors, or integration examples.
 - Run or update the security route inventory when route auth, permissions, or
   endpoint shape changes.
 
