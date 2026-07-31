@@ -23,6 +23,8 @@ The current capability:
 - rejects stale snapshot versions, authors absent from the selected snapshot,
   and remote private-post imports that do not yet carry a verified membership
   contract;
+- exposes authenticated membership read and compare-and-set refresh routes for
+  browser clients while keeping authorization in the module;
 - leaves legacy `GroupType.PersonalChat` and browser-first direct `ChatEvent`
   behavior unchanged.
 
@@ -44,10 +46,10 @@ explicitly. Public integrations must continue to use
 
 ## Current Limitations
 
-The module does not yet expose browser-facing membership routes, run
-membership/key transitions, replicate native private posts, or migrate legacy
-chat events. Those capabilities remain gated by the secure-chat implementation
-plan and multi-node browser verification.
+The module does not yet run membership/key transitions, replicate native
+private posts, expose a private-group chat UI, or migrate legacy chat events.
+Those capabilities remain gated by the secure-chat implementation plan and
+multi-node browser verification.
 
 Enabling the initial capability is intended for development and compatibility
 testing. It does not make private group chat ready for users.

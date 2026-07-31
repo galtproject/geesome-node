@@ -289,6 +289,11 @@ TODO.
   browser compatibility gate before implementation. The July 2026 dependency
   pass selected no production browser implementation, so no experimental
   dependency or partial MLS node contract was retained.
+- The disabled-by-default `privateGroup` foundation now normalizes private
+  groups away from public publishing, stores immutable account/device
+  membership snapshots, binds every accepted private post to its current
+  snapshot atomically, and exposes authenticated membership read/refresh
+  routes. Direct `ChatEvent` conversations remain unchanged.
 
 This is a browser-first encrypted direct-message foundation, not completion of
 production-secure group chat. Real two-node browser testing, explicit operator
