@@ -51,6 +51,9 @@ export default async function (sequelize: Sequelize) {
 		userApiKeyId: {
 			type: DataTypes.INTEGER
 		},
+		requestId: {
+			type: DataTypes.STRING(128)
+		},
 		contentId: {
 			type: DataTypes.INTEGER
 		},

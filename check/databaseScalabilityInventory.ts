@@ -64,6 +64,7 @@ function modelRows(): ModelRow[] {
   const contentSource = read('app/modules/database/models/content.ts');
   const contentModuleSource = read('app/modules/content/index.ts');
   const storageObjectSource = read('app/modules/database/models/storageObject.ts');
+	const assetSource = read('app/modules/asset/models.ts');
   const storageObjectReferenceSource = read('app/modules/database/models/storageObjectReference.ts');
   const storageSpaceSnapshotSource = read('app/modules/database/models/storageSpaceSnapshot.ts');
   const storageObjectIntegritySource = read('check/databaseStorageObjectsIntegrity.ts');
@@ -467,6 +468,29 @@ function modelRows(): ModelRow[] {
           : 'canonical physical storage metadata remains represented only by user-owned Content rows',
       ],
     },
+		{
+			area: 'Integration assets',
+			source: 'app/modules/asset/models.ts',
+			model: 'Asset / AssetIdempotencyKey',
+			indexes: [
+				has(assetSource, 'assets_user_storage_unique') ? 'userId,storageId unique owner identity' : 'missing owner/storage uniqueness',
+				has(assetSource, 'assets_user_sha_idx') ? 'userId,sha256,id owner-visible hash preflight' : 'missing owner/hash preflight index',
+				has(assetSource, 'asset_idempotency_user_namespace_key_unique') ? 'userId,namespace,key unique idempotency identity' : 'missing durable idempotency uniqueness'
+			],
+			notes: ['asset rows reference existing content/storage bytes; owner-scoped hash lookup avoids disclosing global hash existence']
+		},
+		{
+			area: 'Integration asset batches',
+			source: 'app/modules/asset/models.ts',
+			model: 'AssetBatch / AssetBatchItem',
+			indexes: [
+				has(assetSource, 'asset_batches_user_key_unique') ? 'userId,idempotencyKey unique batch identity' : 'missing batch idempotency uniqueness',
+				has(assetSource, 'asset_batches_status_updated_idx') ? 'status,updatedAt,id retention scan' : 'missing completed-batch retention index',
+				has(assetSource, 'asset_batch_items_batch_logical_unique') ? 'assetBatchId,logicalId unique item identity' : 'missing batch logical-item uniqueness',
+				has(assetSource, 'asset_batch_items_batch_status_idx') ? 'assetBatchId,status,id completion scan' : 'missing batch status scan index'
+			],
+			notes: ['batch preflight is bounded by the submitted item list and completion loads only one owner-scoped batch with its indexed items; completed item rows are compacted after a configurable 30-day retention window in bounded cleanup runs while the idempotency/manifest batch record and assets remain']
+		},
     {
       area: 'Storage object references',
       source: 'app/modules/database/models/storageObjectReference.ts',

@@ -9,6 +9,7 @@ import {trackRuntimeHttpRequest} from '../../memoryProfiler.js';
 import {closeHttpServer} from '../../httpServer.js';
 import gatewayHelpers from "./helpers.js";
 import {cleanupAndRethrow} from '../../resourceCleanup.js';
+import {getRequestId} from '../api/problem.js';
 
 export default async (app: IGeesomeApp, options: {registerApi?: boolean, port?: number | string} = {}) => {
 	app.checkModules(['api']);
@@ -35,6 +36,10 @@ async function getModule(app: IGeesomeApp, port) {
 		service.use(morgan('combined'));
 	}
 	service.use((req, res, next) => {
+		const requestId = getRequestId(req.headers['x-request-id'] as string);
+		req.requestId = requestId;
+		res.locals.requestId = requestId;
+		res.setHeader('X-Request-Id', requestId);
 		trackRuntimeHttpRequest('gateway', req, res);
 		next();
 	});

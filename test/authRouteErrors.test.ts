@@ -25,7 +25,8 @@ describe("auth route errors", function () {
 			} as any, response);
 			await flushAsyncHandlers();
 
-			assert.deepEqual(response.sent, [[403]]);
+			assert.equal(response.sent[0][1], 403);
+			assert.equal(response.sent[0][0].code, 'forbidden');
 		});
 
 		assert.deepEqual(consoleErrors, []);
@@ -58,7 +59,8 @@ describe("auth route errors", function () {
 			} as any, response);
 			await flushAsyncHandlers();
 
-			assert.deepEqual(response.sent, [[403]]);
+			assert.equal(response.sent[0][1], 403);
+			assert.equal(response.sent[0][0].code, 'forbidden');
 		});
 
 		assert.deepEqual(consoleErrors, []);

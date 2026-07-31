@@ -37,9 +37,11 @@ export default interface IGeesomeApiModule {
 
 export interface IApiModuleCommonOutput {
 	send: (data: any, status?: number) => any;
+	sendWithStatus?: (data: any, status?: number) => any;
 	setHeader: (name: string, value: string) => any;
 	writeHead: (status: number, data: any) => any;
 	stream: Stream;
+	requestId?: string;
 }
 
 export interface IApiModuleCommonInput {
@@ -52,6 +54,7 @@ export interface IApiModuleCommonInput {
 	apiKey?: IUserApiKey;
 	query?: any;
 	rawBody?: Buffer;
+	requestId?: string;
 	stream: Stream;
 }
 

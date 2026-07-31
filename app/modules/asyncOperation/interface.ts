@@ -73,6 +73,7 @@ export interface IUserAsyncOperation {
 	inProcess: boolean;
 	cancel: boolean;
 	output?: string;
+	requestId?: string;
 
 	userId: number;
 	contentId?: number;

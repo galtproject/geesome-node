@@ -12,6 +12,11 @@ API reference output with handwritten architecture, operations, and module notes
 - [Agent docs map](./agent-map.md): task-to-doc routing for agents and maintainers.
 - [Agent-friendly API recommendations](./agent-friendly-api-recommendations.md):
   public discovery, immutable asset, auth, error, async, and batch contracts.
+- [Agent-friendly API implementation plan](./agent-friendly-api-implementation-plan.md):
+  current-state gaps, delivery phases, workstreams, rollout, and verification.
+- [Agent-friendly asset API](./agent-friendly-api.md): discovery-first curl and
+  executable Node upload/verification workflow.
+- [API problem codes](./api-problems.md): stable error codes and client behavior.
 - [Active TODO](./todo.md): unfinished deterministic implementation sections.
 - [Implemented work](./implemented.md): delivered foundations and verification
   history previously mixed into the TODO.
@@ -25,7 +30,8 @@ For implementation slices, list deterministic TODO section ids with
 A running node exposes machine-readable docs pointers so users and agents can
 start with only the node URL:
 
-- `GET /v1` returns a discovery JSON document with docs links and route metadata.
+- `GET /.well-known/geesome` returns the canonical absolute public discovery
+  contract; `GET /v1` remains the backward-compatible route index.
 - `GET /v1/openapi.json` returns the OpenAPI 3 document.
 - `GET /v1/apidoc.json` returns raw apiDoc data.
 - `GET /openapi.json`, `/swagger.json`, `/api-docs.json`, and

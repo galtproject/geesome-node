@@ -340,6 +340,10 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     return this.models.StorageObject.findOne({where: {storageId}});
   }
 
+  async setStorageObjectSha256(storageId: string, sha256: string) {
+    await this.models.StorageObject.update({sha256}, {where: {storageId}});
+  }
+
   async getStorageObjectByIdentity(identityType: string, identityId: string) {
     const where = getStorageObjectIdentityWhere(identityType, identityId);
     if (!where) {

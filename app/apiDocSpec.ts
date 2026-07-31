@@ -52,19 +52,52 @@ function fieldSchema(field: any): any {
     return {type: 'string', format: 'binary'};
   }
   const mapped = TYPE_MAP[(field.type || '').toLowerCase()];
-  const base: any = mapped ? {type: mapped} : {};
+	const base: any = mapped ? {type: mapped} : {};
+	if (field.allowedValues?.length) {
+		base.enum = field.allowedValues.map((value: string) => value.replace(/^\"|\"$/g, ''));
+	}
+	if (field.defaultValue !== undefined) {
+		base.default = field.defaultValue;
+	}
   if (field.isArray) {
     return {type: 'array', items: base};
   }
   return base;
 }
 
+function objectSchema(fields: any[]): any {
+	const properties: any = {};
+	const required: string[] = [];
+	for (const field of fields) {
+		const schema = fieldSchema(field);
+		const description = stripHtml(field.description);
+		if (description) {
+			schema.description = description;
+		}
+		properties[field.field] = schema;
+		if (!field.optional) {
+			required.push(field.field);
+		}
+	}
+	return {type: 'object', properties, ...(required.length ? {required} : {})};
+}
+
+const OPERATION_SCOPES: Record<string, string[]> = {
+	AssetCreate: ['assets:write'],
+	AssetGet: ['assets:read-private'],
+	AssetBatchCreate: ['asset-batches:write'],
+	AssetBatchGet: ['asset-batches:write'],
+	AssetBatchComplete: ['asset-batches:write'],
+	OperationGet: ['operations:read'],
+	OperationCancel: ['operations:read']
+};
+
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'head'];
 
 // Build an OpenAPI 3 document from the parsed apiDoc data: paths, path params,
 // request bodies (multipart when a file field is present, else JSON), bearer
 // security when an Authorization header is documented, and summaries/tags.
-export function buildOpenApiFromApiDoc(version: string, docsStorageId?: string): any | null {
+export function buildOpenApiFromApiDoc(version: string, docsStorageId?: string, publicApiBaseUrl?: string): any | null {
   const data = getApiDocData();
   if (!data) {
     return null;
@@ -91,9 +124,12 @@ export function buildOpenApiFromApiDoc(version: string, docsStorageId?: string):
       return `{${name}}`;
     });
 
-    const operation: any = {responses: {'200': {description: 'OK'}}};
+    const operation: any = {responses: {}};
     if (endpoint.name) {
       operation.operationId = endpoint.name;
+		if (OPERATION_SCOPES[endpoint.name]) {
+			operation['x-required-scopes'] = OPERATION_SCOPES[endpoint.name];
+		}
     }
     if (endpoint.title) {
       operation.summary = endpoint.title;
@@ -112,21 +148,30 @@ export function buildOpenApiFromApiDoc(version: string, docsStorageId?: string):
     if (headerFields.some((h: any) => h.field === 'Authorization')) {
       operation.security = [{bearerAuth: []}];
     }
+		for (const field of headerFields.filter((item: any) => item.field !== 'Authorization')) {
+			operation.parameters = operation.parameters || [];
+			operation.parameters.push({name: field.field, in: 'header', required: !field.optional, schema: fieldSchema(field), description: stripHtml(field.description)});
+		}
     const body = endpoint.body || [];
     if (body.length && method !== 'get' && method !== 'head') {
       const isMultipart = body.some((b: any) => b.field === 'file' || (b.type || '').toLowerCase() === 'file');
-      const properties: any = {};
-      for (const field of body) {
-        const schema = fieldSchema(field);
-        const fieldDescription = stripHtml(field.description);
-        if (fieldDescription) {
-          schema.description = fieldDescription;
-        }
-        properties[field.field] = schema;
-      }
       const contentType = isMultipart ? 'multipart/form-data' : 'application/json';
-      operation.requestBody = {content: {[contentType]: {schema: {type: 'object', properties}}}};
+		operation.requestBody = {required: body.some((field: any) => !field.optional), content: {[contentType]: {schema: objectSchema(body)}}};
     }
+		const successGroups = endpoint.success?.fields || {};
+		for (const [status, fields] of Object.entries(successGroups)) {
+			operation.responses[status] = {description: status === '201' ? 'Created' : 'Success', content: {'application/json': {schema: objectSchema(fields as any[])}}};
+		}
+		const errorGroups = endpoint.error?.fields || {};
+		for (const status of Object.keys(errorGroups)) {
+			operation.responses[status] = {description: 'API problem', content: {'application/problem+json': {schema: {$ref: '#/components/schemas/ApiProblem'}}}};
+		}
+		if (!Object.keys(operation.responses).length) {
+			operation.responses['200'] = {description: 'OK'};
+		}
+		if (operation.security) {
+			operation.responses['403'] ||= {description: 'Insufficient scope', content: {'application/problem+json': {schema: {$ref: '#/components/schemas/ApiProblem'}}}};
+		}
 
     paths[specPath] = paths[specPath] || {};
     paths[specPath][method] = operation;
@@ -139,12 +184,29 @@ export function buildOpenApiFromApiDoc(version: string, docsStorageId?: string):
       version,
       description: "Generated from the node's apiDoc annotations. The full human reference is also published to IPFS on each boot (see x-docs-ipfs).",
     },
-    servers: [
-      {url: `/${version}`, description: 'Direct node'},
-      {url: `/api/${version}`, description: 'Behind the bundled nginx reverse proxy'},
-    ],
+    servers: getOpenApiServers(version, publicApiBaseUrl),
     'x-docs-ipfs': docsStorageId ? `/ipfs/${docsStorageId}` : null,
-    components: {securitySchemes: {bearerAuth: {type: 'http', scheme: 'bearer'}}},
+		components: {
+			securitySchemes: {bearerAuth: {type: 'http', scheme: 'bearer'}},
+			schemas: {ApiProblem: {
+				type: 'object',
+				required: ['type', 'title', 'status', 'code', 'requestId'],
+				properties: {
+					type: {type: 'string'}, title: {type: 'string'}, status: {type: 'integer'},
+					code: {type: 'string'}, detail: {type: 'string'}, requestId: {type: 'string'}
+				}
+			}}
+		},
     paths,
   };
+}
+
+function getOpenApiServers(version: string, publicApiBaseUrl?: string) {
+  if (publicApiBaseUrl) {
+    return [{url: publicApiBaseUrl, description: 'Advertised public API'}];
+  }
+  return [
+    {url: `/${version}`, description: 'Direct node'},
+    {url: `/api/${version}`, description: 'Behind the bundled nginx reverse proxy'},
+  ];
 }

@@ -24,6 +24,7 @@ import IGeesomePrivateGroupModule from "./modules/privateGroup/interface.js";
 import IGeesomeChatModule from "./modules/chat/interface.js";
 import IGeesomeImageCompositionModule from "./modules/imageComposition/interface.js";
 import IGeesomeApiModule from "./modules/api/interface.js";
+import IGeesomeAssetModule from "./modules/asset/interface.js";
 import {GeesomeEmitter} from "./events.js";
 import {
   CorePermissionName,
@@ -47,6 +48,7 @@ export interface IGeesomeApp {
     api: IGeesomeApiModule;
     content: IGeesomeContentModule,
     asyncOperation: IGeesomeAsyncOperationModule;
+    asset: IGeesomeAssetModule;
     staticId: IGeesomeStaticIdModule;
     invite: IGeesomeInviteModule;
     group: IGeesomeGroupModule;
@@ -281,6 +283,7 @@ export interface IUserApiKeyInput {
   title?: string;
   type?: string;
   permissions?: string;
+  scopes?: string[] | string;
   expiredOn?: Date | string;
   isDisabled?: boolean;
 }
