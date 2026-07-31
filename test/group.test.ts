@@ -109,14 +109,33 @@ describe("group", function () {
 			privateGroup.id,
 			'0'
 		);
+		await assert.rejects(
+			() => app.ms.group.createPost(testUser.id, {
+				groupId: privateGroup.id,
+				status: PostStatus.Published
+			}, {asyncDerivedState: false}),
+			(error: Error) => error.message === 'private_group_membership_version_required'
+		);
+		await assert.rejects(
+			() => app.ms.group.createRemotePostByObject(testUser.id, {
+				groupId: privateGroup.id
+			}),
+			(error: Error) => error.message === 'private_group_remote_post_not_supported'
+		);
 
 		let privateHookCalls = 0;
 		let publicHookCalls = 0;
+		let privateManifestResult;
 		const privateManifestHook = app.ms.privateGroup.afterPrivatePostManifestUpdate;
 		const activityPubManifestHook = app.ms.activityPub.afterPostManifestUpdate;
 		app.ms.privateGroup.afterPrivatePostManifestUpdate = async (_userId, postId) => {
 			privateHookCalls += 1;
-			return privateManifestHook.call(app.ms.privateGroup, testUser.id, postId);
+			privateManifestResult = await privateManifestHook.call(
+				app.ms.privateGroup,
+				testUser.id,
+				postId
+			);
+			return privateManifestResult;
 		};
 		app.ms.activityPub.afterPostManifestUpdate = async () => {
 			publicHookCalls += 1;
@@ -125,17 +144,24 @@ describe("group", function () {
 
 		const post = await app.ms.group.createPost(testUser.id, {
 			groupId: privateGroup.id,
-			status: PostStatus.Published
+			status: PostStatus.Published,
+			privateGroupMembershipVersion: firstMembership.version
 		}, {asyncDerivedState: false});
+		const postMembership = await app.ms.privateGroup.getPostMembership(post.id);
 
 		assert.equal(privateGroup.isPublic, false);
 		assert.equal(privateGroup.isOpen, false);
 		assert.equal(privateGroup.isEncrypted, true);
+		assert.equal(post.isEncrypted, true);
 		assert.equal(await app.ms.group.isMemberInGroup(testUser.id, privateGroup.id), true);
 		assert.equal(firstMembership.version, '1');
 		assert.equal(firstMembership.memberCount, 2);
 		assert.equal(firstMembership.deviceCount, 2);
 		assert.equal(replayedMembership.id, firstMembership.id);
+		assert.equal(postMembership.groupId, privateGroup.id);
+		assert.equal(postMembership.membershipSnapshotId, firstMembership.id);
+		assert.equal(postMembership.membershipVersion, firstMembership.version);
+		assert.equal(privateManifestResult.membershipVersion, firstMembership.version);
 		assert.equal(privateHookCalls, 1);
 		assert.equal(publicHookCalls, 0);
 		await app.ms.group.updateGroup(testUser.id, privateGroup.id, {
@@ -186,6 +212,14 @@ describe("group", function () {
 		);
 		assert.equal(secondMembership.version, '2');
 		assert.equal(secondMembership.deviceCount, 3);
+		await assert.rejects(
+			() => app.ms.group.createPost(testUser.id, {
+				groupId: privateGroup.id,
+				status: PostStatus.Published,
+				privateGroupMembershipVersion: firstMembership.version
+			}, {asyncDerivedState: false}),
+			(error: Error) => error.message === 'private_group_membership_snapshot_stale'
+		);
 
 		await app.ms.chat.revokeDevice(secondUser.id, memberDevice.publicBundle.deviceId);
 		await assert.rejects(

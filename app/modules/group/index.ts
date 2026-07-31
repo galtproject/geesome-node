@@ -1115,6 +1115,7 @@ function getModule(app: IGeesomeApp, models) {
 
 		async createPost(userId, postData, options: any = {}) {
 			postData = clone(postData);
+			const privateGroupMembershipVersion = takePrivateGroupMembershipVersion(postData);
 			log('createPost', postData);
 			const [, canCreate, canReply] = await Promise.all([
 				app.checkUserCan(userId, CorePermissionName.UserGroupManagement),
@@ -1144,6 +1145,12 @@ function getModule(app: IGeesomeApp, models) {
 			postData.authorStaticStorageId = user.manifestStaticStorageId;
 			postData.groupStorageId = group.manifestStorageId;
 			postData.groupStaticStorageId = group.manifestStaticStorageId;
+			preparePrivateGroupPostData(
+				app,
+				group,
+				postData,
+				privateGroupMembershipVersion
+			);
 
 			if(!postData.isRemote) {
 				postData.isRemote = false;
@@ -1160,6 +1167,14 @@ function getModule(app: IGeesomeApp, models) {
 
 				post = await this.addPost(postData, {transaction});
 				log('addPost');
+				await bindPrivateGroupPostMembership(
+					app,
+					userId,
+					post,
+					group,
+					privateGroupMembershipVersion,
+					transaction
+				);
 
 				await this.reconcilePostRelationCounters([post.replyToId, post.repostOfId], {transaction});
 				log('replyPostUpdate');
@@ -1246,6 +1261,9 @@ function getModule(app: IGeesomeApp, models) {
 
 			await app.ms.database.sequelize.transaction(async (transaction) => {
 				const lockedGroup = await this.lockGroupForPostWrite(postData.groupId, transaction);
+				if (isPrivateGroup(lockedGroup)) {
+					throw new Error('private_group_remote_post_not_supported');
+				}
 				const existingPost = await this.getActivePostByGroupAndManifestId(postData, {transaction});
 				if (existingPost) {
 					post = existingPost;
@@ -1433,6 +1451,13 @@ function getModule(app: IGeesomeApp, models) {
 			}
 
 			postData = clone(postData);
+			const privateGroupMembershipVersion = takePrivateGroupMembershipVersion(postData);
+			if (!isUndefined(privateGroupMembershipVersion)) {
+				throw new Error('private_group_membership_version_immutable');
+			}
+			if (isPrivateGroup(oldPost.group) && postData.isRemote === true) {
+				throw new Error('private_group_remote_post_not_supported');
+			}
 			// B5: cross-group moves are not supported. Users who want a post in another group
 			// repost it (repostOfId) or create a new post that reuses the same content attachments.
 			if (!isUndefined(postData.groupId) && Number(postData.groupId) !== Number(oldPost.groupId)) {
@@ -2332,4 +2357,49 @@ function getPostManifestHook(app: IGeesomeApp, group) {
 		throw new Error('private_group_module_required');
 	}
 	return 'afterPostManifestUpdate';
+}
+
+function takePrivateGroupMembershipVersion(postData) {
+	const membershipVersion = postData.privateGroupMembershipVersion;
+	delete postData.privateGroupMembershipVersion;
+	return membershipVersion;
+}
+
+function preparePrivateGroupPostData(
+	app: IGeesomeApp,
+	group,
+	postData,
+	membershipVersion
+) {
+	const privateGroupModule = getPrivateGroupModule(app);
+	if (!privateGroupModule?.isPrivateGroup(group)) {
+		if (!isUndefined(membershipVersion)) {
+			throw new Error('private_group_membership_version_not_supported');
+		}
+		return;
+	}
+	if (isUndefined(membershipVersion) || membershipVersion === null || membershipVersion === '') {
+		throw new Error('private_group_membership_version_required');
+	}
+	postData.isEncrypted = true;
+}
+
+async function bindPrivateGroupPostMembership(
+	app: IGeesomeApp,
+	userId,
+	post,
+	group,
+	membershipVersion,
+	transaction
+) {
+	const privateGroupModule = getPrivateGroupModule(app);
+	if (!privateGroupModule?.isPrivateGroup(group)) {
+		return;
+	}
+	await privateGroupModule.bindPostMembership(
+		userId,
+		post,
+		membershipVersion,
+		transaction
+	);
 }

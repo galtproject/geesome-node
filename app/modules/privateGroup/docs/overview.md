@@ -18,6 +18,11 @@ The current capability:
   account membership and registered non-revoked public device bundles;
 - serializes snapshot updates under the group row lock, rejects stale expected
   versions, and returns the current snapshot for an idempotent retry;
+- requires every accepted private-group post to bind to the current membership
+  snapshot in the same transaction that creates the post;
+- rejects stale snapshot versions, authors absent from the selected snapshot,
+  and remote private-post imports that do not yet carry a verified membership
+  contract;
 - leaves legacy `GroupType.PersonalChat` and browser-first direct `ChatEvent`
   behavior unchanged.
 
@@ -39,10 +44,10 @@ explicitly. Public integrations must continue to use
 
 ## Current Limitations
 
-The module does not yet expose browser-facing membership routes, bind snapshots
-to private posts, run membership/key transitions, or migrate legacy chat
-events. Those capabilities remain gated by the secure-chat implementation plan
-and multi-node browser verification.
+The module does not yet expose browser-facing membership routes, run
+membership/key transitions, replicate native private posts, or migrate legacy
+chat events. Those capabilities remain gated by the secure-chat implementation
+plan and multi-node browser verification.
 
 Enabling the initial capability is intended for development and compatibility
 testing. It does not make private group chat ready for users.

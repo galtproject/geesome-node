@@ -7,6 +7,7 @@ export interface IPrivateGroupPostManifestResult {
 	groupId: number;
 	postId: number;
 	private: true;
+	membershipVersion: string;
 }
 
 export interface IPrivateGroupMembershipDevice {
@@ -29,6 +30,14 @@ export interface IPrivateGroupMembershipSnapshot {
 	createdAt?: Date;
 }
 
+export interface IPrivateGroupPostMembership {
+	id: number;
+	postId: number;
+	groupId: number;
+	membershipSnapshotId: number;
+	membershipVersion: string;
+}
+
 export default interface IGeesomePrivateGroupModule {
 	isEnabled(): boolean;
 	isPrivateGroup(group: Partial<IGroup> | null | undefined): boolean;
@@ -45,6 +54,13 @@ export default interface IGeesomePrivateGroupModule {
 		groupId: number,
 		version?: string | number
 	): Promise<IPrivateGroupMembershipSnapshot | null>;
+	bindPostMembership(
+		userId: number,
+		post: Partial<IPost>,
+		membershipVersion: string | number,
+		transaction: any
+	): Promise<IPrivateGroupPostMembership>;
+	getPostMembership(postId: number, transaction?: any): Promise<IPrivateGroupPostMembership | null>;
 	afterPrivatePostManifestUpdate(
 		userId: number,
 		postId: number

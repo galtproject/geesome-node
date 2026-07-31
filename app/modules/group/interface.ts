@@ -433,6 +433,7 @@ export interface IPostInput {
 	contents?: IContent[];
 	contentRichText?: RichTextDocument;
 	contentRichTextFileName?: string;
+	privateGroupMembershipVersion?: string | number;
 	view?: string;
 	type?: string;
 	size?: string;
