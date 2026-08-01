@@ -164,3 +164,6 @@ for the transport and delivery analysis behind these boundaries. Group chat
 uses the separate
 [MLS protocol decision](../../../../docs/chat-group-e2ee-protocol-decision.md);
 the node remains an opaque delivery service and does not own MLS private state.
+Direct and multi-member chat should use a dedicated conversation aggregate
+rather than the social publishing tables; see the
+[conversation data model review](./conversation-data-model-review.md).
