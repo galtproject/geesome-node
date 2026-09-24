@@ -9,7 +9,7 @@ const helperDir = path.dirname(fileURLToPath(import.meta.url));
 
 function files(root, source = false) {
   const result = {};
-  const excluded = new Set(['node_modules', '.git', 'dist', '.parcel-cache', '.cache', 'coverage']);
+  const excluded = new Set(['node_modules', '.git', '.parcel-cache', '.cache']);
   function walk(relative, ancestors) {
     const full = path.join(root, relative);
     if (source && relative && ['GEESOME_UI_DIST', 'GEESOME_FRONTEND_PUBLISH_DIR'].some(key =>
@@ -24,7 +24,8 @@ function files(root, source = false) {
     if (stat.isDirectory()) {
       const next = new Set([...ancestors, real]);
       for (const name of fs.readdirSync(full).sort()) {
-        if (name === manifestName || (source && excluded.has(name))) {
+        if (name === manifestName || (source && (excluded.has(name) ||
+          (!relative && ['dist', 'coverage'].includes(name))))) {
           continue;
         }
         walk(path.join(relative, name), next);

@@ -91,6 +91,11 @@ test('image and persistent server builds are reused only for matching inputs and
     assert.match(run({GEESOME_UI_BUILD_ENV_KEYS: 'CUSTOM_TITLE', CUSTOM_TITLE: 'one'}), /Reusing verified server frontend/);
     run({GEESOME_UI_BUILD_ENV_KEYS: 'CUSTOM_TITLE', CUSTOM_TITLE: 'two'});
     assert.equal(builds(), 11);
+    // Only the root output directory is excluded; src/dist is valid source.
+    fs.mkdirSync(path.join(ui, 'src/dist'), {recursive: true});
+    fs.writeFileSync(path.join(ui, 'src/dist/component.js'), 'changed');
+    run({GEESOME_UI_BUILD_ENV_KEYS: 'CUSTOM_TITLE', CUSTOM_TITLE: 'two'});
+    assert.equal(builds(), 12);
   } finally {
     fs.rmSync(root, {recursive: true, force: true});
   }
