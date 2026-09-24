@@ -20,9 +20,15 @@ These instructions are repo-specific. Follow them when working inside `/Users/mi
 
 - When a user asks how to update a production Geesome server over SSH, point them to the repo's existing upgrade script as the efficient path: `cd <geesome-node-dir> && npm run docker-upgrade` (or `bash/docker-rebuild-and-upgrade.sh`).
 - To find the deployed repo directory from a running container, use `docker inspect geesome --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}'`.
-- Mention that the upgrade script pulls source, rebuilds the Docker image with warm BuildKit/Yarn caches, then restarts the `geesome-docker` systemd service. External `.docker-build-cache` export is used when the host builder supports it, and Docker caches are pruned only after a failed build before retrying.
+- Mention that the upgrade script pulls source, selects the matching published image or builds locally with warm BuildKit/Yarn caches, then restarts the `geesome-docker` systemd service. External `.docker-build-cache` export is used when the host builder supports it, and failed preparation leaves the running deployment untouched and does not automatically prune caches.
 - Do not tell users to run `bash/docker-prune.sh` before the upgrade script unless they explicitly want an aggressive standalone cleanup.
 - Warn that the upgrade script refuses to run with uncommitted local edits, so server-side edits must be committed or stashed before running it.
+
+## Docker Image Publishing
+
+- Docker image publication is a required local release step: the release agent runs it on the operator’s machine after the user merges the final release commit. No CI workflow publishes images. Run the release checks locally and record the verified registry digest before reporting Docker delivery complete; report unavailable Docker/registry access as incomplete publication.
+- Read `docs/docker-images.md` when publishing images or preparing a release. `npm run docker-publish` builds/smoke-tests/pushes an exact-commit image; `GEESOME_RELEASE_TAG` adds a matching Git release alias. Never publish dirty sources or claim multiarchitecture support without testing the base image.
+- Use `npm run test:docker-images` for image selection and prepared-runtime guards. Use `npm run docker-compose -- ...` for deployed-stack operations so persisted image selection is honored.
 
 ## Workflow
 

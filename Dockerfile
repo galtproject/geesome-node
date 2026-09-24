@@ -42,6 +42,9 @@ RUN --mount=type=cache,target=/usr/local/share/.cache/yarn,sharing=locked \
     bash bash/publish-frontend-dist.sh
 
 FROM node-base AS runtime
+ARG GEESOME_BUILD_REVISION=unknown
+LABEL org.opencontainers.image.revision=$GEESOME_BUILD_REVISION
+LABEL org.opencontainers.image.source="https://github.com/galtproject/geesome-node"
 
 COPY --from=dependencies /geesome-node/node_modules ./node_modules
 COPY . .

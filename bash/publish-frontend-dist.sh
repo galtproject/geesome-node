@@ -94,6 +94,10 @@ elif [ -n "$CACHE_ENTRY" ] && node "$MANIFEST_TOOL" verify "$CACHE_ENTRY" "$INPU
   echo "Reusing BuildKit frontend cache ($INPUT_HASH)."
   UI_DIST="$CACHE_ENTRY"
 else
+  if [ "${GEESOME_FRONTEND_ALLOW_BUILD:-1}" = 0 ]; then
+    echo 'Prepared frontend missing, corrupt or incompatible with runtime settings; rebuild the image.' >&2
+    exit 1
+  fi
   echo "No matching frontend build; building from $UI_ROOT ($INPUT_HASH)..."
   # Unmanifested dist is not evidence that these sources were built.
   rm -rf "$UI_DIST"
