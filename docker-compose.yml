@@ -3,7 +3,7 @@ services:
     container_name: geesome
     image: ${GEESOME_LOCAL_IMAGE:-geesome-node-web:local}
     build:
-      context: .
+      context: ${GEESOME_BUILD_CONTEXT:-.}
       args:
         GEESOME_BUILD_REVISION: ${GEESOME_BUILD_REVISION:-unknown}
     command: npm run in-docker-start

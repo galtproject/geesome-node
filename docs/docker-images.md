@@ -59,7 +59,8 @@ platform will not be overwritten. Unsupported server platforms fall back to a
 local build in auto mode, which may itself fail if the base image is unavailable.
 
 Build inputs must be committed. Ordinary untracked files and modified submodules
-are rejected; ignored environment/cache files are not image source inputs.
+are rejected. Build context is exported from Git (including committed submodules),
+so ignored environment files, secrets and caches never enter the source snapshot.
 Custom frontend code belongs in the built source/dependency revision. Prepared
 runtime rejects missing/corrupt assets or incompatible build settings rather than
 installing packages or recompiling. For deliberate source-based experiments only,
@@ -88,7 +89,8 @@ GEESOME_IMAGE_MODE=build npm run docker-upgrade
 Preparation finishes before restart. Failed preparation preserves the current
 service and selected image. The selected registry digest (or local image ID) is
 stored atomically in ignored `.docker-deploy/image`; its predecessor is retained
-in `previous-image`. Compose starts with `--no-build` and `pull_policy: never`.
+in `previous-image` and protected by the local `geesome-node-rollback:previous`
+tag from dangling-image pruning. Compose starts with `--no-build` and `pull_policy: never`.
 The service launcher reads this state after a reboot as well. It does not change
 user `.env` or persistent storage paths.
 

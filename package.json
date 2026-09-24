@@ -68,7 +68,7 @@
     "test:docker-images": "node --test test/dockerImageDeployment.test.mjs",
     "test:docker-retention": "bash test/dockerRetention.test.sh",
     "testCoverage": "GROUP_DERIVED_STATE_ASYNC=0 node --import tsx --experimental-global-customevent ./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha test/**/*.test.ts && nyc report",
-    "docker": "STORAGE_STAGING=$PWD/.docker-data/ipfs-staging STORAGE_DATA=$PWD/.docker-data/ipfs GEESOME_DATA=$PWD/.docker-data/geesome-data GEESOME_FRONTEND_DIST=$PWD/.docker-data/geesome-frontend docker compose up",
+    "docker": "STORAGE_STAGING=$PWD/.docker-data/ipfs-staging STORAGE_DATA=$PWD/.docker-data/ipfs GEESOME_DATA=$PWD/.docker-data/geesome-data GEESOME_FRONTEND_DIST=$PWD/.docker-data/geesome-frontend bash bash/docker-compose.sh up --no-build",
     "docker-publish": "bash bash/docker-publish.sh",
     "docker-prepare": "bash bash/docker-prepare-image.sh",
     "docker-compose": "bash bash/docker-compose.sh",

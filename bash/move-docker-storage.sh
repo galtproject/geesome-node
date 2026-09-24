@@ -498,7 +498,7 @@ stop_stack() {
   fi
 
   if command -v docker >/dev/null 2>&1; then
-    docker compose down
+    bash "$ROOT_DIR/bash/docker-compose.sh" down
     return
   fi
 
@@ -538,10 +538,10 @@ start_stack() {
   if systemd_service_exists; then
     systemctl start "$SERVICE_NAME"
   else
-    docker compose up -d
+    bash "$ROOT_DIR/bash/docker-compose.sh" up -d --no-build
   fi
 
-  docker compose ps || true
+  bash "$ROOT_DIR/bash/docker-compose.sh" ps || true
 }
 
 remove_backups_if_requested() {

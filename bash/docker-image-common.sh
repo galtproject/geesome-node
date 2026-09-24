@@ -32,3 +32,13 @@ validate_image() {
     return 1
   fi
 }
+archive_sources() {
+  local context
+  context="$(mktemp -d)"
+  git -C "$GEESOME_ROOT" archive HEAD | tar -x -C "$context"
+  # Include committed submodule contents; never include ignored local secrets,
+  # caches or other files accidentally admitted by a broad Docker COPY.
+  GEESOME_ARCHIVE_ROOT="$context" git -C "$GEESOME_ROOT" submodule foreach --quiet --recursive \
+    'mkdir -p "$GEESOME_ARCHIVE_ROOT/$displaypath"; git archive HEAD | tar -x -C "$GEESOME_ARCHIVE_ROOT/$displaypath"'
+  printf '%s\n' "$context"
+}

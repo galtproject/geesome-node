@@ -14,7 +14,8 @@ test('pull/build modes, immutable state, dirty guards and failure preservation',
   fs.mkdirSync(repo);
   fs.mkdirSync(bin);
   fs.cpSync(path.join(source, 'bash'), path.join(repo, 'bash'), {recursive: true});
-  fs.writeFileSync(path.join(repo, '.gitignore'), '.docker-deploy\n.docker-data\n.docker-build-cache\n');
+  fs.writeFileSync(path.join(repo, '.gitignore'), '.docker-deploy\n.docker-data\n.docker-build-cache\nsecret.key\n');
+  fs.writeFileSync(path.join(repo, 'secret.key'), 'ignored test fixture');
   fs.writeFileSync(path.join(repo, 'docker-compose.yml'), 'services: {}\n');
   const command = (cmd, args, env = {}) => spawnSync(cmd, args, {cwd: repo, env: {...process.env, ...env}, encoding: 'utf8'});
   for (const args of [['init'], ['config', 'user.name', 'Test'], ['config', 'user.email', 'test@example.invalid'], ['add', '.'], ['commit', '-m', 'fixture']]) {
@@ -51,10 +52,12 @@ case "$1 $2" in
       exit 1
     fi
     echo 'manifest unknown' >&2; exit 1 ;;
-  'buildx build') : ;;
+  'buildx build')
+    for arg in "$@"; do :; done
+    test ! -e "$arg/secret.key" ;;
   'tag '*|'push '*) : ;;
   'compose config') echo local-build ;;
-  'compose build') test "\${MOCK_BUILD:-ok}" = ok ;;
+  'compose build') test ! -e "$GEESOME_BUILD_CONTEXT/secret.key"; test "\${MOCK_BUILD:-ok}" = ok ;;
   'compose --project-directory')
     while [ "$#" -gt 0 ]; do
       if [ "$1" = -f ]; then

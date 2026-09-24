@@ -40,7 +40,13 @@ if [ -z "$SELECTED" ]; then
     free -m | awk '/^Mem:/ {ram=$2} /^Swap:/ {if (ram+$2 < 8192) print "Warning: local image build has less than 8 GiB RAM + swap."}' >&2
   fi
   export GEESOME_BUILD_REVISION="$REVISION"
+  export GEESOME_LOCAL_IMAGE="${GEESOME_LOCAL_IMAGE:-geesome-node-web:local}"
+  GEESOME_BUILD_CONTEXT="$(archive_sources)"
+  export GEESOME_BUILD_CONTEXT
+  trap 'rm -rf "$GEESOME_BUILD_CONTEXT"' EXIT
   bash bash/docker-build.sh
+  rm -rf "$GEESOME_BUILD_CONTEXT"
+  trap - EXIT
   # Compose resolves the original local build name, not a prior deployment override.
   LOCAL_IMAGE="${GEESOME_LOCAL_IMAGE:-geesome-node-web:local}"
   SELECTED="$(docker image inspect --format '{{.Id}}' "$LOCAL_IMAGE")"
@@ -50,7 +56,10 @@ mkdir -p .docker-deploy
 STAGED="$(mktemp .docker-deploy/image.XXXXXX)"
 trap 'rm -f "$STAGED"' EXIT
 printf '%s\n' "$SELECTED" > "$STAGED"
-if [ -f .docker-deploy/image ]; then
+if [ -f .docker-deploy/image ] && [ "$(cat .docker-deploy/image)" != "$SELECTED" ]; then
+  # Preserve one rollback image from dangling-image retention. Re-selecting the
+  # same image must not erase the previous deployment reference.
+  docker tag "$(cat .docker-deploy/image)" geesome-node-rollback:previous
   cp .docker-deploy/image .docker-deploy/previous-image
 fi
 mv "$STAGED" .docker-deploy/image

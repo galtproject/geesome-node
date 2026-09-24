@@ -8,7 +8,8 @@ PLATFORM="${GEESOME_PUBLISH_PLATFORM:-linux/amd64}"
 case "$PLATFORM" in linux/amd64|linux/arm64) ;; *) echo 'Publish one supported Linux platform per invocation.' >&2; exit 1 ;; esac
 REMOTE="$REPOSITORY:sha-$REVISION"
 ERROR_LOG="$(mktemp)"
-trap 'rm -f "$ERROR_LOG"' EXIT
+BUILD_CONTEXT=""
+trap 'rm -f "$ERROR_LOG"; if [ -n "$BUILD_CONTEXT" ]; then rm -rf "$BUILD_CONTEXT"; fi' EXIT
 # Validate the release alias before any registry mutation.
 if [ -n "${GEESOME_RELEASE_TAG:-}" ]; then
   if ! [[ "$GEESOME_RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || \
@@ -30,8 +31,9 @@ else
     cat "$ERROR_LOG" >&2
     exit 1
   fi
+  BUILD_CONTEXT="$(archive_sources)"
   docker buildx build --platform "$PLATFORM" --load \
-    --build-arg GEESOME_BUILD_REVISION="$REVISION" -t "$LOCAL" .
+    --build-arg GEESOME_BUILD_REVISION="$REVISION" -t "$LOCAL" "$BUILD_CONTEXT"
   validate_image "$LOCAL" "$REVISION" "$PLATFORM"
   PUSH_NEEDED=1
 fi
