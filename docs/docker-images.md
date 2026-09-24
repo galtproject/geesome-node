@@ -51,12 +51,13 @@ An already published commit is reused for a release alias.
 
 ## Platforms and custom builds
 
-The initial default is `linux/amd64`, including when publishing from an Apple
+The initial supported build platform is `linux/amd64`, including when publishing from an Apple
 Silicon Mac through Docker emulation. A single invocation publishes one platform;
-this is not a multiarchitecture index. Only use `linux/arm64` after confirming that
-the base image and native dependencies support it; an existing SHA tag for another
-platform will not be overwritten. Unsupported server platforms fall back to a
-local build in auto mode, which may itself fail if the base image is unavailable.
+this is not a multiarchitecture index. The current base image is amd64-only;
+the publisher and local-build fallback reject other platforms rather than label
+an incompatible root filesystem as arm64. A server on another architecture can
+only use a separately prepared matching image in pull mode until its base image
+and native dependencies are verified and support is added.
 
 Build inputs must be committed. Ordinary untracked files and modified submodules
 are rejected. Build context is exported from Git (including committed submodules),

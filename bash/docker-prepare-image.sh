@@ -36,6 +36,10 @@ if [ "$MODE" != build ]; then
   trap - EXIT
 fi
 if [ -z "$SELECTED" ]; then
+  if [ "$PLATFORM" != linux/amd64 ]; then
+    echo 'Local fallback currently requires linux/amd64; the base image is not verified for this server architecture.' >&2
+    exit 1
+  fi
   if command -v free >/dev/null 2>&1; then
     free -m | awk '/^Mem:/ {ram=$2} /^Swap:/ {if (ram+$2 < 8192) print "Warning: local image build has less than 8 GiB RAM + swap."}' >&2
   fi

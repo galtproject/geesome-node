@@ -29,7 +29,7 @@ test('pull/build modes, immutable state, dirty guards and failure preservation',
 set -eu
 printf '%s\\n' "$*" >> "$MOCK_LOG"
 case "$1 $2" in
-  'info --format') echo amd64 ;;
+  'info --format') echo "\${MOCK_ARCH:-amd64}" ;;
   'pull --platform')
     case "\${MOCK_PULL:-ok}" in
       ok) exit 0 ;;
@@ -82,7 +82,7 @@ esac
     assert.equal(result.status, 0, result.stderr);
     assert.match(fs.readFileSync(log, 'utf8'), /pull_policy: never/);
     assert.match(fs.readFileSync(log, 'utf8'), /@sha256:bbbb/);
-    for (const overrides of [{MOCK_REVISION: 'wrong'}, {GEESOME_IMAGE_MODE: 'pull', MOCK_PULL: 'missing'}, {MOCK_PULL: 'network', MOCK_BUILD: 'fail'}]) {
+    for (const overrides of [{MOCK_REVISION: 'wrong'}, {MOCK_ARCH: 'aarch64', MOCK_PULL: 'missing'}, {GEESOME_IMAGE_MODE: 'pull', MOCK_PULL: 'missing'}, {MOCK_PULL: 'network', MOCK_BUILD: 'fail'}]) {
       assert.notEqual(prepare(overrides).status, 0);
       assert.equal(fs.readFileSync(state, 'utf8').trim(), digest);
     }
@@ -119,7 +119,7 @@ esac
     result = publish({MOCK_REMOTE: 'existing', GEESOME_RELEASE_TAG: 'v0.4.7'});
     assert.equal(result.status, 0, result.stderr);
     assert.match(fs.readFileSync(log, 'utf8'), /push ghcr.io\/galtproject\/geesome-node:v0.4.7/);
-    for (const overrides of [{MOCK_REMOTE: 'denied'}, {GEESOME_RELEASE_TAG: 'v9.9.9'}, {MOCK_REMOTE: 'existing', MOCK_REVISION: 'wrong'}]) {
+    for (const overrides of [{MOCK_REMOTE: 'denied'}, {GEESOME_PUBLISH_PLATFORM: 'linux/arm64'}, {GEESOME_RELEASE_TAG: 'v9.9.9'}, {MOCK_REMOTE: 'existing', MOCK_REVISION: 'wrong'}]) {
       fs.writeFileSync(log, '');
       assert.notEqual(publish(overrides).status, 0);
       assert.doesNotMatch(fs.readFileSync(log, 'utf8'), /push /);

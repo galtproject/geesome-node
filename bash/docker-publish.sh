@@ -5,7 +5,7 @@ cd "$GEESOME_ROOT"
 REVISION="$(clean_revision)"
 REPOSITORY="$(image_registry)"
 PLATFORM="${GEESOME_PUBLISH_PLATFORM:-linux/amd64}"
-case "$PLATFORM" in linux/amd64|linux/arm64) ;; *) echo 'Publish one supported Linux platform per invocation.' >&2; exit 1 ;; esac
+case "$PLATFORM" in linux/amd64) ;; *) echo 'Only linux/amd64 is verified with the current geesome-base image.' >&2; exit 1 ;; esac
 REMOTE="$REPOSITORY:sha-$REVISION"
 ERROR_LOG="$(mktemp)"
 BUILD_CONTEXT=""
