@@ -17,6 +17,6 @@ for ((attempt = 1; attempt <= READY_ATTEMPTS; attempt += 1)); do
 done
 
 echo "GeeSome did not become ready after $((READY_ATTEMPTS * READY_INTERVAL)) seconds." >&2
-docker compose ps >&2 || true
-docker compose logs --tail=100 web >&2 || true
+bash "$(dirname "$0")/docker-compose.sh" ps >&2 || true
+bash "$(dirname "$0")/docker-compose.sh" logs --tail=100 web >&2 || true
 exit 1
