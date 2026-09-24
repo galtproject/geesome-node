@@ -164,9 +164,9 @@ Note: You can generate a static site from Geesome groups by UI and get IPNS or I
 ```
 npm run docker-upgrade
 ```
-This runs `bash/docker-rebuild-and-upgrade.sh`: it pulls the latest source, rebuilds the Docker image, and restarts the `geesome-docker` systemd service.
+This runs `bash/docker-rebuild-and-upgrade.sh`: it pulls the latest source, selects a verified published image for that Git commit (or builds locally when unavailable), and restarts the `geesome-docker` systemd service.
 
-The Docker rebuild keeps dependency and BuildKit caches warm, so source-only updates should not redownload packages. When the Docker builder supports external cache exports, the build also imports/exports `.docker-build-cache`; otherwise it falls back to normal Docker layer caching. If the first build fails, the script prunes Docker caches and retries once.
+The Docker rebuild keeps dependency and BuildKit caches warm, so source-only updates should not redownload packages. When the Docker builder supports external cache exports, the build also imports/exports `.docker-build-cache`; otherwise it falls back to normal Docker layer caching. A failed image preparation stops the upgrade before service restart; caches are not automatically pruned.
 
 Warning: the upgrade script refuses to run with uncommitted local git changes. Commit or stash server-side edits before running it.
 
@@ -339,6 +339,10 @@ Existing services:
 - Sqlite
 - ffmpeg
 - Cerbot(Letsencrypt)
+
+## Publishing Docker images for a release
+
+See [Docker image publication and deployment](docs/docker-images.md) for registry login, SHA-tag publication, release aliases, CI, platform support and rollback.
 
 ## Local install and run
 ```

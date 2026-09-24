@@ -23,3 +23,5 @@ test/.chat-ipfs
 test/.chat-ipfs-data
 test/.postgres-data
 test/.geesome-test-output
+
+.docker-deploy

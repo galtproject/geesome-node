@@ -1,0 +1,51 @@
+name: Publish Docker image
+on:
+  push:
+    branches: [dev, master]
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: docker-publish-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'galtproject/geesome-node'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.21.1'
+      - uses: docker/setup-buildx-action@v3
+      - name: Operational regressions
+        run: |
+          node --test test/dockerImageDeployment.test.mjs
+          npm run test:frontend-dist-publish
+          npm run test:frontend-cache:docker
+          npm run test:docker-retention
+      - name: Full backend suite
+        run: npm run test:docker
+      - name: Registry login
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Build, smoke-test and publish
+        env:
+          GEESOME_PUBLISH_PLATFORM: linux/amd64
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            export GEESOME_RELEASE_TAG="$GITHUB_REF_NAME"
+          fi
+          npm run docker-publish
+      - name: Test service cleanup
+        if: always()
+        run: docker compose -f test/docker-compose.yml down
