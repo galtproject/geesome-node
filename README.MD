@@ -342,7 +342,7 @@ Existing services:
 
 ## Publishing Docker images for a release
 
-See [Docker image publication and deployment](docs/docker-images.md) for registry login, SHA-tag publication, release aliases, CI, platform support and rollback.
+See [Docker image publication and deployment](docs/docker-images.md) for registry login, SHA-tag publication, release aliases, local release checks, platform support and rollback. The release agent builds and publishes from the local machine after the final merge; GitHub Actions does not publish Docker images.
 
 ## Local install and run
 ```

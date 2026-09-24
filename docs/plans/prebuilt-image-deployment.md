@@ -112,20 +112,20 @@ apply build-memory advice only when a local build is actually needed. Retain
 ownership checks, storage mounts, migrations and safe retention. Preserve the
 previous image for manual recovery; do not promise automatic DB rollback.
 
-### D. CI publication and rollout
+### D. Local release publication and rollout
 
-Depends on A; pipeline definition can be drafted alongside B. Inputs: publisher,
-registry credentials/permissions, supported-platform evidence. Outputs: CI using
-the same publisher and operator documentation.
-Write scope: workflow files and docs. Forbidden: publishing untrusted fork code
-with registry credentials or automatically publishing a GitHub release.
+Depends on A. Inputs: publisher, local Docker, registry credentials and supported
+platform evidence. Outputs: a verified image published by the release agent from
+the operator’s local machine, with source SHA, digest and release test evidence.
+Write scope: release instructions and agent workflow docs. No automatic CI image
+build/publication is configured. Never merge a PR as part of publication.
 
-Publish images for selected trusted dev/master commits and release tags. The
-master merge commit must get its own SHA image; a branch-head image is not an
-exact match. CI publishes only after the required tests and image smoke pass.
-First land and test the scripts, publish a known revision, then exercise install
-and upgrade against it. Image publication can initially be manual through the
-same script; CI is automation of that path, not a separate implementation.
+After the user merges the release into master, run release tests locally and
+publish that exact clean commit with `npm run docker-publish`. A branch-head image
+does not match the merge commit. Add the version alias from the matching release
+tag. Verify registry references and record the digest before handing off server
+upgrade instructions. Missing local Docker/registry access leaves publication
+incomplete; the existing server build fallback still handles unpublished commits.
 
 ## Acceptance tests
 
@@ -151,16 +151,15 @@ CI workflow or installation behavior is changed by this document.
 Implementation handoff must record commands/tests, source SHA, published digest,
 verified platforms, real-image smoke result, fallback behavior and remaining
 limitations. Commit each implementation slice, open/update PRs, and leave merges
-to the user. Publishing credentials are supplied by the operator/CI secret store.
+to the user. Publishing credentials are supplied by the operator’s local credential store.
 
 ## Implementation progress (#1340)
 
 Publisher, prepared runtime, selection modes, persisted image state, systemd
-integration, installer Compose-plugin update, CI and release instructions are
+integration, installer Compose-plugin update and local release instructions are
 implemented. SHA tags are reused rather than rebuilt when already published;
-version aliases require an exact matching Git tag/image. Publication is serialized
-by commit in CI; external manual publishers must not race to create the same tag.
+version aliases require an exact matching Git tag/image. The release agent publishes locally; concurrent publishers must not race to create the same tag.
 Operational tests cover pull/build fallback, immutable selection, dirty sources,
 failed preparation and prepared-runtime build prohibition. Production linux/amd64 image builds, real API startup and loopback-registry
 publication passed; evidence is recorded in `docs/implemented.md`. GHCR permissions
-and a live Ubuntu/systemd installation remain operator/CI validation.
+and a live Ubuntu/systemd installation remain operator validation.

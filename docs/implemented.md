@@ -462,8 +462,9 @@ image is retained with a rollback tag; database rollback is a separate operation
 
 `npm run docker-publish` builds and smoke-tests before registry publication. It
 reuses existing SHA images and checks release aliases against exact Git tags.
-Prepared runtime skips dependency installation and frontend compilation. Trusted
-branch/tag CI runs tests and the same publisher. Release instructions are in
+Prepared runtime skips dependency installation and frontend compilation. The
+release agent runs tests and publishes locally after the final user merge; no CI
+image publication is configured. Release instructions are in
 [Docker images](docker-images.md). The verified initial build platform is
 linux/amd64; the current base image is amd64-only.
 
@@ -486,7 +487,7 @@ A second publisher invocation reused that registry image, passed startup smoke
 and returned the same digest without a build or SHA-tag push.
 
 GHCR publication/organization package permissions and a live Ubuntu/systemd
-installation were not exercised locally. CI publication requires the configured
-repository/package permissions. Full backend tests are a CI publication gate;
+installation were not exercised locally. Local publication requires registry
+package-write access. Full backend tests are a required local release gate;
 this operational change was validated locally with targeted tests and real image
 startup rather than repeating the prior release's 639-test suite.

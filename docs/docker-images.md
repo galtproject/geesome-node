@@ -8,24 +8,31 @@ The publisher labels each image with its revision/source and smoke-tests the rea
 prepared runtime against disposable PostgreSQL and Kubo services before pushing.
 It never merges a PR or creates a Git release/tag.
 
-1. Merge tested release code/metadata into master. Check out the exact resulting
+Docker publication is a required local step performed by the release agent on
+the operator’s machine. GitHub Actions does not build or publish release images.
+Do not report Docker delivery complete until the registry digest is verified.
+
+1. After the user merges tested release code/metadata into master, check out the exact resulting
    commit or its release tag, initialize submodules, and ensure the working tree
    is clean. A topic-branch image does not match the later master merge commit.
-2. Authenticate to the registry. For manual GHCR publication use a credential
+2. Run the release checks locally, including `npm run test:docker` and the
+   operational regression commands listed below, for the release revision. Record
+   their results; the publisher’s startup smoke does not replace the full suite.
+3. Authenticate to the registry. For local GHCR publication use a credential
    with package publication rights; keep it in your credential manager/environment:
 
    ```bash
    printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
    ```
 
-3. Build, smoke-test and publish (Docker with buildx/Compose plugin, Git and curl
+4. Build, smoke-test and publish (Docker with buildx/Compose plugin, Git and curl
    are required):
 
    ```bash
    GEESOME_PUBLISH_PLATFORM=linux/amd64 npm run docker-publish
    ```
 
-4. To also publish the version alias, run from the exact Git release tag:
+5. To also publish the version alias, run from the exact Git release tag:
 
    ```bash
    GEESOME_RELEASE_TAG="$(git describe --tags --exact-match)" npm run docker-publish
@@ -36,18 +43,24 @@ It never merges a PR or creates a Git release/tag.
    The final command prints the immutable registry digest. Record it with the
    release evidence. No `latest` tag is used for deployment.
 
+6. Verify the published SHA tag and version alias with `docker buildx imagetools
+   inspect ghcr.io/galtproject/geesome-node:sha-<commit>` and the corresponding
+   `:vX.Y.Z` reference. Record the source commit, version, digest, platform and
+   test results in the release handoff. Ensure the server checks out that same
+   commit before upgrading.
+
 The default registry is configurable with `GEESOME_IMAGE_REPOSITORY`. Ensure the
 package is publicly readable if unauthenticated installation is expected; otherwise
 run `docker login` as the same server account that performs deployment. Missing
 registry permission is not proof that a tag is absent: the publisher fails closed
 on ambiguous inspection errors.
 
-The trusted-branch/tag workflow `.github/workflows/docker-publish.yml` uses the
-same script after operational and full backend tests. It publishes dev/master
-commits and version tags with `GITHUB_TOKEN` package-write permission, and supports
-manual dispatch. Forks are excluded. Configure repository/package permissions
-before the first workflow run. Concurrent runs are serialized by Git revision.
-An already published commit is reused for a release alias.
+No push, Git tag or GitHub release automatically publishes a Docker image.
+The release agent runs the commands above locally after the final merge; an
+already published commit is reused for a version alias. Do not run concurrent
+publishers for the same commit. If Docker or registry access is unavailable,
+report image publication as incomplete rather than relying on CI. Server-side
+build fallback remains available for revisions without a published image.
 
 ## Platforms and custom builds
 

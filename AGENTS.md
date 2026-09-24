@@ -26,6 +26,7 @@ These instructions are repo-specific. Follow them when working inside `/Users/mi
 
 ## Docker Image Publishing
 
+- Docker image publication is a required local release step: the release agent runs it on the operator’s machine after the user merges the final release commit. No CI workflow publishes images. Run the release checks locally and record the verified registry digest before reporting Docker delivery complete; report unavailable Docker/registry access as incomplete publication.
 - Read `docs/docker-images.md` when publishing images or preparing a release. `npm run docker-publish` builds/smoke-tests/pushes an exact-commit image; `GEESOME_RELEASE_TAG` adds a matching Git release alias. Never publish dirty sources or claim multiarchitecture support without testing the base image.
 - Use `npm run test:docker-images` for image selection and prepared-runtime guards. Use `npm run docker-compose -- ...` for deployed-stack operations so persisted image selection is honored.
 
