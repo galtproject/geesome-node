@@ -33,6 +33,7 @@ describe("content headers", function () {
 		let statusCode = 0;
 		let ended = false;
 		const contentSize = 5;
+		const sha256 = 'a'.repeat(64);
 		const content = await contentModule({
 			checkModules: () => null,
 			ms: {
@@ -48,6 +49,7 @@ describe("content headers", function () {
 				database: {
 					getSharedStorageMetadataByStorageId: async () => ({
 						storageId: "file.txt",
+						sha256,
 						mimeType: ContentMimeType.Text,
 						size: contentSize
 					})
@@ -78,6 +80,10 @@ describe("content headers", function () {
 		assert.equal(headers["x-ipfs-datasize"], contentSize);
 		assert.equal(headers["Content-Type"], ContentMimeType.Text);
 		assert.equal(headers["X-Content-Type-Options"], "nosniff");
+		assert.equal(headers["ETag"], '"file.txt"');
+		assert.equal(headers["X-Geesome-Storage-Id"], "file.txt");
+		assert.equal(headers["Content-Digest"], `sha-256=:${Buffer.from(sha256, 'hex').toString('base64')}:`);
+		assert.equal(headers["cache-control"], "public, max-age=31536000, immutable");
 		assert.equal(ended, true);
 	});
 
@@ -536,7 +542,8 @@ describe("content headers", function () {
 			setHeader: () => null
 		} as any, "missing.txt");
 
-		assert.deepEqual(sends, [[404]]);
+		assert.equal(sends[0][0].code, 'content_not_found');
+		assert.equal(sends[0][1], 404);
 		assert.equal(streamRequested, false);
 		assert.equal(statOptions.attempts, 0);
 	});
@@ -763,7 +770,8 @@ describe("content headers", function () {
 			setHeader: () => null
 		} as any, "missing.txt");
 
-		assert.deepEqual(sends, [[404]]);
+		assert.equal(sends[0][0].code, 'content_not_found');
+		assert.equal(sends[0][1], 404);
 		assert.equal(streamRequested, false);
 		assert.equal(statOptions.attempts, 0);
 	});
@@ -803,7 +811,8 @@ describe("content headers", function () {
 			setHeader: () => null
 		} as any, "forbidden.txt");
 
-		assert.deepEqual(sends, [[423]]);
+		assert.equal(sends[0][0].code, 'content_locked');
+		assert.equal(sends[0][1], 423);
 		assert.equal(statRequested, false);
 	});
 

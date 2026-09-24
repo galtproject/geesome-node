@@ -20,6 +20,9 @@ Use this map after loading the repo instructions in `AGENTS.md`.
 - Read [Agent-friendly API recommendations](./agent-friendly-api-recommendations.md)
   when changing public discovery, reverse-proxy paths, uploads, immutable
   gateway reads, auth scopes, async responses, errors, or integration examples.
+- Use the [Agent-friendly API implementation plan](./agent-friendly-api-implementation-plan.md)
+  for delivery order, workstream boundaries, rollout constraints, and required
+  verification evidence.
 - Run or update the security route inventory when route auth, permissions, or
   endpoint shape changes.
 

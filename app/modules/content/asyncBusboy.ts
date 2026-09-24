@@ -2,6 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import busboy from 'busboy';
+import {createHash} from 'node:crypto';
 
 const getDescriptor = Object.getOwnPropertyDescriptor
 
@@ -46,7 +47,20 @@ function onFile (filePromises, file, stream, info) {
   const tmpName = Math.random().toString(16).substring(2) + '-' + filename
   const saveTo = path.join(os.tmpdir(), path.basename(tmpName))
   const writeStream = fs.createWriteStream(saveTo)
-  const filePromise = new Promise((resolve, reject) =>
+  const hash = createHash('sha256')
+  let bytes = 0
+  stream.on('data', (chunk) => {
+    hash.update(chunk)
+    bytes += chunk.length
+  })
+  const filePromise = new Promise((resolve, reject) => {
+    stream.on('limit', () => {
+      const err: any = new Error('Reach file size limit')
+      err.code = 'Request_file_size_limit'
+      err.status = 413
+      writeStream.destroy(err)
+      stream.resume()
+    })
     writeStream
       .on('open', () =>
         stream.pipe(writeStream)
@@ -59,6 +73,8 @@ function onFile (filePromises, file, stream, info) {
             readStream.transferEncoding = readStream.encoding = encoding
             readStream.mimeType = readStream.mime = mimeType
             readStream.tempPath = saveTo
+            readStream.sha256 = hash.digest('hex')
+            readStream.bytes = bytes
             readStream.emitFinish = (callback) => {
               fs.rm(saveTo, { force: true }, function () {
                 callback && callback()
@@ -71,7 +87,8 @@ function onFile (filePromises, file, stream, info) {
         stream.resume()
           .on('error', reject)
         reject(err)
-      }))
+      })
+  })
   filePromises.push(filePromise)
 }
 

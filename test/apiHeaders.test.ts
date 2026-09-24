@@ -56,7 +56,7 @@ describe("api headers", function () {
 
 		try {
 			api = await apiModule({
-				config: {port},
+				config: {port, apiConfig: {publicUrl: 'https://geesome.example', publicBasePath: '/api/v1'}},
 				docsStorageId: "docs-root",
 				ms: {
 					database: {getUsersCount: async () => 0},
@@ -68,19 +68,26 @@ describe("api headers", function () {
 			const {res, body} = await requestJson(port, "/v1");
 
 			assert.equal(res.statusCode, 200);
-			assert.equal(res.headers["x-api-docs"], "/ipfs/docs-root");
-			assert.equal(res.headers["x-api-docs-openapi"], "/v1/openapi.json");
-			assert.equal(res.headers["x-api-docs-discovery"], "/v1");
-			assert.equal(res.headers["x-api-docs-ipfs"], "/ipfs/docs-root");
+			assert.equal(res.headers["x-api-docs"], "https://geesome.example/ipfs/docs-root");
+			assert.equal(res.headers["x-api-docs-openapi"], "https://geesome.example/api/v1/openapi.json");
+			assert.equal(res.headers["x-api-docs-discovery"], "https://geesome.example/api/v1");
+			assert.equal(res.headers["x-api-docs-ipfs"], "https://geesome.example/ipfs/docs-root");
+			assert.match(String(res.headers["x-request-id"]), /^req_/);
 			assert.match(String(res.headers.link), /rel="service-desc"/);
 			assert.match(String(res.headers.link), /modules\.md/);
-			assert.equal(body.docs.openapi, "/v1/openapi.json");
-			assert.equal(body.docs.apidoc, "/v1/apidoc.json");
-			assert.equal(body.docs.apiHtml, "/ipfs/docs-root");
-			assert.equal(body.docs.repoDocs, "/ipfs/docs-root/README.md");
-			assert.equal(body.docs.moduleDocs, "/ipfs/docs-root/modules.md");
-			assert.equal(body.docs.agentMap, "/ipfs/docs-root/agent-map.md");
-			assert.equal(body.docs.conventionalOpenapi.wellKnown, "/.well-known/openapi.json");
+			assert.equal(body.docs.openapi, "https://geesome.example/api/v1/openapi.json");
+			assert.equal(body.docs.apidoc, "https://geesome.example/api/v1/apidoc.json");
+			assert.equal(body.docs.apiHtml, "https://geesome.example/ipfs/docs-root");
+			assert.equal(body.docs.repoDocs, "https://geesome.example/ipfs/docs-root/README.md");
+			assert.equal(body.docs.moduleDocs, "https://geesome.example/ipfs/docs-root/modules.md");
+			assert.equal(body.docs.agentMap, "https://geesome.example/ipfs/docs-root/agent-map.md");
+			assert.equal(body.docs.conventionalOpenapi.wellKnown, "https://geesome.example/.well-known/openapi.json");
+
+			const discovery = await requestJson(port, "/.well-known/geesome");
+			assert.equal(discovery.body.apiBaseUrl, "https://geesome.example/api/v1");
+			assert.equal(discovery.body.openapiUrl, "https://geesome.example/api/v1/openapi.json");
+			assert.equal(discovery.body.gatewayBaseUrl, "https://geesome.example");
+			assert.equal(discovery.body.storage.contentDigest, "sha-256");
 		} finally {
 			if (previousPort === undefined) {
 				delete process.env.PORT;

@@ -10,6 +10,8 @@ import {closeHttpServer} from '../../httpServer.js';
 import {buildOpenApiFromApiDoc, getApiDocData} from "../../apiDocSpec.js";
 import {IUser} from "../database/interface.js";
 import {cleanupAndRethrow} from '../../resourceCleanup.js';
+import {ApiProblemError, getRequestId, sendApiProblem, sendResponse} from './problem.js';
+import {getPublicApiContext} from './publicUrls.js';
 import IGeesomeApiModule, {
 	IApiModuleCommonOutput,
 	IApiModuleGetInput,
@@ -18,7 +20,7 @@ import IGeesomeApiModule, {
 const {trimStart} = _;
 
 export default async (app: IGeesomeApp, options: any = {}) => {
-	const module = await getModule(app, 'v1', options.port || process.env.PORT || app.config.port || 2052);
+	const module = await getModule(app, 'v1', options.port || process.env.PORT || app.config.port || 2052, options.host || '0.0.0.0');
 	try {
 		await (options.registerRoutes || registerApiRoutes)(app, module);
 		return module;
@@ -27,7 +29,7 @@ export default async (app: IGeesomeApp, options: any = {}) => {
 	}
 }
 
-async function getModule(app: IGeesomeApp, version, port) {
+async function getModule(app: IGeesomeApp, version, port, host) {
 	const service = express();
 
 	// Registry of routes for the discovery index (GET /v1) and OpenAPI spec.
@@ -55,6 +57,10 @@ async function getModule(app: IGeesomeApp, version, port) {
 		service.use(morgan('combined'));
 	}
 	service.use((req, res, next) => {
+		const requestId = getRequestId(req.headers['x-request-id'] as string);
+		req.requestId = requestId;
+		res.locals.requestId = requestId;
+		res.setHeader('X-Request-Id', requestId);
 		trackRuntimeHttpRequest('api', req, res);
 		next();
 	});
@@ -87,7 +93,7 @@ async function getModule(app: IGeesomeApp, version, port) {
 		next();
 	});
 
-	const server = await service.listen(port);
+	const server = await service.listen(port, host);
 	let stopPromise: Promise<void> | null = null;
 
 	function setHeaders(res) {
@@ -95,12 +101,13 @@ async function getModule(app: IGeesomeApp, version, port) {
 		res.setHeader('Access-Control-Allow-Credentials', 'true');
 		res.setHeader('Access-Control-Allow-Origin', '*');
 		res.setHeader('Access-Control-Allow-Methods', "GET, POST, PATCH, PUT, DELETE, OPTIONS, HEAD");
-		res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+		res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, Idempotency-Key, X-Request-Id, X-Requested-With');
+		res.setHeader('Access-Control-Expose-Headers', 'Content-Digest, ETag, Link, Location, Retry-After, X-Geesome-Storage-Id, X-Request-Id');
 		res.setHeader('Connection', 'close'); //TODO: determine the best solution https://serverfault.com/questions/708319/chrome-requests-get-stuck-pending
 		// Point clients/agents at the API docs. Use the IPFS path (served at /ipfs/
 		// regardless of any reverse-proxy prefix) so it is unambiguous; the JSON
 		// discovery index is reachable at the API base root (GET /{version}).
-		const docsLinks = buildDocsDiscoveryLinks(version, app.docsStorageId);
+		const docsLinks = buildDocsDiscoveryLinks(version, app.docsStorageId, getPublicApiContext(app, version, port));
 		setDocsHeaders(res, docsLinks);
 	}
 
@@ -119,12 +126,7 @@ async function getModule(app: IGeesomeApp, version, port) {
 				if (isResponseClosed(res)) {
 					return;
 				}
-				const statusCode = Number.isInteger(callbackError?.code) ? callbackError.code : 500;
-				const body = {message: callbackError.message || callbackError, errorCode: 3};
-				if (typeof res.status === 'function') {
-					return res.status(statusCode).send(body);
-				}
-				return res.send(body, statusCode);
+				return sendApiProblem(res, callbackError, req.requestId);
 			}
 		}
 
@@ -166,13 +168,13 @@ async function getModule(app: IGeesomeApp, version, port) {
 
 		async authorizeAndHandleCallback(req: IApiModuleGetInput, res: IApiModuleCommonOutput, callback) {
 			if (!req.token) {
-				return res.send({error: "Need authorization token", errorCode: 1}, 401);
+				return sendApiProblem(res, new ApiProblemError(401, 'credentials_required', 'Credentials required', 'Supply a bearer token in the Authorization header.'), req.requestId);
 			}
 			const {user, apiKey} = await app.getUserByApiToken(req.token);
 			req.user = user;
 			req.apiKey = apiKey;
 			if (!req.user || !req.user.id) {
-				return res.send({error: "Not authorized", errorCode: 2}, 401);
+				return sendApiProblem(res, new ApiProblemError(401, 'invalid_credentials', 'Invalid credentials', 'The supplied bearer token is invalid, expired, or revoked.'), req.requestId);
 			}
 			return app.runWithApiKey(apiKey, () => this.handleCallback(req, res, callback));
 		}
@@ -271,6 +273,7 @@ async function getModule(app: IGeesomeApp, version, port) {
 			query: req.query,
 			route: req.url.replace(version + '/', ''),
 			fullRoute: req.originalUrl.replace(version + '/', ''),
+			requestId: req.requestId || req.locals?.requestId,
 			stream: req
 		};
 		if (req.body) {
@@ -286,11 +289,19 @@ async function getModule(app: IGeesomeApp, version, port) {
 		if (res.stream) {
 			return res;
 		}
+		const sendWithStatus = (data, status?) => {
+			if (status === undefined && typeof data === 'number' && data >= 400 && data <= 599) {
+				return res.status(data).send();
+			}
+			return sendResponse(res, data, status);
+		};
 		return {
-			send: res.send.bind(res),
+			send: sendWithStatus,
+			sendWithStatus,
 			setHeader: res.setHeader.bind(res),
 			writeHead: res.writeHead.bind(res),
 			stream: res,
+			requestId: res.locals?.requestId,
 		};
 	}
 
@@ -356,10 +367,7 @@ async function getModule(app: IGeesomeApp, version, port) {
 				version,
 				description: 'Operation/route map generated from the live node. Full parameter and response details (apiDoc) are published to IPFS on each boot — see x-docs-ipfs and the GET /' + version + ' discovery index.',
 			},
-			servers: [
-				{url: `/${version}`, description: 'Direct node'},
-				{url: `/api/${version}`, description: 'Behind the bundled nginx reverse proxy'},
-			],
+			servers: [{url: getPublicApiContext(app, version, port).apiBaseUrl, description: 'Advertised public API'}],
 			'x-docs-ipfs': app.docsStorageId ? `/ipfs/${app.docsStorageId}` : null,
 			components: {securitySchemes: {bearerAuth: {type: 'http', scheme: 'bearer'}}},
 			paths,
@@ -368,7 +376,10 @@ async function getModule(app: IGeesomeApp, version, port) {
 	// Primary spec is generated from the node's apiDoc annotations (full param
 	// schemas); fall back to the route-registry map if apiDoc parsing is
 	// unavailable at runtime.
-	const openapiHandler = (req, res) => res.send(buildOpenApiFromApiDoc(version, app.docsStorageId) || buildOpenApi());
+	const openapiHandler = (req, res) => {
+		const publicApiBaseUrl = getPublicApiContext(app, version, port).apiBaseUrl;
+		return res.send(buildOpenApiFromApiDoc(version, app.docsStorageId, publicApiBaseUrl) || buildOpenApi());
+	};
 	apiModule.onGet('openapi.json', openapiHandler);
 	// Raw apiDoc data (native format) for clients that prefer it.
 	apiModule.onGet('apidoc.json', (req, res) => res.send(getApiDocData() || []));
@@ -376,14 +387,40 @@ async function getModule(app: IGeesomeApp, version, port) {
 	// they return the real spec instead of being shadowed by the frontend SPA.
 	['openapi.json', 'swagger.json', 'api-docs.json', '.well-known/openapi.json'].forEach((p) => apiModule.onUnversionGet(p, openapiHandler));
 
+	/**
+	 * @api {get} /.well-known/geesome Discover GeeSome public API
+	 * @apiName GeesomeDiscovery
+	 * @apiGroup Discovery
+	 * @apiDescription Returns absolute public API, gateway, documentation, health, capability, compatibility, and storage-characteristic links for automated clients.
+	 * @apiSuccess {Number} schemaVersion Discovery schema version.
+	 * @apiSuccess {String} product Product identifier.
+	 * @apiSuccess {String} apiVersion API version.
+	 * @apiSuccess {String} apiBaseUrl Absolute public API base URL.
+	 * @apiSuccess {String} gatewayBaseUrl Absolute public gateway base URL.
+	 * @apiSuccess {String} openapiUrl Absolute OpenAPI URL.
+	 */
+	const wellKnownDiscoveryHandler = (req, res) => res.send(buildPublicDiscovery(app, version, port));
+	apiModule.onUnversionGet('.well-known/geesome', wellKnownDiscoveryHandler);
+
+	/**
+	 * @api {get} /v1/health Get API health
+	 * @apiName ApiHealth
+	 * @apiGroup Discovery
+	 * @apiSuccess {Boolean} ok Whether the HTTP API is serving requests.
+	 * @apiSuccess {String} apiVersion API version.
+	 */
+	apiModule.onGet('health', (req, res) => res.send({ok: true, apiVersion: version}));
+
 	// Machine-readable discovery index so an agent with only the node URL can find
 	// the route map and the published API docs. Served at GET /{version} and
 	// /{version}/ (e.g. /api/v1 behind nginx). Fast JSON, never the SPA shell.
 	const discoveryHandler = (req, res) => {
-		const docsLinks = buildDocsDiscoveryLinks(version, app.docsStorageId);
+		const publicDiscovery = buildPublicDiscovery(app, version, port);
+		const docsLinks = buildDocsDiscoveryLinks(version, app.docsStorageId, getPublicApiContext(app, version, port));
 		return res.send({
 			name: 'geesome-node',
 			version,
+			publicDiscovery,
 			docs: {
 				description: 'Full API reference (apiDoc) is generated and published to IPFS on each node boot.',
 				discovery: docsLinks.discovery,
@@ -408,28 +445,76 @@ async function getModule(app: IGeesomeApp, version, port) {
 	return apiModule;
 }
 
-function buildDocsDiscoveryLinks(version: string, docsStorageId?: string) {
+function buildDocsDiscoveryLinks(version: string, docsStorageId?: string, publicContext?: any) {
 	const repo = 'https://github.com/galtproject/geesome-node';
 	const docsRepoRoot = `${repo}/tree/master/docs`;
 	const docsRepoBlob = `${repo}/blob/master/docs`;
-	const ipfsRoot = docsStorageId ? `/ipfs/${docsStorageId}` : null;
+	const origin = publicContext?.publicUrl || '';
+	const apiBaseUrl = publicContext?.apiBaseUrl || `${origin}/${version}`;
+	const ipfsRoot = docsStorageId ? `${origin}/ipfs/${docsStorageId}` : null;
 	return {
 		repo,
-		discovery: `/${version}`,
-		openapi: `/${version}/openapi.json`,
-		apidoc: `/${version}/apidoc.json`,
+		discovery: `${apiBaseUrl}`,
+		openapi: `${apiBaseUrl}/openapi.json`,
+		apidoc: `${apiBaseUrl}/apidoc.json`,
 		apiHtml: ipfsRoot || docsRepoRoot,
 		repoDocs: ipfsRoot ? `${ipfsRoot}/README.md` : `${docsRepoBlob}/README.md`,
 		moduleDocs: ipfsRoot ? `${ipfsRoot}/modules.md` : `${docsRepoBlob}/modules.md`,
 		agentMap: ipfsRoot ? `${ipfsRoot}/agent-map.md` : `${docsRepoBlob}/agent-map.md`,
 		ipfsRoot,
 		conventionalOpenapi: {
-			openapi: '/openapi.json',
-			swagger: '/swagger.json',
-			apiDocs: '/api-docs.json',
-			wellKnown: '/.well-known/openapi.json',
+			openapi: `${origin}/openapi.json`,
+			swagger: `${origin}/swagger.json`,
+			apiDocs: `${origin}/api-docs.json`,
+			wellKnown: `${origin}/.well-known/openapi.json`,
 		},
 	};
+}
+
+function buildPublicDiscovery(app: IGeesomeApp, version: string, port: number | string) {
+	const context = getPublicApiContext(app, version, port);
+	const docsLinks = buildDocsDiscoveryLinks(version, app.docsStorageId, context);
+	const maxUploadBytes = parsePositiveNumber(app.config?.apiConfig?.maxUploadBytes);
+	return {
+		schemaVersion: 1,
+		product: 'geesome',
+		deploymentVersion: app.config?.apiConfig?.deploymentVersion || 'unknown',
+		apiVersion: version,
+		apiBaseUrl: context.apiBaseUrl,
+		gatewayBaseUrl: context.publicUrl,
+		openapiUrl: docsLinks.openapi,
+		docsUrl: docsLinks.apiHtml,
+		healthUrl: `${context.apiBaseUrl}/health`,
+		capabilities: {
+			contentUpload: Boolean(app.ms.content),
+			rawContentUpload: Boolean(app.ms.content),
+			assetUpload: Boolean(app.ms['asset']),
+			asyncOperations: Boolean(app.ms.asyncOperation),
+			batchContentUpload: Boolean(app.ms['asset']?.supportsBatches)
+		},
+		limits: {
+			maxUploadBytes
+		},
+		storage: {
+			identity: 'cid',
+			immediateRead: true,
+			pinPolicy: app.ms['pin'] ? 'deployment-configured' : 'local-storage',
+			rangeRequests: true,
+			contentDigest: 'sha-256'
+		},
+		compatibility: {
+			changelogUrl: 'https://github.com/galtproject/geesome-node/commits/dev',
+			migrationNotesUrl: `${docsLinks.repoDocs.replace(/README\.md$/, 'implemented.md')}`
+		}
+	};
+}
+
+function parsePositiveNumber(value): number | null {
+	const parsed = Number(value);
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return null;
+	}
+	return Math.floor(parsed);
 }
 
 function setDocsHeaders(res, docsLinks) {

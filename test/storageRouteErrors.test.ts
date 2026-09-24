@@ -25,7 +25,8 @@ describe("storage route errors", function () {
 				await flushAsyncHandlers();
 
 				assert.equal(storageHeadersSet, true);
-				assert.deepEqual(response.sent, [[null, 502]]);
+				assert.equal(response.sent[0][0].code, 'storage_backend_unavailable');
+				assert.equal(response.sent[0][1], 502);
 			});
 		});
 

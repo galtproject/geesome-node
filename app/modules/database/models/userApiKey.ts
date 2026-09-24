@@ -25,7 +25,13 @@ export default async function (sequelize, models) {
     permissions: {
       type: DataTypes.STRING
     },
+    scopes: {
+      type: DataTypes.TEXT
+    },
     expiredOn: {
+      type: DataTypes.DATE
+    },
+    lastUsedAt: {
       type: DataTypes.DATE
     },
     isDisabled: {

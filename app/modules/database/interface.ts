@@ -51,6 +51,8 @@ export interface IGeesomeDatabaseModule {
 
   getStorageObjectByStorageId(storageId): Promise<IStorageObjectRecord>;
 
+  setStorageObjectSha256(storageId: string, sha256: string): Promise<void>;
+
   getStorageObjectByIdentity(identityType: string, identityId: string): Promise<IStorageObjectRecord | null>;
 
   syncStorageObject(storageObjectData: Partial<IStorageObjectRecord>, options?): Promise<IStorageObjectRecord | null>;
@@ -208,7 +210,9 @@ export interface IUserApiKey {
   valueHash: string;
   type?: string;
   permissions?: string;
+  scopes?: string;
   expiredOn?: Date;
+  lastUsedAt?: Date;
   isDisabled: boolean;
 }
 
@@ -257,6 +261,7 @@ export interface IStorageObjectRecord {
   mimeType?: ContentMimeType;
   extension?: string;
   size?: number;
+  sha256?: string;
   largePreviewSize?: number;
   largePreviewStorageId?: string;
   mediumPreviewSize?: number;
