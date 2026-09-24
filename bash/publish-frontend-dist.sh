@@ -79,6 +79,8 @@ export GEESOME_UI_NODE_VERSION="$UI_NODE_VERSION"
 export GEESOME_UI_NODE_MAX_OLD_SPACE_SIZE="$UI_NODE_MAX_OLD_SPACE_SIZE"
 export GEESOME_UI_PARCEL_WORKERS="$UI_PARCEL_WORKERS"
 INPUT_HASH="$(node "$MANIFEST_TOOL" inputs "$UI_ROOT")"
+BUILD_CACHE="${GEESOME_FRONTEND_BUILD_CACHE:-}"
+CACHE_ENTRY="${BUILD_CACHE:+$BUILD_CACHE/$INPUT_HASH}"
 
 if node "$MANIFEST_TOOL" verify "$PUBLISH_DIR" "$INPUT_HASH"; then
   echo "Reusing verified server frontend ($INPUT_HASH)."
@@ -88,6 +90,9 @@ fi
 if node "$MANIFEST_TOOL" verify "$IMAGE_DIST" "$INPUT_HASH"; then
   echo "Reusing prepared Docker frontend ($INPUT_HASH)."
   UI_DIST="$IMAGE_DIST"
+elif [ -n "$CACHE_ENTRY" ] && node "$MANIFEST_TOOL" verify "$CACHE_ENTRY" "$INPUT_HASH"; then
+  echo "Reusing BuildKit frontend cache ($INPUT_HASH)."
+  UI_DIST="$CACHE_ENTRY"
 else
   echo "No matching frontend build; building from $UI_ROOT ($INPUT_HASH)..."
   # Unmanifested dist is not evidence that these sources were built.
@@ -101,5 +106,17 @@ else
 fi
 
 node "$MANIFEST_TOOL" verify "$UI_DIST" "$INPUT_HASH"
+if [ -n "$CACHE_ENTRY" ] && ! node "$MANIFEST_TOOL" verify "$CACHE_ENTRY" "$INPUT_HASH"; then
+  # The Docker mount uses sharing=locked. Stage a complete verified entry before
+  # replacing a missing/corrupt entry; interrupted builds never become cache hits.
+  mkdir -p "$BUILD_CACHE"
+  CACHE_STAGE="$(mktemp -d "$BUILD_CACHE/.staging.XXXXXX")"
+  trap 'rm -rf "$CACHE_STAGE"' EXIT
+  cp -R "$UI_DIST"/. "$CACHE_STAGE/"
+  node "$MANIFEST_TOOL" verify "$CACHE_STAGE" "$INPUT_HASH"
+  rm -rf "$CACHE_ENTRY"
+  mv "$CACHE_STAGE" "$CACHE_ENTRY"
+  trap - EXIT
+fi
 node "$MANIFEST_TOOL" publish "$UI_DIST" "$INPUT_HASH" "$PUBLISH_DIR"
 echo "Published verified GeeSome UI dist to $PUBLISH_DIR"
