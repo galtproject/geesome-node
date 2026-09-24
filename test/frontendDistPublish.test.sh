@@ -51,6 +51,7 @@ for scenario in existing-yarn install-yarn; do
   mkdir -p "$CASE_DIR/backend/bin" "$CASE_DIR/frontend/bin" "$CASE_DIR/nvm" "$CASE_DIR/ui"
   cp "$UI_ROOT/package.json" "$CASE_DIR/ui/package.json"
   ln -s "$REAL_NODE" "$CASE_DIR/frontend/bin/node"
+  ln -s "$REAL_NODE" "$CASE_DIR/backend/bin/node"
   cat > "$CASE_DIR/yarn.js" <<'JS'
 const fs = require('fs');
 if (process.argv[2] === '--version') {
@@ -98,3 +99,5 @@ SH
   test -f "$CASE_DIR/published/index.html"
   test -f "$CASE_DIR/published/package.json"
 done
+
+node --test "$ROOT_DIR/test/frontendBuildCache.test.mjs"
