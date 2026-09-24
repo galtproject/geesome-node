@@ -5,7 +5,7 @@
 
 <h3 align="center">File Storage and Social Media Node</h3>
 <div align="center">
-  Current state: 0.4.0 - Beta
+  Current state: 0.4.1 - Beta
 </div>
 
 <br />
@@ -113,6 +113,18 @@ sudo DOMAIN=geesome.your-site.com EMAIL=your@email.com GATEWAY=1 bash/ubuntu-ins
 The Docker service runs `bash/ipfs-ownership-preflight.sh` before startup. It creates the mounted IPFS data directories for Kubo's `ipfs` user (`1000:100`) and conditionally repairs restored or upgraded repos whose `config`, `repo.lock`, `datastore`, or `blocks` ownership would otherwise crash-loop the IPFS container.
 
 6. Open `geesome.your-site.com/#/setup` to create first admin user
+
+## Moving Docker storage to a mounted disk
+If the server runs out of root disk space, mount a larger disk first, then move the heavy Docker storage with one command from the repo directory:
+```
+sudo bash/move-docker-storage.sh ipfs /mnt/geesome --yes      # creates /mnt/geesome/ipfs and /mnt/geesome/ipfs-staging
+sudo bash/move-docker-storage.sh database /mnt/geesome --yes  # creates /mnt/geesome/postgres-data
+sudo bash/move-docker-storage.sh all /mnt/geesome --yes       # creates all of the above
+```
+
+The `/mnt/geesome` argument is the parent directory, not the final data directory. The `ipfs` target moves `STORAGE_DATA` to `/mnt/geesome/ipfs` and `STORAGE_STAGING` to `/mnt/geesome/ipfs-staging`. The `database` target moves Postgres data to `/mnt/geesome/postgres-data`. The script stops the Docker stack before copying, copies and verifies the data, updates Docker Compose `.env` automatically, writes a `geesome-docker` systemd storage override when that service is installed, relinks the old paths, runs the IPFS ownership preflight when needed, and starts the stack again. Add `--no-restart` only if you want to leave the stack stopped after the move.
+
+By default the old source directories are deleted after the stack starts successfully, freeing space on the original disk. Add `--keep-source` if you want rollback directories left as `*.moved-<timestamp>` backups instead.
 
 ## Install without domain (IP only)
 Use this if your server has no domain and you want to reach the node by its IP address.
@@ -315,8 +327,11 @@ Existing services:
 
 ## Minimal requirements
 - System: Ubuntu 22.04 (Jammy) or newer
-- RAM: **2 GB minimum (with swap), 4 GB recommended.** Swap is required — the Docker image build and video transcoding spike memory; initialize it with `bash/ubuntu-init-swapfile.sh`. Measured footprint: the node process peaks ~350 MB at startup and settles to ~300 MB; the whole stack (node + IPFS + Postgres) stayed under ~1.75 GB in light use. Concurrent video transcoding needs more headroom — prefer 4 GB. You can profile your own load with the memory tooling in [DEBUG.md](DEBUG.md).
-- Disk: 1 GB free + space for your files (plus ~3–4 GB for Docker images)
+- RAM for running the node: **2 GB minimum with swap**, **4 GB recommended**. The app process itself is comparatively small: measured startup peaks around 350 MB and settles around 300 MB, while the light-use stack (node + IPFS + Postgres) stayed under about 1.75 GB.
+- RAM for Docker install/upgrade builds: **4 GB RAM with 8 GB swap recommended**. Building the Docker image can rebuild native packages, bundle the frontend, and minify large JavaScript chunks; these phases can temporarily use more than 1 GB in one Node process while IPFS/Postgres are still running. Initialize swap with `bash/ubuntu-init-swapfile.sh`.
+- CPU: **2 cores recommended** for Docker builds and media processing. A single-core server can run the node, but frontend builds, native dependency rebuilds, and video transcoding will be slow.
+- Disk: **10 GB free minimum for Docker image/build cache**, **20 GB+ recommended**, plus space for your files, IPFS repo, and Postgres data. Existing Docker images and warm build caches can exceed the old 3-4 GB estimate.
+- Concurrent video transcoding or large imports need extra headroom. You can profile your own load with the memory tooling in [DEBUG.md](DEBUG.md).
 
 ## Dependencies
 - GO IPFS or IPFS JS

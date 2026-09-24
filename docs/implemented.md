@@ -319,3 +319,19 @@ database/IPFS suite was not run for this pure HTML-normalization change.
 Deploy the updated node before publishing new branded galleries. Previously
 published IPFS documents are immutable, and already-sanitized stored options
 cannot recover discarded markup: republish from the original client template.
+
+## Dev/master promotion conflict resolution (#1327)
+
+Integrated master into dev without rewriting either branch. The storage conflict
+retains dev's awaited Kubo/Helia pin completion, required by encrypted attachment
+delivery; it does not restore master's fire-and-forget pin behavior. The lockfile
+keeps dev's HPKE dependencies alongside master's Sharp 0.35.0 dependency graph.
+Other master-only release metadata, storage-move helper and tests merge normally.
+
+Verification: 15 focused chat attachment/static-site tests passed; route inventory
+and storage-move shell syntax passed; the Yarn 1 lockfile parser accepted all
+2051 selectors and verified the Sharp/HPKE versions. The full Docker suite was
+attempted twice but did not reach test execution because dependency installation
+failed extracting cached ts-morph/TypeScript packages. A targeted Yarn cache clean
+also failed on a corrupt apidoc-plugin-ts cache entry. Full release validation
+remains outstanding; mergeability alone is not a release-readiness result.

@@ -1,6 +1,6 @@
 {
   "name": "geesome-node",
-  "version": "0.4.0",
+  "version": "0.4.5",
   "description": "",
   "main": "index.ts",
   "type": "module",
@@ -66,7 +66,9 @@
     "testCoverage": "GROUP_DERIVED_STATE_ASYNC=0 node --import tsx --experimental-global-customevent ./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha test/**/*.test.ts && nyc report",
     "docker": "STORAGE_STAGING=$PWD/.docker-data/ipfs-staging STORAGE_DATA=$PWD/.docker-data/ipfs GEESOME_DATA=$PWD/.docker-data/geesome-data GEESOME_FRONTEND_DIST=$PWD/.docker-data/geesome-frontend docker compose up",
     "docker-build": "bash/docker-build.sh",
-    "docker-upgrade": "bash/docker-rebuild-and-upgrade.sh"
+    "docker-upgrade": "bash/docker-rebuild-and-upgrade.sh",
+    "storage:move": "bash bash/move-docker-storage.sh",
+    "docker-storage:move": "bash bash/move-docker-storage.sh"
   },
   "author": "",
   "license": "ISC",
@@ -128,7 +130,7 @@
     "sass-loader": "^12.3.0",
     "sequelize": "6.37.8",
     "sequelize-cli": "6.6.5",
-    "sharp": "^0.33.5",
+    "sharp": "^0.35.0",
     "telegram": "2.17.10",
     "tesseract.js": "^4.1.0",
     "tsx": "^4.21.0",
