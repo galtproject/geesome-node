@@ -11,15 +11,16 @@ import {DataTypes, Op, Sequelize} from "sequelize";
 export default async function (sequelize: Sequelize, models) {
   const schemaState = await getStorageObjectIdentitySchemaState(sequelize);
   const includeIdentityColumns = !schemaState.tableExists || schemaState.hasIdentityColumns;
+	const includeSha256Column = !schemaState.tableExists || schemaState.hasSha256Column;
 
-  const StorageObject = sequelize.define('storageObject', getStorageObjectAttributes(includeIdentityColumns), {
-    indexes: getStorageObjectIndexes(includeIdentityColumns)
+  const StorageObject = sequelize.define('storageObject', getStorageObjectAttributes(includeIdentityColumns, includeSha256Column), {
+    indexes: getStorageObjectIndexes(includeIdentityColumns, includeSha256Column)
   } as any);
 
   return StorageObject.sync({});
 };
 
-function getStorageObjectAttributes(includeIdentityColumns: boolean) {
+function getStorageObjectAttributes(includeIdentityColumns: boolean, includeSha256Column: boolean) {
   const attributes = {
     storageId: {
       type: DataTypes.STRING(200),
@@ -68,6 +69,10 @@ function getStorageObjectAttributes(includeIdentityColumns: boolean) {
     }
   } as any;
 
+	if (includeSha256Column) {
+		attributes.sha256 = {type: DataTypes.STRING(64)};
+	}
+
   if (includeIdentityColumns) {
     attributes.identityType = {
       type: DataTypes.STRING(80)
@@ -86,14 +91,17 @@ function getStorageObjectAttributes(includeIdentityColumns: boolean) {
   return attributes;
 }
 
-function getStorageObjectIndexes(includeIdentityIndex: boolean) {
+function getStorageObjectIndexes(includeIdentityIndex: boolean, includeSha256Index: boolean) {
   const indexes: any[] = [
     { name: 'storage_objects_storage_id_unique', fields: ['storageId'], unique: true },
     { name: 'storage_objects_large_preview_storage_idx', fields: ['largePreviewStorageId'] },
     { name: 'storage_objects_medium_preview_storage_idx', fields: ['mediumPreviewStorageId'] },
     { name: 'storage_objects_small_preview_storage_idx', fields: ['smallPreviewStorageId'] },
-    { name: 'storage_objects_updated_idx', fields: ['updatedAt', 'id'] }
+		{ name: 'storage_objects_updated_idx', fields: ['updatedAt', 'id'] }
   ];
+	if (includeSha256Index) {
+		indexes.push({name: 'storage_objects_sha256_idx', fields: ['sha256', 'id']});
+	}
 
   if (includeIdentityIndex) {
     indexes.push({
@@ -127,10 +135,18 @@ async function getStorageObjectIdentitySchemaState(sequelize: Sequelize) {
           AND table_name = 'storageObjects'
           AND column_name = 'identityId'
       ) AS "hasIdentityId"
+			, EXISTS (
+				SELECT 1
+				FROM information_schema.columns
+				WHERE table_schema = 'public'
+					AND table_name = 'storageObjects'
+					AND column_name = 'sha256'
+			) AS "hasSha256"
   `);
   const row = (rows as any[])[0] || {};
   return {
     tableExists: row.tableExists === true,
     hasIdentityColumns: row.hasIdentityType === true && row.hasIdentityId === true,
+		hasSha256Column: row.hasSha256 === true,
   };
 }

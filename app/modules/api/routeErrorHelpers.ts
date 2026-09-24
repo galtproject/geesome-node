@@ -1,5 +1,6 @@
 import helpers from "../../helpers.js";
 import {IApiModuleCommonOutput} from "./interface.js";
+import {ApiProblemError, sendApiProblem} from './problem.js';
 
 type DebugLog = {
 	enabled: boolean;
@@ -15,7 +16,7 @@ export function sendBadRequestOnContentRouteError(log: DebugLog, res: IApiModule
 				error: getErrorMessage(error)
 			}
 		]);
-		res.send(400);
+		sendApiProblem(res, new ApiProblemError(400, 'content_request_invalid', 'Invalid content request', 'The content path or request options are invalid.'));
 	};
 }
 
@@ -28,7 +29,7 @@ export function sendForbiddenOnAuthRouteError(log: DebugLog, res: IApiModuleComm
 				error: getErrorMessage(error)
 			}
 		]);
-		res.send(403);
+		sendApiProblem(res, new ApiProblemError(403, 'forbidden', 'Forbidden', 'The authenticated principal is not allowed to perform this action.'));
 	};
 }
 
@@ -41,7 +42,7 @@ export function sendBadGatewayOnStorageRouteError(log: DebugLog, res: IApiModule
 				error: getErrorMessage(error)
 			}
 		]);
-		res.send(null, 502);
+		sendApiProblem(res, new ApiProblemError(502, 'storage_backend_unavailable', 'Storage backend unavailable', 'The storage backend did not complete the request.'));
 	};
 }
 

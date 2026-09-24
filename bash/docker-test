@@ -57,7 +57,7 @@ if [[ "$cold" -eq 1 ]]; then
 		test/.postgres-data
 	"${compose[@]}" down --remove-orphans --volumes
 else
-	"${compose[@]}" rm -f -s test >/dev/null 2>&1 || true
+	"${compose[@]}" rm -f -s test agent_proxy >/dev/null 2>&1 || true
 fi
 
 up_args=(up --remove-orphans --abort-on-container-exit --exit-code-from test)

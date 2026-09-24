@@ -5,6 +5,7 @@ import IGeesomeApiModule from "./interface.js";
 import {CorePermissionName} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import {sendBadGatewayOnStorageRouteError, sendForbiddenOnAuthRouteError} from "./routeErrorHelpers.js";
+import {serializeApiKey} from './integrationScopes.js';
 const {isNumber} = _;
 const log = debug('geesome:api:routes');
 
@@ -259,7 +260,22 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @apiInterface (../database/interface.ts) {IUserApiKey} apiSuccess
 	 */
 	module.onAuthorizedGet('user/api-key/current', async (req, res) => {
-		res.send(req.apiKey);
+		res.send(serializeApiKey(req.apiKey));
+	});
+
+	/**
+	 * @api {get} /v1/integrations/credentials/current Inspect current integration credential
+	 * @apiName IntegrationCredentialCurrent
+	 * @apiGroup UserApiKey
+	 * @apiUse ApiKey
+	 * @apiSuccess {Number} id API-key identifier.
+	 * @apiSuccess {String[]} scopes Granted integration scopes.
+	 * @apiSuccess {Date} [expiresAt] Expiration time.
+	 * @apiSuccess {Date} [lastUsedAt] Last recorded use time.
+	 * @apiSuccess {Boolean} revoked Revocation state.
+	 */
+	module.onAuthorizedGet('integrations/credentials/current', async (req, res) => {
+		res.send(serializeApiKey(req.apiKey));
 	});
 
 	/**

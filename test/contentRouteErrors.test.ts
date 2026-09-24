@@ -27,12 +27,12 @@ describe("content route errors", function () {
 			const getResponse = getResponseStub();
 			await routes["GET content-data/*"]({route: "content-data/missing.txt"} as any, getResponse);
 			await flushAsyncHandlers();
-			assert.deepEqual(getResponse.sent, [[400]]);
+			assertProblem(getResponse, 400, 'content_request_invalid');
 
 			const headResponse = getResponseStub();
 			await routes["HEAD content-data/*"]({route: "content-data/missing.txt"} as any, headResponse);
 			await flushAsyncHandlers();
-			assert.deepEqual(headResponse.sent, [[400]]);
+			assertProblem(headResponse, 400, 'content_request_invalid');
 		});
 
 		assert.deepEqual(consoleErrors, []);
@@ -69,12 +69,12 @@ describe("content route errors", function () {
 			const getResponse = getResponseStub();
 			await getHandler({headers: {}, route: "/file.txt"} as any, getResponse);
 			await flushAsyncHandlers();
-			assert.deepEqual(getResponse.sent, [[400]]);
+			assertProblem(getResponse, 400, 'content_request_invalid');
 
 			const headResponse = getResponseStub();
 			await headHandler({headers: {}, route: "/file.txt"} as any, headResponse);
 			await flushAsyncHandlers();
-			assert.deepEqual(headResponse.sent, [[400]]);
+			assertProblem(headResponse, 400, 'content_request_invalid');
 		});
 
 		assert.deepEqual(consoleErrors, []);
@@ -103,12 +103,12 @@ describe("content route errors", function () {
 			const getResponse = getResponseStub();
 			await routes["UNVERSION_GET /ipns/*"]({route: "/ipns/static-id/path.txt?x=1"} as any, getResponse);
 			await flushAsyncHandlers();
-			assert.deepEqual(getResponse.sent, [[400]]);
+			assertProblem(getResponse, 400, 'content_request_invalid');
 
 			const headResponse = getResponseStub();
 			await routes["UNVERSION_HEAD /ipns/*"]({route: "/ipns/static-id/path.txt?x=1"} as any, headResponse);
 			await flushAsyncHandlers();
-			assert.deepEqual(headResponse.sent, [[400]]);
+			assertProblem(headResponse, 400, 'content_request_invalid');
 		});
 
 		assert.deepEqual(consoleErrors, []);
@@ -145,6 +145,11 @@ function getResponseStub() {
 			this.sent.push(args);
 		}
 	};
+}
+
+function assertProblem(response, status: number, code: string) {
+	assert.equal(response.sent[0][1], status);
+	assert.equal(response.sent[0][0].code, code);
 }
 
 async function captureConsoleErrors(callback) {

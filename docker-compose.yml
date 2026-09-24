@@ -19,6 +19,11 @@ services:
     environment:
       - IPFS_PROFILE
       - SSG_RUNTIME
+      - DOMAIN
+      - GEESOME_PUBLIC_URL
+      - GEESOME_API_BASE_PATH
+      - GEESOME_VERSION
+      - GEESOME_MAX_UPLOAD_BYTES
       # Debug/logging knobs. Interpolated so they can be set via a project-dir
       # .env file (or the shell/systemd env). Default empty -> off. See DEBUG.md.
       - DEBUG=${DEBUG:-}

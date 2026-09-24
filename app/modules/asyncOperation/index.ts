@@ -6,6 +6,7 @@ import IGeesomeAsyncOperationModule, {IModuleOperationQueueProcessorOptions, IUs
 import {CorePermissionName, IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from "../../helpers.js";
+import {getApiProblem} from '../api/problem.js';
 const {isObject, last} = _;
 const log = debug('geesome:app:asyncOperation');
 const operationQueueListParams: IListParamsOptions = {
@@ -50,7 +51,8 @@ export function getModule(app: IGeesomeApp, models) {
 				userApiKeyId: options.userApiKeyId,
 				name: 'save-data',
 				inProcess: true,
-				channel: await commonHelper.random()
+				channel: await commonHelper.random(),
+				requestId: options.requestId || null
 			});
 
 			// TODO: fix hotfix
@@ -89,7 +91,9 @@ export function getModule(app: IGeesomeApp, models) {
 					}]);
 					this.updateUserAsyncOperation(asyncOperation.id, {
 						inProcess: false,
-						contentId: res.id
+						finishedAt: new Date(),
+						contentId: res?.contentId || res?.id || null,
+						output: JSON.stringify(res || null)
 					});
 					return app.ms.communicator ? app.ms.communicator.publishEvent(asyncOperation.channel, res) : null;
 				})
@@ -98,10 +102,13 @@ export function getModule(app: IGeesomeApp, models) {
 						asyncOperationId: asyncOperation.id,
 						error: getErrorMessage(e)
 					}]);
+					const problem = getApiProblem(e, options.requestId);
 					return this.updateUserAsyncOperation(asyncOperation.id, {
 						inProcess: false,
-						errorType: 'unknown',
-						errorMessage: e && e.message ? e.message : e
+						finishedAt: new Date(),
+						errorType: problem.code,
+						errorMessage: problem.detail,
+						output: JSON.stringify({problem})
 					});
 				});
 

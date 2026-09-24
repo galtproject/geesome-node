@@ -10,7 +10,7 @@ Current unfinished work lives in [todo.md](./todo.md). Detailed design and
 operational notes remain in their dedicated documents and module-local `docs`
 directories.
 
-Last consolidated: 2026-07-30.
+Last consolidated: 2026-07-31.
 
 ## Runtime And Test Foundation
 
@@ -91,6 +91,40 @@ follow-ups in the active production-tuning section.
 - `docs/README.md` and `docs/agent-map.md` provide human/agent entry points.
 - `/v1`, conventional OpenAPI paths, documentation headers, and IPFS-published
   links expose API and module documentation from a running node.
+
+## Agent-Friendly Public Asset API
+
+- `GET /.well-known/geesome` advertises absolute, trusted public URLs,
+  capabilities, limits, storage behavior, compatibility links, OpenAPI, and
+  health without trusting the inbound Host header.
+- Request IDs and RFC 9457-style problem documents standardize new route,
+  authentication, parser, content, and storage errors without returning secret
+  or internal exception details.
+- Scoped integration credentials expose safe current-key metadata and throttled
+  `lastUsedAt`; asset, operation, and batch routes enforce documented scopes.
+- Immutable asset uploads require SHA-256, calculate digest and bytes while
+  streaming to temporary storage, reject mismatches before publication, and
+  persist owner-scoped idempotency with deterministic replay/conflict behavior.
+- Asset reads expose stable metadata and immutable content `HEAD`/`GET` responses
+  include SHA-256 `Content-Digest`, CID ETag, storage ID, request ID, and
+  year-long immutable caching.
+- Stable operation resources provide `pending`, `running`, `succeeded`,
+  `failed`, and `cancelled` states with `201`/`202`, `Location`, and
+  `Retry-After` semantics for asset creation.
+- Resumable owner-scoped batches preflight existing assets, bind item uploads,
+  avoid duplicate asset rows, and store deterministically ordered SHA-bound
+  manifests through the existing immutable content path.
+- All nginx templates expose the canonical bootstrap route; the Docker gate
+  includes a production-shaped proxy and verifies discovery, OpenAPI, upload,
+  replay, immutable reads, async polling, and 50-item batch completion.
+- OpenAPI now includes public servers, required multipart/header fields,
+  success/problem statuses, problem schema, and required scope metadata. Curl
+  and executable Node examples begin with discovery rather than guessing a
+  deployment prefix.
+- Backpack Game Core's shared Geesome provider and the Meat Master character
+  publication consumer now start from `/.well-known/geesome`, upload through
+  the advertised `/assets` contract with SHA-256 and idempotency, and preserve
+  immutable CID read-back verification without a hardcoded `/api` prefix.
 
 ## Static-Site Foundation
 
@@ -335,3 +369,18 @@ attempted twice but did not reach test execution because dependency installation
 failed extracting cached ts-morph/TypeScript packages. A targeted Yarn cache clean
 also failed on a corrupt apidoc-plugin-ts cache entry. Full release validation
 remains outstanding; mergeability alone is not a release-readiness result.
+
+## Frontend Yarn availability during startup (#1328)
+
+The frontend publisher retains the Yarn launcher before NVM changes PATH and
+runs it explicitly with the selected frontend Node. If Yarn is absent, npm
+installs Yarn 1.22.22 with an explicit selected-Node prefix, and the publisher
+uses that absolute launcher path. This avoids successful global installation
+into a different prefix followed by `yarn: command not found` and exit 127.
+
+`npm run test:frontend-dist-publish` covers the original publication flow plus
+isolated NVM/PATH regressions for existing and missing Yarn. The regression
+against the previous publisher reproduces exit 127 at the Yarn install line;
+the fixed publisher completes both builds on the host and in a Node 22 Linux
+container. These tests simulate package
+installation and bundling; they do not establish full production startup health.

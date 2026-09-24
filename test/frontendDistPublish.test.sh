@@ -42,3 +42,59 @@ test ! -e "$PUBLISH_DIR/src/main.ts"
 test ! -e "$PUBLISH_DIR/yarn.lock"
 test ! -e "$PUBLISH_DIR/tsconfig.json"
 ! grep -q '/src/main.ts' "$PUBLISH_DIR/index.html"
+
+# Exercise the default build (not GEESOME_UI_BUILD_COMMAND) with an NVM switch
+# that removes the backend bin directory and an npm default prefix off PATH.
+REAL_NODE="$(command -v node)"
+for scenario in existing-yarn install-yarn; do
+  CASE_DIR="$TMP_DIR/$scenario"
+  mkdir -p "$CASE_DIR/backend/bin" "$CASE_DIR/frontend/bin" "$CASE_DIR/nvm" "$CASE_DIR/ui"
+  cp "$UI_ROOT/package.json" "$CASE_DIR/ui/package.json"
+  ln -s "$REAL_NODE" "$CASE_DIR/frontend/bin/node"
+  cat > "$CASE_DIR/yarn.js" <<'JS'
+const fs = require('fs');
+if (process.argv[2] === '--version') {
+  console.log('1.22.22');
+} else {
+  if (process.env.YARN_IGNORE_ENGINES !== '1') process.exit(10);
+  fs.mkdirSync('node_modules/.bin', {recursive: true});
+  fs.writeFileSync('node_modules/.bin/parcel', 'require("fs").mkdirSync("dist", {recursive: true}); require("fs").writeFileSync("dist/index.html", "<html>built</html>");');
+  fs.writeFileSync('run-terser.js', '');
+  fs.writeFileSync('yarn-ran', process.execPath);
+}
+JS
+  if [ "$scenario" = existing-yarn ]; then
+    cp "$CASE_DIR/yarn.js" "$CASE_DIR/backend/bin/yarn"
+    chmod +x "$CASE_DIR/backend/bin/yarn"
+  fi
+  cat > "$CASE_DIR/nvm/nvm.sh" <<'SH'
+nvm() {
+  export PATH="$CASE_DIR/frontend/bin:/usr/bin:/bin"
+}
+SH
+  cat > "$CASE_DIR/frontend/bin/npm" <<'SH'
+#!/bin/bash
+set -eu
+# Reproduce npm reporting success while its global prefix is off PATH.
+if [ "$1" = i ] && [ "$2" = -g ]; then
+  mkdir -p "$CASE_DIR/off-path/bin"
+  cp "$CASE_DIR/yarn.js" "$CASE_DIR/off-path/bin/yarn"
+  exit 0
+fi
+test "$1" = install
+test "$2" = --global
+test "$3" = --prefix
+test "$4" = "$CASE_DIR/frontend"
+test "$5" = yarn@1.22.22
+cp "$CASE_DIR/yarn.js" "$4/bin/yarn"
+SH
+  chmod +x "$CASE_DIR/frontend/bin/npm"
+  CASE_DIR="$CASE_DIR" PATH="$CASE_DIR/backend/bin:/usr/bin:/bin" \
+    NVM_DIR="$CASE_DIR/nvm" GEESOME_UI_ROOT="$CASE_DIR/ui" \
+    GEESOME_FRONTEND_PUBLISH_DIR="$CASE_DIR/published" \
+    GEESOME_UI_NODE_VERSION=18.20.8 \
+    bash "$ROOT_DIR/bash/publish-frontend-dist.sh"
+  test -f "$CASE_DIR/ui/yarn-ran"
+  test -f "$CASE_DIR/published/index.html"
+  test -f "$CASE_DIR/published/package.json"
+done

@@ -20,6 +20,9 @@ Use this map after loading the repo instructions in `AGENTS.md`.
 - Read [Agent-friendly API recommendations](./agent-friendly-api-recommendations.md)
   when changing public discovery, reverse-proxy paths, uploads, immutable
   gateway reads, auth scopes, async responses, errors, or integration examples.
+- Use the [Agent-friendly API implementation plan](./agent-friendly-api-implementation-plan.md)
+  for delivery order, workstream boundaries, rollout constraints, and required
+  verification evidence.
 - Run or update the security route inventory when route auth, permissions, or
   endpoint shape changes.
 
@@ -59,6 +62,8 @@ Useful live endpoints:
   state, KeyPackages, Welcome messages, or group-chat wire contracts.
 - Read `app/modules/chat/docs/overview.md` before changing device, envelope,
   delivery, acknowledgement, or reconciliation contracts.
+- Read `app/modules/chat/docs/conversation-data-model-review.md` before changing
+  conversation, membership, direct-chat, or group-chat persistence.
 - Read `app/modules/privateGroup/docs/overview.md` before changing encrypted
   group/post policy, private post callbacks, or author-controlled mutation.
 - Load the `browser-first-chat-e2ee` TODO section before chat implementation.
