@@ -384,3 +384,43 @@ against the previous publisher reproduces exit 127 at the Yarn install line;
 the fixed publisher completes both builds on the host and in a Node 22 Linux
 container. These tests simulate package
 installation and bundling; they do not establish full production startup health.
+
+## Verified Docker frontend reuse (#1331)
+
+Docker now stores prepared frontend output at `/opt/geesome/frontend`, outside
+`frontend/docker-dist`, which Compose overlays with a persistent host directory.
+Each output contains `.geesome-build.json`: a SHA-256 input fingerprint and hashes
+of its output files. Startup first verifies the persistent published output,
+then the immutable image output, and only builds when neither matches.
+
+The input fingerprint includes frontend files (including package metadata,
+lockfiles, dotfiles/configuration and symlink targets), the publisher/build recipe,
+configured frontend Node version, memory/worker settings, NODE_ENV, BABEL_ENV,
+NODE_OPTIONS, and VUE_APP_, VITE_, PARCEL_, REACT_APP_ environment variables.
+`node_modules`, `.git`, `dist`, build caches and coverage are excluded. Dependency
+changes must be recorded in the frontend package/lockfile; direct node_modules
+patches are not tracked. For custom build scripts reading other environment
+variables, set `GEESOME_UI_BUILD_ENV_KEYS` to their comma-separated names in the
+container environment. Only hashes are published, not environment values.
+
+`GEESOME_FRONTEND_IMAGE_DIST` can override the prepared-artifact directory.
+`GEESOME_UI_ROOT` selects custom source; `GEESOME_FRONTEND_PUBLISH_DIR` retains its
+existing meaning and serves as the persistent server cache. A missing/old/invalid
+manifest never grants reuse. The default builder uses a frozen lockfile. Build
+failures leave the previously published directory intact; successful output is
+validated and staged there, then files are renamed with index and manifest last.
+This is per-file replacement, not an atomic whole-directory swap (the directory
+is a bind mount). A single publisher should own this directory.
+
+Verification: `npm run test:frontend-dist-publish` passes on the host and Linux,
+covering image/server reuse, source/lock/env invalidation, corrupted output,
+failed build preservation, and the earlier NVM/Yarn regressions.
+`npm run test:frontend-cache:docker` builds a small multistage fixture and starts
+two fresh containers sharing a volume; runtime builds are forbidden and both
+runs reuse the intended artifact. This fixture does not compile the full Vue
+application or run backend/database startup.
+
+Deployment: rebuild the image with `npm run docker-upgrade` after the fix reaches
+the deployed branch. The normal frontend path requires no runtime frontend
+installation/build. Backend startup still performs its existing root Yarn check
+and migrations, which can independently affect readiness time.
