@@ -64,6 +64,7 @@
     "test:docker:run": "bash bash/docker-test-run.sh",
     "test:frontend-dist-publish": "bash test/frontendDistPublish.test.sh",
     "test:frontend-cache:docker": "bash test/frontendBuildCacheDocker.test.sh",
+    "test:docker-images:compose": "bash test/dockerImageCompose.test.sh",
     "test:docker-images": "node --test test/dockerImageDeployment.test.mjs",
     "test:docker-retention": "bash test/dockerRetention.test.sh",
     "testCoverage": "GROUP_DERIVED_STATE_ASYNC=0 node --import tsx --experimental-global-customevent ./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha test/**/*.test.ts && nyc report",

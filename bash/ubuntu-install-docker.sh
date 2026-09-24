@@ -1,6 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+source bash/docker-image-common.sh
+clean_revision > /dev/null
 
 sudo apt-get update -y
 
@@ -22,4 +24,5 @@ sudo cp bash/geesome-ipfs-restart.timer /etc/systemd/system/geesome-ipfs-restart
 sudo systemctl daemon-reload
 systemctl enable geesome-docker
 systemctl start geesome-docker
+bash bash/docker-deploy-readiness.sh
 systemctl enable --now geesome-ipfs-restart.timer

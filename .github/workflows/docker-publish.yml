@@ -28,7 +28,8 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       - name: Operational regressions
         run: |
-          node --test test/dockerImageDeployment.test.mjs
+          npm run test:docker-images
+          npm run test:docker-images:compose
           npm run test:frontend-dist-publish
           npm run test:frontend-cache:docker
           npm run test:docker-retention

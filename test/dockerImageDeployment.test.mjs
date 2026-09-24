@@ -42,6 +42,17 @@ case "$1 $2" in
       *) echo '${id}' ;;
     esac ;;
   'buildx inspect') echo 'Driver: docker' ;;
+  'buildx imagetools')
+    if [ "\${MOCK_REMOTE:-missing}" = existing ]; then
+      exit 0
+    fi
+    if [ "\${MOCK_REMOTE:-missing}" = denied ]; then
+      echo 'unauthorized' >&2
+      exit 1
+    fi
+    echo 'manifest unknown' >&2; exit 1 ;;
+  'buildx build') : ;;
+  'tag '*|'push '*) : ;;
   'compose config') echo local-build ;;
   'compose build') test "\${MOCK_BUILD:-ok}" = ok ;;
   'compose --project-directory')
@@ -83,6 +94,53 @@ esac
     fs.writeFileSync(log, '');
     assert.notEqual(prepare().status, 0);
     assert.equal(fs.readFileSync(log, 'utf8'), '');
+    fs.unlinkSync(path.join(repo, 'uncommitted-source'));
+    fs.writeFileSync(path.join(repo, 'bash/docker-image-smoke.sh'), '#!/bin/bash\necho smoke >> "$MOCK_LOG"\n');
+    assert.equal(command('git', ['add', '.']).status, 0);
+    assert.equal(command('git', ['commit', '-m', 'smoke fixture']).status, 0);
+    const publishEnv = {...env, MOCK_SHA: command('git', ['rev-parse', 'HEAD']).stdout.trim()};
+    const publish = (overrides = {}) => command('bash', ['bash/docker-publish.sh'], {...publishEnv, ...overrides});
+    fs.writeFileSync(log, '');
+    result = publish();
+    assert.equal(result.status, 0, result.stderr);
+    let calls = fs.readFileSync(log, 'utf8');
+    assert.match(calls, /buildx build/);
+    assert.ok(calls.indexOf('smoke') < calls.indexOf('push '));
+    fs.writeFileSync(log, '');
+    result = publish({MOCK_REMOTE: 'existing'});
+    assert.equal(result.status, 0, result.stderr);
+    calls = fs.readFileSync(log, 'utf8');
+    assert.doesNotMatch(calls, /buildx build|push /);
+    assert.equal(command('git', ['tag', 'v0.4.7']).status, 0);
+    fs.writeFileSync(log, '');
+    result = publish({MOCK_REMOTE: 'existing', GEESOME_RELEASE_TAG: 'v0.4.7'});
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(fs.readFileSync(log, 'utf8'), /push ghcr.io\/galtproject\/geesome-node:v0.4.7/);
+    for (const overrides of [{MOCK_REMOTE: 'denied'}, {GEESOME_RELEASE_TAG: 'v9.9.9'}, {MOCK_REMOTE: 'existing', MOCK_REVISION: 'wrong'}]) {
+      fs.writeFileSync(log, '');
+      assert.notEqual(publish(overrides).status, 0);
+      assert.doesNotMatch(fs.readFileSync(log, 'utf8'), /push /);
+    }
+    // Upgrade preparation failure must never touch systemd or overwrite selection.
+    for (const name of ['ipfs-ownership-preflight.sh', 'docker-deploy-readiness.sh', 'install-host-retention.sh', 'docker-post-deploy-retention.sh']) {
+      fs.writeFileSync(path.join(repo, 'bash', name), '#!/bin/bash\nexit 0\n');
+      fs.chmodSync(path.join(repo, 'bash', name), 0o755);
+    }
+    fs.writeFileSync(path.join(bin, 'systemctl'), '#!/bin/bash\necho systemctl "$*" >> "$MOCK_LOG"\n');
+    fs.chmodSync(path.join(bin, 'systemctl'), 0o755);
+    command('git', ['add', '.']);
+    command('git', ['commit', '-m', 'upgrade fixture']);
+    const units = path.join(temp, 'units');
+    const upgradeEnv = {...env, MOCK_SHA: command('git', ['rev-parse', 'HEAD']).stdout.trim(), GEESOME_SYSTEMD_UNIT_DIR: units};
+    fs.writeFileSync(log, '');
+    result = command('bash', ['bash/docker-upgrade-run.sh'], {...upgradeEnv, MOCK_PULL: 'missing', MOCK_BUILD: 'fail'});
+    assert.notEqual(result.status, 0);
+    assert.doesNotMatch(fs.readFileSync(log, 'utf8'), /systemctl/);
+    assert.equal(fs.existsSync(units), false);
+    result = command('bash', ['bash/docker-upgrade-run.sh'], upgradeEnv);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(fs.readFileSync(path.join(units, 'geesome-docker.service.d/image-selection.conf'), 'utf8'), /docker-compose.sh up -d --no-build/);
+    assert.match(fs.readFileSync(log, 'utf8'), /systemctl restart geesome-docker/);
     fs.writeFileSync(state, 'malformed-state');
     assert.notEqual(command('bash', ['bash/docker-compose.sh', 'up'], env).status, 0);
   } finally {

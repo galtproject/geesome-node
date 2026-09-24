@@ -8,7 +8,7 @@ echo "==> [2/7] Preparing published image or local build..."
 bash bash/docker-prepare-image.sh
 
 # Existing installations must adopt the persisted-image launcher too.
-SERVICE_DROPIN=/etc/systemd/system/geesome-docker.service.d
+SERVICE_DROPIN="${GEESOME_SYSTEMD_UNIT_DIR:-/etc/systemd/system}/geesome-docker.service.d"
 mkdir -p "$SERVICE_DROPIN"
 printf '[Service]\nExecStart=\nExecStart=/bin/bash %s/bash/docker-compose.sh up -d --no-build\nExecStop=\nExecStop=/bin/bash %s/bash/docker-compose.sh down\n' "$ROOT_DIR" "$ROOT_DIR" > "$SERVICE_DROPIN/image-selection.conf"
 

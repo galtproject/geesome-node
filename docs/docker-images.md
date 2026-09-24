@@ -114,7 +114,7 @@ upgrade, the previous image can be reselected by copying `previous-image` to
 never undoes migrations or restores the database. Confirm schema compatibility
 or restore the corresponding database backup before relying on rollback.
 
-Run `npm run test:docker-images`, `npm run test:frontend-dist-publish`,
+Run `npm run test:docker-images`, `npm run test:docker-images:compose`, `npm run test:frontend-dist-publish`,
 `npm run test:frontend-cache:docker`, and `npm run test:docker-retention` for
 operational regressions. `bash bash/docker-image-smoke.sh IMAGE linux/amd64`
 starts isolated services, checks `/v1/health`, then removes its own containers and
