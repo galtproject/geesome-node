@@ -369,3 +369,18 @@ attempted twice but did not reach test execution because dependency installation
 failed extracting cached ts-morph/TypeScript packages. A targeted Yarn cache clean
 also failed on a corrupt apidoc-plugin-ts cache entry. Full release validation
 remains outstanding; mergeability alone is not a release-readiness result.
+
+## Frontend Yarn availability during startup (#1328)
+
+The frontend publisher retains the Yarn launcher before NVM changes PATH and
+runs it explicitly with the selected frontend Node. If Yarn is absent, npm
+installs Yarn 1.22.22 with an explicit selected-Node prefix, and the publisher
+uses that absolute launcher path. This avoids successful global installation
+into a different prefix followed by `yarn: command not found` and exit 127.
+
+`npm run test:frontend-dist-publish` covers the original publication flow plus
+isolated NVM/PATH regressions for existing and missing Yarn. The regression
+against the previous publisher reproduces exit 127 at the Yarn install line;
+the fixed publisher completes both builds on the host and in a Node 22 Linux
+container. These tests simulate package
+installation and bundling; they do not establish full production startup health.

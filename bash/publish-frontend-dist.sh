@@ -7,6 +7,8 @@ PUBLISH_DIR="${GEESOME_FRONTEND_PUBLISH_DIR:-/geesome-node/frontend/docker-dist}
 UI_NODE_VERSION="${GEESOME_UI_NODE_VERSION-18.20.8}"
 UI_NODE_MAX_OLD_SPACE_SIZE="${GEESOME_UI_NODE_MAX_OLD_SPACE_SIZE:-4096}"
 UI_PARCEL_WORKERS="${GEESOME_UI_PARCEL_WORKERS:-1}"
+# NVM removes the previous Node bin directory from PATH. Keep its Yarn launcher.
+FRONTEND_YARN="$(command -v yarn || true)"
 
 setup_frontend_node() {
   if [ -z "$UI_NODE_VERSION" ]; then
@@ -24,9 +26,6 @@ setup_frontend_node() {
   nvm install "$UI_NODE_VERSION"
   nvm use "$UI_NODE_VERSION"
 
-  if ! command -v yarn >/dev/null 2>&1; then
-    npm i -g yarn@1.22.22
-  fi
 }
 
 build_frontend_dist() {
@@ -35,7 +34,20 @@ build_frontend_dist() {
     return
   fi
 
-  YARN_IGNORE_ENGINES=1 yarn install --force --network-concurrency 1
+  if [ -z "$FRONTEND_YARN" ] || [ ! -f "$FRONTEND_YARN" ]; then
+    FRONTEND_YARN="$(command -v yarn || true)"
+  fi
+  if [ -z "$FRONTEND_YARN" ]; then
+    # Do not inherit an npm prefix pointing at another Node installation.
+    local node_prefix
+    node_prefix="$(dirname "$(dirname "$(command -v node)")")"
+    npm install --global --prefix "$node_prefix" yarn@1.22.22
+    FRONTEND_YARN="$node_prefix/bin/yarn"
+  fi
+  # Run the launcher with the selected frontend Node, even if Yarn came from
+  # the backend Node installation. No global-bin PATH lookup is required.
+  node "$FRONTEND_YARN" --version
+  YARN_IGNORE_ENGINES=1 node "$FRONTEND_YARN" install --force --network-concurrency 1
   rm -rf .parcel-cache ./dist
   PARCEL_WORKERS="$UI_PARCEL_WORKERS" node "--max-old-space-size=$UI_NODE_MAX_OLD_SPACE_SIZE" \
     ./node_modules/.bin/parcel build ./index.html --no-content-hash --no-optimize --dist-dir ./dist
