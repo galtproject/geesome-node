@@ -36,6 +36,8 @@ FROM dependencies AS frontend-build
 RUN mkdir -p bash
 COPY bash/publish-frontend-dist.sh bash/frontend-build-manifest.mjs ./bash/
 RUN --mount=type=cache,target=/usr/local/share/.cache/yarn,sharing=locked \
+    --mount=type=cache,id=geesome-frontend-builds,target=/var/cache/geesome/frontend,sharing=locked \
+    GEESOME_FRONTEND_BUILD_CACHE=/var/cache/geesome/frontend \
     GEESOME_FRONTEND_PUBLISH_DIR=/tmp/geesome-frontend-build \
     bash bash/publish-frontend-dist.sh
 

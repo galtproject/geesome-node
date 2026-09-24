@@ -100,3 +100,54 @@ test('image and persistent server builds are reused only for matching inputs and
     fs.rmSync(root, {recursive: true, force: true});
   }
 });
+
+test('build cache survives publication removal and rejects corrupt entries', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'frontend-buildkit-cache-'));
+  try {
+    const ui = path.join(root, 'ui');
+    const cache = path.join(root, 'cache');
+    const published = path.join(root, 'published');
+    const counter = path.join(root, 'count');
+    fs.mkdirSync(ui);
+    fs.writeFileSync(path.join(ui, 'build.cjs'), `
+      const fs = require('fs');
+      if (process.env.FORBID_BUILD === '1') {
+        throw new Error('Unexpected compilation');
+      }
+      fs.appendFileSync(process.env.BUILD_COUNTER, 'build\\n');
+      fs.mkdirSync('dist', {recursive: true});
+      fs.writeFileSync('dist/index.html', '<html>cache fixture</html>');
+    `);
+    const env = {...process.env, GEESOME_UI_ROOT: ui, GEESOME_UI_NODE_VERSION: '',
+      GEESOME_UI_BUILD_COMMAND: 'node build.cjs', BUILD_COUNTER: counter,
+      GEESOME_FRONTEND_IMAGE_DIST: path.join(root, 'absent-image'),
+      GEESOME_FRONTEND_BUILD_CACHE: cache, GEESOME_FRONTEND_PUBLISH_DIR: published};
+    const run = (forbid = false) => {
+      const result = spawnSync('bash', [script], {env: {...env, FORBID_BUILD: forbid ? '1' : '0'}, encoding: 'utf8'});
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+      return result.stdout;
+    };
+    run();
+    const entries = fs.readdirSync(cache);
+    assert.equal(entries.length, 1);
+    assert.match(entries[0], /^[a-f0-9]{64}$/);
+    fs.rmSync(published, {recursive: true});
+    fs.rmSync(path.join(ui, 'dist'), {recursive: true});
+    assert.match(run(true), /Reusing BuildKit frontend cache/);
+    assert.equal(fs.readFileSync(counter, 'utf8'), 'build\n');
+    fs.writeFileSync(path.join(cache, entries[0], 'index.html'), 'corrupt');
+    fs.rmSync(published, {recursive: true});
+    assert.match(run(), /No matching frontend build/);
+    assert.equal(fs.readFileSync(counter, 'utf8'), 'build\nbuild\n');
+    fs.rmSync(published, {recursive: true});
+    assert.match(run(true), /Reusing BuildKit frontend cache/);
+    assert.deepEqual(fs.readdirSync(cache), entries);
+    fs.writeFileSync(path.join(ui, 'changed-source.txt'), 'new inputs');
+    const failed = spawnSync('bash', [script], {env: {...env, FORBID_BUILD: '1'}, encoding: 'utf8'});
+    assert.notEqual(failed.status, 0);
+    assert.deepEqual(fs.readdirSync(cache), entries);
+    assert.equal(fs.readFileSync(path.join(published, 'index.html'), 'utf8'), '<html>cache fixture</html>');
+  } finally {
+    fs.rmSync(root, {recursive: true, force: true});
+  }
+});

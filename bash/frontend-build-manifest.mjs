@@ -12,7 +12,7 @@ function files(root, source = false) {
   const excluded = new Set(['node_modules', '.git', '.parcel-cache', '.cache']);
   function walk(relative, ancestors) {
     const full = path.join(root, relative);
-    if (source && relative && ['GEESOME_UI_DIST', 'GEESOME_FRONTEND_PUBLISH_DIR'].some(key =>
+    if (source && relative && ['GEESOME_UI_DIST', 'GEESOME_FRONTEND_PUBLISH_DIR', 'GEESOME_FRONTEND_BUILD_CACHE'].some(key =>
       process.env[key] && path.resolve(full) === path.resolve(process.env[key]))) {
       return;
     }

@@ -424,3 +424,29 @@ Deployment: rebuild the image with `npm run docker-upgrade` after the fix reache
 the deployed branch. The normal frontend path requires no runtime frontend
 installation/build. Backend startup still performs its existing root Yarn check
 and migrations, which can independently affect readiness time.
+
+## Frontend build artifacts cached across Docker layers (#1333)
+
+The frontend-build stage mounts a dedicated BuildKit cache with `sharing=locked`
+at `/var/cache/geesome/frontend`. `GEESOME_FRONTEND_BUILD_CACHE` enables artifact
+lookup by the existing frontend input SHA-256. A verified entry bypasses NVM,
+frontend dependency installation and compilation even when backend dependency
+changes invalidate the Docker RUN layer. Runtime publication/image reuse is
+unchanged; the BuildKit cache is only mounted during image construction.
+
+Successful builds are copied into a staging directory, verified, and renamed to
+the hash entry. Corrupt entries are rebuilt and replaced. Multiple frontend
+versions coexist, so returning to previous inputs can reuse their prior build.
+The cache is local to the builder and may be evicted by BuildKit GC or pruning;
+a missing cache safely triggers compilation. Normal layer-cache exports do not
+promise to transfer this cache mount to another server. Non-Docker callers that
+set this optional cache path must serialize writes, as Docker does with its
+locked mount.
+
+Verification: the Docker fixture forces RUN invalidation with a backend-revision
+argument and forbids compilation on matching-input runs. It checks first build,
+backend-only invalidation reuse, changed-source compilation, return-to-original
+reuse, and fresh-container publication. Publisher tests cover missing published
+output, corrupt cache recovery and absence of unfinished cache entries alongside
+all prior regressions. Full production Vue compilation/backend startup were not
+run; this change is verified with the small executable Docker build fixture.
