@@ -34,8 +34,10 @@ RUN --mount=type=cache,target=/usr/local/share/.cache/yarn,sharing=locked \
 FROM dependencies AS frontend-build
 
 RUN mkdir -p bash
-COPY bash/publish-frontend-dist.sh ./bash/publish-frontend-dist.sh
+COPY bash/publish-frontend-dist.sh bash/frontend-build-manifest.mjs ./bash/
 RUN --mount=type=cache,target=/usr/local/share/.cache/yarn,sharing=locked \
+    --mount=type=cache,id=geesome-frontend-builds,target=/var/cache/geesome/frontend,sharing=locked \
+    GEESOME_FRONTEND_BUILD_CACHE=/var/cache/geesome/frontend \
     GEESOME_FRONTEND_PUBLISH_DIR=/tmp/geesome-frontend-build \
     bash bash/publish-frontend-dist.sh
 
@@ -43,7 +45,7 @@ FROM node-base AS runtime
 
 COPY --from=dependencies /geesome-node/node_modules ./node_modules
 COPY . .
-COPY --from=frontend-build /tmp/geesome-frontend-build/. ./frontend/docker-dist/
+COPY --from=frontend-build /tmp/geesome-frontend-build/. /opt/geesome/frontend/
 
 ENV STORAGE_MODULE=ipfs-http-client
 ENV STORAGE_URL=http://go_ipfs:5001

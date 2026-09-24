@@ -47,7 +47,7 @@ build_frontend_dist() {
   # Run the launcher with the selected frontend Node, even if Yarn came from
   # the backend Node installation. No global-bin PATH lookup is required.
   node "$FRONTEND_YARN" --version
-  YARN_IGNORE_ENGINES=1 node "$FRONTEND_YARN" install --force --network-concurrency 1
+  YARN_IGNORE_ENGINES=1 node "$FRONTEND_YARN" install --frozen-lockfile --force --network-concurrency 1
   rm -rf .parcel-cache ./dist
   PARCEL_WORKERS="$UI_PARCEL_WORKERS" node "--max-old-space-size=$UI_NODE_MAX_OLD_SPACE_SIZE" \
     ./node_modules/.bin/parcel build ./index.html --no-content-hash --no-optimize --dist-dir ./dist
@@ -65,32 +65,58 @@ if [ ! -d "$UI_ROOT" ]; then
   exit 1
 fi
 
-if [ ! -f "$UI_DIST/index.html" ]; then
-  echo "GeeSome UI dist is missing; building frontend from $UI_ROOT..."
+MANIFEST_TOOL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/frontend-build-manifest.mjs"
+IMAGE_DIST="${GEESOME_FRONTEND_IMAGE_DIST:-/opt/geesome/frontend}"
+# Never delete a source/publication root when rebuilding a configured dist.
+node - "$UI_DIST" "$UI_ROOT" "$PUBLISH_DIR" "$IMAGE_DIST" <<'JS'
+const path = require('path');
+const [dist, ...roots] = process.argv.slice(2).map(value => path.resolve(value));
+if (dist === path.parse(dist).root || roots.some(root => root === dist || root.startsWith(dist + path.sep))) {
+  throw new Error('Unsafe frontend dist directory: ' + dist);
+}
+JS
+export GEESOME_UI_NODE_VERSION="$UI_NODE_VERSION"
+export GEESOME_UI_NODE_MAX_OLD_SPACE_SIZE="$UI_NODE_MAX_OLD_SPACE_SIZE"
+export GEESOME_UI_PARCEL_WORKERS="$UI_PARCEL_WORKERS"
+INPUT_HASH="$(node "$MANIFEST_TOOL" inputs "$UI_ROOT")"
+BUILD_CACHE="${GEESOME_FRONTEND_BUILD_CACHE:-}"
+CACHE_ENTRY="${BUILD_CACHE:+$BUILD_CACHE/$INPUT_HASH}"
+
+if node "$MANIFEST_TOOL" verify "$PUBLISH_DIR" "$INPUT_HASH"; then
+  echo "Reusing verified server frontend ($INPUT_HASH)."
+  exit 0
+fi
+
+if node "$MANIFEST_TOOL" verify "$IMAGE_DIST" "$INPUT_HASH"; then
+  echo "Reusing prepared Docker frontend ($INPUT_HASH)."
+  UI_DIST="$IMAGE_DIST"
+elif [ -n "$CACHE_ENTRY" ] && node "$MANIFEST_TOOL" verify "$CACHE_ENTRY" "$INPUT_HASH"; then
+  echo "Reusing BuildKit frontend cache ($INPUT_HASH)."
+  UI_DIST="$CACHE_ENTRY"
+else
+  echo "No matching frontend build; building from $UI_ROOT ($INPUT_HASH)..."
+  # Unmanifested dist is not evidence that these sources were built.
+  rm -rf "$UI_DIST"
   (
     cd "$UI_ROOT"
     setup_frontend_node
     build_frontend_dist
   )
+  node "$MANIFEST_TOOL" create "$UI_DIST" "$INPUT_HASH"
 fi
 
-if [ ! -f "$UI_DIST/index.html" ]; then
-  echo "GeeSome UI build did not produce $UI_DIST/index.html" >&2
-  exit 1
+node "$MANIFEST_TOOL" verify "$UI_DIST" "$INPUT_HASH"
+if [ -n "$CACHE_ENTRY" ] && ! node "$MANIFEST_TOOL" verify "$CACHE_ENTRY" "$INPUT_HASH"; then
+  # The Docker mount uses sharing=locked. Stage a complete verified entry before
+  # replacing a missing/corrupt entry; interrupted builds never become cache hits.
+  mkdir -p "$BUILD_CACHE"
+  CACHE_STAGE="$(mktemp -d "$BUILD_CACHE/.staging.XXXXXX")"
+  trap 'rm -rf "$CACHE_STAGE"' EXIT
+  cp -R "$UI_DIST"/. "$CACHE_STAGE/"
+  node "$MANIFEST_TOOL" verify "$CACHE_STAGE" "$INPUT_HASH"
+  rm -rf "$CACHE_ENTRY"
+  mv "$CACHE_STAGE" "$CACHE_ENTRY"
+  trap - EXIT
 fi
-
-if grep -Eq 'src=["'\'']/src/main\.ts["'\'']' "$UI_DIST/index.html"; then
-  echo "Refusing to publish an unbuilt GeeSome UI index.html from $UI_DIST" >&2
-  exit 1
-fi
-
-mkdir -p "$PUBLISH_DIR"
-find "$PUBLISH_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-cp -R "$UI_DIST"/. "$PUBLISH_DIR"/
-
-if [ -e "$PUBLISH_DIR/src/main.ts" ] || [ -e "$PUBLISH_DIR/yarn.lock" ] || [ -e "$PUBLISH_DIR/tsconfig.json" ]; then
-  echo "Refusing to leave GeeSome UI source files in $PUBLISH_DIR" >&2
-  exit 1
-fi
-
-echo "Published GeeSome UI dist to $PUBLISH_DIR"
+node "$MANIFEST_TOOL" publish "$UI_DIST" "$INPUT_HASH" "$PUBLISH_DIR"
+echo "Published verified GeeSome UI dist to $PUBLISH_DIR"
