@@ -161,5 +161,6 @@ implemented. SHA tags are reused rather than rebuilt when already published;
 version aliases require an exact matching Git tag/image. Publication is serialized
 by commit in CI; external manual publishers must not race to create the same tag.
 Operational tests cover pull/build fallback, immutable selection, dirty sources,
-failed preparation and prepared-runtime build prohibition. Production-image smoke
-and registry publication evidence are recorded in the implementation handoff.
+failed preparation and prepared-runtime build prohibition. Production linux/amd64 image builds, real API startup and loopback-registry
+publication passed; evidence is recorded in `docs/implemented.md`. GHCR permissions
+and a live Ubuntu/systemd installation remain operator/CI validation.

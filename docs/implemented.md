@@ -450,3 +450,43 @@ reuse, and fresh-container publication. Publisher tests cover missing published
 output, corrupt cache recovery and absence of unfinished cache entries alongside
 all prior regressions. Full production Vue compilation/backend startup were not
 run; this change is verified with the small executable Docker build fixture.
+
+## Published Docker images selected by Git revision (#1340)
+
+Installation and upgrade share `docker-prepare-image.sh`: auto mode pulls a
+matching SHA/platform image and verifies its revision, or builds from a committed
+Git snapshot. Pull-only and build-only modes are explicit. `.docker-deploy/image`
+stores the immutable selected reference; the Compose wrapper and systemd use it
+across restarts. Failed preparation never restarts the service. The previous
+image is retained with a rollback tag; database rollback is a separate operation.
+
+`npm run docker-publish` builds and smoke-tests before registry publication. It
+reuses existing SHA images and checks release aliases against exact Git tags.
+Prepared runtime skips dependency installation and frontend compilation. Trusted
+branch/tag CI runs tests and the same publisher. Release instructions are in
+[Docker images](docker-images.md). The verified initial build platform is
+linux/amd64; the current base image is amd64-only.
+
+Validation on implementation commit `673e9691`:
+
+- Selection/publisher/upgrade regression tests pass on macOS and Linux, covering
+  clean Git snapshots, excluded local secrets, modes, registry/identity failures,
+  no restart on failed preparation, and the prepared-runtime guard.
+- Real Compose test reuses a saved local image ID on separate invocations.
+- Frontend publication, BuildKit reuse and retention regressions pass.
+- The full production linux/amd64 image built successfully and passed API health
+  after model sync/migrations against isolated PostgreSQL and Kubo services.
+- A second full image build reused the frontend BuildKit artifact (frontend step
+  5.4 seconds) and passed the same runtime smoke.
+- The publisher pushed `sha-673e969171526b44cfd24e9ba6e1658c2e1a4e33` to an isolated
+  loopback registry; digest was
+  `sha256:db41543c921c26926c3c5c622a31ba21eda033be39694bca82e827f75750582e`.
+
+A second publisher invocation reused that registry image, passed startup smoke
+and returned the same digest without a build or SHA-tag push.
+
+GHCR publication/organization package permissions and a live Ubuntu/systemd
+installation were not exercised locally. CI publication requires the configured
+repository/package permissions. Full backend tests are a CI publication gate;
+this operational change was validated locally with targeted tests and real image
+startup rather than repeating the prior release's 639-test suite.
