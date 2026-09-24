@@ -13,6 +13,8 @@ services:
         condition: service_healthy
       ipfs:
         condition: service_started
+      chat_ipfs_b:
+        condition: service_started
     volumes:
       - "${GEESOME_DATA:-./.geesome-data}:/geesome-node/data"
       - "${GEESOME_FRONTEND_DIST:-./.geesome-frontend}:/geesome-node/frontend/docker-dist"
@@ -28,6 +30,7 @@ services:
       - DATABASE_PORT=5432
       - STORAGE_MODULE=ipfs-http-client
       - STORAGE_URL=http://go_ipfs:5001
+      - CHAT_TEST_STORAGE_URL_B=http://geesome_chat_ipfs_b:5001
       - NPM_CONFIG_UPDATE_NOTIFIER=false
 
   postgres:
@@ -60,3 +63,14 @@ services:
     volumes:
       - "${STORAGE_STAGING:-./.ipfs}:/export"
       - "${STORAGE_DATA:-./.ipfs-data}:/data/ipfs"
+
+  chat_ipfs_b:
+    container_name: geesome_chat_ipfs_b
+    image: "ipfs/kubo:v0.31.0"
+    environment:
+      - IPFS_PROFILE
+    expose:
+      - 5001
+    volumes:
+      - "${CHAT_STORAGE_STAGING:-./.chat-ipfs}:/export"
+      - "${CHAT_STORAGE_DATA:-./.chat-ipfs-data}:/data/ipfs"

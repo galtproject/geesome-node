@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM microwavedev/geesome-base
+FROM microwavedev/geesome-base AS node-base
 
 # https://github.com/lovell/sharp/issues/3161
 #RUN curl -OL https://github.com/libvips/libvips/releases/download/v8.12.2/vips-8.12.2.tar.gz && tar xf vips-8.12.2.tar.gz
@@ -21,6 +21,8 @@ RUN npm i -g yarn@1.22.22
 ENV YARN_CACHE_FOLDER=/usr/local/share/.cache/yarn
 ENV NODE_OPTIONS=--dns-result-order=ipv4first
 
+FROM node-base AS dependencies
+
 COPY package.json yarn.lock .yarnrc ./
 # Keep dependency installation reusable for source-only rebuilds. The Yarn v1
 # cache mount preserves fetched package archives between BuildKit builds, while
@@ -29,13 +31,19 @@ RUN --mount=type=cache,target=/usr/local/share/.cache/yarn,sharing=locked \
     yarn -W --no-optional --frozen-lockfile --network-concurrency 1 \
     && npm rebuild youtube-dl
 
+FROM dependencies AS frontend-build
+
 RUN mkdir -p bash
 COPY bash/publish-frontend-dist.sh ./bash/publish-frontend-dist.sh
-RUN GEESOME_FRONTEND_PUBLISH_DIR=/tmp/geesome-frontend-build \
-    bash bash/publish-frontend-dist.sh \
-    && rm -rf /tmp/geesome-frontend-build
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn,sharing=locked \
+    GEESOME_FRONTEND_PUBLISH_DIR=/tmp/geesome-frontend-build \
+    bash bash/publish-frontend-dist.sh
 
+FROM node-base AS runtime
+
+COPY --from=dependencies /geesome-node/node_modules ./node_modules
 COPY . .
+COPY --from=frontend-build /tmp/geesome-frontend-build/. ./frontend/docker-dist/
 
 ENV STORAGE_MODULE=ipfs-http-client
 ENV STORAGE_URL=http://go_ipfs:5001

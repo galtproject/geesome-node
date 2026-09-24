@@ -1,7 +1,6 @@
 import axios from "axios";
 import {lookup as dnsLookup} from "node:dns/promises";
-import {Agent as HttpsAgent} from "node:https";
-import {BlockList, isIP} from "node:net";
+import {createSafeHttpsAgent} from "../../helpers/safeHttpsAgent.js";
 
 export const pinataEndpoint = "https://api.pinata.cloud/pinning/pinByHash";
 export const pinataAuthenticationEndpoint = "https://api.pinata.cloud/data/testAuthentication";
@@ -13,7 +12,6 @@ const minRequestTimeoutMs = 1000;
 const maxRequestTimeoutMs = 120000;
 const maxErrorDetailsLength = 1000;
 const maxResponseLength = 64 * 1024;
-const blockedProviderAddresses = getBlockedProviderAddresses();
 
 export type IPinProviderRequestOptions = {
 	requestTimeoutMs?: unknown;
@@ -44,10 +42,18 @@ export async function preparePinProviderRequest(
 		return {endpoint, config, dispose: () => null};
 	}
 	const url = validateCustomPinProviderUrl(endpoint, options);
-	const approvedAddresses = await resolveApprovedAddresses(url.hostname, options.lookup || dnsLookup);
-	const agent = new HttpsAgent({
-		lookup: getPinnedLookup(url.hostname, approvedAddresses)
-	});
+	let agent;
+	try {
+		agent = await createSafeHttpsAgent(url.hostname, {
+			lookup: options.lookup || dnsLookup,
+			errorPrefix: 'pin_provider_endpoint'
+		});
+	} catch (error) {
+		if (error?.message === 'pin_provider_endpoint_address_not_allowed') {
+			throw getTerminalProviderPolicyError(error.message);
+		}
+		throw error;
+	}
 	config.httpsAgent = agent;
 	return {
 		endpoint,
@@ -113,98 +119,6 @@ function validateCustomPinProviderUrl(endpoint: string, options: IPinProviderReq
 		throw getTerminalProviderPolicyError('pin_provider_endpoint_host_not_allowed');
 	}
 	return url;
-}
-
-async function resolveApprovedAddresses(hostname: string, lookup: typeof dnsLookup) {
-	let addresses;
-	try {
-		addresses = await lookup(stripIpv6Brackets(hostname), {all: true, verbatim: true});
-	} catch (error) {
-		throw new Error('pin_provider_endpoint_dns_failed');
-	}
-	if (!addresses.length) {
-		throw new Error('pin_provider_endpoint_dns_failed');
-	}
-	if (addresses.some(({address}) => !isPublicIpAddress(address))) {
-		throw getTerminalProviderPolicyError('pin_provider_endpoint_address_not_allowed');
-	}
-	return addresses;
-}
-
-function getPinnedLookup(hostname: string, addresses) {
-	let nextAddress = 0;
-	return (requestedHostname, options, callback) => {
-		if (stripIpv6Brackets(requestedHostname).toLowerCase() !== stripIpv6Brackets(hostname).toLowerCase()) {
-			callback(new Error('pin_provider_endpoint_host_changed'));
-			return;
-		}
-		const family = typeof options === 'object' ? options.family : 0;
-		const matchingAddresses = family ? addresses.filter(address => address.family === family) : addresses;
-		if (!matchingAddresses.length) {
-			callback(new Error('pin_provider_endpoint_address_family_unavailable'));
-			return;
-		}
-		if (typeof options === 'object' && options.all) {
-			callback(null, matchingAddresses);
-			return;
-		}
-		const selectedAddress = matchingAddresses[nextAddress % matchingAddresses.length];
-		nextAddress += 1;
-		callback(null, selectedAddress.address, selectedAddress.family);
-	};
-}
-
-function isPublicIpAddress(address: string): boolean {
-	const family = isIP(address);
-	if (!family) {
-		return false;
-	}
-	if (blockedProviderAddresses.check(address, family === 4 ? 'ipv4' : 'ipv6')) {
-		return false;
-	}
-	return family === 4 || isGlobalIpv6Address(address.toLowerCase());
-}
-
-function isGlobalIpv6Address(address: string): boolean {
-	const firstGroup = Number.parseInt(address.split(':')[0], 16);
-	return firstGroup >= 0x2000 && firstGroup <= 0x3fff;
-}
-
-function getBlockedProviderAddresses(): BlockList {
-	const blockList = new BlockList();
-	[
-		['0.0.0.0', 8],
-		['10.0.0.0', 8],
-		['100.64.0.0', 10],
-		['127.0.0.0', 8],
-		['169.254.0.0', 16],
-		['172.16.0.0', 12],
-		['192.0.0.0', 24],
-		['192.0.2.0', 24],
-		['192.88.99.0', 24],
-		['192.168.0.0', 16],
-		['198.18.0.0', 15],
-		['198.51.100.0', 24],
-		['203.0.113.0', 24],
-		['224.0.0.0', 4],
-		['240.0.0.0', 4]
-	].forEach(([address, prefix]) => blockList.addSubnet(String(address), Number(prefix), 'ipv4'));
-	[
-		['::', 128],
-		['::1', 128],
-		['64:ff9b:1::', 48],
-		['100::', 64],
-		['2001::', 23],
-		['2002::', 16],
-		['fc00::', 7],
-		['fe80::', 10],
-		['ff00::', 8]
-	].forEach(([address, prefix]) => blockList.addSubnet(String(address), Number(prefix), 'ipv6'));
-	return blockList;
-}
-
-function stripIpv6Brackets(hostname: string): string {
-	return hostname.replace(/^\[|\]$/g, '');
 }
 
 function getPinProviderRequestTimeoutMs(value: unknown): number {

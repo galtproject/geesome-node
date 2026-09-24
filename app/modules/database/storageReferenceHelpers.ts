@@ -38,8 +38,20 @@ export async function getStorageObjectPinProvenance(models, sequelize, storageId
   };
 }
 
-export async function countDerivedStorageIdReferences(models, sequelize, storageId, options: any = {}) {
-  return countDirectDerivedStorageIdReferences(models, sequelize, storageId, options);
+export async function countDerivedStorageIdReferences(
+  models,
+  sequelize,
+  storageId,
+  options: any = {},
+  registeredSources: any[] = []
+) {
+  return countDirectDerivedStorageIdReferences(
+    models,
+    sequelize,
+    storageId,
+    options,
+    registeredSources
+  );
 }
 
 export async function countStorageObjectChildReferences(models, sequelize, storageId, options: any = {}) {
@@ -123,9 +135,15 @@ async function isStorageObjectReferenceSourceVisible(
   return false;
 }
 
-async function countDirectDerivedStorageIdReferences(models, sequelize, storageId, options: any = {}) {
+async function countDirectDerivedStorageIdReferences(
+  models,
+  sequelize,
+  storageId,
+  options: any = {},
+  registeredSources: any[] = []
+) {
   const refCounts = await Promise.all([
-    ...derivedStorageReferenceSources.map((source) => {
+    ...[...derivedStorageReferenceSources, ...registeredSources].map((source) => {
       return countStorageIdColumnReferences(models, sequelize, source, storageId, options);
     }),
     countLatestStaticIdHistoryFallbackReferences(models, sequelize, storageId),
@@ -236,14 +254,17 @@ const derivedStorageReferenceSources = [
 ];
 
 async function countStorageIdColumnReferences(models, sequelize, source, storageId, options) {
-  const model = getReferenceModel(models, sequelize, source.modelNames);
+  const model = source.model || getReferenceModel(models, sequelize, source.modelNames);
   if (!model) {
     return 0;
   }
   const where: any = {
     [Op.or]: source.columns.map((column) => ({[column]: storageId})),
   };
-  if (options.excludeFileCatalogItemId && source.modelNames.includes('FileCatalogItem')) {
+  if (
+    options.excludeFileCatalogItemId &&
+    source.modelNames?.includes('FileCatalogItem')
+  ) {
     where.id = {[Op.ne]: options.excludeFileCatalogItemId};
   }
   return model.count({

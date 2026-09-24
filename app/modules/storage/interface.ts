@@ -30,6 +30,8 @@ export default interface IGeesomeStorageModule {
 
   getFileDataText(filePath): Promise<any>;
 
+  addPin(hash): Promise<any>;
+
   unPin(hash, options?): Promise<any>;
 
   remove(hash, options?): Promise<any>;

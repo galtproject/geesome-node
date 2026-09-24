@@ -310,6 +310,7 @@ export interface IGroup {
 export enum GroupType {
 	Channel = 'channel',
 	Chat = 'chat',
+	PrivateGroup = 'private_group',
 	PersonalChat = 'personal_chat'
 }
 
@@ -432,6 +433,7 @@ export interface IPostInput {
 	contents?: IContent[];
 	contentRichText?: RichTextDocument;
 	contentRichTextFileName?: string;
+	privateGroupMembershipVersion?: string | number;
 	view?: string;
 	type?: string;
 	size?: string;

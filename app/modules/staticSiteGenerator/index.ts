@@ -1,4 +1,5 @@
 import fs from 'fs';
+import {sanitizeStaticSiteLayoutHtml} from '../../htmlSafety.js';
 import _ from 'lodash';
 import debug from 'debug';
 import pIteration from 'p-iteration';
@@ -12,7 +13,7 @@ import site from './site/index.js';
 import vendorAssets from './site/vendorAssets.js';
 const {clone, uniq, merge, pick, last} = _;
 const log = debug('geesome:app:staticSiteGenerator');
-const {getPostTitleAndDescription, getOgHeaders, sanitizeStaticSiteContents, sanitizeStaticSiteHtml} = ssgHelpers;
+const {getPostTitleAndDescription, getOgHeaders, sanitizeStaticSiteContents} = ssgHelpers;
 const {prepareRender} = site;
 const base = '/';
 let publicDirStorageId, faviconStorageId, vendorAssetsStorageId;
@@ -88,7 +89,7 @@ function validateStaticSiteName(name) {
     }
 }
 
-function normalizeStaticSiteOptions(options: any = {}) {
+export function normalizeStaticSiteOptions(options: any = {}) {
     const normalized = clone(options) || {};
     normalized.post = normalized.post || {};
     normalized.postList = normalized.postList || {};
@@ -123,7 +124,7 @@ function normalizeStaticSiteHtmlOption(html, errorMessage) {
     if (typeof html !== 'string') {
         throw new Error(errorMessage);
     }
-    return sanitizeStaticSiteHtml(html);
+    return sanitizeStaticSiteLayoutHtml(html);
 }
 
 function parseStoredStaticSiteOptions(staticSite) {

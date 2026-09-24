@@ -258,6 +258,25 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'storageObjectReferences', columns: ['targetStorageId'], type: 'character varying'},
   {table: 'storageObjectReferences', columns: ['referenceType'], type: 'character varying'},
   {table: 'storageObjectReferences', columns: ['targetSize'], type: 'bigint'},
+  {table: 'chatConversationHeads', columns: ['lastSequence'], type: 'bigint'},
+  {table: 'chatEvents', columns: ['sequence'], type: 'bigint'},
+  {table: 'chatEvents', columns: ['sourceSequence'], type: 'bigint'},
+  {table: 'chatEvents', columns: ['sourceSyncUrl'], type: 'text'},
+  {table: 'chatEvents', columns: ['senderBundleJson'], type: 'text'},
+  {table: 'chatEventRecipients', columns: ['ownerId'], type: 'character varying'},
+  {table: 'chatDeliveries', columns: ['acknowledgedSequence'], type: 'bigint'},
+  {table: 'chatDeliveries', columns: ['acknowledgedHeadSequence'], type: 'bigint'},
+  {table: 'chatSyncStates', columns: ['verifiedSourceSequence'], type: 'bigint'},
+  {table: 'chatSyncStates', columns: ['scanAfterSourceSequence'], type: 'bigint'},
+  {table: 'chatSyncStates', columns: ['lastSourceHeadSequence'], type: 'bigint'},
+  {table: 'chatSyncJobs', columns: ['nextAttemptAt'], type: 'timestamp with time zone'},
+  {table: 'chatSyncJobs', columns: ['failureCount'], type: 'integer'},
+  {table: 'chatSyncJobs', columns: ['claimedAt'], type: 'timestamp with time zone'},
+  {table: 'chatSyncJobs', columns: ['claimExpiresAt'], type: 'timestamp with time zone'},
+  {table: 'chatSyncJobs', columns: ['claimToken'], type: 'character varying'},
+  {table: 'privateGroupMembershipSnapshots', columns: ['version'], type: 'bigint'},
+  {table: 'privateGroupMembershipDevices', columns: ['bundleJson'], type: 'text'},
+  {table: 'privateGroupPostMemberships', columns: ['membershipVersion'], type: 'bigint'},
 ];
 
 const expectedIndexes: ExpectedIndex[] = [
@@ -350,6 +369,76 @@ const expectedIndexes: ExpectedIndex[] = [
   {name: 'auto_tags_required_tag3_idx', table: 'autoTags', columns: ['requiredTag3Id']},
   {name: 'auto_tags_required_tag4_idx', table: 'autoTags', columns: ['requiredTag4Id']},
   {name: 'auto_tags_required_tag5_idx', table: 'autoTags', columns: ['requiredTag5Id']},
+  {name: 'chat_devices_user_device_unique', table: 'chatDevices', columns: ['userId', 'deviceId'], unique: true},
+  {name: 'chat_devices_key_unique', table: 'chatDevices', columns: ['keyId'], unique: true},
+  {name: 'chat_conversation_heads_conversation_unique', table: 'chatConversationHeads', columns: ['conversationId'], unique: true},
+  {name: 'chat_events_message_unique', table: 'chatEvents', columns: ['messageId'], unique: true},
+  {name: 'chat_events_conversation_sequence_unique', table: 'chatEvents', columns: ['conversationId', 'sequence'], unique: true},
+  {name: 'chat_event_recipients_event_key_unique', table: 'chatEventRecipients', columns: ['chatEventId', 'keyId'], unique: true},
+  {name: 'chat_event_receipts_event_user_unique', table: 'chatEventReceipts', columns: ['chatEventId', 'userId'], unique: true},
+  {name: 'chat_deliveries_event_owner_unique', table: 'chatDeliveries', columns: ['chatEventId', 'recipientOwnerId'], unique: true},
+  {name: 'chat_deliveries_due_idx', table: 'chatDeliveries', columns: ['state', 'nextAttemptAt']},
+  {name: 'chat_deliveries_claim_idx', table: 'chatDeliveries', columns: ['state', 'nextAttemptAt', 'deliveryClaimExpiresAt', 'id']},
+  {
+    name: 'chat_sync_states_conversation_recipient_source_unique',
+    table: 'chatSyncStates',
+    columns: ['conversationId', 'recipientOwnerId', 'sourceOwnerId'],
+    unique: true
+  },
+  {
+    name: 'chat_sync_states_recipient_updated_idx',
+    table: 'chatSyncStates',
+    columns: ['recipientOwnerId', 'updatedAt', 'id']
+  },
+  {
+    name: 'chat_sync_jobs_state_unique',
+    table: 'chatSyncJobs',
+    columns: ['chatSyncStateId'],
+    unique: true
+  },
+  {
+    name: 'chat_sync_jobs_due_idx',
+    table: 'chatSyncJobs',
+    columns: ['nextAttemptAt', 'claimExpiresAt', 'id']
+  },
+  {
+    name: 'chat_sync_jobs_recipient_due_idx',
+    table: 'chatSyncJobs',
+    columns: ['recipientOwnerId', 'nextAttemptAt', 'id']
+  },
+  {
+    name: 'private_group_membership_group_version_unique',
+    table: 'privateGroupMembershipSnapshots',
+    columns: ['groupId', 'version'],
+    unique: true
+  },
+  {
+    name: 'private_group_membership_group_created_idx',
+    table: 'privateGroupMembershipSnapshots',
+    columns: ['groupId', 'createdAt', 'id']
+  },
+  {
+    name: 'private_group_membership_devices_snapshot_key_unique',
+    table: 'privateGroupMembershipDevices',
+    columns: ['privateGroupMembershipSnapshotId', 'keyId'],
+    unique: true
+  },
+  {
+    name: 'private_group_membership_devices_user_snapshot_idx',
+    table: 'privateGroupMembershipDevices',
+    columns: ['userId', 'privateGroupMembershipSnapshotId', 'id']
+  },
+  {
+    name: 'private_group_post_membership_post_unique',
+    table: 'privateGroupPostMemberships',
+    columns: ['postId'],
+    unique: true
+  },
+  {
+    name: 'private_group_post_membership_group_version_idx',
+    table: 'privateGroupPostMemberships',
+    columns: ['groupId', 'membershipVersion', 'postId']
+  },
 ];
 
 const storageObjectMetadataColumns = [
@@ -376,6 +465,286 @@ const countChecks: CountCheck[] = [
       FROM pg_class
       WHERE relkind = 'i'
         AND relname = 'contents_user_storage_unique'
+    `,
+  },
+  {
+    name: 'chat event recipients reference existing events',
+    requirements: [
+      {table: 'chatEventRecipients', columns: ['chatEventId']},
+      {table: 'chatEvents', columns: ['id']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "chatEventRecipients" recipient
+      LEFT JOIN "chatEvents" event
+        ON event.id = recipient."chatEventId"
+      WHERE event.id IS NULL
+    `,
+  },
+  {
+    name: 'chat event receipts reference existing events',
+    requirements: [
+      {table: 'chatEventReceipts', columns: ['chatEventId']},
+      {table: 'chatEvents', columns: ['id']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "chatEventReceipts" receipt
+      LEFT JOIN "chatEvents" event
+        ON event.id = receipt."chatEventId"
+      WHERE event.id IS NULL
+    `,
+  },
+  {
+    name: 'chat deliveries reference existing events',
+    requirements: [
+      {table: 'chatDeliveries', columns: ['chatEventId']},
+      {table: 'chatEvents', columns: ['id']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "chatDeliveries" delivery
+      LEFT JOIN "chatEvents" event
+        ON event.id = delivery."chatEventId"
+      WHERE event.id IS NULL
+    `,
+  },
+  {
+    name: 'delivered chat rows contain acknowledgement state',
+    requirements: [{
+      table: 'chatDeliveries',
+      columns: [
+        'state',
+        'deliveredAt',
+        'acknowledgedSequence',
+        'acknowledgedHeadSequence',
+        'deliveryClaimedAt',
+        'deliveryClaimExpiresAt',
+      ],
+    }],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "chatDeliveries"
+      WHERE state = 'delivered'
+        AND (
+          "deliveredAt" IS NULL
+          OR "acknowledgedSequence" IS NULL
+          OR "acknowledgedHeadSequence" IS NULL
+          OR "deliveryClaimedAt" IS NOT NULL
+          OR "deliveryClaimExpiresAt" IS NOT NULL
+        )
+    `,
+  },
+  {
+    name: 'chat conversation heads cover stored event sequences',
+    requirements: [
+      {table: 'chatConversationHeads', columns: ['conversationId', 'lastSequence']},
+      {table: 'chatEvents', columns: ['conversationId', 'sequence']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM (
+        SELECT
+          event."conversationId",
+          MAX(event.sequence) AS "maxSequence"
+        FROM "chatEvents" event
+        GROUP BY event."conversationId"
+      ) stored
+      LEFT JOIN "chatConversationHeads" head
+        ON head."conversationId" = stored."conversationId"
+      WHERE head.id IS NULL
+        OR head."lastSequence" < stored."maxSequence"
+    `,
+  },
+  {
+    name: 'chat sync cursors remain monotonic and bounded by observed heads',
+    requirements: [{
+      table: 'chatSyncStates',
+      columns: [
+        'verifiedSourceSequence',
+        'scanAfterSourceSequence',
+        'lastSourceHeadSequence',
+      ],
+    }],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "chatSyncStates"
+      WHERE "verifiedSourceSequence" < 0
+        OR "scanAfterSourceSequence" < "verifiedSourceSequence"
+        OR (
+          "lastSourceHeadSequence" IS NOT NULL
+          AND "scanAfterSourceSequence" > "lastSourceHeadSequence"
+        )
+    `,
+  },
+  {
+    name: 'chat sync retry and lease state is valid',
+    requirements: [{
+      table: 'chatSyncJobs',
+      columns: [
+        'nextAttemptAt',
+        'failureCount',
+        'claimedAt',
+        'claimExpiresAt',
+        'claimToken',
+      ],
+    }],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "chatSyncJobs"
+      WHERE "nextAttemptAt" IS NULL
+        OR "failureCount" < 0
+        OR (
+          ("claimedAt" IS NULL) <>
+          ("claimExpiresAt" IS NULL)
+        )
+        OR (
+          ("claimedAt" IS NULL) <>
+          ("claimToken" IS NULL)
+        )
+        OR (
+          "claimedAt" IS NOT NULL
+          AND "claimExpiresAt" <= "claimedAt"
+        )
+    `,
+  },
+  {
+    name: 'chat sync jobs point to existing sync states',
+    requirements: [
+      {table: 'chatSyncJobs', columns: ['chatSyncStateId']},
+      {table: 'chatSyncStates', columns: ['id']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "chatSyncJobs" job
+      LEFT JOIN "chatSyncStates" state
+        ON state.id = job."chatSyncStateId"
+      WHERE state.id IS NULL
+    `,
+  },
+  {
+    name: 'private group membership snapshot counts match immutable device rows',
+    requirements: [
+      {
+        table: 'privateGroupMembershipSnapshots',
+        columns: ['id', 'memberCount', 'deviceCount'],
+      },
+      {
+        table: 'privateGroupMembershipDevices',
+        columns: ['privateGroupMembershipSnapshotId', 'userId'],
+      },
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "privateGroupMembershipSnapshots" snapshot
+      LEFT JOIN (
+        SELECT
+          device."privateGroupMembershipSnapshotId" AS "snapshotId",
+          COUNT(*) AS "deviceCount",
+          COUNT(DISTINCT device."userId") AS "memberCount"
+        FROM "privateGroupMembershipDevices" device
+        GROUP BY device."privateGroupMembershipSnapshotId"
+      ) stored
+        ON stored."snapshotId" = snapshot.id
+      WHERE COALESCE(stored."deviceCount", 0) <> snapshot."deviceCount"
+        OR COALESCE(stored."memberCount", 0) <> snapshot."memberCount"
+    `,
+  },
+  {
+    name: 'private group membership devices reference existing snapshots',
+    requirements: [
+      {
+        table: 'privateGroupMembershipDevices',
+        columns: ['privateGroupMembershipSnapshotId'],
+      },
+      {table: 'privateGroupMembershipSnapshots', columns: ['id']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "privateGroupMembershipDevices" device
+      LEFT JOIN "privateGroupMembershipSnapshots" snapshot
+        ON snapshot.id = device."privateGroupMembershipSnapshotId"
+      WHERE snapshot.id IS NULL
+    `,
+  },
+  {
+    name: 'private group membership snapshots reference private groups',
+    requirements: [
+      {table: 'privateGroupMembershipSnapshots', columns: ['groupId']},
+      {table: 'groups', columns: ['id', 'type']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "privateGroupMembershipSnapshots" snapshot
+      LEFT JOIN groups
+        ON groups.id = snapshot."groupId"
+      WHERE groups.id IS NULL
+        OR groups.type <> 'private_group'
+    `,
+  },
+  {
+    name: 'every private group post is encrypted and has a membership snapshot binding',
+    requirements: [
+      {table: 'posts', columns: ['id', 'groupId', 'isEncrypted']},
+      {table: 'groups', columns: ['id', 'type']},
+      {table: 'privateGroupPostMemberships', columns: ['postId']},
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM posts
+      JOIN groups
+        ON groups.id = posts."groupId"
+      LEFT JOIN "privateGroupPostMemberships" binding
+        ON binding."postId" = posts.id
+      WHERE groups.type = 'private_group'
+        AND (
+          posts."isEncrypted" IS NOT TRUE
+          OR binding.id IS NULL
+        )
+    `,
+  },
+  {
+    name: 'private group post membership bindings match posts and snapshots',
+    requirements: [
+      {
+        table: 'privateGroupPostMemberships',
+        columns: [
+          'postId',
+          'groupId',
+          'privateGroupMembershipSnapshotId',
+          'membershipVersion',
+        ],
+      },
+      {table: 'privateGroupMembershipDevices', columns: ['privateGroupMembershipSnapshotId', 'userId']},
+      {table: 'posts', columns: ['id', 'groupId', 'userId']},
+      {table: 'groups', columns: ['id', 'type']},
+      {
+        table: 'privateGroupMembershipSnapshots',
+        columns: ['id', 'groupId', 'version'],
+      },
+    ],
+    sql: `
+      SELECT COUNT(*) AS count
+      FROM "privateGroupPostMemberships" binding
+      LEFT JOIN posts
+        ON posts.id = binding."postId"
+      LEFT JOIN groups
+        ON groups.id = posts."groupId"
+      LEFT JOIN "privateGroupMembershipSnapshots" snapshot
+        ON snapshot.id = binding."privateGroupMembershipSnapshotId"
+      WHERE posts.id IS NULL
+        OR groups.id IS NULL
+        OR groups.type <> 'private_group'
+        OR binding."groupId" <> posts."groupId"
+        OR snapshot.id IS NULL
+        OR snapshot."groupId" <> binding."groupId"
+        OR snapshot.version <> binding."membershipVersion"
+        OR NOT EXISTS (
+          SELECT 1
+          FROM "privateGroupMembershipDevices" device
+          WHERE device."privateGroupMembershipSnapshotId" = snapshot.id
+            AND device."userId" = posts."userId"
+        )
     `,
   },
   duplicateCheck('storage object storageId duplicates', 'storageObjects', ['storageId']),

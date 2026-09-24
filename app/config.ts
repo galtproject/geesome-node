@@ -9,7 +9,7 @@
 
 //TODO: move communicator and fileCatalog to improve
 const modulePacks = {
-  'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'staticId', 'asyncOperation', 'group', 'fileCatalog', 'entityJsonManifest', 'imageComposition', 'remoteGroup'],
+  'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'staticId', 'asyncOperation', 'privateGroup', 'group', 'chat', 'fileCatalog', 'entityJsonManifest', 'imageComposition', 'remoteGroup'],
   'improve': ['groupCategory', 'invite', 'staticSiteGenerator', 'rss', 'activityPub', 'autoActions', 'pin', 'foreignAccounts', 'ethereumAuthorization', 'storageSpace', 'gateway'],
   'socNet': ['socNetAccount', 'socNetImport', 'bluesky', 'telegramClient', 'twitterClient', 'tgContentBot']
 };
@@ -29,6 +29,39 @@ export default {
       // repo: '~/.jsipfs',
     },
     goNode: {url: process.env.STORAGE_URL || 'http://127.0.0.1:5001'}
+  },
+  chatConfig: {
+    publicUrl: process.env.CHAT_PUBLIC_URL || getPublicUrlFromDomainEnv(process.env.DOMAIN),
+    deliveryWorker: process.env.CHAT_DELIVERY_WORKER === '1',
+    autoProcessDeliveries: process.env.CHAT_AUTO_PROCESS_DELIVERIES !== '0',
+    deliveryWorkerIntervalMs: process.env.CHAT_DELIVERY_WORKER_INTERVAL_MS,
+    deliveryWorkerLimit: process.env.CHAT_DELIVERY_WORKER_LIMIT,
+    deliveryClaimTtlMs: process.env.CHAT_DELIVERY_CLAIM_TTL_MS,
+    attachmentPinTimeoutMs: process.env.CHAT_ATTACHMENT_PIN_TIMEOUT_MS,
+    maxAttachmentBytes: process.env.CHAT_MAX_ATTACHMENT_BYTES,
+    maxEventAttachmentBytes: process.env.CHAT_MAX_EVENT_ATTACHMENT_BYTES,
+    attachmentReservationTtlMs: process.env.CHAT_ATTACHMENT_RESERVATION_TTL_MS,
+    maxPendingAttachmentReservations: process.env.CHAT_MAX_PENDING_ATTACHMENT_RESERVATIONS,
+    maxPendingAttachmentBytes: process.env.CHAT_MAX_PENDING_ATTACHMENT_BYTES,
+    attachmentCleanupWorker: process.env.CHAT_ATTACHMENT_CLEANUP_WORKER !== '0',
+    attachmentCleanupWorkerIntervalMs: process.env.CHAT_ATTACHMENT_CLEANUP_WORKER_INTERVAL_MS,
+    attachmentCleanupWorkerLimit: process.env.CHAT_ATTACHMENT_CLEANUP_WORKER_LIMIT,
+    attachmentAbandonedRetentionMs: process.env.CHAT_ATTACHMENT_ABANDONED_RETENTION_MS,
+    attachmentCancelledRetentionMs: process.env.CHAT_ATTACHMENT_CANCELLED_RETENTION_MS,
+    attachmentCleanupClaimTtlMs: process.env.CHAT_ATTACHMENT_CLEANUP_CLAIM_TTL_MS,
+    attachmentCleanupRecordRetentionMs: process.env.CHAT_ATTACHMENT_CLEANUP_RECORD_RETENTION_MS,
+    reconciliationWorker: process.env.CHAT_RECONCILIATION_WORKER === '1',
+    reconciliationWorkerIntervalMs: process.env.CHAT_RECONCILIATION_WORKER_INTERVAL_MS,
+    reconciliationWorkerLimit: process.env.CHAT_RECONCILIATION_WORKER_LIMIT,
+    reconciliationPerRecipientLimit: process.env.CHAT_RECONCILIATION_PER_RECIPIENT_LIMIT,
+    reconciliationClaimTtlMs: process.env.CHAT_RECONCILIATION_CLAIM_TTL_MS,
+    reconciliationRefreshIntervalMs: process.env.CHAT_RECONCILIATION_REFRESH_INTERVAL_MS,
+    reconciliationContinuationDelayMs: process.env.CHAT_RECONCILIATION_CONTINUATION_DELAY_MS,
+    reconciliationPageLimit: process.env.CHAT_RECONCILIATION_PAGE_LIMIT,
+    reconciliationMaxPages: process.env.CHAT_RECONCILIATION_MAX_PAGES
+  },
+  privateGroupConfig: {
+    enabled: process.env.PRIVATE_GROUP_ENABLED === '1'
   },
   activityPubConfig: {
     enabled: process.env.ACTIVITYPUB_ENABLED === '1',

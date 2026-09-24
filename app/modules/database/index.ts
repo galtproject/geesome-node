@@ -23,6 +23,7 @@ import {
   IContentDeleteSafetyBlocker,
   IGeesomeDatabaseModule,
   IStorageIdReferenceOptions,
+  IStorageIdReferenceSource,
   IListParams,
   IListParamsOptions,
   IObject,
@@ -148,6 +149,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   connectionDiagnostics: DatabaseConnectionDiagnostics;
   connectionBudget: DatabaseConnectionBudget | null;
   stopPromise: Promise<void> | null = null;
+  storageIdReferenceSources: IStorageIdReferenceSource[] = [];
 
   constructor(_app, _sequelize, _models, _config, _connectionDiagnostics, _connectionBudget) {
     this.app = _app;
@@ -610,7 +612,13 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       this.models.Content.count({where: otherContentsWhere}),
       this.models.Content.count({where: previewRefsWhere}),
       this.getStorageObjectPinProvenance(storageId),
-      countDerivedStorageIdReferences(this.models, this.sequelize, storageId, options),
+      countDerivedStorageIdReferences(
+        this.models,
+        this.sequelize,
+        storageId,
+        options,
+        this.storageIdReferenceSources
+      ),
       countStorageObjectChildReferences(this.models, this.sequelize, storageId, {
         ...options,
         excludeContentId,
@@ -625,6 +633,30 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       storageObjectChildRefs,
       pinProvenance,
     };
+  }
+
+  registerStorageIdReferenceSource(source: IStorageIdReferenceSource) {
+    if (
+      !source?.model ||
+      !Array.isArray(source.columns) ||
+      !source.columns.length ||
+      source.columns.some(column =>
+        typeof column !== 'string' ||
+        !/^[A-Za-z_][A-Za-z0-9_]*$/.test(column)
+      )
+    ) {
+      throw new Error('storage_id_reference_source_invalid');
+    }
+    if (this.storageIdReferenceSources.some(existing =>
+      existing.model === source.model &&
+      existing.columns.join('\0') === source.columns.join('\0')
+    )) {
+      return;
+    }
+    this.storageIdReferenceSources.push({
+      model: source.model,
+      columns: [...source.columns]
+    });
   }
 
   async getStorageObjectPinProvenance(storageId: string) {

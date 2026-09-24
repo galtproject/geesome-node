@@ -20,6 +20,8 @@ import IGeesomeDriversModule from "./modules/drivers/interface.js";
 import IGeesomeContentModule from "./modules/content/interface.js";
 import IGeesomeInviteModule from "./modules/invite/interface.js";
 import IGeesomeGroupModule from "./modules/group/interface.js";
+import IGeesomePrivateGroupModule from "./modules/privateGroup/interface.js";
+import IGeesomeChatModule from "./modules/chat/interface.js";
 import IGeesomeImageCompositionModule from "./modules/imageComposition/interface.js";
 import IGeesomeApiModule from "./modules/api/interface.js";
 import {GeesomeEmitter} from "./events.js";
@@ -48,6 +50,8 @@ export interface IGeesomeApp {
     staticId: IGeesomeStaticIdModule;
     invite: IGeesomeInviteModule;
     group: IGeesomeGroupModule;
+    privateGroup?: IGeesomePrivateGroupModule;
+    chat: IGeesomeChatModule;
     imageComposition: IGeesomeImageCompositionModule;
     accountStorage: IGeesomeAccountStorageModule;
     storage: IGeesomeStorageModule;
@@ -176,6 +180,10 @@ export interface IFileContentInput extends IContentInput {
    * Multipart form-data file field.
    */
   file: any;
+  /**
+   * Opaque encrypted-chat attachment reservation to bind after persistence.
+   */
+  chatAttachmentReservationId?: string;
   /**
    * Source/processing driver. A string (e.g. "youtubeVideo") selects an upload driver from geesome-node/drivers/upload, or an object for more control: `{ name?, params?, raw? }`. Set `raw: true` to store the original bytes unchanged — skips video transcoding and preview generation, so the stored content CID matches the uploaded file (useful for archival/hash-binding and to avoid transcode timeouts on large media). Combine with a source name, e.g. `{ "name": "youtubeVideo", "raw": true }`. In multipart form-data, pass the object as a JSON string.
    */

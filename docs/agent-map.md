@@ -2,11 +2,24 @@
 
 Use this map after loading the repo instructions in `AGENTS.md`.
 
+## Planning And History
+
+- Read [todo.md](./todo.md) for unfinished work only.
+- Use `npm run todo:sections`, then
+  `npm run todo:context -- <section-id>` before implementing a plan section.
+- Read [implemented.md](./implemented.md) for delivered foundations and preserved
+  verification history.
+- When a section is delivered, move its durable outcome to `implemented.md`
+  instead of leaving completed implementation history in the active TODO.
+
 ## API Work
 
 - Read `AGENTS.md` for required API-doc and security-inventory upkeep.
 - Update apiDoc annotations near changed route handlers.
 - Check [module docs](./modules.md) for the owner module.
+- Read [Agent-friendly API recommendations](./agent-friendly-api-recommendations.md)
+  when changing public discovery, reverse-proxy paths, uploads, immutable
+  gateway reads, auth scopes, async responses, errors, or integration examples.
 - Run or update the security route inventory when route auth, permissions, or
   endpoint shape changes.
 
@@ -34,6 +47,26 @@ Useful live endpoints:
   `app/modules/bluesky/docs/overview.md`.
 - For review-first/auto-import policy or remote-source filters, also read
   `app/modules/remoteContentModeration/docs/overview.md`.
+
+## Secure Chat
+
+- Treat browser-encrypted direct messages as the implemented foundation, not as
+  completion of production-secure group chat.
+- Read [Reliable IPFS Chat Research](./ipfs-chat-reliability-research.md) before
+  changing chat storage, delivery, PubSub, peering, or browser transport.
+- Read [Group Chat E2EE Protocol Decision](./chat-group-e2ee-protocol-decision.md)
+  before changing group membership, device leaves, epoch ordering, MLS browser
+  state, KeyPackages, Welcome messages, or group-chat wire contracts.
+- Read `app/modules/chat/docs/overview.md` before changing device, envelope,
+  delivery, acknowledgement, or reconciliation contracts.
+- Read `app/modules/privateGroup/docs/overview.md` before changing encrypted
+  group/post policy, private post callbacks, or author-controlled mutation.
+- Load the `browser-first-chat-e2ee` TODO section before chat implementation.
+- Coordinate protocol/envelope changes through `geesome-libs`, browser/device
+  key handling through `geesome-ui`, and opaque storage/delivery through
+  `geesome-node`.
+- Keep private keys, plaintext messages, and plaintext attachments outside
+  `geesome-node`; realtime communicator/PubSub events remain optional hints.
 
 ## Data Scale, Migrations, And Storage
 

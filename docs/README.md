@@ -10,7 +10,11 @@ API reference output with handwritten architecture, operations, and module notes
 - [Module docs index](./modules.md): map of modules and module-owned docs under
   `app/modules/<module>/docs/`.
 - [Agent docs map](./agent-map.md): task-to-doc routing for agents and maintainers.
-- [TODO and delivery plan](./todo.md): issue-backed implementation backlog.
+- [Agent-friendly API recommendations](./agent-friendly-api-recommendations.md):
+  public discovery, immutable asset, auth, error, async, and batch contracts.
+- [Active TODO](./todo.md): unfinished deterministic implementation sections.
+- [Implemented work](./implemented.md): delivered foundations and verification
+  history previously mixed into the TODO.
 
 For implementation slices, list deterministic TODO section ids with
 `npm run todo:sections`, then print the exact context for one slice with
@@ -42,4 +46,6 @@ can be used for the generated API page, this portal, and module docs.
 - [Security route inventory](./security-route-inventory.md)
 - [Database scalability review](./database-scalability-review.md)
 - [Group manifest IPLD scalability](./group-manifest-ipld-scalability.md)
+- [Reliable IPFS chat research](./ipfs-chat-reliability-research.md)
+- [Group chat E2EE protocol decision](./chat-group-e2ee-protocol-decision.md)
 - [Manifest examples](./manifests-example.md)

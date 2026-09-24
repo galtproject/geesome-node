@@ -10,8 +10,15 @@
 import assert from 'assert';
 import commonHelper from "geesome-libs/src/common.js";
 import trieHelper from "geesome-libs/src/base36Trie.js";
+import browserE2eeHelper from "geesome-libs/src/browserE2eeHelper.js";
 import {ContentStorageType, ContentView, CorePermissionName} from "../app/modules/database/interface.js";
-import {PostContentAttachmentReason, PostEventAction, PostEventType, PostStatus} from "../app/modules/group/interface.js";
+import {
+	GroupType,
+	PostContentAttachmentReason,
+	PostEventAction,
+	PostEventType,
+	PostStatus
+} from "../app/modules/group/interface.js";
 import {IGeesomeApp} from "../app/interface.js";
 import {RICH_TEXT_MIME_TYPE, createRichTextDocument} from "../app/richText.js";
 import {
@@ -61,6 +68,213 @@ describe("group", function () {
 
 	afterEach(async () => {
 		await app.stop();
+	});
+
+	it('registers private-group membership routes as authenticated API operations', async () => {
+		const port = process.env.PORT || 7771;
+		const response = await fetch(`http://127.0.0.1:${port}/v1`);
+		const discovery: any = await response.json();
+		const membershipRoutes = discovery.routes.filter(
+			route => route.path === '/v1/private-groups/:groupId/membership'
+		);
+
+		assert.equal(response.status, 200);
+		assert.deepEqual(membershipRoutes, [
+			{
+				method: 'GET',
+				path: '/v1/private-groups/:groupId/membership',
+				authorized: true
+			},
+			{
+				method: 'POST',
+				path: '/v1/private-groups/:groupId/membership',
+				authorized: true
+			}
+		]);
+	});
+
+	it('routes private-group posts through private policy and keeps author mutation control', async () => {
+		app.config.privateGroupConfig.enabled = true;
+		const testUser = (await app.ms.database.getAllUserList('user'))[0];
+		const secondUser = await app.registerUser({
+			email: 'private-group-member@user.com',
+			name: 'private-group-member',
+			password: 'private-group-member',
+			permissions: [CorePermissionName.UserAll]
+		});
+		const creatorDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: testUser.storageAccountId,
+			deviceId: 'private-group-creator-browser'
+		});
+		const memberDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: secondUser.storageAccountId,
+			deviceId: 'private-group-member-browser'
+		});
+		await app.ms.chat.registerDevice(testUser.id, creatorDevice.publicBundle);
+		await app.ms.chat.registerDevice(secondUser.id, memberDevice.publicBundle);
+		const privateGroup = await app.ms.group.createGroup(testUser.id, {
+			name: 'private-group',
+			title: 'Private group',
+			type: GroupType.PrivateGroup,
+			isPublic: true,
+			isOpen: true,
+			isEncrypted: false
+		});
+		await app.ms.group.addMemberToGroup(testUser.id, privateGroup.id, secondUser.id);
+		await app.ms.group.addAdminToGroup(testUser.id, privateGroup.id, secondUser.id);
+		const firstMembership = await app.ms.privateGroup.createMembershipSnapshot(
+			testUser.id,
+			privateGroup.id,
+			'0'
+		);
+		const replayedMembership = await app.ms.privateGroup.createMembershipSnapshot(
+			testUser.id,
+			privateGroup.id,
+			'0'
+		);
+		await assert.rejects(
+			() => app.ms.group.createPost(testUser.id, {
+				groupId: privateGroup.id,
+				status: PostStatus.Published
+			}, {asyncDerivedState: false}),
+			(error: Error) => error.message === 'private_group_membership_version_required'
+		);
+		await assert.rejects(
+			() => app.ms.group.createRemotePostByObject(testUser.id, {
+				groupId: privateGroup.id
+			}),
+			(error: Error) => error.message === 'private_group_remote_post_not_supported'
+		);
+
+		let privateHookCalls = 0;
+		let publicHookCalls = 0;
+		let privateManifestResult;
+		const privateManifestHook = app.ms.privateGroup.afterPrivatePostManifestUpdate;
+		const activityPubManifestHook = app.ms.activityPub.afterPostManifestUpdate;
+		app.ms.privateGroup.afterPrivatePostManifestUpdate = async (_userId, postId) => {
+			privateHookCalls += 1;
+			privateManifestResult = await privateManifestHook.call(
+				app.ms.privateGroup,
+				testUser.id,
+				postId
+			);
+			return privateManifestResult;
+		};
+		app.ms.activityPub.afterPostManifestUpdate = async () => {
+			publicHookCalls += 1;
+			return {queued: 0, deliveryIds: []};
+		};
+
+		const post = await app.ms.group.createPost(testUser.id, {
+			groupId: privateGroup.id,
+			status: PostStatus.Published,
+			privateGroupMembershipVersion: firstMembership.version
+		}, {asyncDerivedState: false});
+		const postMembership = await app.ms.privateGroup.getPostMembership(post.id);
+
+		assert.equal(privateGroup.isPublic, false);
+		assert.equal(privateGroup.isOpen, false);
+		assert.equal(privateGroup.isEncrypted, true);
+		assert.equal(post.isEncrypted, true);
+		assert.equal(await app.ms.group.isMemberInGroup(testUser.id, privateGroup.id), true);
+		assert.equal(firstMembership.version, '1');
+		assert.equal(firstMembership.memberCount, 2);
+		assert.equal(firstMembership.deviceCount, 2);
+		assert.equal(replayedMembership.id, firstMembership.id);
+		assert.equal(postMembership.groupId, privateGroup.id);
+		assert.equal(postMembership.membershipSnapshotId, firstMembership.id);
+		assert.equal(postMembership.membershipVersion, firstMembership.version);
+		assert.equal(privateManifestResult.membershipVersion, firstMembership.version);
+		assert.equal(privateHookCalls, 1);
+		assert.equal(publicHookCalls, 0);
+		await app.ms.group.updateGroup(testUser.id, privateGroup.id, {
+			isPublic: true,
+			isOpen: true,
+			isEncrypted: false
+		});
+		const normalizedPrivateGroup = await app.ms.group.getGroup(privateGroup.id);
+		assert.equal(normalizedPrivateGroup.isPublic, false);
+		assert.equal(normalizedPrivateGroup.isOpen, false);
+		assert.equal(normalizedPrivateGroup.isEncrypted, true);
+		await assert.rejects(
+			() => app.ms.group.updateGroup(testUser.id, privateGroup.id, {
+				type: GroupType.Channel
+			}),
+			(error: Error) => error.message === 'group_type_change_not_supported'
+		);
+		await assert.rejects(
+			() => app.ms.group.updatePost(secondUser.id, post.id, {view: 'forbidden'}),
+			(error: Error) => error.message === 'not_permitted'
+		);
+		await assert.rejects(
+			() => app.ms.group.deletePosts(secondUser.id, [post.id]),
+			(error: Error) => error.message === 'not_permitted'
+		);
+		await app.ms.group.updatePost(testUser.id, post.id, {view: 'author-edit'});
+
+		const updatedPost = await app.ms.group.getPostPure(post.id);
+		assert.equal(updatedPost.view, 'author-edit');
+
+		const secondCreatorDevice = await browserE2eeHelper.generateDeviceKeys({
+			ownerId: testUser.storageAccountId,
+			deviceId: 'private-group-creator-second-browser'
+		});
+		await app.ms.chat.registerDevice(testUser.id, secondCreatorDevice.publicBundle);
+		await assert.rejects(
+			() => app.ms.privateGroup.createMembershipSnapshot(
+				testUser.id,
+				privateGroup.id,
+				'0'
+			),
+			(error: Error) => error.message === 'private_group_membership_version_conflict'
+		);
+		const secondMembership = await app.ms.privateGroup.createMembershipSnapshot(
+			testUser.id,
+			privateGroup.id,
+			'1'
+		);
+		assert.equal(secondMembership.version, '2');
+		assert.equal(secondMembership.deviceCount, 3);
+		await assert.rejects(
+			() => app.ms.group.createPost(testUser.id, {
+				groupId: privateGroup.id,
+				status: PostStatus.Published,
+				privateGroupMembershipVersion: firstMembership.version
+			}, {asyncDerivedState: false}),
+			(error: Error) => error.message === 'private_group_membership_snapshot_stale'
+		);
+
+		await app.ms.chat.revokeDevice(secondUser.id, memberDevice.publicBundle.deviceId);
+		await assert.rejects(
+			() => app.ms.privateGroup.createMembershipSnapshot(
+				testUser.id,
+				privateGroup.id,
+				'2'
+			),
+			(error: Error) => error.message === 'private_group_member_device_required'
+		);
+		await app.ms.group.removeMemberFromGroup(testUser.id, privateGroup.id, secondUser.id);
+		const thirdMembership = await app.ms.privateGroup.createMembershipSnapshot(
+			testUser.id,
+			privateGroup.id,
+			'2'
+		);
+		const historicalMembership = await app.ms.privateGroup.getMembershipSnapshot(
+			testUser.id,
+			privateGroup.id,
+			'1'
+		);
+		assert.equal(thirdMembership.version, '3');
+		assert.equal(thirdMembership.memberCount, 1);
+		assert.equal(thirdMembership.deviceCount, 2);
+		assert.equal(historicalMembership.deviceCount, 2);
+		assert.equal(
+			historicalMembership.devices.some(device => device.userId === secondUser.id),
+			true
+		);
+
+		app.ms.privateGroup.afterPrivatePostManifestUpdate = privateManifestHook;
+		app.ms.activityPub.afterPostManifestUpdate = activityPubManifestHook;
 	});
 
 	it('requires actor-scoped content rows for post attachments', async () => {

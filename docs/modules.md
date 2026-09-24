@@ -12,6 +12,7 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 - `asyncOperation`: [overview](../app/modules/asyncOperation/docs/overview.md)
 - `autoActions`: [overview](../app/modules/autoActions/docs/overview.md)
 - `bluesky`: [overview](../app/modules/bluesky/docs/overview.md)
+- `chat`: [overview](../app/modules/chat/docs/overview.md)
 - `communicator`: [overview](../app/modules/communicator/docs/overview.md)
 - `content`: [overview](../app/modules/content/docs/overview.md)
 - `database`: [overview](../app/modules/database/docs/overview.md)
@@ -26,6 +27,7 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 - `imageComposition`: [overview](../app/modules/imageComposition/docs/overview.md)
 - `invite`: [overview](../app/modules/invite/docs/overview.md)
 - `pin`: [overview](../app/modules/pin/docs/overview.md)
+- `privateGroup`: [overview](../app/modules/privateGroup/docs/overview.md)
 - `remoteContentModeration`: [overview](../app/modules/remoteContentModeration/docs/overview.md)
 - `remoteGroup`: [overview](../app/modules/remoteGroup/docs/overview.md)
 - `rss`: [overview](../app/modules/rss/docs/overview.md)
@@ -49,6 +51,7 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 | `asyncOperation` | Tracks long-running user operations and processes queued background work. | [Overview](../app/modules/asyncOperation/docs/overview.md) |
 | `autoActions` | Stores and claims scheduled module function calls. | [Overview](../app/modules/autoActions/docs/overview.md) |
 | `bluesky` | Imports, refreshes, reads local feed views, verifies user-scoped accounts, and cross-posts safe text/image posts for native Bluesky/ATProto. | [Overview](../app/modules/bluesky/docs/overview.md) |
+| `chat` | Persists browser-encrypted chat device bundles, opaque events, ordered heads, and receipts without receiving plaintext or private keys. | [Overview](../app/modules/chat/docs/overview.md) |
 | `communicator` | Provides network communication, static-id lookup/binding, and pubsub-style event hooks. | [Overview](../app/modules/communicator/docs/overview.md) |
 | `content` | Creates, serves, previews, restores, and deletes user content records. | [Overview](../app/modules/content/docs/overview.md) |
 | `database` | Owns Sequelize setup, models, permissions, API keys, sessions, and shared query helpers. | [Overview](../app/modules/database/docs/overview.md) |
@@ -63,6 +66,7 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 | `imageComposition` | Owns semantic SVG overlays, composition persistence, idempotency, optimistic revisions, and the compatible group-scoped composition API facade. | [Overview](../app/modules/imageComposition/docs/overview.md) |
 | `invite` | Manages invite-code status, rate-limited public join/register flows, invite-derived permissions/limits, optional group joins, and invite lifecycle. | [Overview](../app/modules/invite/docs/overview.md) |
 | `pin` | Stores pinning accounts and sends storage pin requests. | [Overview](../app/modules/pin/docs/overview.md) |
+| `privateGroup` | Applies encrypted private-group publication and author-control policy while reusing group/post storage. | [Overview](../app/modules/privateGroup/docs/overview.md) |
 | `remoteContentModeration` | Provides reusable policy helpers for review-first/auto-import decisions and bounded keyword/regex/source/group filters before remote content becomes visible posts. | [Overview](../app/modules/remoteContentModeration/docs/overview.md) |
 | `remoteGroup` | Imports or refreshes GeeSome groups/posts from remote manifest storage IDs or static IDs, and backs local-or-remote group lookup. | [Overview](../app/modules/remoteGroup/docs/overview.md) |
 | `rss` | Generates bounded public RSS XML feeds for group posts. | [Overview](../app/modules/rss/docs/overview.md) |

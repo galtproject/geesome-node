@@ -23,4 +23,6 @@ test/.geesome-frontend
 test/.geesome-test-output
 test/.ipfs
 test/.ipfs-data
+test/.chat-ipfs
+test/.chat-ipfs-data
 test/.postgres-data

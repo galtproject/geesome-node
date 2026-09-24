@@ -66,15 +66,17 @@ The same pattern should be kept for:
 
 The rule for API handlers should be: secrets may be accepted for creation/update and may be decrypted internally for outbound calls, but list/get responses should return only non-secret metadata plus explicit status fields.
 
-### Chat Encryption Is Not Real E2EE Yet
+### Direct Chat Is Browser-First E2EE; Group Chat Is Not Complete
 
-Backend encryption with app-held passphrases is useful only for at-rest protection against accidental database disclosure. It is not sufficient for confidential chat because the node can decrypt. The safe target remains:
+Legacy backend encryption with app-held passphrases remains only at-rest
+protection and must not be labelled E2EE. New direct conversations use
+browser-held device keys, signed opaque envelopes, encrypted attachment
+lifecycle, durable delivery, and repair without exposing plaintext to the node.
 
-- Frontend/device owns private keys.
-- Public/device keys are discoverable through user or group metadata.
-- Messages and attachments are encrypted client-side.
-- Node stores opaque encrypted envelopes and delivery metadata.
-- Removed group members cannot decrypt future messages after membership/key rotation.
+Production group chat remains gated by the
+[MLS protocol decision](./chat-group-e2ee-protocol-decision.md), its browser
+compatibility spike, epoch-based membership changes, and real multi-node tests.
+Removed devices must not decrypt messages from epochs committed after removal.
 
 ## Required Follow-Up Work
 
@@ -82,7 +84,8 @@ Backend encryption with app-held passphrases is useful only for at-rest protecti
 2. [#874](https://github.com/galtproject/geesome-node/issues/874): add focused tests for the highest-risk token-only handlers in `group`, `content`, `fileCatalog`, `staticSiteGenerator`, `pin`, and social import modules.
 3. [#876](https://github.com/galtproject/geesome-node/issues/876): add response-shape tests that prove current external-service secrets are not returned by list/get/login/update APIs.
 4. [#875](https://github.com/galtproject/geesome-node/issues/875): add public-route abuse tests for content/gateway range handling, storage misses, and webhook/auth-message replay behavior.
-5. Keep backend chat encryption documented as PoC/unsafe until frontend E2EE envelopes and client-held private keys land.
+5. Keep legacy backend-encrypted chat labelled as non-E2EE, and do not label
+   group chat production-secure until the active secure-chat release gates pass.
 
 ## Verification Checklist
 

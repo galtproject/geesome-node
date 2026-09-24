@@ -180,6 +180,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiUse ValidationErrors
      *
      * @apiInterface (./interface.ts) {IPostInput} apiBody
+     * @apiBody {String} [privateGroupMembershipVersion] Current accepted membership version. Required for private-group posts and rejected for ordinary groups.
      *
      * @apiInterface (./interface.ts) {IPostApiResponse} apiSuccess
      *

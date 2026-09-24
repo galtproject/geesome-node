@@ -1,17 +1,27 @@
 import {load as cheerioLoad} from 'cheerio';
 
 const allowedHtmlTags = new Set(['a', 'b', 'blockquote', 'br', 'code', 'em', 'i', 'li', 'ol', 'p', 'pre', 's', 'span', 'strong', 'u', 'ul']);
+const layoutHtmlTags = new Set([...allowedHtmlTags, 'div', 'img']);
 const blockedHtmlTags = new Set(['base', 'button', 'embed', 'form', 'iframe', 'input', 'link', 'math', 'meta', 'object', 'script', 'select', 'style', 'svg', 'textarea']);
 const allowedHtmlProtocols = new Set(['http', 'https', 'ipfs', 'ipns', 'mailto']);
 const allowedAnchorTargets = new Set(['_blank', '_parent', '_self', '_top']);
 
 export function sanitizeHtml(html) {
+	return sanitizeHtmlWithPolicy(html, false);
+}
+
+// Only site header/footer options use this policy; posts/messages remain text-only.
+export function sanitizeStaticSiteLayoutHtml(html) {
+	return sanitizeHtmlWithPolicy(html, true);
+}
+
+function sanitizeHtmlWithPolicy(html, layout: boolean) {
 	if (!html) {
 		return '';
 	}
 	const $ = cheerioLoad(String(html), {decodeEntities: false}, false);
 	const root = $.root();
-	sanitizeHtmlChildren($, root);
+	sanitizeHtmlChildren($, root, layout);
 	return normalizeHtml(root.html() || '');
 }
 
@@ -72,13 +82,13 @@ function normalizeHtml(html) {
 	return String(html || '').trim();
 }
 
-function sanitizeHtmlChildren($, parent) {
+function sanitizeHtmlChildren($, parent, layout: boolean) {
 	parent.contents().each((index, element) => {
-		sanitizeHtmlNode($, $(element));
+		sanitizeHtmlNode($, $(element), layout);
 	});
 }
 
-function sanitizeHtmlNode($, element) {
+function sanitizeHtmlNode($, element, layout: boolean) {
 	const node = element[0];
 	if (!node) {
 		return;
@@ -97,29 +107,50 @@ function sanitizeHtmlNode($, element) {
 		return;
 	}
 
-	sanitizeHtmlChildren($, element);
-	if (!allowedHtmlTags.has(tagName)) {
+	sanitizeHtmlChildren($, element, layout);
+	if (!(layout ? layoutHtmlTags : allowedHtmlTags).has(tagName)) {
 		element.replaceWith(element.contents());
 		return;
 	}
 
-	sanitizeHtmlAttributes(element, tagName);
+	sanitizeHtmlAttributes(element, tagName, layout);
+	if (tagName === 'img' && !element.attr('src')) {
+		element.remove();
+	}
 }
 
-function sanitizeHtmlAttributes(element, tagName) {
+function sanitizeHtmlAttributes(element, tagName, layout: boolean) {
 	const attributes = {...(element[0]?.attribs || {})};
 	Object.keys(attributes).forEach(attributeName => {
-		sanitizeHtmlAttribute(element, tagName, attributeName, attributes[attributeName]);
+		sanitizeHtmlAttribute(element, tagName, attributeName, attributes[attributeName], layout);
 	});
 	if (tagName === 'a' && element.attr('target') === '_blank') {
 		element.attr('rel', 'noopener noreferrer');
 	}
 }
 
-function sanitizeHtmlAttribute(element, tagName, attributeName, attributeValue) {
+function sanitizeHtmlAttribute(element, tagName, attributeName, attributeValue, layout: boolean) {
 	const normalizedName = attributeName.toLowerCase();
 	if (normalizedName.startsWith('on') || normalizedName === 'style') {
 		element.removeAttr(attributeName);
+		return;
+	}
+	if (layout && normalizedName === 'class') {
+		const classes = String(attributeValue).split(/\s+/).filter(value => /^[a-zA-Z_][a-zA-Z0-9_-]{0,63}$/.test(value)).slice(0, 16);
+		element.attr('class', classes.join(' '));
+		return;
+	}
+	if (layout && tagName === 'img' && normalizedName === 'src') {
+		const source = safeLayoutImageSource(attributeValue);
+		if (!source) {
+			element.removeAttr(attributeName);
+			return;
+		}
+		element.attr('src', source);
+		return;
+	}
+	if (layout && tagName === 'img' && ['alt', 'title'].includes(normalizedName)) {
+		element.attr(attributeName, String(attributeValue).slice(0, 512));
 		return;
 	}
 	if (tagName !== 'a' || !['href', 'rel', 'target', 'title'].includes(normalizedName)) {
@@ -136,6 +167,22 @@ function sanitizeHtmlAttribute(element, tagName, attributeName, attributeValue) 
 	}
 	if (normalizedName === 'rel') {
 		sanitizeRelAttribute(element, attributeName, attributeValue);
+	}
+}
+
+function safeLayoutImageSource(value): string {
+	const source = String(value || '').trim();
+	if (!/^https?:\/\//i.test(source) || /[\\\u0000-\u0020\u007f]/.test(source)) {
+		return '';
+	}
+	try {
+		const url = new URL(source);
+		if (url.username || url.password || !url.hostname) {
+			return '';
+		}
+		return url.href;
+	} catch {
+		return '';
 	}
 }
 
