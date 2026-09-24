@@ -299,3 +299,23 @@ This is a browser-first encrypted direct-message foundation, not completion of
 production-secure group chat. Real two-node browser testing, explicit operator
 policy, legacy-path retirement, and a future successful MLS dependency gate
 remain in the active TODO.
+
+
+## Static-site header/footer branding (#1325)
+
+Static-site options now use a separate layout HTML policy that retains div/img
+elements and bounded CSS class names. Avatar sources must be absolute HTTP(S)
+URLs without embedded credentials or control characters. Events, inline styles,
+scriptable elements, srcset and unsafe schemes remain removed. Post/message HTML
+continues using the existing text-only policy. Both newly supplied and stored
+options pass through the same normalization.
+
+Verification: 21 focused tests passed across static-site branding, static-site
+helpers and rich-text conversion, including production option normalization and
+Vue SSR gallery rendering, negative XSS cases and idempotent normalization. No
+database schema, route or dependency changes are required. The full Docker
+database/IPFS suite was not run for this pure HTML-normalization change.
+
+Deploy the updated node before publishing new branded galleries. Previously
+published IPFS documents are immutable, and already-sanitized stored options
+cannot recover discarded markup: republish from the original client template.
