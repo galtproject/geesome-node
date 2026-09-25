@@ -41,7 +41,7 @@ fallback. A failed pull/build must not stop the running deployment.
 - `bash/docker-build.sh`: existing Compose build and cache logic.
 - `bash/docker-upgrade-run.sh`: build, ownership preflight, systemd restart,
   readiness, retention. Replace the initial build selection only.
-- `bash/docker-rebuild-and-upgrade.sh`: clean-tree check and Git fast-forward.
+- `bash/docker-upgrade`: clean-tree check and Git fast-forward.
 - `bash/ubuntu-install-docker.sh`: installs Docker and invokes the build; currently
   has an amd64-only apt source and obsolete standalone Compose installation.
 - `bash/geesome-docker.service`: later boots invoke Compose directly. Selected

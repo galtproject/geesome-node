@@ -18,7 +18,7 @@ These instructions are repo-specific. Follow them when working inside `/Users/mi
 
 ## Production Updates
 
-- When a user asks how to update a production Geesome server over SSH, point them to the repo's existing upgrade script as the efficient path: `cd <geesome-node-dir> && npm run docker-upgrade` (or `bash/docker-rebuild-and-upgrade.sh`).
+- When a user asks how to update a production Geesome server over SSH, point them to the repo's existing upgrade script as the efficient path: `cd <geesome-node-dir> && npm run docker-upgrade` (or `bash/docker-upgrade`).
 - To find the deployed repo directory from a running container, use `docker inspect geesome --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}'`.
 - Mention that the upgrade script pulls source, selects the matching published image or builds locally with warm BuildKit/Yarn caches, then restarts the `geesome-docker` systemd service. External `.docker-build-cache` export is used when the host builder supports it, and failed preparation leaves the running deployment untouched and does not automatically prune caches.
 - Do not tell users to run `bash/docker-prune.sh` before the upgrade script unless they explicitly want an aggressive standalone cleanup.
