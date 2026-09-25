@@ -6,6 +6,7 @@ import IGeesomeAsyncOperationModule, {IModuleOperationQueueProcessorOptions, IUs
 import {CorePermissionName, IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from "../../helpers.js";
+import {ApiProblemError} from '../api/problem.js';
 import {getApiProblem} from '../api/problem.js';
 const {isObject, last} = _;
 const log = debug('geesome:app:asyncOperation');
@@ -138,6 +139,18 @@ export function getModule(app: IGeesomeApp, models) {
 				throw new Error("not_permitted");
 			}
 			return asyncOperation;
+		}
+
+		async getAsyncOperations(userId, ids) {
+			if (!Array.isArray(ids) || ids.length < 1 || ids.length > 100
+				|| ids.some(id => !Number.isSafeInteger(id) || id <= 0)) {
+				throw new ApiProblemError(400, 'invalid_operation_ids', 'Expected 1–100 positive integer operation IDs');
+			}
+			return models.UserAsyncOperation.findAll({
+				where: {userId, id: {[Op.in]: [...new Set(ids)]}},
+				order: [['id', 'ASC']],
+				limit: 100
+			});
 		}
 
 		async findAsyncOperations(userId, name, channelLike, inProcess) {

@@ -8,6 +8,27 @@ import {requireIntegrationScopes} from '../api/integrationScopes.js';
 export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationModule) => {
 
     /**
+     * @api {post} /v1/user/get-async-operations Get async operations in a batch
+     * @apiName UserAsyncOperationsBatch
+     * @apiGroup UserOther
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiDescription Requires operations:read for scoped keys. Returns only the current user's operations, sorted by ID. Missing or inaccessible IDs are omitted; duplicate IDs appear once.
+     * @apiBody {Number[]} ids Between 1 and 100 positive safe integer IDs.
+     * @apiSuccess {Object[]} list Operation records with the same fields as the single-operation endpoint, including inProcess, contentId, output and errorMessage.
+     * @apiError (400) invalid_operation_ids Invalid IDs or batch size.
+     * @apiExample {curl} Example usage
+     *   curl -X POST http://localhost:2052/v1/user/get-async-operations \
+     *     -H "Authorization: Bearer geesome-api-key" \
+     *     -H "Content-Type: application/json" \
+     *     -d '{"ids":[52507,52508]}'
+     */
+    app.ms.api.onAuthorizedPost('user/get-async-operations', async (req, res) => {
+        requireIntegrationScopes(req.apiKey, ['operations:read']);
+        res.send({list: await asyncOperationModule.getAsyncOperations(req.user.id, req.body?.ids)});
+    });
+
+    /**
      * @api {get} /v1/operations/:id Get operation resource
      * @apiName OperationGet
      * @apiGroup Operations
