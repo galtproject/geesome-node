@@ -82,12 +82,15 @@ installing packages or recompiling. For deliberate source-based experiments only
 
 ## Installation and upgrades
 
-Existing commands remain:
+Install or upgrade with:
 
 ```bash
 sudo bash bash/ubuntu-install-docker.sh
 npm run docker-upgrade
 ```
+
+The direct upgrade command is `bash bash/docker-upgrade`. The former
+`bash/docker-rebuild-and-upgrade.sh` delegates to the same entry point for compatibility.
 
 `GEESOME_IMAGE_MODE=auto` (default) pulls the exact SHA/platform and verifies the
 revision label, or falls back to the existing server build. Registry absence,
