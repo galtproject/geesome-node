@@ -506,3 +506,19 @@ Live Media reproduction produced zero-byte watermark inputs and
 The focused parser/content API/content error suite passed 13 tests. No schema or
 API route changes are required. Existing failed uploads must be retried after
 server deployment; the parser fix cannot recover bytes from prior empty files.
+
+## Batched Async Operation Reads (2026-09-25)
+
+`POST /v1/user/get-async-operations` accepts `{ids: [52507, 52508]}` with
+1–100 positive safe integers and returns `{list: [...]}` using the existing
+async operation record shape. Authentication and the `operations:read` scope
+are required. One bounded SQL query filters by the authenticated user and ID set;
+results are sorted by ID, duplicates collapse, and missing/foreign records are
+omitted without disclosing their existence. The single-operation route remains
+unchanged. Microwave Girls consumes the batch route through its authenticated
+BFF and coalesces concurrent upload polling.
+
+Verification: 23 focused batch/ownership tests, apiDoc generation and security
+route inventory validation. The inventory's generic token-only label does not
+recognize integration scopes; this route additionally enforces `operations:read`
+and query-level user ownership. No schema migration is required.
