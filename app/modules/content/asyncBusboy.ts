@@ -49,10 +49,6 @@ function onFile (filePromises, file, stream, info) {
   const writeStream = fs.createWriteStream(saveTo)
   const hash = createHash('sha256')
   let bytes = 0
-  stream.on('data', (chunk) => {
-    hash.update(chunk)
-    bytes += chunk.length
-  })
   const filePromise = new Promise((resolve, reject) => {
     stream.on('limit', () => {
       const err: any = new Error('Reach file size limit')
@@ -62,7 +58,13 @@ function onFile (filePromises, file, stream, info) {
       stream.resume()
     })
     writeStream
-      .on('open', () =>
+      .on('open', () => {
+        // A data listener starts flowing mode. Attach it only when the writer
+        // is ready, immediately before piping, so early bytes cannot be lost.
+        stream.on('data', (chunk) => {
+          hash.update(chunk)
+          bytes += chunk.length
+        })
         stream.pipe(writeStream)
           .on('error', reject)
           .on('finish', () => {
@@ -81,7 +83,8 @@ function onFile (filePromises, file, stream, info) {
               })
             }
             resolve(readStream)
-          }))
+          })
+      })
       .on('error', (err) => {
         fs.rm(saveTo, { force: true }, () => {})
         stream.resume()

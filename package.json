@@ -73,7 +73,7 @@
     "docker-prepare": "bash bash/docker-prepare-image.sh",
     "docker-compose": "bash bash/docker-compose.sh",
     "docker-build": "bash/docker-build.sh",
-    "docker-upgrade": "bash/docker-rebuild-and-upgrade.sh",
+    "docker-upgrade": "bash/docker-upgrade",
     "storage:move": "bash bash/move-docker-storage.sh",
     "docker-storage:move": "bash bash/move-docker-storage.sh"
   },

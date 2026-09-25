@@ -491,3 +491,18 @@ installation were not exercised locally. Local publication requires registry
 package-write access. Full backend tests are a required local release gate;
 this operational change was validated locally with targeted tests and real image
 startup rather than repeating the prior release's 639-test suite.
+
+## Multipart upload byte preservation (#1345)
+
+The multipart parser starts SHA-256/byte accounting only after its temporary-file
+writer opens, immediately before connecting the stream to disk. Previously,
+attaching the `data` listener earlier drained buffered uploads before `pipe()`:
+a 19-byte local upload reported 19 received bytes but persisted zero bytes.
+Live Media reproduction produced zero-byte watermark inputs and
+`Input file contains unsupported image format` in operations 52480–52482.
+
+`test/asyncBusboy.test.ts` covers small image payloads, multiple files, a chunked
+512 KiB payload, persisted bytes and digests, cleanup, and upload-limit rejection.
+The focused parser/content API/content error suite passed 13 tests. No schema or
+API route changes are required. Existing failed uploads must be retried after
+server deployment; the parser fix cannot recover bytes from prior empty files.
