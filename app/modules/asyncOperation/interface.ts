@@ -5,6 +5,8 @@ export default interface IGeesomeAsyncOperationModule {
 
 	asyncOperationWrapper(moduleName, funcName, funcArgs, options);
 
+	getAsyncOperations(userId, ids: number[]): Promise<IUserAsyncOperation[]>;
+
 	getAsyncOperation(userId, id): Promise<IUserAsyncOperation>;
 
 	addAsyncOperation(userId, asyncOperationData): Promise<IUserAsyncOperation>;
