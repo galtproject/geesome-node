@@ -9,7 +9,7 @@ export default (_app: IGeesomeApp, rssModule: IGeesomeRssModule) => {
 	 * @apiName GroupRss
 	 * @apiGroup Rss
 	 *
-	 * @apiDescription Route shape is provided by the RSS module configuration.
+	 * @apiDescription Route shape is provided by the RSS module configuration. Anonymous feeds require an explicitly public group.
 	 * @apiParam {String} id.rss Group id with RSS extension.
 	 * @apiQuery {Number} [limit=100] Maximum feed items to render, capped at 9999 for explicit archive reads.
 	 * @apiSuccess {String} result RSS XML.

@@ -20,7 +20,7 @@ export default interface IGeesomeGroupCategoryModule {
 
 	updateGroupSection(userId, groupSectionId, groupSectionData): Promise<IGroupSection>;
 
-	getGroupSectionItems(filters?, listParams?: IListParams): Promise<IGroupSectionListResponse>;
+	getGroupSectionItems(filters?, listParams?: IListParams, userId?): Promise<IGroupSectionListResponse>;
 
 	addMemberToCategory(userId, categoryId, memberId, groupPermissions?: string[]): Promise<void>;
 

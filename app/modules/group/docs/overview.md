@@ -25,3 +25,21 @@ The `group` module owns GeeSome groups, posts, memberships, permissions, post co
 - [Database scalability review](../../../../docs/database-scalability-review.md)
 - [Group manifest IPLD scalability](../../../../docs/group-manifest-ipld-scalability.md)
 - [Rich-text content format](../../../../docs/rich-text-content-format.md)
+
+## Private Read Boundary
+
+Only groups explicitly marked `isPublic: true` allow anonymous post reads.
+Private/unspecified groups require a valid authenticated creator, administrator,
+or member on group detail, post detail and post list API routes. Public lookup
+routes accept an optional bearer token; invalid tokens are rejected rather than
+silently becoming guests. Internal `*Pure` and batch query methods remain trusted
+server helpers and must not be exposed directly by new routes.
+
+Ordinary unencrypted private groups keep post manifests and directories in DB-only
+state. Their published group manifest contains public group identity metadata but
+no post index or directory ref. Browser encrypted `PrivateGroup` behavior is
+preserved. Content numeric-id metadata attached exclusively to private posts is
+restricted to a group participant or the Content owner. Known immutable byte CIDs
+and intentionally public Pages/media are outside this ACL boundary.
+
+See [delivery and rollout notes](../../../../docs/private-group-read-acl-delivery.md).

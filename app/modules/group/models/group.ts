@@ -6,7 +6,7 @@
  * (Founded by [Nikolai Popeka](https://github.com/npopeka) by
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
-import {Sequelize, DataTypes} from 'sequelize';
+import {Sequelize, DataTypes, Op} from 'sequelize';
 
 export default async function (sequelize: Sequelize, models) {
   const Group = sequelize.define('group', {
@@ -163,6 +163,18 @@ export default async function (sequelize: Sequelize, models) {
 
   Group.belongsToMany(models.User, {as: 'members', through: models.GroupMembers});
   models.User.belongsToMany(Group, {as: 'memberInGroups', through: models.GroupMembers});
+
+  (Group as any).getReadableWhere = (userId) => {
+    const clauses: any[] = [{isPublic: true}];
+    const actorId = Number(userId);
+    if (Number.isSafeInteger(actorId) && actorId > 0) {
+      const quote = (table) => (sequelize.getQueryInterface() as any).queryGenerator.quoteTable(table.getTableName());
+      clauses.push({creatorId: actorId});
+      clauses.push(sequelize.literal(`EXISTS (SELECT 1 FROM ${quote(models.GroupMembers)} AS gm WHERE gm."groupId" = "group"."id" AND gm."userId" = ${actorId})`));
+      clauses.push(sequelize.literal(`EXISTS (SELECT 1 FROM ${quote(models.GroupAdministrators)} AS ga WHERE ga."groupId" = "group"."id" AND ga."userId" = ${actorId})`));
+    }
+    return {isDeleted: false, [Op.or]: clauses};
+  };
 
   await Group.sync({});
 

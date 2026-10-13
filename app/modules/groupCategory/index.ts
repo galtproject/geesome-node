@@ -1,6 +1,7 @@
 import _ from 'lodash';
 import debug from 'debug';
 import pIteration from 'p-iteration';
+import {Op} from 'sequelize';
 import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeGroupCategoryModule, {IGroupCategory, IGroupSection} from "./interface.js";
 import {CorePermissionName, IListParams, IListParamsOptions} from "../database/interface.js";
@@ -97,6 +98,7 @@ function getModule(app: IGeesomeApp, models) {
 				include: [
 					{
 						association: 'group', required: true,
+						where: {isPublic: true, isDeleted: false},
 						attributes: ['id'],
 						include: [{
 							association: 'categories',
@@ -120,21 +122,38 @@ function getModule(app: IGeesomeApp, models) {
 			};
 		}
 
+		async assertCategoryReadable(userId, categoryId) {
+			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+			const category = await this.getCategory(await this.checkCategoryId(categoryId, false));
+			if (!category) {
+				throw new Error('category_not_found');
+			}
+			if (category.isGlobal || Number(category.creatorId) === Number(userId)) {
+				return category;
+			}
+			const [administrator, member] = await Promise.all([
+				this.isAdminInCategory(userId, category.id),
+				this.isMemberInCategory(userId, category.id)
+			]);
+			if (!administrator && !member) {
+				throw new Error('not_permitted');
+			}
+			return category;
+		}
+
 		async getCategoryGroups(userId, categoryId, filters = {}, listParams?: IListParams) {
-			//TODO: check userId?
+			const category = await this.assertCategoryReadable(userId, categoryId);
 			listParams = helpers.prepareListParams(listParams, categoryManagementListParams);
 			app.ms.database.setDefaultListParamsValues(listParams, categoryManagementListParams);
 			const {limit, offset, sortBy, sortDir} = listParams;
-
+			const where = {[Op.and]: [app.ms.group.getGroupsWhere(filters), models.Group.getReadableWhere(userId)]};
 			return {
-				list: await (await this.getCategory(categoryId)).getGroups({
-					where: app.ms.group.getGroupsWhere(filters),
-					include: [ {association: 'avatarImage'}, {association: 'coverImage'} ],
-					order: [[sortBy, sortDir.toUpperCase()]],
-					limit,
-					offset
+				list: await category.getGroups({
+					where,
+					include: [{association: 'avatarImage'}, {association: 'coverImage'}],
+					order: [[sortBy, sortDir.toUpperCase()]], limit, offset
 				}),
-				total: await this.getCategoryGroupsCount(categoryId, filters)
+				total: await category.countGroups({where})
 			};
 		}
 
@@ -283,12 +302,25 @@ function getModule(app: IGeesomeApp, models) {
 			return (await app.ms.group.getGroup(groupId) as any).setSections([await this.getGroupSection(sectionId)]);
 		}
 
-		async getGroupSectionItems(filters?, listParams?: IListParams) {
+		async getGroupSectionItems(filters = {}, listParams?: IListParams, userId?) {
 			listParams = helpers.prepareListParams(listParams, categoryManagementListParams);
-			return {
-				list: await this.getGroupSections(filters, listParams),
-				total: await this.getGroupSectionsCount(filters)
-			};
+			if (userId) {
+				await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+				const where: any = this.getGroupSectionsWhere(filters);
+				if (filters['categoryId']) {
+					const category = await this.assertCategoryReadable(userId, filters['categoryId']);
+					where.categoryId = category.id;
+				} else {
+					where.creatorId = userId;
+				}
+				app.ms.database.setDefaultListParamsValues(listParams, categoryManagementListParams);
+				const {limit, offset, sortBy, sortDir} = listParams;
+				return {
+					list: await models.GroupSection.findAll({where, order: [[sortBy, sortDir.toUpperCase()]], limit, offset}),
+					total: await models.GroupSection.count({where})
+				};
+			}
+			return {list: await this.getGroupSections(filters, listParams), total: await this.getGroupSectionsCount(filters)};
 		}
 
 		async isMemberInCategory(userId, categoryId) {
@@ -371,6 +403,7 @@ function getModule(app: IGeesomeApp, models) {
 				include: [
 					{
 						association: 'group', required: true,
+						where: {isPublic: true, isDeleted: false},
 						include: [ {association: 'categories', where: {id: categoryId}, required: true} ]
 					}
 				]

@@ -412,6 +412,34 @@ function getModule(app: IGeesomeApp) {
 					throw createContentNotFoundError();
 				}
 				const contentData = toContentPlainObject(content);
+				if (typeof content.getPosts === 'function' && Number(contentData.userId) !== Number(userId)) {
+					const publicPosts = await content.getPosts({
+						where: {isDeleted: false}, attributes: ['id'], joinTableAttributes: [], limit: 1,
+						include: [{association: 'group', attributes: [], where: {isPublic: true, isDeleted: false}, required: true}]
+					});
+					const posts = publicPosts.length ? [] : await content.getPosts({
+						where: {isDeleted: false}, attributes: ['groupId'], joinTableAttributes: [],
+						group: ['post.groupId'],
+						...(!userId ? {limit: 1} : {})
+					});
+					if (posts.length) {
+						let allowed = false;
+						for (const post of posts) {
+							try {
+								await app.ms.group.assertGroupReadable(userId, post.groupId);
+								allowed = true;
+								break;
+							} catch (e) {
+								if (e.message !== 'not_permitted' && e.message !== 'group_not_found') {
+									throw e;
+								}
+							}
+						}
+						if (!allowed) {
+							throw createContentNotFoundError();
+						}
+					}
+				}
 				if (contentData.isPublic) {
 					return pickPublicContentMetadata(contentData);
 				}
