@@ -520,6 +520,11 @@ function getModule(app: IGeesomeApp, models) {
 			log('updatePostManifest');
 			const post = await this.getPostPure(postId);
 			log('getPost');
+			if (!post.group.isPublic && !post.group.isEncrypted) {
+				await post.update({manifestStorageId: null, directoryStorageId: null});
+				await this.updateGroupManifest(userId, post.groupId);
+				return post;
+			}
 			const manifestStorageId = await app.generateAndSaveManifest('post', post);
 			log('generateAndSaveManifest');
 			await post.update({ manifestStorageId });
@@ -795,6 +800,7 @@ function getModule(app: IGeesomeApp, models) {
 
 
 		async getLocalGroup(userId, groupId) {
+			await this.assertGroupReadable(userId, groupId);
 			groupId = await this.checkGroupId(groupId);
 			return this.getGroup(groupId);
 		}
@@ -1301,21 +1307,49 @@ function getModule(app: IGeesomeApp, models) {
 			return this.getPostPure(post.id);
 		}
 
+		async assertGroupReadable(userId, groupId) {
+			const id = await this.checkGroupId(groupId);
+			const group = await this.getGroup(id);
+			if (!group || group.isDeleted) {
+				throw new Error('group_not_found');
+			}
+			if (group.isPublic) {
+				return;
+			}
+			if (!userId) {
+				throw new Error('not_permitted');
+			}
+			if (Number(group.creatorId) === Number(userId)) {
+				return;
+			}
+			const [member, administrator] = await Promise.all([
+				this.isMemberInGroupPure(userId, id),
+				this.isAdminInGroupPure(userId, id)
+			]);
+			if (!member && !administrator) {
+				throw new Error('not_permitted');
+			}
+		}
+
 		async getPost(userId, postId) {
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-			//TODO: add check for user can view post
-			return this.getPostPure(postId);
+			const post = await this.getPostPure(postId);
+			if (!post || post.isDeleted) {
+				throw new Error('post_not_found');
+			}
+			await this.assertGroupReadable(userId, post.groupId);
+			return post;
 		}
 
 		async getPostListByIds(userId, groupId, postIds) {
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-			//TODO: add check for user can view post
+			await this.assertGroupReadable(userId, groupId);
 			return this.getPostListByIdsPure(groupId, postIds);
 		}
 
 		async delete(userId, groupId, postIds) {
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-			//TODO: add check for user can view post
+			await this.assertGroupReadable(userId, groupId);
 			return this.getPostListByIdsPure(groupId, postIds);
 		}
 
@@ -1952,6 +1986,9 @@ function getModule(app: IGeesomeApp, models) {
 		public async makePostDirectoryWithContents(postId) {
 			log('makePostDirectoryWithContents');
 			const post = await this.getPostPure(postId);
+			if (!post.group.isPublic && !post.group.isEncrypted) {
+				return null;
+			}
 			const postManifest = await app.ms.storage.getObject(post.manifestStorageId);
 			postManifest.contentsById = {};
 			const path = await this.makePostStorageDir(post.group, post);
@@ -2046,7 +2083,10 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getGroupByParams(params) {
-			params = pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId', 'isCollateral']);
+			params = pick(params, ['id', 'name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId', 'isCollateral']);
+			if (!Object.keys(params).some(field => field !== 'isCollateral' && params[field] !== undefined && params[field] !== null && params[field] !== '')) {
+				throw Object.assign(new Error('group_lookup_required'), {status: 400});
+			}
 
 			params.isDeleted = false;
 			return models.Group.findOne({
@@ -2056,11 +2096,18 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async getPostByParams(params) {
-			params = pick(params, ['name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']);
+			params = pick(params, ['id', 'name', 'staticStorageId', 'manifestStorageId', 'manifestStaticStorageId']);
+			if (!Object.keys(params).length) {
+				throw Object.assign(new Error('post_lookup_required'), {status: 400});
+			}
+			params.isDeleted = false;
 			return models.Post.findOne({
 				where: params,
 				include: [{association: 'contents'}, {association: 'group'}],
 			}).then((post: IPost) => {
+				if (!post) {
+					return null;
+				}
 				post.contents = orderBy(post.contents, [c => c.postsContents.position], ['asc']);
 				return post;
 			});
@@ -2125,6 +2172,9 @@ function getModule(app: IGeesomeApp, models) {
 			const posts = await models.Post.findAll({where, include});
 			const postsById = new Map();
 			for (const post of posts) {
+				if (post.repostOf && !post.repostOf.group?.isPublic) {
+					post.setDataValue('repostOf', null);
+				}
 				postsById.set(post.id, this.orderPostContents(post));
 			}
 			return postIds.map(id => postsById.get(id)).filter(post => !!post);
@@ -2140,6 +2190,9 @@ function getModule(app: IGeesomeApp, models) {
 				include: [{association: 'contents'}]
 			});
 
+			if (!post) {
+				return null;
+			}
 			post.contents = orderBy(post.contents, [(content) => {
 				return content.postsContents.position;
 			}], ['asc']);
@@ -2159,6 +2212,9 @@ function getModule(app: IGeesomeApp, models) {
 				include: [{association: 'contents'}]
 			});
 
+			if (!post) {
+				return null;
+			}
 			post.contents = orderBy(post.contents, [(content) => {
 				return content.postsContents.position;
 			}], ['asc']);

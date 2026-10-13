@@ -58,7 +58,8 @@ describe("group", function () {
 			});
 			await app.ms.group.createGroup(testUser.id, {
 				name: 'test',
-				title: 'Test'
+				title: 'Test',
+				isPublic: true
 			});
 		} catch (e) {
 			console.error('error', e);
@@ -68,6 +69,96 @@ describe("group", function () {
 
 	afterEach(async () => {
 		await app.stop();
+	});
+
+	it('enforces private group reads and keeps plaintext private posts out of manifests', async () => {
+		const member = await app.registerUser({email: 'acl-member@user.com', name: 'acl-member', permissions: [CorePermissionName.UserAll]});
+		const outsider = await app.registerUser({email: 'acl-outsider@user.com', name: 'acl-outsider', permissions: [CorePermissionName.UserAll]});
+		const group = await app.ms.group.createGroup(admin.id, {name: 'private-acl', title: 'Private ACL', isPublic: false, isOpen: false});
+		await app.ms.group.addMemberToGroup(admin.id, group.id, member.id);
+		const link = await app.ms.content.saveData(admin.id, 'https://example.com/private-page', 'private-page-link.txt');
+		await app.ms.database.updateContent(link.id, {isPublic: true});
+		const post = await app.ms.group.createPost(admin.id, {groupId: group.id, name: 'private-acl-post', contents: [{id: link.id}]});
+		assert.equal((await app.ms.group.getGroupByParams({id: group.id})).id, group.id);
+		await assert.rejects(() => app.ms.group.getGroupByParams({}), /group_lookup_required/);
+		await assert.rejects(() => app.ms.group.getGroupByParams({isCollateral: false}), /group_lookup_required/);
+		assert.equal(post.manifestStorageId, null);
+		assert.equal(post.directoryStorageId, null);
+		const manifest: any = await app.ms.entityJsonManifest.generateManifest('group', await app.ms.group.getGroup(group.id));
+		assert.equal(manifest.posts, undefined);
+		assert.equal(manifest.postsIndex, undefined);
+		assert.equal(manifest.directoryStorageId, undefined);
+		await assert.rejects(() => app.ms.entityJsonManifest.generateManifest('post', post), /private_post_manifest_not_public/);
+		await assert.rejects(() => app.ms.group.getPost(outsider.id, post.id), /not_permitted/);
+		assert.equal((await app.ms.group.getPost(member.id, post.id)).id, post.id);
+		const base = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
+		for (const kind of ['group', 'post']) {
+			const invalid = await fetch(`${base}/${kind}/get`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
+			assert.equal(invalid.status, 400);
+		}
+		const absent = await fetch(`${base}/post/get`, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name: 'membership-missing-publication'})});
+		assert.equal(absent.status, 200);
+		assert.equal(await absent.json(), null);
+		const memberToken = await app.generateUserApiKey(member.id, {title: 'member'});
+		const outsiderToken = await app.generateUserApiKey(outsider.id, {title: 'outsider'});
+		for (const token of [null, outsiderToken, memberToken]) {
+			const headers: any = {'Content-Type': 'application/json'};
+			if (token) {
+				headers.Authorization = `Bearer ${token}`;
+			}
+			const list = await fetch(`${base}/group/${group.id}/posts`, {headers});
+			const groupDetail = await fetch(`${base}/group/get`, {method: 'POST', headers, body: JSON.stringify({id: group.id})});
+			assert.equal(groupDetail.status, token === memberToken ? 200 : 403);
+			if (token === memberToken) {
+				assert.equal((await groupDetail.json() as any).id, group.id);
+			}
+			const detail = await fetch(`${base}/post/get`, {method: 'POST', headers, body: JSON.stringify({name: 'private-acl-post'})});
+			assert.equal(list.status, token === memberToken ? 200 : 403);
+			assert.equal(detail.status, token === memberToken ? 200 : 403);
+			const content = await fetch(`${base}/content/${link.id}`, {headers});
+			assert.equal(content.status, token === memberToken ? 200 : 404);
+		}
+		await app.ms.group.removeMemberFromGroup(admin.id, group.id, member.id);
+		await assert.rejects(() => app.ms.group.getPost(member.id, post.id), /not_permitted/);
+		const category = await app.ms.groupCategory.createCategory(admin.id, {name: 'acl-category'});
+		await app.ms.groupCategory.addGroupToCategory(admin.id, group.id, category.id);
+		const categoryResponse = await fetch(`${base}/category/${category.id}/posts`);
+		const categoryData: any = await categoryResponse.json();
+		assert.equal(categoryData.list.length, 0);
+		assert.equal(categoryData.total, 0);
+		await (group as any).update({directoryStorageId: 'legacy-private-directory'});
+		const outsiderHeaders = {Authorization: `Bearer ${outsiderToken}`};
+		const categoryGroupsUrl = `${base}/user/category/${category.id}/groups`;
+		assert.equal((await fetch(categoryGroupsUrl, {headers: outsiderHeaders})).status, 403);
+		assert.equal((await fetch(`${base}/user/group-sections?categoryId=${category.id}`, {headers: outsiderHeaders})).status, 403);
+		await app.ms.groupCategory.addMemberToCategory(admin.id, category.id, outsider.id);
+		const hiddenGroups = await fetch(categoryGroupsUrl, {headers: outsiderHeaders});
+		const hiddenBody: any = await hiddenGroups.json();
+		assert.equal(hiddenGroups.status, 200);
+		assert.equal(hiddenBody.list.length, 0);
+		assert.equal(hiddenBody.total, 0);
+		assert.equal(JSON.stringify(hiddenBody).includes('legacy-private-directory'), false);
+		const section = await app.ms.groupCategory.createGroupSection(admin.id, {name: 'private-section', title: 'Private section'});
+		await (section as any).update({manifestStorageId: 'legacy-private-section'});
+		const sections = await fetch(`${base}/user/group-sections`, {headers: outsiderHeaders});
+		const sectionsBody: any = await sections.json();
+		assert.equal(sectionsBody.total, 0);
+		assert.equal(JSON.stringify(sectionsBody).includes('legacy-private-section'), false);
+		const publicGroup = await app.ms.group.createGroup(admin.id, {name: 'public-acl', title: 'Public ACL', isPublic: true});
+		assert.equal((await fetch(`${base}/group/${publicGroup.id}/posts`)).status, 200);
+		await app.ms.groupCategory.addGroupToCategory(admin.id, publicGroup.id, category.id);
+		const visiblePublic: any = await (await fetch(categoryGroupsUrl, {headers: outsiderHeaders})).json();
+		assert.equal(visiblePublic.total, 1);
+		assert.deepEqual(visiblePublic.list.map(g => g.id), [publicGroup.id]);
+		await app.ms.group.addMemberToGroup(admin.id, group.id, member.id);
+		await app.ms.groupCategory.addMemberToCategory(admin.id, category.id, member.id);
+		const visibleMember: any = await (await fetch(categoryGroupsUrl, {headers: {Authorization: `Bearer ${memberToken}`}})).json();
+		assert.equal(visibleMember.total, 2);
+		await app.ms.group.addAdminToGroup(admin.id, group.id, outsider.id);
+		const visibleAdmin: any = await (await fetch(categoryGroupsUrl, {headers: outsiderHeaders})).json();
+		assert.equal(visibleAdmin.total, 2);
+		assert.equal(JSON.stringify(visibleAdmin).includes('legacy-private-directory'), true);
+
 	});
 
 	it('registers private-group membership routes as authenticated API operations', async () => {
@@ -482,7 +573,8 @@ describe("group", function () {
 		});
 		const targetGroup = await app.ms.group.createGroup(importer.id, {
 			name: 'remote-post-import',
-			title: 'Remote post import'
+			title: 'Remote post import',
+			isPublic: true
 		});
 
 		const importedPost = await (app.ms as any).remoteGroup.createPostByRemoteStorageId(
@@ -725,7 +817,8 @@ describe("group", function () {
 		const models = (app.ms.database as any).models;
 		const sourceGroup = await app.ms.group.createGroup(testUser.id, {
 			name: 'incremental-post-index',
-			title: 'Incremental post index'
+			title: 'Incremental post index',
+			isPublic: true
 		});
 		const firstContent = await app.ms.content.saveData(testUser.id, 'incremental first post', null, {
 			mimeType: 'text/markdown'

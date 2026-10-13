@@ -522,3 +522,13 @@ Verification: 23 focused batch/ownership tests, apiDoc generation and security
 route inventory validation. The inventory's generic token-only label does not
 recognize integration scopes; this route additionally enforces `operations:read`
 and query-level user ownership. No schema migration is required.
+
+## Private group read ACL (#1358)
+
+Group/post legacy API reads enforce creator/admin/member access for private groups,
+with anonymous reads retained for explicitly public groups. Plain private post
+manifests/directories remain DB-only; group manifests omit post discovery refs.
+Numeric Content attachment metadata, public category feeds and authenticated
+category/section lists cannot bypass group privacy. Exact ID lookups and missing
+post JSON null responses support the gateway publication contract. [Delivery and rollout notes](./private-group-read-acl-delivery.md) record
+NULL visibility handling, immutable historical-CID limitations and verification.

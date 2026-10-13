@@ -106,12 +106,21 @@ function notesFor(route: RouteRow, block: string): string[] {
       notes.add('recipe detail restricted to the catalog owner');
     }
   }
+  if (blockLower.includes('assertgroupreadable')) {
+    notes.add('public groups anonymous; private group member/creator/admin check with optional bearer auth');
+  }
+  if (route.moduleName === 'groupCategory' && (blockLower.includes('getcategorygroups') || blockLower.includes('getgroupsectionitems'))) {
+    notes.add('module requires category access and actor-scoped private group/section visibility');
+  }
+  if (route.moduleName === 'groupCategory' && blockLower.includes('getcategoryposts')) {
+    notes.add('public feed excludes private/deleted groups from page and total');
+  }
   if (route.moduleName === 'privateGroup') {
     notes.add('encryption/key boundary');
     notes.add('module enforces private-group membership or administrator authorization');
   }
   if (routeLower === '/v1/content/:contentid' && blockLower.includes('getpubliccontentmetadata')) {
-    notes.add('public-safe metadata projection; private DB ids hidden');
+    notes.add('public-safe metadata projection; private DB ids and exclusively private-group attachments hidden');
   }
   if (routeLower.includes('telegram') || routeLower.includes('twitter') || routeLower.includes('soc-net')) {
     notes.add('social account credential boundary');

@@ -35,6 +35,7 @@ function createGroupApiHarness(groupModule: Partial<IGeesomeGroupModule>) {
 				query: {types: "channel,chat"},
 				...req
 			}, {
+				setHeader: () => {},
 				send: (body) => {
 					responseBody = body;
 				}
@@ -45,6 +46,31 @@ function createGroupApiHarness(groupModule: Partial<IGeesomeGroupModule>) {
 }
 
 describe("group api ownership controls", function () {
+	it("checks caller membership before legacy private group and post reads", async () => {
+		const checks = [];
+		const {call} = createGroupApiHarness({
+			getGroupByParams: async () => ({id: 11}) as any,
+			getPostByParams: async () => ({id: 31, groupId: 11}) as any,
+			getGroupPosts: async () => ({list: [], total: 0}),
+			assertGroupReadable: async (userId, groupId) => {
+				checks.push([userId, groupId]);
+				if (userId !== 7) {
+					throw new Error('not_permitted');
+				}
+			}
+		});
+		for (const [method, path] of [['POST', 'group/get'], ['POST', 'post/get'], ['GET', 'group/:groupId/posts']]) {
+			await assert.rejects(() => call(method, path, {user: null, params: {groupId: 11}}), /not_permitted/);
+			await call(method, path, {user: {id: 7}, params: {groupId: 11}});
+		}
+		assert.deepEqual(checks, [[undefined, 11], [7, 11], [undefined, 11], [7, 11], [undefined, 11], [7, 11]]);
+	});
+
+	it("serializes absent post lookups as JSON null", async () => {
+		const {call} = createGroupApiHarness({getPostByParams: async () => null});
+		assert.equal(await call('POST', 'post/get', {body: {name: 'membership-missing'}}), 'null');
+	});
+
 	it("uses the authenticated user for self-service group membership routes", async () => {
 		const calls = [];
 		const {call} = createGroupApiHarness({

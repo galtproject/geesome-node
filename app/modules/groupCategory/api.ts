@@ -22,6 +22,7 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
 
     /**
      * @api {get} /v1/category/:categoryId/posts Get category posts
+     * @apiDescription Public feed: private and deleted groups are excluded, including from totals. Use authenticated group post routes for private reads.
      * @apiName CategoryPosts
      * @apiGroup Category
      *
@@ -52,6 +53,8 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
 
     /**
      * @api {get} /v1/user/category/:categoryId/groups Get category groups
+     * @apiDescription Category creator/admin/member access is required (global categories allow authenticated readers). Returned groups are restricted to public groups or the actor creator/admin/member groups.
+     * @apiError not_permitted Category membership required.
      * @apiName UserCategoryGroups
      * @apiGroup UserCategory
      *
@@ -181,6 +184,8 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
 
     /**
      * @api {get} /v1/user/group-sections List group sections
+     * @apiDescription Lists actor-owned sections by default; category-scoped lists require category creator/admin/member access.
+     * @apiError not_permitted Category membership required.
      * @apiName UserGroupSections
      * @apiGroup UserCategory
      *
@@ -191,6 +196,6 @@ export default (app: IGeesomeApp, groupCategoryModule: IGeesomeGroupCategoryModu
      * @apiInterface (./interface.ts) {IGroupSectionApiListResponse} apiSuccess
      */
     app.ms.api.onAuthorizedGet('user/group-sections', async (req, res) => {
-        res.send(await groupCategoryModule.getGroupSectionItems(req.query, req.query), 200);
+        res.send(await groupCategoryModule.getGroupSectionItems(req.query, req.query, req.user.id), 200);
     });
 };
