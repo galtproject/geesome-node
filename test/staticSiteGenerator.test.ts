@@ -39,7 +39,8 @@ describe("staticSiteGenerator", function () {
 			});
 			testGroup = await app.ms.group.createGroup(testUser.id, {
 				name: 'test',
-				title: 'Test'
+				title: 'Test',
+				isPublic: true
 			});
 			staticSiteGenerator = app.ms['staticSiteGenerator'];
 		} catch (e) {

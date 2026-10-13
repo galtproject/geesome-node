@@ -154,7 +154,7 @@ Interpretation notes:
 | content | HEAD | `/v1/content-data/*` | public | - | content/storage boundary; public entrypoint | `app/modules/content/api.ts` |
 | content | POST | `/v1/content-list-by-storage-id` | authorized | - | content/storage boundary; token only; module/user ownership checks expected | `app/modules/content/api.ts` |
 | content | GET | `/v1/content-stats/*` | public | - | content/storage boundary; public entrypoint | `app/modules/content/api.ts` |
-| content | GET | `/v1/content/:contentId` | public | - | content/storage boundary; public entrypoint; public-safe metadata projection; private DB ids hidden | `app/modules/content/api.ts` |
+| content | GET | `/v1/content/:contentId` | public | - | content/storage boundary; public entrypoint; public-safe metadata projection; private DB ids and exclusively private-group attachments hidden | `app/modules/content/api.ts` |
 | content | GET | `/v1/node*` | public | - | public entrypoint | `app/modules/content/api.ts` |
 | content | POST | `/v1/user/save-data-by-url` | authorized | - | token only; module/user ownership checks expected | `app/modules/content/api.ts` |
 | content | POST | `/v1/user/save-data` | authorized | - | token only; module/user ownership checks expected | `app/modules/content/api.ts` |
@@ -174,9 +174,9 @@ Interpretation notes:
 | foreignAccounts | POST | `/v1/user/set-account` | authorized | - | token only; module/user ownership checks expected | `app/modules/foreignAccounts/api.ts` |
 | group | GET | `/v1/admin/all-groups` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | GET | `/v1/group/:groupId/peers` | public | - | public entrypoint | `app/modules/group/api.ts` |
-| group | GET | `/v1/group/:groupId/posts` | public | - | public entrypoint | `app/modules/group/api.ts` |
-| group | POST | `/v1/group/get` | public | - | public entrypoint | `app/modules/group/api.ts` |
-| group | POST | `/v1/post/get` | public | - | public entrypoint | `app/modules/group/api.ts` |
+| group | GET | `/v1/group/:groupId/posts` | public | - | public entrypoint; public groups anonymous; private group member/creator/admin check with optional bearer auth | `app/modules/group/api.ts` |
+| group | POST | `/v1/group/get` | public | - | public entrypoint; public groups anonymous; private group member/creator/admin check with optional bearer auth | `app/modules/group/api.ts` |
+| group | POST | `/v1/post/get` | public | - | public entrypoint; public groups anonymous; private group member/creator/admin check with optional bearer auth | `app/modules/group/api.ts` |
 | group | POST | `/v1/user/add-friend` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | GET | `/v1/user/admin-in-groups` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | POST | `/v1/user/create-group` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
@@ -202,17 +202,17 @@ Interpretation notes:
 | group | GET | `/v1/user/personal-chat-groups` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | GET | `/v1/user/post/:postId` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
 | group | POST | `/v1/user/remove-friend` | authorized | - | token only; module/user ownership checks expected | `app/modules/group/api.ts` |
-| groupCategory | GET | `/v1/category/:categoryId/posts` | public | - | public entrypoint | `app/modules/groupCategory/api.ts` |
+| groupCategory | GET | `/v1/category/:categoryId/posts` | public | - | public entrypoint; public feed excludes private/deleted groups from page and total | `app/modules/groupCategory/api.ts` |
 | groupCategory | POST | `/v1/category/get` | public | - | public entrypoint | `app/modules/groupCategory/api.ts` |
 | groupCategory | POST | `/v1/user/category/:categoryId/add-group` | authorized | - | token only; module/user ownership checks expected | `app/modules/groupCategory/api.ts` |
 | groupCategory | POST | `/v1/user/category/:categoryId/add-member` | authorized | - | token only; module/user ownership checks expected | `app/modules/groupCategory/api.ts` |
-| groupCategory | GET | `/v1/user/category/:categoryId/groups` | authorized | - | token only; module/user ownership checks expected | `app/modules/groupCategory/api.ts` |
+| groupCategory | GET | `/v1/user/category/:categoryId/groups` | authorized | - | module requires category access and actor-scoped private group/section visibility; token only; module/user ownership checks expected | `app/modules/groupCategory/api.ts` |
 | groupCategory | POST | `/v1/user/category/:categoryId/is-member` | authorized | - | token only; module/user ownership checks expected | `app/modules/groupCategory/api.ts` |
 | groupCategory | POST | `/v1/user/category/:categoryId/remove-member` | authorized | - | token only; module/user ownership checks expected | `app/modules/groupCategory/api.ts` |
 | groupCategory | POST | `/v1/user/create-category` | authorized | - | token only; module/user ownership checks expected | `app/modules/groupCategory/api.ts` |
 | groupCategory | POST | `/v1/user/group-section/:groupSectionId/update` | authorized | - | token only; module/user ownership checks expected | `app/modules/groupCategory/api.ts` |
 | groupCategory | POST | `/v1/user/group-section/create` | authorized | - | token only; module/user ownership checks expected | `app/modules/groupCategory/api.ts` |
-| groupCategory | GET | `/v1/user/group-sections` | authorized | - | token only; module/user ownership checks expected | `app/modules/groupCategory/api.ts` |
+| groupCategory | GET | `/v1/user/group-sections` | authorized | - | module requires category access and actor-scoped private group/section visibility; token only; module/user ownership checks expected | `app/modules/groupCategory/api.ts` |
 | groupCategory | POST | `/v1/user/group/:groupId/add-to-section/:groupSectionId` | authorized | - | token only; module/user ownership checks expected | `app/modules/groupCategory/api.ts` |
 | imageComposition | GET | `/v1/user/image-compositions` | authorized | - | baked-only list projection; original/SVG dependency URLs omitted; module enforces actor-owned catalog Content and dependency authorization; token only; module/user ownership checks expected | `app/modules/imageComposition/api.ts` |
 | imageComposition | POST | `/v1/user/image-compositions` | authorized | - | module enforces actor-owned catalog Content and dependency authorization; token only; module/user ownership checks expected | `app/modules/imageComposition/api.ts` |

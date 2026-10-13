@@ -3,35 +3,70 @@ import IGeesomeGroupModule from "./interface.js";
 import helpers from "../../helpers.js";
 
 export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
+    async function withOptionalAuth(req, res, callback) {
+        if (req.token) {
+            return app.ms.api.authorizeAndHandleCallback(req, res, callback);
+        }
+        return callback();
+    }
+
 
     /**
      * @api {post} /v1/group/get Get group by params
+     * @apiDescription Public groups allow anonymous reads; private groups require a bearer token for a member, administrator or creator.
+     * @apiHeader {String} [Authorization] Optional bearer token; required for private groups.
+     * @apiUse AuthErrors
+     * @apiError not_permitted Private group membership required.
      * @apiName GroupGetByParams
      * @apiGroup Group
      *
-     * @apiBody {String} name
-     * @apiBody {String} storageId
-     * @apiBody {String} staticStorageId
-     * @apiBody {String} manifestStorageId
-     * @apiBody {String} manifestStaticStorageId
+     * @apiBody {Number} [id] Database group id.
+     * @apiBody {String} [name] Group name.
+     * @apiBody {String} [staticStorageId]
+     * @apiBody {String} [manifestStorageId]
+     * @apiBody {String} [manifestStaticStorageId]
+     * @apiError group_lookup_required Supply at least one group identifier.
      * @apiInterface (./interface.ts) {IGroupApiResponse} apiSuccess
      */
     app.ms.api.onPost('group/get', async (req, res) => {
-        res.send(await groupModule.getGroupByParams(req.body), 200);
+        return withOptionalAuth(req, res, async () => {
+            const group = await groupModule.getGroupByParams(req.body);
+            if (!group) {
+                res.setHeader('Content-Type', 'application/json');
+                return res.send('null', 200);
+            }
+            await groupModule.assertGroupReadable(req.user?.id, group.id);
+            res.send(group, 200);
+        });
     });
 
     /**
      * @api {post} /v1/post/get Get post by params
+     * @apiDescription Private group posts require a bearer token for a member, administrator or creator. Unknown post identifiers resolve to JSON null with HTTP 200.
+     * @apiHeader {String} [Authorization] Optional bearer token; required for private groups.
+     * @apiUse AuthErrors
+     * @apiError not_permitted Private group membership required.
      * @apiName PostGetByParams
      * @apiGroup Group
      *
-     * @apiBody {Number} id
-     * @apiBody {String} storageId
-     * @apiBody {String} manifestStorageId
+     * @apiBody {Number} [id] Database post id.
+     * @apiBody {String} [name] Post name.
+     * @apiBody {String} [staticStorageId] Post static storage id.
+     * @apiBody {String} [manifestStaticStorageId] Post manifest static id.
+     * @apiBody {String} [manifestStorageId] Post manifest id.
+     * @apiError post_lookup_required Supply at least one post identifier.
      * @apiInterface (./interface.ts) {IPostApiResponse} apiSuccess
      */
     app.ms.api.onPost('post/get', async (req, res) => {
-        res.send(await groupModule.getPostByParams(req.body), 200);
+        return withOptionalAuth(req, res, async () => {
+            const post = await groupModule.getPostByParams(req.body);
+            if (!post) {
+                res.setHeader('Content-Type', 'application/json');
+                return res.send('null', 200);
+            }
+            await groupModule.assertGroupReadable(req.user?.id, post.groupId);
+            res.send(post, 200);
+        });
     });
     
     /**
@@ -59,6 +94,8 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
 
     /**
      * @api {get} /v1/user/post/:postId Get user-visible post
+     * @apiDescription Private posts require group creator, administrator or member access.
+     * @apiError not_permitted Private group membership required.
      * @apiName UserPostGet
      * @apiGroup UserGroup
      *
@@ -413,10 +450,13 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
 
     /**
      * @api {get} /v1/group/:groupId/posts Get group posts
+     * @apiDescription Anonymous for public groups; private groups require an authenticated member, administrator or creator.
+     * @apiUse AuthErrors
+     * @apiError not_permitted Private group membership required.
      * @apiName GroupPosts
      * @apiGroup Group
      *
-     * @apiUse ApiKey
+     * @apiHeader {String} [Authorization] Optional bearer token; required for private groups.
      *
      * @apiParam {String} groupId Group database id or storage id.
      *
@@ -424,7 +464,10 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiInterface (./interface.ts) {IPostApiListResponse} apiSuccess
      */
     app.ms.api.onGet('group/:groupId/posts', async (req, res) => {
-        res.send(await groupModule.getGroupPosts(req.params.groupId, helpers.sanitizePublicPostFilters(req.query), req.query));
+        return withOptionalAuth(req, res, async () => {
+            await groupModule.assertGroupReadable(req.user?.id, req.params.groupId);
+            res.send(await groupModule.getGroupPosts(req.params.groupId, helpers.sanitizePublicPostFilters(req.query), req.query));
+        });
     });
 
     /**

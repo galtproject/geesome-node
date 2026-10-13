@@ -34,6 +34,8 @@ export default interface IGeesomeGroupModule {
 
 	isAdminInGroup(userId, groupId): Promise<boolean>;
 
+	assertGroupReadable(userId, groupId): Promise<void>;
+
 	isMemberInGroup(userId, groupId): Promise<boolean>;
 
 	addMemberToGroup(userId, groupId, memberId, groupPermissions?: string[]): Promise<void>;
@@ -160,9 +162,9 @@ export default interface IGeesomeGroupModule {
 
 	reconcileGroupCounters(groupId): Promise<any>;
 
-	getGroupByParams(params: {name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<IGroup>;
+	getGroupByParams(params: {id?, name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<IGroup>;
 
-	getPostByParams(params: {name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<IPost>;
+	getPostByParams(params: {id?, name?, staticStorageId?, manifestStorageId?, manifestStaticStorageId?}): Promise<IPost>;
 
 	getGroupRead(userId, groupId): Promise<IGroupRead>;
 

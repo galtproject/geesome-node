@@ -80,6 +80,10 @@ export function getModule(app: IGeesomeApp) {
         return categoryManifest;
       } else if (name === 'post') {
         const post: IPost = data;
+        const group = post.group || await app.ms.group.getGroup(post.groupId);
+        if (!group.isPublic && !group.isEncrypted) {
+          throw new Error('private_post_manifest_not_public');
+        }
         //TODO: fix size, view and type
         //TODO: add groupNumber
         const postManifest = ipfsHelper.pickObjectFields(post, ['status', 'publishedAt', 'view', 'type', 'entityId', 'size', 'source', 'sourceChannelId', 'sourcePostId', 'directoryStorageId', 'sourceDate']);
@@ -178,6 +182,13 @@ export function getModule(app: IGeesomeApp) {
     }
 
     async generateGroupManifest(groupData: IGroup, options: any = {}) {
+      if (!groupData.isPublic && !groupData.isEncrypted) {
+        const shell = this.createGroupManifestShell(groupData, false);
+        delete shell.directoryStorageId;
+        await this.attachGroupManifestEntityRefs(shell, groupData);
+        this.setManifestMeta(shell, 'group');
+        return shell;
+      }
       const includeInlinePosts = shouldIncludeInlineGroupManifestPosts(groupData, options);
       this.initializeGroupManifestGenerationState(groupData, options);
 

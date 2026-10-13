@@ -264,6 +264,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiSuccess {String} [largePreviewStorageId] Large preview storage id.
      * @apiSuccess {String} [mediumPreviewStorageId] Medium preview storage id.
      * @apiSuccess {String} [smallPreviewStorageId] Small preview storage id.
+     * @apiDescription Numeric ids attached exclusively to private groups require group membership (or content ownership). Shared storage-id metadata and public Page/media bytes remain public.
      * @apiHeader {String} [Authorization] Optional bearer API key. When present and valid for the content owner, private numeric database ids resolve to the owner's full content metadata for backward compatibility.
      * @apiSuccess {Number} [id] Public content database id, or owner content database id when authorized.
      * @apiSuccess {String} [name] Public content name, or owner content name when authorized.

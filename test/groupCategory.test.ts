@@ -36,7 +36,8 @@ describe("groupCategory", function () {
 			});
 			await app.ms.group.createGroup(testUser.id, {
 				name: 'test',
-				title: 'Test'
+				title: 'Test',
+				isPublic: true
 			});
 			groupCategory = app.ms['groupCategory'];
 		} catch (e) {
@@ -296,7 +297,8 @@ describe("groupCategory", function () {
 
 		const group2 = await app.ms.group.createGroup(testUser.id, {
 			name: 'test2',
-			title: 'Test2'
+			title: 'Test2',
+			isPublic: true
 		});
 
 		try {
