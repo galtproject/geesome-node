@@ -8,6 +8,7 @@ export interface IStaticSiteRenderArgs {
 }
 export interface IStaticSiteOptions {
 	allowSearchIndexing?: boolean;
+	archive?: boolean;
 	baseStorageUri?;
 	lang;
 	dateFormat;

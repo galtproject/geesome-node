@@ -97,6 +97,11 @@ function notesFor(route: RouteRow, block: string): string[] {
   if (routeLower.includes('content') || routeLower.includes('file') || routeLower.includes('ipfs')) {
     notes.add('content/storage boundary');
   }
+  if (route.moduleName === 'archive') {
+    notes.add(route.auth === 'public'
+      ? 'completed archives are explicitly public by original CID'
+      : 'module checks local upload/site ownership and user:save_data; scoped keys require content:write');
+  }
   if (route.moduleName === 'imageComposition') {
     notes.add('module enforces actor-owned catalog Content and dependency authorization');
     if (routeLower.endsWith('/image-compositions') && route.method === 'GET') {

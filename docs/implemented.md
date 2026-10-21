@@ -532,3 +532,40 @@ Numeric Content attachment metadata, public category feeds and authenticated
 category/section lists cannot bypass group privacy. Exact ID lookups and missing
 post JSON null responses support the gateway publication contract. [Delivery and rollout notes](./private-group-read-acl-delivery.md) record
 NULL visibility handling, immutable historical-CID limitations and verification.
+
+## Content archiving to IPFS (#1367)
+
+The archive module queues owner-authorized local upload or generated-site archives,
+pins tar.gz output and persists a unique originalStorageId/archivedStorageId pair.
+Public lookup and attachment download use the original CID. Creation uses shared
+async operations; failed jobs retain errors and can be requested again.
+
+See [module contract](../app/modules/archive/docs/overview.md) for bounds,
+ownership, public visibility and verification coverage.
+
+Verification for #1367: an isolated Docker run with production Sequelize models,
+PostgreSQL and Kubo downloaded the generated 30-post site's archive through the
+public endpoint and compared all 87 files and 56 directories (143 entries) with
+IPFS. Every file matched byte for byte. Unit checks also cover malformed CIDs,
+unsafe paths, byte limits, read failure and cancellation. The shared full-suite
+Docker run encountered stalled IPFS pin requests in existing app tests; it is not
+recorded as a passing full-suite gate.
+
+The final focused command ran archiveBuilder, archive and the generated-group-site
+case with `--grep "archive|should generate site correctly from group"`:
+**16 passing**. API documentation generation, security route inventory and database
+scalability inventory checks also passed.
+
+## Automatic published-site archives and download control (#586)
+
+Microwave Girls requests `options.archive: true` on Page publication. The static
+render worker checks archive/save/scoped-key permissions, saves the final site
+CID and enqueues its archive without waiting for compression. Gallery and group
+layouts include a top-right control for public readiness checks and downloads.
+Pending checks are bounded; errors allow retry; no credentials reach the site.
+
+Verification includes a real queued gallery render, automatic archive creation,
+public download and byte comparison, plus desktop/narrow Playwright pending,
+retry and ready states with screenshot manifests and matching download bytes.
+The broader shared IPFS test instance still exhibited the previously recorded
+pin stalls; focused gallery validation uses an isolated Kubo instance.
