@@ -57,3 +57,26 @@ binary/unicode/empty directory preservation and physical deletion protection.
 `test/staticSiteGenerator.test.ts` archives a generated 30-post site, unpacks
 it and recursively compares every directory and every file byte with IPFS,
 including main, pagination and post pages, styles and content assets.
+
+## Static-site publication integration
+
+Static-site requests can set `options.archive: true`. After the final site CID
+and owner record are saved, the render worker enqueues an archive under the
+requesting user/API key and then completes rendering without waiting for archive
+compression. The archive module must be enabled. The download control is rendered
+only for this explicit option, in both gallery and group layouts.
+
+The generated client gets the canonical public API base from node configuration,
+not from caller-supplied options. It derives the immutable original CID from
+`/ipfs/<cid>/...` or a CID subdomain at runtime, avoiding a self-referential site
+hash. Visitors only perform public GETs without credentials. A 404 shows a pending
+state with bounded polling; transient failures expose a retry control. Extracted
+files/DNSLink pages without an immutable CID in the URL show unavailable rather
+than downloading an unrelated archive.
+
+`test/staticSiteArchiveBrowser.mjs` runs against the actual generated-and-archived
+gallery fixture from `test/staticSiteGenerator.test.ts` in the existing
+microwave-girls Playwright Docker image. It verifies top-right placement, no
+horizontal overflow or broken gallery images, pending/error/retry/ready states,
+and exact downloaded archive bytes at desktop and narrow widths. Its six PNGs
+and screenshot manifest stay in the ignored runtime evidence directory.

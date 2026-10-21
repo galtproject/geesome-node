@@ -555,3 +555,17 @@ The final focused command ran archiveBuilder, archive and the generated-group-si
 case with `--grep "archive|should generate site correctly from group"`:
 **16 passing**. API documentation generation, security route inventory and database
 scalability inventory checks also passed.
+
+## Automatic published-site archives and download control (#586)
+
+Microwave Girls requests `options.archive: true` on Page publication. The static
+render worker checks archive/save/scoped-key permissions, saves the final site
+CID and enqueues its archive without waiting for compression. Gallery and group
+layouts include a top-right control for public readiness checks and downloads.
+Pending checks are bounded; errors allow retry; no credentials reach the site.
+
+Verification includes a real queued gallery render, automatic archive creation,
+public download and byte comparison, plus desktop/narrow Playwright pending,
+retry and ready states with screenshot manifests and matching download bytes.
+The broader shared IPFS test instance still exhibited the previously recorded
+pin stalls; focused gallery validation uses an isolated Kubo instance.

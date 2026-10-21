@@ -1,5 +1,7 @@
+import ArchiveDownload from '../../components/ArchiveDownload/index.js';
 export default {
     components: {
+        ArchiveDownload,
     },
     inject: ['store'],
     computed: {
@@ -16,7 +18,8 @@ export default {
       <div class="page-container">
         <div class="page-header">
           <div class="page-header-content" v-if="headerHtml" v-html="headerHtml"></div>
-          <div class="powered"><span>Powered by <a href="https://github.com/galtproject/geesome-node" target="_blank">Geesome</a></span></div>
+          <div class="page-header-actions"><archive-download />
+          <div class="powered"><span>Powered by <a href="https://github.com/galtproject/geesome-node" target="_blank">Geesome</a></span></div></div>
         </div>
         <div class="page-body">
           <slot name="page"/>

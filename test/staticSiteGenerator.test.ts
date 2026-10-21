@@ -459,6 +459,48 @@ describe("staticSiteGenerator", function () {
 		);
 	});
 
+	it('queues an archive for a published content gallery', async () => {
+		const readToken = await app.generateUserApiKey(testUser.id, {scopes: ['operations:read']});
+		const {apiKey: readKey} = await app.getUserByApiToken(readToken);
+		await assert.rejects(() => staticSiteGenerator.addRenderToQueueAndProcess(testUser.id, readKey.id, {entityType: 'content-list', entityIds: [1]}, {archive: true}), error => error['code'] === 'insufficient_scope');
+		const image = await app.ms.content.saveData(testUser.id, fs.createReadStream(await resourcesHelper.prepare('input-image.png')), 'gallery.png', {waitForPin: true});
+		const job = await staticSiteGenerator.addRenderToQueueAndProcess(testUser.id, null, {entityType: 'content-list', entityIds: [image.id]}, {
+			archive: true, headerHtml: '<a href="https://eraofwave.com" class="header-title">Published Gallery</a>',
+			stylesCss: '.page-header {display:flex; padding:16px; gap:16px; background:#f8fafe; color:#183b69} .page-header-content {padding:12px} .page-header-content a {color:#183b69} @media(max-width:450px){.page-header{flex-wrap:wrap}}',
+			site: {title: 'Published Gallery', name: 'archive_gallery', base: '/'},
+		});
+		let queue: any;
+		for (let attempt = 0; attempt < 1000; attempt++) {
+			queue = await app.ms.asyncOperation.getUserOperationQueue(testUser.id, job.id);
+			if (queue.asyncOperation && !queue.asyncOperation.inProcess) {
+				break;
+			}
+			await new Promise(resolve => setTimeout(resolve, 20));
+		}
+		assert.equal(queue.asyncOperation.errorMessage, null);
+		const {storageId} = JSON.parse(queue.asyncOperation.output);
+		await app.ms.archive.processQueue();
+		const archive = await app.ms.archive.getArchive(storageId);
+		assert.ok(archive, 'rendering enqueued an archive without a separate manual request');
+		const response = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/archive/${storageId}/download`);
+		assert.equal(response.status, 200);
+		const bytes = Buffer.from(await response.arrayBuffer());
+		const entries = await readArchive(bytes);
+		await assertArchiveMatchesStorage(app.ms.storage, archive.originalStorageId, entries);
+		const output = 'test/output/archive-browser';
+		fs.mkdirSync(output, {recursive: true});
+		fs.writeFileSync(output + '/archive.tar.gz', bytes);
+		fs.writeFileSync(output + '/site.json', JSON.stringify({storageId: archive.originalStorageId, archivedStorageId: archive.archivedStorageId}));
+		for (const [name, content] of entries) {
+			if (content === null) {
+				fs.mkdirSync(output + '/site/' + name, {recursive: true});
+			} else {
+				fs.mkdirSync(output + '/site/' + name.slice(0, name.lastIndexOf('/')), {recursive: true});
+				fs.writeFileSync(output + '/site/' + name, content);
+			}
+		}
+	});
+
 	it('should generate site correctly from content list', async () => {
 		const contentIds = [];
 		for (let i = 0; i < 30; i++) {

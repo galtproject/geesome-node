@@ -1,5 +1,7 @@
+import ArchiveDownload from '../../components/ArchiveDownload/index.js';
 export default {
     components: {
+        ArchiveDownload,
     },
     inject: ['store'],
     computed: {
@@ -13,6 +15,7 @@ export default {
     mounted() {
     },
     template: `
+      <div v-if="store.options.archive === true" class="archive-toolbar"><archive-download /></div>
       <div :class="['content-wrapper', view]">
         <div class="content-info">
           <div class="site-info">

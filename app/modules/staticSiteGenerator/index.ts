@@ -1,11 +1,13 @@
 import fs from 'fs';
+import {getPublicApiContext} from '../api/publicUrls.js';
+import {requireIntegrationScopes} from '../api/integrationScopes.js';
 import {sanitizeStaticSiteLayoutHtml} from '../../htmlSafety.js';
 import _ from 'lodash';
 import debug from 'debug';
 import pIteration from 'p-iteration';
 import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeStaticSiteGeneratorModule, {IStaticSite, IStaticSiteRenderArgs} from "./interface.js";
-import {IContentData, IContentDataProjectionOptions, IListParams, IListParamsOptions} from "../database/interface.js";
+import {CorePermissionName, IContentData, IContentDataProjectionOptions, IListParams, IListParamsOptions} from "../database/interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import helpers from '../../helpers.js';
 import ssgHelpers from './helpers.js';
@@ -95,6 +97,7 @@ export function normalizeStaticSiteOptions(options: any = {}) {
     normalized.postList = normalized.postList || {};
     normalized.site = normalized.site || {};
     normalized.allowSearchIndexing = normalized.allowSearchIndexing === true;
+    normalized.archive = normalized.archive === true;
 
     validateStaticSiteName(normalized.name);
     validateStaticSiteName(normalized.site.name);
@@ -214,6 +217,17 @@ export async function getModule(app: IGeesomeApp, models) {
                 throw Error('unknown_type');
             }
             options = normalizeStaticSiteOptions(options);
+            if (options.archive) {
+                app.checkModules(['archive']);
+                const archiveKey = userApiKeyId ? await app.ms.database.getApiKey(userApiKeyId) : undefined;
+                if (userApiKeyId && !archiveKey) {
+                    throw new Error('not_permitted');
+                }
+                await app.checkUserCan(userId, CorePermissionName.UserSaveData, archiveKey);
+                if (archiveKey) {
+                    requireIntegrationScopes(archiveKey, ['content:write']);
+                }
+            }
 
             const operationQueue = await app.ms.asyncOperation.addUserOperationQueue(userId, this.moduleName, userApiKeyId, {
                 renderArgs,
@@ -278,6 +292,9 @@ export async function getModule(app: IGeesomeApp, models) {
                     ? this.generateContentListSite(userId, renderArgs, options)
                     : this.generateGroupSite(userId, renderArgs, options).then(storageId => ({storageId, staticSiteId: null}));
                 await generateSite.then(async ({storageId, staticSiteId}) => {
+                    if (options.archive === true) {
+                        await app.ms.archive.requestArchive(userId, storageId, userApiKeyId);
+                    }
                     await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
                     await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id, null, JSON.stringify({storageId, staticSiteId}));
                     if (finishCallbacks[waitingQueue.id]) {
@@ -371,6 +388,7 @@ export async function getModule(app: IGeesomeApp, models) {
                 }
             });
             const normalized = normalizeStaticSiteOptions(merged);
+            normalized.archiveApiBase = normalized.archive ? getPublicApiContext(app).apiBaseUrl : undefined;
             if (!normalized.site.avatarUrl && normalized.site.avatarStorageId) {
                 normalized.site.avatarUrl = options.baseStorageUri + normalized.site.avatarStorageId;
             }
@@ -607,6 +625,7 @@ export async function getModule(app: IGeesomeApp, models) {
 
         async generateContentListSite(userId, renderArgs: IStaticSiteRenderArgs, options: any = {}): Promise<{storageId, staticSiteId}> {
             options = normalizeStaticSiteOptions(options);
+            options.archiveApiBase = options.archive ? getPublicApiContext(app).apiBaseUrl : undefined;
             const {entityType, entityIds} = renderArgs;
             const {
                 staticSite,
