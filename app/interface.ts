@@ -24,6 +24,7 @@ import IGeesomePrivateGroupModule from "./modules/privateGroup/interface.js";
 import IGeesomeChatModule from "./modules/chat/interface.js";
 import IGeesomeImageCompositionModule from "./modules/imageComposition/interface.js";
 import IGeesomeApiModule from "./modules/api/interface.js";
+import IGeesomeArchiveModule from './modules/archive/interface.js';
 import IGeesomeAssetModule from "./modules/asset/interface.js";
 import {GeesomeEmitter} from "./events.js";
 import {
@@ -48,6 +49,7 @@ export interface IGeesomeApp {
     api: IGeesomeApiModule;
     content: IGeesomeContentModule,
     asyncOperation: IGeesomeAsyncOperationModule;
+    archive: IGeesomeArchiveModule;
     asset: IGeesomeAssetModule;
     staticId: IGeesomeStaticIdModule;
     invite: IGeesomeInviteModule;

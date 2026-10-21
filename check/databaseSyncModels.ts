@@ -4,6 +4,13 @@ import databaseConfig from '../app/modules/database/config.js';
 
 const moduleModelSyncers = [
   {
+    name: 'archive',
+    sync: async (sequelize: Sequelize, models: any) => {
+      Object.assign(models, await (await import('../app/modules/archive/models.js')).default(sequelize));
+      return models;
+    },
+  },
+  {
     name: 'accountStorage',
     sync: async (sequelize: Sequelize, models: any) => {
       Object.assign(models, await (await import('../app/modules/accountStorage/models.js')).default(sequelize));
