@@ -194,6 +194,10 @@ function getStorageObjectChildReferenceSourceId(row) {
 
 const derivedStorageReferenceSources = [
   {
+    modelNames: ['ContentArchive', 'contentArchive'],
+    columns: ['originalStorageId', 'archivedStorageId'],
+  },
+  {
     modelNames: ['Post', 'post'],
     columns: [
       'storageId',

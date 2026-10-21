@@ -7,6 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import {assertArchiveMatchesStorage, readArchive} from './helpers/archive.js';
 import fs from "fs";
 import assert from "assert";
 import IGeesomeStaticSiteGeneratorModule from "../app/modules/staticSiteGenerator/interface.js";
@@ -142,6 +143,23 @@ describe("staticSiteGenerator", function () {
 		const [gotStaticSiteInfo] = await staticSiteGenerator.getStaticSiteList(testUser.id, 'group', {limit: 10, sortBy: 'createdAt', sortDir: 'DESC'});
 		assert.equal(gotStaticSiteInfo.title, site.title);
 		assert.equal(gotStaticSiteInfo.name, site.name);
+
+		await assert.rejects(() => app.ms.archive.requestArchive(testUser.id + 100000, directoryStorageId), /not_permitted/);
+		const requestedArchive = await app.ms.archive.requestArchive(testUser.id, directoryStorageId);
+		assert.equal(requestedArchive.status, 'queued');
+		await app.ms.archive.processQueue();
+		const archive = await app.ms.archive.getArchive(directoryStorageId);
+		assert.ok(archive, 'generated site archive has been persisted');
+		const archiveResponse = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/archive/${directoryStorageId}/download`);
+		assert.equal(archiveResponse.status, 200);
+		const entries = await readArchive(Buffer.from(await archiveResponse.arrayBuffer()));
+		const archivedEntryCount = await assertArchiveMatchesStorage(app.ms.storage, archive.originalStorageId, entries);
+		assert.ok(archivedEntryCount > 30, 'site includes pages and bundled assets');
+		fs.mkdirSync('test/output', {recursive: true});
+		fs.writeFileSync('test/output/archive-static-site.json', JSON.stringify({originalStorageId: archive.originalStorageId, archivedStorageId: archive.archivedStorageId, entriesCompared: archivedEntryCount, filesCompared: [...entries.values()].filter(value => value !== null).length, allBytesMatch: true}, null, 2));
+		assert.equal(entries.get(archive.originalStorageId + '/index.html').toString(), indexHtmlContent);
+		assert.equal(entries.get(archive.originalStorageId + '/page/5/index.html').toString(), page3HtmlContent);
+		assert.equal(entries.get(archive.originalStorageId + `/post/${posts[0].localId}/index.html`).toString(), postHtmlContent);
 
 		assert.equal(await staticSiteGenerator.isStorageIdAllowed(directoryStorageId), true);
 		assert.equal(await app.callHookCheckAllowed('content', 'isStorageIdAllowed', [directoryStorageId]), true);
