@@ -80,3 +80,6 @@ microwave-girls Playwright Docker image. It verifies top-right placement, no
 horizontal overflow or broken gallery images, pending/error/retry/ready states,
 and exact downloaded archive bytes at desktop and narrow widths. Its six PNGs
 and screenshot manifest stay in the ignored runtime evidence directory.
+
+The control uses decorative outline SVGs for download, waiting and retry, plus a
+small loading indicator. Motion is disabled under `prefers-reduced-motion`.

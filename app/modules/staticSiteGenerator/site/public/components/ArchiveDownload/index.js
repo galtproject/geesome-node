@@ -12,7 +12,12 @@ export function archiveLookupUrl(apiBase, location) {
     return apiBase.replace(/\/+$/, '') + '/archive/' + encodeURIComponent(cid);
 }
 
+const DownloadIcon = {
+    template: `<svg class="archive-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4"/><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>`,
+};
+
 export default {
+    components: {DownloadIcon},
     inject: ['store'],
     data() {
         return {state: 'checking', lookup: null, timer: null, controller: null, checks: 0, disposed: false};
@@ -94,8 +99,14 @@ export default {
     },
     template: `
       <div v-if="enabled" class="archive-download" data-testid="site-archive-control">
-        <a v-if="state === 'ready'" :href="lookup + '/download'" class="archive-download-action" data-testid="site-archive-download" download>↓ Download archive</a>
-        <button v-else class="archive-download-action" data-testid="site-archive-status" :disabled="state !== 'error'" :aria-busy="state === 'checking' || state === 'pending'" @click="retry">↓ {{label}}</button>
+        <a v-if="state === 'ready'" :href="lookup + '/download'" class="archive-download-action" data-testid="site-archive-download" download><download-icon /> <span>Download archive</span></a>
+        <button v-else class="archive-download-action" data-testid="site-archive-status" :disabled="state !== 'error'" :aria-busy="state === 'checking' || state === 'pending'" @click="retry">
+          <svg v-if="state === 'checking'" class="archive-icon archive-icon-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"/></svg>
+          <svg v-else-if="state === 'pending'" class="archive-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <svg v-else-if="state === 'error'" class="archive-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 7v5h-5"/><path d="M20 12a8 8 0 1 0-2.3 5.7"/></svg>
+          <download-icon v-else />
+          <span>{{label}}</span>
+        </button>
         <span class="archive-download-message" role="status" v-if="state === 'pending'">Your archive will be available here shortly.</span>
       </div>
     `,

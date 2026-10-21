@@ -20,7 +20,8 @@ describe('static-site archive control', () => {
             const $ = load(await renderToString(app));
             assert.equal($('[data-testid="site-archive-control"]').length, archive === true ? 1 : 0);
             if (archive === true) {
-                assert.equal($('[data-testid="site-archive-status"]').text().trim(), '↓ Download archive');
+                assert.equal($('[data-testid="site-archive-status"]').text().trim(), 'Download archive');
+                assert.equal($('[data-testid="site-archive-status"] svg[aria-hidden="true"]').length, 1);
             }
         }
     });

@@ -247,3 +247,9 @@ th, td {
 .archive-download a.archive-download-action,
 .archive-download a.archive-download-action:hover,
 .archive-download a.archive-download-action:visited { color: #fff; }
+
+.archive-download-action { gap: 8px; }
+.archive-icon { width: 18px; height: 18px; flex: 0 0 18px; }
+.archive-icon-spin { animation: archive-icon-rotate 1s linear infinite; }
+@keyframes archive-icon-rotate { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .archive-icon-spin { animation: none; } }

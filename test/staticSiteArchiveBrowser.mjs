@@ -50,6 +50,7 @@ try {
             await page.getByTestId('site-archive-control').waitFor();
             const button = page.locator('[data-testid="site-archive-control"] a, [data-testid="site-archive-control"] button');
             const box = await button.boundingBox();
+            assert.equal(await button.locator('svg[aria-hidden="true"]').count(), 1, 'each archive action has a decorative SVG icon');
             assert.ok(box.x + box.width >= viewport.width - 35, 'download control is at the right edge');
             assert.ok(box.y < 160 && box.x >= 0 && box.x + box.width <= viewport.width, 'control fits at the top');
             assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
@@ -63,10 +64,10 @@ try {
         await page.locator('img').evaluateAll(images => Promise.all(images.map(image => image.decode())));
         await capture('pending', 'Published gallery with the archive preparing message and disabled download control in the top-right.');
         state = 'error';
-        await page.getByRole('button', {name: '↓ Retry archive download', exact: true}).waitFor();
+        await page.getByRole('button', {name: 'Retry archive download', exact: true}).waitFor();
         await capture('retry', 'Published gallery remains available after archive lookup fails, with a top-right Retry archive download button.');
         state = 'ready';
-        await page.getByRole('button', {name: '↓ Retry archive download', exact: true}).click();
+        await page.getByRole('button', {name: 'Retry archive download', exact: true}).click();
         const downloadLink = page.getByTestId('site-archive-download');
         await downloadLink.waitFor();
         assert.equal(await downloadLink.evaluate(element => getComputedStyle(element).color), 'rgb(255, 255, 255)', 'download link remains readable while hovered');
