@@ -20,6 +20,19 @@ export default (_app: IGeesomeApp, ssgModule: IGeesomeStaticSiteGeneratorModule)
 	api.onAuthorizedPost('get-list', async (req, res) => {
 		return res.send(await ssgModule.getStaticSiteResponse(req.user.id, req.body.entityType, helpers.prepareListParams(req.body)), 200);
 	});
+	/**
+	 * @api {post} /v1/render/static-site-generator/run Generate a static site
+	 * @apiName StaticSiteGenerate
+	 * @apiGroup StaticSiteGenerator
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiBody {String="group","content-list"} entityType Source type.
+	 * @apiBody {String} [entityId] Group id for group rendering.
+	 * @apiBody {Number[]} [entityIds] Ordered content ids for content-list rendering.
+	 * @apiBody {Object} [options] Render options.
+	 * @apiBody {Boolean} [options.archive=false] Queue a public tar.gz archive after rendering and show its top-right download control. Requires archive module and save permission. Rendering does not wait for compression.
+	 * @apiSuccess {Number} id Render queue id; poll the existing user operation-queue endpoint.
+	 */
 	api.onAuthorizedPost('run', async (req, res) => {
 		return res.send(await ssgModule.addRenderToQueueAndProcess(req.user.id, req.apiKey.id, pickRenderArgs(req.body), req.body.options), 200);
 	});
