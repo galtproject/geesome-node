@@ -69,8 +69,9 @@ export class SiteReplacements {
                     problem('image_replacement_site_not_owned', 403);
                 }
                 const page = await readSiteData(this.app.ms.storage, request.previousSiteStorageId);
-                if (JSON.stringify(page.contents?.map(c => Number(c.id))) !== JSON.stringify(ids)
-                    || page.contents.some((c, i) => !sameCid(c.storageId, sources[i].storageId))) {
+                const sourceById = new Map(sources.map(source => [source.id, source]));
+                if (JSON.stringify([...new Set(page.contents?.map(c => Number(c.id)))]) !== JSON.stringify(ids)
+                    || page.contents.some(c => !sameCid(c.storageId, sourceById.get(Number(c.id))?.storageId))) {
                     problem('image_replacement_source_mismatch');
                 }
                 const post = await this.publication(userId, request.postId);
