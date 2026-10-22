@@ -13,6 +13,41 @@ User decisions: 22 October 2026. Implementation verified locally; merge/deployme
 - [Workstreams and verification](#workstreams-and-verification)
 - [Deployment](#deployment)
 
+## Audit follow-up — implementation in progress
+
+User approved implementing the independent simplification audit (22 October 2026).
+Continue issue #1382 / PR #1383 on the same branch, without production mutations.
+
+1. Separate temporary write gates from destructive hold limits: ordinary resaves
+   must continue with >1000 queued files; only exact pending-retirement CIDs block.
+2. Reuse the locked Content snapshot and transaction for admission/provenance
+   lookups. Verify pool max=1 and concurrent same/different source admissions.
+3. Scope durable revision/pin lifetime to replacement renders. Ordinary generation
+   keeps its existing current-site MFS behavior. Remove unfinished replacement
+   attempts on failure/retry; preserve published roots and shared references.
+4. Keep immutable accepted input in queue.inputJson and one mutable checkpoint in
+   operation.output, CAS-protected. Read existing pre-refactor receipts safely.
+5. Build canonical job dependencies once per exclusive cleanup pass; rebuild for
+   resumed GC. Preserve conservative unknown/overflow behavior for deletion, own
+   hold release checkpoints, pending CID gates, and late-write/fence protection.
+6. Add opt-in same-operation resume to the existing queue processor; reuse it for
+   content-resave with the cross-process worker lock. Preserve default behavior of
+   archive/other consumers and cancellation/finished-result recovery after restart.
+7. Keep publication/consumer finalization in staticSiteGenerator; retain physical
+   cleanup in storageSpace. Move catalog remapping into fileCatalog if it can be
+   done without expanding its contract beyond the existing transactional operation.
+8. Add meaningful regressions, rebuild disposable PostgreSQL/Kubo tests, run
+   publisher compatibility checks when impacted, regenerate/review inventories and
+   docs, commit/push and update the PR. Never merge it.
+
+Required safety invariants: ownership/shared roots/pins, exact old-site/archive
+cutover, immutable ready replay, both CID encodings, crash-safe checkpoints,
+GC cancellation on lost fence, no GC with no eligible candidates, offline absence
+proof and new uploads of identical bytes after cleanup. No new batch/models.
+
+Checkpoint: starting from clean `efc66ce2`. Audit was static/read-only; previous
+72 broad +32 final focused tests did not cover the newly identified edge cases.
+
 ## Active simplification — completed
 
 Latest instruction (22 October 2026): remove the separate `imageOptimization`
