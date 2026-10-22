@@ -564,7 +564,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
 
   async getContent(id, options: any = {}) {
     const where = options.includeDeleted ? {id} : getActiveContentWhere({id});
-    return this.models.Content.findOne({where}) as IContent;
+    return this.models.Content.findOne({where, transaction: options.transaction}) as IContent;
   }
 
   async getContentByStorageId(storageId, findByPreviews = false) {

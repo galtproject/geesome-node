@@ -1,9 +1,8 @@
 import {withStorageFence, withStorageWorker} from '../../storageLifecycle.js';
-import {finalizeReplacement} from '../storageSpace/siteRetirement.js';
+import {withStorageJobSnapshot} from '../asyncOperation/storageHolds.js';
 import {policy} from '../content/publicationImagePolicy.js';
 
 export function configureSiteReplacements(app, service) {
-    service.finalize = (userId, id, body, apiKeyId) => finalizeReplacement(service, userId, id, body, apiKeyId);
     service.retryCleanup = async (userId, id, apiKeyId) => {
         const row = await service.replacement(userId, id);
         await service.authorize(userId, apiKeyId, true);
@@ -36,18 +35,20 @@ export function configureSiteReplacements(app, service) {
             return;
         }
         await withStorageFence(app, 'exclusive', async assertHeld => {
-            for (const row of retiring) {
-                try {
-                    await app.ms.storageSpace.retireSiteReplacement(service, row, assertHeld);
-                } catch (error) {
-                    await assertHeld();
-                    await row.update({status: 'cleanup_failed', error: error.code || error.message});
+            await withStorageJobSnapshot(app, async () => {
+                for (const row of retiring) {
+                    try {
+                        await app.ms.storageSpace.retireSiteReplacement(service, row, assertHeld);
+                    } catch (error) {
+                        await assertHeld();
+                        await row.update({status: 'cleanup_failed', error: error.code || error.message});
+                    }
                 }
-            }
+            });
             const gc = await service.jobs.list(['gc_pending'], 100);
             if (gc.length) {
                 try {
-                    await app.ms.storageSpace.collectRetiredSiteBlocks(service, gc, assertHeld);
+                    await withStorageJobSnapshot(app, () => app.ms.storageSpace.collectRetiredSiteBlocks(service, gc, assertHeld));
                 } catch (error) {
                     await assertHeld();
                     for (const row of gc) {

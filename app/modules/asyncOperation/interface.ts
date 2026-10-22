@@ -96,6 +96,7 @@ export interface IUserOperationQueue {
 }
 
 export interface IModuleOperationQueueProcessorOptions {
+	resumeInterrupted?: boolean;
 	limit?: number;
 	getPayload?: (waitingQueue: IUserOperationQueue) => Promise<any> | any;
 	getAsyncOperationData: (waitingQueue: IUserOperationQueue, payload: any) => Promise<any> | any;

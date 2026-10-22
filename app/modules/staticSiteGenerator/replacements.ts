@@ -1,15 +1,23 @@
+import {imageSourceSnapshot} from '../content/resave.js';
 import {randomUUID} from 'node:crypto';
 import {Op} from 'sequelize';
 import {contentIds, problem, requestKey} from '../content/publicationImagePolicy.js';
 import {withStorageFence, withStorageTaskLock} from '../../storageLifecycle.js';
 import {digest, normalizeStorageId, variants, sameCid} from '../../storageIdentity.js';
 import {pageCid, readSiteData} from './siteData.js';
-import {DurableJobs} from '../asyncOperation/durableJobs.js';
+import {finalizeReplacement, assertCurrentPublication} from './replacementFinalization.js';
+import {SiteReplacementJobs} from './replacementJobs.js';
 
 export class SiteReplacements {
     jobs;
     constructor(public app, public models) {
-        this.jobs = new DurableJobs(app, 'site-replacement');
+        this.jobs = new SiteReplacementJobs(app, 'site-replacement');
+    }
+    finalize(userId, id, body, apiKeyId = null) {
+        return finalizeReplacement(this, userId, id, body, apiKeyId);
+    }
+    assertCurrentPublication(row) {
+        return assertCurrentPublication(this, row);
     }
     authorize(userId, apiKeyId = null, destructive = false) {
         return this.app.ms.content.publicationImages.authorize(userId, apiKeyId, destructive);
@@ -51,7 +59,7 @@ export class SiteReplacements {
         return withStorageFence(this.app, 'shared', async () => {
             const sources = [];
             for (const id of ids) {
-                sources.push(await this.owned(userId, id));
+                sources.push(imageSourceSnapshot(await this.owned(userId, id)));
             }
             let previous = null;
             if (request.previousSiteStorageId) {
@@ -121,7 +129,12 @@ export class SiteReplacements {
                 problem('image_replacement_render_conflict');
             }
             await row.update({result: {...row.result, renderHash}});
-            return run();
+            try {
+                return await run();
+            } catch (error) {
+                await this.discardUnfinishedRevision(userId, replacementId);
+                throw error;
+            }
         });
     }
 
@@ -145,7 +158,32 @@ export class SiteReplacements {
         return outputs.map(image => image.content.id);
     }
 
+    async discardUnfinishedRevision(userId, replacementId) {
+        const row = await this.replacement(userId, replacementId);
+        const id = row.result?.renderRevisionId;
+        if (!id) {
+            return;
+        }
+        const revision = await this.models.Revision.findOne({where: {id, userId, replacementId, storageId: null}});
+        if (!revision) {
+            return; // A published immutable root must never be discarded as scratch.
+        }
+        const path = `/ssg-revisions/${id}`;
+        if (revision.workPath !== path || !/^[a-f0-9-]{36}$/.test(id)) {
+            problem('image_retirement_path_invalid');
+        }
+        try {
+            await this.app.ms.storage.node.files.rm(path, {recursive: true});
+        } catch (error) {
+            if (!/not found|not exist|no link named|no such file/i.test(error.message)) {
+                throw error;
+            }
+        }
+        await revision.destroy();
+    }
+
     async beginRevision(userId, staticSiteId, replacementId = null) {
+        await this.discardUnfinishedRevision(userId, replacementId);
         const id = randomUUID();
         const workPath = `/ssg-revisions/${id}`;
         await this.models.Revision.create({id, userId, staticSiteId, replacementId, workPath});

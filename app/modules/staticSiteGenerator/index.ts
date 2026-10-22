@@ -2,7 +2,6 @@ import fs from 'fs';
 import {SiteReplacements} from './replacements.js';
 import {configureSiteReplacements} from './replacementWorker.js';
 import registerReplacementApi from './replacementApi.js';
-import {randomUUID} from 'node:crypto';
 import {withStorageTaskLock} from '../../storageLifecycle.js';
 import {requireIntegrationScopes} from '../api/integrationScopes.js';
 import {sanitizeStaticSiteLayoutHtml} from '../../htmlSafety.js';
@@ -431,11 +430,11 @@ export async function getModule(app: IGeesomeApp, models) {
             const contentById = {};
             contents.forEach(c => contentById[c.id] = c);
             contents = entityIds.map(entityId => contentById[entityId]);
-            const siteStorageDir = this['replacements']
-                ? await this['replacements'].beginRevision(userId, staticSite.id, options.replacementId || null)
-                : `/ssg-revisions/${randomUUID()}`;
-            if (!this['replacements']) {
-                await app.ms.storage.makeDir(siteStorageDir);
+            const siteStorageDir = options.replacementId
+                ? await this['replacements'].beginRevision(userId, staticSite.id, options.replacementId)
+                : `/${staticSite.staticId}-site`;
+            if (!options.replacementId) {
+                await app.ms.storage.makeDir(siteStorageDir).catch(() => {/* already made */});
             }
             await this.copyContentsToSite(siteStorageDir, contents, true);
 
@@ -468,12 +467,8 @@ export async function getModule(app: IGeesomeApp, models) {
             options = await this.getGroupResultOptions(group, options);
             let staticSite = await this.getOrCreateStaticSite(userId, entityType, entityId, options);
 
-            const siteStorageDir = this['replacements']
-                ? await this['replacements'].beginRevision(userId, staticSite.id)
-                : `/ssg-revisions/${randomUUID()}`;
-            if (!this['replacements']) {
-                await app.ms.storage.makeDir(siteStorageDir);
-            }
+            const siteStorageDir = `/${staticSite.staticId}-site`;
+            await app.ms.storage.makeDir(siteStorageDir).catch(() => {/* already made */});
 
             const postsPerPage = options.postList.postsPerPage;
             const renderPostCount = Math.min(await app.ms.group.getGroupPostsCount(entityId), generatedGroupPostsLimit);
@@ -597,7 +592,6 @@ export async function getModule(app: IGeesomeApp, models) {
             await this.renderGroupPostBatchPages(userId, entityId, renderPage, renderOptions, siteStorageDir, renderData, renderPostCount);
 
             const storageId = await app.ms.storage.getDirectoryId(siteStorageDir);
-            await this['replacements']?.finishRevision(siteStorageDir, storageId);
             const baseData = {storageId, lastEntityManifestStorageId: manifestStorageId, options: JSON.stringify(renderOptions)};
             await this.updateDbStaticSite(staticSite.id, baseData);
             return storageId;
@@ -689,7 +683,9 @@ export async function getModule(app: IGeesomeApp, models) {
             await this.renderAndSave(renderPage, options, siteStorageDir, `/${renderData.defaultRoute}`, 'simple');
             log('renderAndSave done');
             const storageId = await app.ms.storage.getDirectoryId(siteStorageDir);
-            await this['replacements']?.finishRevision(siteStorageDir, storageId);
+            if (options.replacementId) {
+                await this['replacements'].finishRevision(siteStorageDir, storageId);
+            }
             log('getDirectoryId storageId', storageId);
             const baseData = {storageId, options: JSON.stringify(options)};
             await this.updateDbStaticSite(staticSite.id, baseData);

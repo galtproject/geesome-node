@@ -378,6 +378,40 @@ describe("async operation ownership controls", function () {
 		assert.equal(operations[1].output, "{\"ok\":true}");
 	});
 
+    it("resumes an interrupted queue with the same operation and skips finished receipts", async () => {
+        const operations: any[] = [{id: 1, userId: 1, inProcess: false, errorType: 'node-restart',
+            finishedAt: null, cancel: false}];
+        const queues: any[] = [{id: 1, userId: 1, module: 'resave', inputJson: '{}', isWaiting: true, asyncOperationId: 1}];
+        const api = createAsyncOperationModule({operations, queues});
+        let runs = 0;
+        const options = {resumeInterrupted: true, getAsyncOperationData: () => { throw Error('must reuse operation'); },
+            run: async (queue, operation) => { runs++; assert.equal(operation.id, 1); return {content: {id: 42}}; }};
+        await api.processModuleOperationQueue('resave', options);
+        assert.equal(runs, 1);
+        assert.equal(operations.length, 1);
+        assert.equal(operations[0].errorType, null);
+        assert.equal(operations[0].contentId, 42);
+        assert.ok(operations[0].finishedAt);
+        assert.equal(queues[0].isWaiting, false);
+        queues[0].isWaiting = true; // Crash after finish but before queue close.
+        await api.processModuleOperationQueue('resave', options);
+        assert.equal(runs, 1, 'durable finished result must not run again');
+        assert.equal(queues[0].isWaiting, false);
+    });
+
+    it("honors cancellation when resuming the same operation", async () => {
+        const operations: any[] = [{id: 1, userId: 1, inProcess: false, errorType: 'node-restart',
+            finishedAt: null, cancel: true}];
+        const queues: any[] = [{id: 1, userId: 1, module: 'resave', isWaiting: true, asyncOperationId: 1}];
+        const api = createAsyncOperationModule({operations, queues});
+        await api.processModuleOperationQueue('resave', {resumeInterrupted: true,
+            getAsyncOperationData: () => { throw Error('must reuse operation'); },
+            run: () => { throw Error('canceled work must not run'); }});
+        assert.equal(operations.length, 1);
+        assert.match(operations[0].errorMessage, /cancel/);
+        assert.equal(queues[0].isWaiting, false);
+    });
+
 	it("cleans up old finished operations and closed orphan queue rows in bounded batches", async () => {
 		const oldDate = new Date("2026-03-01T00:00:00.000Z");
 		const recentDate = new Date("2026-04-15T00:00:00.000Z");

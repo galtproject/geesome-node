@@ -25,7 +25,17 @@ receipts verify immutable revision, archive and consumer/Post cutover before
 optional retirement of eligible old images, previews, MFS site roots and archive.
 Shared references retain actual pins; Kubo GC/offline checks report physical local
 removal. PostgreSQL writer/cleanup fences, render claims and CAS protect recovery.
-Active queue inputs provide temporary holds. Workflow receipts and waiting jobs
+Accepted queue inputs remain immutable; only operation.output contains the mutable
+checkpoint. Source snapshots contain only cleanup/replay identities. The common
+queue processor has an opt-in same-operation restart mode used by resaves, with
+finished-result replay and cancellation preserved. Active queue inputs provide
+temporary holds, indexed once per exclusive cleanup pass and refreshed before GC.
+Ordinary writes query only exact pending cleanup CIDs, independent of backlog size.
+Resave admission uses one transaction/connection, including provenance lookups.
+Durable revision pins are limited to replacement renders; ordinary sites keep
+existing current MFS paths. Failed/retried unfinished revision directories are
+removed without touching published roots. SSG owns publication finalization;
+fileCatalog owns transactional catalog remapping. Workflow receipts and waiting jobs
 survive ordinary history cleanup. Pending CID gates release after cleanup; retired
 Content records cannot be restored, while identical bytes can be uploaded as a new
 file. Resumed cleanup repins new references and skips GC when no candidates remain.

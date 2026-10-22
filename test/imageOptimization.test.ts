@@ -113,8 +113,8 @@ describe('persisted image saving and local site retirement', function () {
                 assert.equal(finished.result.cleanup, undefined);
             } else {
                 assert.equal(finished.status, 'complete_with_retained');
-                const revision = await service.models.Revision.findOne({where: {staticSiteId: old.staticSiteId}});
-                assert.ok(await app.ms.storage.node.files.stat(revision.workPath));
+                const site = await app.ms.database.sequelize.model('staticSite').findByPk(old.staticSiteId);
+                assert.ok(await app.ms.storage.node.files.stat(`/${site.staticId}-site`));
             }
             return;
         }
@@ -253,6 +253,7 @@ describe('persisted image saving and local site retirement', function () {
         assert.equal(new Set(receipts.map(row => row.id)).size, 1);
         const row = receipts[0];
         const stale = await service.replacement(user.id, row.id);
+        const frozenInput = (await sequelize.model('userOperationQueue').findByPk(row.id)).inputJson;
         await row.update({result: {checkpoint: 1}});
         assert.equal(row.result.checkpoint, 1, 'checkpoint updates the live receipt snapshot');
         await row.update({result: {checkpoint: 2}});
@@ -263,6 +264,25 @@ describe('persisted image saving and local site retirement', function () {
         const Queue = sequelize.model('userOperationQueue');
         const Operation = sequelize.model('userAsyncOperation');
         const queue = await Queue.findByPk(row.id);
+        assert.equal(queue.inputJson, frozenInput, 'checkpoints never rewrite accepted input');
+        assert.equal(JSON.parse(queue.inputJson).status, undefined);
+        assert.equal(JSON.parse((await Operation.findByPk(queue.asyncOperationId)).output).input, undefined);
+        const legacyKey = randomUUID();
+        const legacyState = {requestKey: legacyKey, requestHash: 'legacy', input: {sources: []},
+            status: 'preparing', result: null, error: null};
+        const legacyOperation = await Operation.create({userId: user.id, module: 'site-replacement',
+            inProcess: false, output: JSON.stringify(legacyState)});
+        const legacyQueue = await Queue.create({userId: user.id, module: 'site-replacement', isWaiting: true,
+            asyncOperationId: legacyOperation.id, inputHash: digest({userId: user.id, key: legacyKey}),
+            inputJson: JSON.stringify(legacyState)});
+        const legacy = await service.jobs.byKey(user.id, legacyKey);
+        assert.equal(legacy.id, legacyQueue.id, 'earlier mirrored receipts remain readable');
+        await legacy.update({status: 'complete', result: {checkpoint: 'legacy-recovered'}});
+        assert.equal((await service.status(user.id, legacy.id)).result.checkpoint, 'legacy-recovered');
+        await legacyQueue.reload();
+        await legacyOperation.reload();
+        assert.equal(legacyQueue.inputJson, JSON.stringify(legacyState), 'legacy input remains untouched');
+        assert.equal(JSON.parse(legacyOperation.output).input, undefined, 'legacy checkpoint drops the duplicate input');
         const pending = await Operation.create({userId: user.id, module: 'content-resave', inProcess: false});
         const waiting = await Queue.create({userId: user.id, module: 'content-resave', isWaiting: true,
             inputJson: JSON.stringify({source: {}}), asyncOperationId: pending.id});
@@ -278,9 +298,83 @@ describe('persisted image saving and local site retirement', function () {
         await pending.destroy();
     });
 
+    it('keeps ordinary writes working with more than 1000 queued resaves and gates only pending cleanup CIDs', async () => {
+        const sequelize = app.ms.database.sequelize;
+        const Queue = sequelize.model('userOperationQueue');
+        const rows = await Queue.bulkCreate(Array.from({length: 2000}, () => ({userId: user.id,
+            module: 'content-resave', isWaiting: true, inputJson: JSON.stringify({source: {}})})));
+        const service = app.ms.staticSiteGenerator.replacements;
+        let gate;
+        try {
+            const bytes = await sharp({create: {width: 40, height: 60, channels: 3, background: '#998877'}}).png().toBuffer();
+            const saved = await app.ms.content.saveData(user.id, bytes, 'backlog.png', {optimize: true, waitForPin: true});
+            assert.ok(saved.id);
+            gate = await service.jobs.create(user.id, null, randomUUID(), {status: 'cleanup_failed', requestHash: 'gate',
+                input: {sources: []}, result: {cleanup: {candidates: [{storageId: pageCid(`https://x/ipfs/${saved.storageId}`)}]}}});
+            await assert.rejects(() => app.ms.database.updateContent(saved.id, {storageId: saved.storageId}), {code: 'storage_cleanup_in_progress'});
+            await gate.update({status: 'complete'});
+            await app.ms.database.updateContent(saved.id, {storageId: saved.storageId});
+        } finally {
+            if (gate) {
+                await gate.update({status: 'complete'});
+            }
+            await Queue.destroy({where: {id: rows.map(row => row.id)}});
+        }
+    });
+
+    it('cleans failed revision attempts and leaves ordinary generation outside durable revision history', async () => {
+        const service = app.ms.staticSiteGenerator.replacements;
+        const content = await app.ms.content.saveData(user.id, await sharp({create: {width: 20, height: 30,
+            channels: 3, background: '#ccddee'}}).png().toBuffer(), 'revision.png', {optimize: true, waitForPin: true});
+        const before = await service.models.Revision.count();
+        const renderArgs = {entityType: 'content-list', entityIds: [content.id]};
+        await app.ms.staticSiteGenerator.generateContentListSite(user.id, renderArgs, {site: {name: 'ordinary_revision_test', title: 'Ordinary revision'}});
+        await app.ms.staticSiteGenerator.generateContentListSite(user.id, renderArgs, {site: {name: 'ordinary_revision_test', title: 'Ordinary revision'}});
+        assert.equal(await service.models.Revision.count(), before);
+        const receipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), contentIds: [content.id]});
+        let failedPath;
+        await assert.rejects(() => service.withRender(user.id, receipt.id, {}, {}, async () => {
+            failedPath = await service.beginRevision(user.id, 1, receipt.id);
+            const file = await app.ms.storage.saveFileByData(Buffer.from('scratch'));
+            await app.ms.storage.copyFileFromId(file.id, `${failedPath}/scratch`);
+            throw Error('injected render failure');
+        }), /injected render failure/);
+        await assert.rejects(() => app.ms.storage.node.files.stat(failedPath));
+        assert.equal(await service.models.Revision.count({where: {replacementId: receipt.id}}), 0);
+        const crashed = await service.beginRevision(user.id, 1, receipt.id);
+        const retry = await service.beginRevision(user.id, 1, receipt.id);
+        assert.notEqual(crashed, retry);
+        await assert.rejects(() => app.ms.storage.node.files.stat(crashed));
+        await service.discardUnfinishedRevision(user.id, receipt.id);
+    });
+
     it('rejects foreign IDs and changed replacement keys', async () => {
         const service = app.ms.staticSiteGenerator.replacements;
         await assert.rejects(() => app.ms.content.requestResave(user.id + 100000, 1));
         await assert.rejects(() => service.requestReplacement(user.id, {requestKey: randomUUID(), contentIds: [999999]}));
     });
+    it('admits and processes concurrent resaves with a one-connection SQL pool', async () => {
+        const sources = [];
+        for (const color of ['#772244', '#449922']) {
+            const png = await sharp({create: {width: 80, height: 120, channels: 3, background: color}}).png().toBuffer();
+            sources.push(await app.ms.content.saveData(user.id, png, 'pool.png', {waitForPin: true}));
+        }
+        const storageConfig = app.config.storageConfig;
+        await app.stop();
+        app = await (await import('../app/index.js')).default({storageConfig, port: 7771,
+            databaseConfig: {pool: {max: 1, min: 0, acquire: 3000}}});
+        const admitted = await Promise.all([sources[0], sources[0], sources[1]].map(source => app.ms.content.requestResave(user.id, source.id)));
+        assert.equal(admitted[0].id, admitted[1].id);
+        for (let attempt = 0; attempt < 30; attempt++) {
+            await app.ms.content.processResaveQueue();
+            const queues = await Promise.all([admitted[0], admitted[2]].map(row => app.ms.asyncOperation.getUserOperationQueue(user.id, row.id)));
+            if (queues.every(row => !row.isWaiting)) {
+                assert.ok(queues.every(row => row.asyncOperation?.output && !row.asyncOperation.errorMessage));
+                return;
+            }
+            await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        assert.fail('small-pool resaves did not complete');
+    });
+
 });

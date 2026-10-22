@@ -286,7 +286,7 @@ export function getModule(app: IGeesomeApp, models) {
 			const limit = helpers.parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
 
 			while (processed < limit) {
-				const waitingQueue = await this.getNextProcessableOperationQueue(moduleName);
+				const waitingQueue = await this.getNextProcessableOperationQueue(moduleName, options.resumeInterrupted);
 				if (!waitingQueue) {
 					return {processed};
 				}
@@ -297,7 +297,7 @@ export function getModule(app: IGeesomeApp, models) {
 			return {processed};
 		}
 
-		async getNextProcessableOperationQueue(moduleName: string) {
+		async getNextProcessableOperationQueue(moduleName: string, resumeInterrupted = false) {
 			while (true) {
 				const waitingQueue = await this.getWaitingOperationQueueByModule(moduleName);
 				if (!waitingQueue) {
@@ -310,6 +310,9 @@ export function getModule(app: IGeesomeApp, models) {
 					return null;
 				}
 
+				if (resumeInterrupted && !waitingQueue.asyncOperation.finishedAt) {
+					return waitingQueue;
+				}
 				await this.closeUserOperationQueue(waitingQueue.id);
 			}
 		}
@@ -324,19 +327,28 @@ export function getModule(app: IGeesomeApp, models) {
 			}
 
 			await this.updateUserOperationQueue(waitingQueue.id, {startedAt: new Date()});
-			const asyncOperationData = await options.getAsyncOperationData(waitingQueue, payload);
-			const asyncOperation = await this.addAsyncOperation(waitingQueue.userId, {
-				userApiKeyId: waitingQueue.userApiKeyId,
-				module: waitingQueue.module,
-				...asyncOperationData,
-			});
-
-			await this.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
+			let asyncOperation = options.resumeInterrupted ? waitingQueue.asyncOperation : null;
+			if (!asyncOperation) {
+				const asyncOperationData = await options.getAsyncOperationData(waitingQueue, payload);
+				asyncOperation = await this.addAsyncOperation(waitingQueue.userId, {
+					userApiKeyId: waitingQueue.userApiKeyId, module: waitingQueue.module, ...asyncOperationData});
+				await this.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
+			} else {
+				await this.updateUserAsyncOperation(asyncOperation.id, {inProcess: true, errorType: null, errorMessage: null});
+			}
 
 			try {
+				if (options.resumeInterrupted) {
+					await this.handleOperationCancel(waitingQueue.userId, asyncOperation.id);
+				}
 				const result = await options.run(waitingQueue, asyncOperation, payload);
-				await this.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
-				await this.finishAsyncOperation(waitingQueue.userId, asyncOperation.id, null, getOperationQueueOutput(result));
+				if (!options.resumeInterrupted) {
+					await this.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+				}
+				await this.finishAsyncOperation(waitingQueue.userId, asyncOperation.id, options.resumeInterrupted ? result?.content?.id : null, getOperationQueueOutput(result));
+				if (options.resumeInterrupted) {
+					await this.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+				}
 				return result;
 			} catch (e) {
 				await this.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
@@ -391,7 +403,7 @@ export function getModule(app: IGeesomeApp, models) {
 					inProcess: false,
 					module: {[Op.or]: [{[Op.ne]: 'site-replacement'}, {[Op.is]: null}]},
 					[Op.and]: literal(`NOT EXISTS (SELECT 1 FROM "userOperationQueues" AS waiting
-                        WHERE waiting."asyncOperationId" = "userAsyncOperation"."id" AND waiting."isWaiting" = true)`),
+						WHERE waiting."asyncOperationId" = "userAsyncOperation"."id" AND waiting."isWaiting" = true)`),
 					updatedAt: {[Op.lt]: cutoff}
 				},
 				order: [['updatedAt', 'ASC'], ['id', 'ASC']],

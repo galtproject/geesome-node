@@ -5,6 +5,7 @@ User decisions: 22 October 2026. Implementation verified locally; merge/deployme
 
 ## Contents
 
+- [Audit follow-up](#audit-follow-up--completed)
 - [Active simplification](#active-simplification--completed)
 - [Requirements](#requirements)
 - [Measured evidence](#measured-evidence)
@@ -13,7 +14,7 @@ User decisions: 22 October 2026. Implementation verified locally; merge/deployme
 - [Workstreams and verification](#workstreams-and-verification)
 - [Deployment](#deployment)
 
-## Audit follow-up — implementation in progress
+## Audit follow-up — completed
 
 User approved implementing the independent simplification audit (22 October 2026).
 Continue issue #1382 / PR #1383 on the same branch, without production mutations.
@@ -45,8 +46,29 @@ cutover, immutable ready replay, both CID encodings, crash-safe checkpoints,
 GC cancellation on lost fence, no GC with no eligible candidates, offline absence
 proof and new uploads of identical bytes after cleanup. No new batch/models.
 
-Checkpoint: starting from clean `efc66ce2`. Audit was static/read-only; previous
-72 broad +32 final focused tests did not cover the newly identified edge cases.
+Delivery checkpoint: plan commit `d2fd48bc`; implementation completes all seven
+audit areas. Exact CID write gates remain available under a 2000-job backlog;
+Content admission and resave processing work with SQL pool max=1. Ordinary site
+renders retain existing current MFS paths, while only replacements create durable
+revision pins; unfinished attempts are removed on failure/retry. Published roots
+are never discarded as scratch.
+
+Immutable queue input contains minimal source identities; operation.output owns
+checkpoint state through a shared atomic CAS helper. The domain receipt lives in
+staticSiteGenerator. Readers accept earlier mirrored receipts and normalize only
+the mutable output on update. The existing queue runner resumes interrupted work
+with the same operation, preserves finished results and honors cancellation.
+Cleanup dependencies are indexed once per exclusive pass and refreshed before GC.
+SSG owns publication finalization/revalidation; fileCatalog owns catalog remapping.
+
+Verification: broad disposable PostgreSQL/Kubo run **78 passing**, host lifecycle/
+bootstrap/render **12 passing**, targeted holds/queue/GC **17 passing**, Microwave
+Girls membership **67 passing**. Final-source replay/legacy-format verification: **26 passing**. apiDoc generation and security/scalability
+inventory checks pass. The repo-wide suite and browser screenshots were not rerun
+for this backend-only change. Standalone tsc could not validate the project:
+installed TypeScript 3.9.10 does not support the existing es2023/node16 config and
+existing modern syntax; dependency upgrades are outside this change. No production
+mutations and no PR merge.
 
 ## Active simplification — completed
 
@@ -238,6 +260,20 @@ Verification records are summarized in the implementation PR. Temporary logs and
 4. Initial production verification should rebuild a small set without deletion, inspect site/archive and selected previews, then verify automatic cleanup for an owned set. Production deletion is not part of local development verification.
 
 ## Final verification record
+
+22 October 2026, audit follow-up: **78** broad Docker tests passed; after final
+snapshot typing and legacy-format assertions, rebuilt focused validation passed
+**26** tests. Verified a 2000-job backlog still permits saving, SQL pool max=1
+admits/processes concurrent sources without duplicate receipts, failed and retried
+revision scratch is removed, normal generation does not add durable revision pins,
+immutable accepted input stays unchanged, earlier mirrored receipts remain usable,
+and the generic runner preserves restart/cancel/finished-result behavior. Original
+old archive/image/site GC, shared-root and lost-fence regressions remain green.
+Host lifecycle/render checks passed 12 tests, focused holds/queue/GC checks 17,
+and publisher membership 67. API docs and inventory checks passed. Standalone tsc
+was unavailable due to the existing TypeScript 3.9.10/config mismatch; no claim of
+repo-wide type checking, full-suite or browser reruns is made for this follow-up.
+
 
 22 October 2026, completed module/model simplification: broad Docker validation
 passed **72 tests**. After the final successive-checkpoint fix, a rebuilt source

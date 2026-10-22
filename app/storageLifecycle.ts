@@ -11,6 +11,19 @@ const contexts = new AsyncLocalStorage<any>();
 const namespace = 17419;
 const storageKey = 9301;
 
+function storageLockPool(app) {
+    const sequelize = app.ms.database.sequelize;
+    let pool = pools.get(app);
+    if (!pool) {
+        const config = sequelize.config;
+        pool = new pg.Pool({host: config.host, port: config.port, database: config.database,
+            user: config.username, password: config.password, ssl: sequelize.options?.dialectOptions?.ssl,
+            max: 4, idleTimeoutMillis: 1000, connectionTimeoutMillis: 10000, allowExitOnIdle: true});
+        pools.set(app, pool);
+    }
+    return pool;
+}
+
 export async function withStorageFence<T>(app, mode: 'shared' | 'exclusive', run: (assertHeld?: () => Promise<void>) => Promise<T>): Promise<T> {
     const existing = contexts.getStore();
     if (existing?.app === app && existing.active) {
@@ -31,14 +44,7 @@ export async function withStorageFence<T>(app, mode: 'shared' | 'exclusive', run
         }
         return run(async () => undefined);
     }
-    let pool = pools.get(app);
-    if (!pool) {
-        const config = sequelize.config;
-        pool = new pg.Pool({host: config.host, port: config.port, database: config.database,
-            user: config.username, password: config.password, ssl: sequelize.options?.dialectOptions?.ssl,
-            max: 4, idleTimeoutMillis: 1000, connectionTimeoutMillis: 10000, allowExitOnIdle: true});
-        pools.set(app, pool);
-    }
+    const pool = storageLockPool(app);
     const connection = await pool.connect();
     const suffix = mode === 'shared' ? '_shared' : '';
     let broken = false;
@@ -118,8 +124,10 @@ export function fenceStorageMethods(app, module, names: string[]) {
 export async function withStorageWorker(app, run: () => Promise<any>) {
     // Session lock: a crashed process releases it; the next worker reconciles
     // persisted queue/retirement receipts rather than replaying accepted work.
-    const sequelize = app.ms.database.sequelize;
-    const connection = await sequelize.connectionManager.getConnection({type: 'WRITE'});
+    const connection = await storageLockPool(app).connect();
+    let broken = false;
+    const onError = () => { broken = true; };
+    connection.on('error', onError);
     let locked = false;
     try {
         const result = await connection.query('SELECT pg_try_advisory_lock($1, $2) AS locked', [namespace, storageKey + 1]);
@@ -129,10 +137,14 @@ export async function withStorageWorker(app, run: () => Promise<any>) {
         }
         return await run();
     } finally {
-        if (locked) {
-            await connection.query('SELECT pg_advisory_unlock($1, $2)', [namespace, storageKey + 1]);
+        try {
+            if (locked && !broken) {
+                await connection.query('SELECT pg_advisory_unlock($1, $2)', [namespace, storageKey + 1]);
+            }
+        } finally {
+            connection.removeListener('error', onError);
+            connection.release(broken);
         }
-        await sequelize.connectionManager.releaseConnection(connection);
     }
 }
 

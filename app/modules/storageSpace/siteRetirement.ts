@@ -1,106 +1,13 @@
-import {pageCid, readSiteData} from '../staticSiteGenerator/siteData.js';
-import {countStorageHolds} from '../asyncOperation/storageHolds.js';
+import {countStorageHolds, releaseStorageJobHolds, hasActiveSourceWork} from '../asyncOperation/storageHolds.js';
 import {properties} from '../content/resave.js';
 import {Op} from 'sequelize';
 import {storageFenceSignal} from '../../storageLifecycle.js';
-import {digest, imageFiles, plain, sameCid, variants} from '../../storageIdentity.js';
+import {imageFiles, plain, sameCid, variants} from '../../storageIdentity.js';
 import {problem} from '../content/publicationImagePolicy.js';
 
-export async function finalizeReplacement(service, userId, id, body, apiKeyId = null) {
-    const row = await service.replacement(userId, id);
-    await service.authorize(userId, apiKeyId, row.input.deleteReplacedFiles);
-    const cid = pageCid(`https://local.invalid/ipfs/${body.storageId}/`);
-    const receipt = {storageId: cid, postId: Number(body.postId), consumer: body.consumer};
-    const hash = digest(receipt);
-    if (row.result?.finalization) {
-        if (row.result.finalization.hash !== hash) {
-            problem('image_replacement_finalize_conflict');
-        }
-        return service.status(userId, id);
-    }
-    if (row.status !== 'rendered' || !sameCid(cid, row.result?.storageId)) {
-        problem('image_replacement_render_not_ready');
-    }
-    const post = await service.publication(userId, receipt.postId);
-    const metadata = service.membership(post);
-    const ids = row.result.images.map(item => item.content.id);
-    const attachments = [...post.contents].sort((a, b) => Number(a.postsContents?.position || 0) - Number(b.postsContents?.position || 0));
-    if (!sameCid(pageCid(metadata.pageUrl), cid) || JSON.stringify(attachments.map(c => c.id)) !== JSON.stringify(ids)
-        || (row.input.previous && (post.id !== row.input.previous.postId || metadata.sourceKey !== row.input.previous.sourceKey))) {
-        problem('image_replacement_publication_changed');
-    }
-    const mapping = row.result.images.map(item => [String(item.sourceContentId), String(item.content.id),
-        item.sourceManifestStorageId, item.content.manifestStorageId]);
-    const consumer = receipt.consumer;
-    if (!consumer || consumer.kind !== 'microwave-girls' || typeof consumer.receiptId !== 'string'
-        || consumer.mappingsHash !== digest(mapping)
-        || Number(metadata.imageReplacement?.id) !== row.id
-        || metadata.imageReplacement?.receiptId !== consumer.receiptId
-        || metadata.imageReplacement?.mappingsHash !== consumer.mappingsHash) {
-        problem('image_replacement_consumer_not_ready');
-    }
-    const page = await readSiteData(service.app.ms.storage, cid);
-    if (JSON.stringify(page.contents?.map(c => Number(c.id))) !== JSON.stringify(ids)
-        || page.contents.some((c, i) => !sameCid(c.storageId, row.result.images[i].content.storageId))) {
-        problem('image_replacement_render_mismatch');
-    }
-    const archive = await service.app.ms.archive.getArchive(cid);
-    if (!archive) {
-        problem('image_replacement_archive_not_ready');
-    }
-    await service.app.ms.storage.getFileStat(archive.archivedStorageId);
-    await service.app.ms.storage.addPin(cid);
-    await service.app.ms.storage.addPin(archive.archivedStorageId);
-    const finalization = {...receipt, hash, archiveStorageId: archive.archivedStorageId,
-        postHash: digest({metadata, contentIds: attachments.map(c => c.id)})};
-    await row.update({status: row.input.deleteReplacedFiles ? 'retiring' : 'complete',
-        result: {...row.result, finalization}});
-    return service.status(userId, id);
-}
-
-async function currentPublication(service, row) {
-    const final = row.result.finalization;
-    const post = await service.publication(row.userId, final.postId);
-    const metadata = service.membership(post);
-    const ids = [...post.contents].sort((a, b) => Number(a.postsContents?.position || 0) - Number(b.postsContents?.position || 0)).map(c => c.id);
-    if (!sameCid(pageCid(metadata.pageUrl), final.storageId) || digest({metadata, contentIds: ids}) !== final.postHash) {
-        problem('image_replacement_publication_changed');
-    }
-    if (!await service.app.ms.archive.getArchive(final.storageId)) {
-        problem('image_replacement_archive_not_ready');
-    }
-    return post;
-}
 
 function absent(error) {
     return /not found|not exist|no link named|no such file|not pinned|is not pinned/i.test(error?.message || String(error));
-}
-
-async function activeSourceWork(service, row) {
-    const sequelize = service.app.ms.database.sequelize;
-    const active = await sequelize.model('userAsyncOperation').count({where: {inProcess: true}});
-    if (active) {
-        return true;
-    }
-    const waiting = await sequelize.model('userOperationQueue').findAll({where: {isWaiting: true}, limit: 1001});
-    if (waiting.length > 1000) {
-        return true;
-    }
-    const sourceIds = new Set(row.input.contentIds);
-    const oldCid = row.input.previous?.storageId;
-    for (const queue of waiting) {
-        let input;
-        try {
-            input = JSON.parse(queue.inputJson);
-        } catch {
-            return true;
-        }
-        if (input.renderArgs?.entityIds?.some(id => sourceIds.has(id))
-            || (oldCid && input.originalStorageId && sameCid(input.originalStorageId, oldCid))) {
-            return true;
-        }
-    }
-    return false;
 }
 
 // Metadata-only references must also keep actual blocks reachable through GC.
@@ -141,8 +48,8 @@ export async function retireReplacement(service, row, assertHeld) {
     if (!node?.repo?.gc || !node?.files?.stat || !node?.files?.rm || !node?.block?.stat) {
         problem('image_retirement_adapter_unsupported');
     }
-    await currentPublication(service, row);
-    if (await activeSourceWork(service, row)) {
+    await service.assertCurrentPublication(row);
+    if (hasActiveSourceWork(app, row.input.contentIds, row.input.previous?.storageId)) {
         return {deferred: true};
     }
     const result = structuredClone(row.result);
@@ -192,6 +99,7 @@ export async function retireReplacement(service, row, assertHeld) {
         // Release only this workflow's holds in its persisted checkpoint.
         journal.holdsReleased = true;
         await save();
+        releaseStorageJobHolds(app, row.id);
         for (let i = 0; i < row.input.sources.length; i++) {
             const source = row.input.sources[i];
             const target = result.images[i].content;
@@ -223,30 +131,7 @@ export async function retireReplacement(service, row, assertHeld) {
                 journal.retained.push({contentId: source.id, reason: 'other_owner_catalog'});
                 continue;
             }
-            await app.ms.database.sequelize.transaction(async transaction => {
-                const items = await catalog.findAll({where: {userId: row.userId, contentId: source.id},
-                    transaction, lock: transaction.LOCK.UPDATE});
-                await catalog.update({contentId: target.id, size: target.size},
-                    {where: {userId: row.userId, contentId: source.id}, transaction});
-                const parents = items.map(item => item.parentItemId).filter(Boolean);
-                const visited = new Set();
-                while (parents.length) {
-                    const id = parents.shift();
-                    if (visited.has(id)) {
-                        continue;
-                    }
-                    visited.add(id);
-                    if (visited.size > 256) {
-                        problem('image_retirement_catalog_depth');
-                    }
-                    const folder = await catalog.findByPk(id, {transaction, lock: transaction.LOCK.UPDATE});
-                    const size = await catalog.sum('size', {where: {parentItemId: id, isDeleted: false}, transaction});
-                    await folder.update({size: size || 0}, {transaction});
-                    if (folder.parentItemId) {
-                        parents.push(folder.parentItemId);
-                    }
-                }
-            });
+            await app.ms.fileCatalog['replaceOwnedContent'](row.userId, source.id, target);
             for (const cid of imageFiles(source)) {
                 await app.ms.storage.addPin(cid);
             }

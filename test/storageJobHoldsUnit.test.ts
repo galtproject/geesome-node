@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
-import {assertStorageWritable, countStorageHolds} from '../app/modules/asyncOperation/storageHolds.js';
+import {assertStorageWritable, countStorageHolds, withStorageJobSnapshot, releaseStorageJobHolds} from '../app/modules/asyncOperation/storageHolds.js';
 import {variants} from '../app/storageIdentity.js';
 
 const cid = 'QmYWQu4zcgiBCR5ztA4PYwMyCYXLRuWngxuwnjJVH929mE';
 function fixture(rows) {
-    return {ms: {database: {sequelize: {model: () => ({findAll: async () => rows})}}}};
+    return {ms: {database: {sequelize: {escape: value => `'${value}'`, model: () => ({
+        count: async () => 0,
+        findAll: async () => rows,
+        findOne: async () => rows.find(row => row.module === 'site-replacement'
+            && JSON.parse(row.asyncOperation?.output || row.inputJson).result?.cleanup?.candidates?.length) || null,
+    })}}}};
 }
 function job(id, input, result = null) {
     return {id, module: 'site-replacement', inputJson: JSON.stringify({input, result})};
@@ -36,7 +41,22 @@ describe('storage holds derived from existing jobs', () => {
         assert.equal(await countStorageHolds(fixture([{module: 'site-replacement', inputJson: '{'}]), cid), 1001);
         const app = fixture(Array.from({length: 1001}, () => detached));
         assert.equal(await countStorageHolds(app, cid), 1001);
-        await assert.rejects(() => assertStorageWritable(app, {storageId: cid}), {code: 'storage_maintenance_busy'});
+        await assertStorageWritable(app, {storageId: cid});
+    });
+
+    it('loads one dependency snapshot per cleanup pass and releases only the current job', async () => {
+        let reads = 0;
+        const app = fixture([]);
+        const model = app.ms.database.sequelize.model();
+        model.findAll = async () => { reads++; return [job(1, {sources: [{storageId: cid}]}), job(2, {sources: [{storageId: cid}]})]; };
+        app.ms.database.sequelize.model = () => model;
+        await withStorageJobSnapshot(app, async () => {
+            assert.equal(await countStorageHolds(app, cid), 2);
+            assert.equal(await countStorageHolds(app, variants(cid)[1]), 2);
+            releaseStorageJobHolds(app, 1);
+            assert.equal(await countStorageHolds(app, cid), 1);
+        });
+        assert.equal(reads, 1);
     });
 
     it('blocks a pending cleanup CID temporarily while allowing remote identities and new writes afterwards', async () => {
