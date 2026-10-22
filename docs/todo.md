@@ -27,6 +27,18 @@ the same pull request.
 6. Continue bounded runtime/dependency, media/upload, group/feed, and
    social-import follow-ups.
 
+<!-- todo-section: image-optimization-local-retirement -->
+## Image Optimization And Local IPFS Retirement
+
+Implement the [audited optimization and retirement plan](./image-optimization-retirement-plan.md)
+after its contract and fencing decisions are resolved. Prepare reusable full-size
+WebP renditions and previews before rendering, rebuild into isolated MFS revisions,
+and retire eligible old images, site and archive only after verified cutover.
+Require disposable Kubo proof of actual GC/reclamation and shared-file safety;
+unpin alone does not satisfy disk-space cleanup. Integrate per-card status and
+the explicit cleanup flag in Microwave Girls after the GeeSome contract is ready.
+<!-- /todo-section -->
+
 <!-- todo-section: activitypub-bluesky-live-interop-smoke -->
 ## ActivityPub/Bluesky: Live Release Gates
 
