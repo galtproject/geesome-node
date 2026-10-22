@@ -41,11 +41,16 @@ try {
         const page = await context.newPage();
         let state = 'pending';
         let lookupCount = 0;
+        let releaseInitialLookup;
+        const initialLookup = new Promise(resolve => { releaseInitialLookup = resolve; });
         await page.route(`**/archive/${storageId}`, async route => {
             lookupCount++;
             assert.equal(new URL(route.request().url()).origin, origin);
             assert.equal(new URL(route.request().url()).pathname, `/api/v1/archive/${storageId}`);
             assert.equal(route.request().headers().authorization, undefined);
+            if (lookupCount === 1) {
+                await initialLookup;
+            }
             await route.fulfill({status: state === 'pending' ? 404 : state === 'error' ? 503 : 200,
                 headers: {'access-control-allow-origin': '*'}, contentType: 'application/json',
                 body: JSON.stringify(state === 'ready' ? {originalStorageId: storageId, archivedStorageId} : {})});
@@ -68,6 +73,12 @@ try {
         await page.getByText('Archive is preparing…', {exact: false}).waitFor();
         await page.locator('img').evaluateAll(images => Promise.all(images.map(image => image.decode())));
         assert.equal(await page.locator('.archive-download-message').count(), 0);
+        assert.equal(await page.getByTestId('site-archive-status').getAttribute('aria-busy'), 'true');
+        assert.equal(await page.getByTestId('site-archive-status').isDisabled(), true);
+        assert.equal(await page.getByTestId('site-archive-download').count(), 0);
+        await capture('checking', 'Published gallery shows Archive is preparing… immediately while the first readiness response is held, without an active download link.');
+        releaseInitialLookup();
+        await page.locator('[data-testid="site-archive-status"] svg:not(.archive-icon-spin)').waitFor();
         await capture('pending', 'Published gallery with preparation status only in the disabled top-right button, without an extra helper message.');
         state = 'error';
         await page.getByRole('button', {name: 'Retry archive download', exact: true}).waitFor();
@@ -89,7 +100,7 @@ try {
         await context.close();
     }
     await fs.writeFile(path.join(root, 'screenshots.json'), JSON.stringify(manifest, null, 2));
-    console.log(`Archive browser workflow passed: ${manifest.length} screenshots, desktop/narrow, pending/retry/ready and verified download bytes.`);
+    console.log(`Archive browser workflow passed: ${manifest.length} screenshots, desktop/narrow, checking/pending/retry/ready and verified download bytes.`);
 } finally {
     await browser.close();
     await new Promise(resolve => server.close(resolve));
