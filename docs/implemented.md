@@ -17,11 +17,18 @@ Last consolidated: 2026-07-31.
 The [implementation contract](./image-optimization-retirement-plan.md) uses the
 existing save-file/save-data pipeline with `optimize=true` and ordinary per-file
 operation receipts. Full-resolution WebP and smaller WebP previews are persisted
-and reused by policy; no separate optimization batch is added. Site replacement
+and reused by policy in existing Content metadata; no separate optimization batch
+or imageOptimization module is added. Replacement state and CAS checkpoints live
+in existing operation queues/receipts; staticSiteGenerator owns the single new
+revision model, and storageSpace owns physical retirement. Site replacement
 receipts verify immutable revision, archive and consumer/Post cutover before
 optional retirement of eligible old images, previews, MFS site roots and archive.
 Shared references retain actual pins; Kubo GC/offline checks report physical local
 removal. PostgreSQL writer/cleanup fences, render claims and CAS protect recovery.
+Active queue inputs provide temporary holds. Workflow receipts and waiting jobs
+survive ordinary history cleanup. Pending CID gates release after cleanup; retired
+Content records cannot be restored, while identical bytes can be uploaded as a new
+file. Resumed cleanup repins new references and skips GC when no candidates remain.
 Microwave Girls integrates the card action, automatic cleanup default, independent
 GeeSome queue tracking and owner-scoped Generation import aliases.
 

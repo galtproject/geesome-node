@@ -1,4 +1,7 @@
 import fs from 'fs';
+import {SiteReplacements} from './replacements.js';
+import {configureSiteReplacements} from './replacementWorker.js';
+import registerReplacementApi from './replacementApi.js';
 import {randomUUID} from 'node:crypto';
 import {withStorageTaskLock} from '../../storageLifecycle.js';
 import {requireIntegrationScopes} from '../api/integrationScopes.js';
@@ -191,6 +194,12 @@ export default async (app: IGeesomeApp) => {
     // VueSSR: import JS [type: module] (by workspaces in package.json)
     app.checkModules(['asyncOperation', 'group', 'content']);
     const module = await getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
+    const models = {Revision: app.ms.database.sequelize.model('staticSiteRevision')};
+    const replacements = new SiteReplacements(app, models);
+    configureSiteReplacements(app, replacements);
+    Object.assign(module, {replacements, processSiteReplacementQueue: replacements.processQueue});
+    app.ms.database.registerStorageIdReferenceSource({model: models.Revision, columns: ['storageId']});
+    registerReplacementApi(app, replacements);
     (await import('./api.js')).default(app, module);
     return module;
 }
@@ -422,10 +431,10 @@ export async function getModule(app: IGeesomeApp, models) {
             const contentById = {};
             contents.forEach(c => contentById[c.id] = c);
             contents = entityIds.map(entityId => contentById[entityId]);
-            const siteStorageDir = app.ms.imageOptimization
-                ? await app.ms.imageOptimization.beginRevision(userId, staticSite.id, options.replacementId || null)
+            const siteStorageDir = this['replacements']
+                ? await this['replacements'].beginRevision(userId, staticSite.id, options.replacementId || null)
                 : `/ssg-revisions/${randomUUID()}`;
-            if (!app.ms.imageOptimization) {
+            if (!this['replacements']) {
                 await app.ms.storage.makeDir(siteStorageDir);
             }
             await this.copyContentsToSite(siteStorageDir, contents, true);
@@ -459,10 +468,10 @@ export async function getModule(app: IGeesomeApp, models) {
             options = await this.getGroupResultOptions(group, options);
             let staticSite = await this.getOrCreateStaticSite(userId, entityType, entityId, options);
 
-            const siteStorageDir = app.ms.imageOptimization
-                ? await app.ms.imageOptimization.beginRevision(userId, staticSite.id)
+            const siteStorageDir = this['replacements']
+                ? await this['replacements'].beginRevision(userId, staticSite.id)
                 : `/ssg-revisions/${randomUUID()}`;
-            if (!app.ms.imageOptimization) {
+            if (!this['replacements']) {
                 await app.ms.storage.makeDir(siteStorageDir);
             }
 
@@ -588,7 +597,7 @@ export async function getModule(app: IGeesomeApp, models) {
             await this.renderGroupPostBatchPages(userId, entityId, renderPage, renderOptions, siteStorageDir, renderData, renderPostCount);
 
             const storageId = await app.ms.storage.getDirectoryId(siteStorageDir);
-            await app.ms.imageOptimization?.finishRevision(siteStorageDir, storageId);
+            await this['replacements']?.finishRevision(siteStorageDir, storageId);
             const baseData = {storageId, lastEntityManifestStorageId: manifestStorageId, options: JSON.stringify(renderOptions)};
             await this.updateDbStaticSite(staticSite.id, baseData);
             return storageId;
@@ -649,7 +658,7 @@ export async function getModule(app: IGeesomeApp, models) {
             options = normalizeStaticSiteOptions(options);
             options.archiveApiBase = options.archive ? '/api/v1' : undefined;
             if (options.replacementId) {
-                return app.ms.imageOptimization.withRender(userId, options.replacementId, renderArgs, options,
+                return this['replacements'].withRender(userId, options.replacementId, renderArgs, options,
                     () => this.generateContentListSiteRevision(userId, renderArgs, options));
             }
             return this.generateContentListSiteRevision(userId, renderArgs, options);
@@ -658,7 +667,7 @@ export async function getModule(app: IGeesomeApp, models) {
         async generateContentListSiteRevision(userId, renderArgs, options) {
             const {entityType} = renderArgs;
             const entityIds = options.replacementId
-                ? await app.ms.imageOptimization.renderIds(userId, options.replacementId, renderArgs.entityIds)
+                ? await this['replacements'].renderIds(userId, options.replacementId, renderArgs.entityIds)
                 : renderArgs.entityIds;
             const {
                 staticSite,
@@ -680,7 +689,7 @@ export async function getModule(app: IGeesomeApp, models) {
             await this.renderAndSave(renderPage, options, siteStorageDir, `/${renderData.defaultRoute}`, 'simple');
             log('renderAndSave done');
             const storageId = await app.ms.storage.getDirectoryId(siteStorageDir);
-            await app.ms.imageOptimization?.finishRevision(siteStorageDir, storageId);
+            await this['replacements']?.finishRevision(siteStorageDir, storageId);
             log('getDirectoryId storageId', storageId);
             const baseData = {storageId, options: JSON.stringify(options)};
             await this.updateDbStaticSite(staticSite.id, baseData);
@@ -863,7 +872,7 @@ export async function getModule(app: IGeesomeApp, models) {
         }
 
         async flushDatabase() {
-            await pIteration.forEachSeries(['StaticSite'], (modelName) => {
+            await pIteration.forEachSeries(['Revision', 'StaticSite'], (modelName) => {
                 return models[modelName].destroy({where: {}});
             });
         }

@@ -1,15 +1,25 @@
 # Image saving, site replacement and local IPFS retirement
 
 Tracking: [implementation #1382](https://github.com/galtproject/geesome-node/issues/1382), [planning #1380](https://github.com/galtproject/geesome-node/issues/1380), [Microwave Girls #595](https://github.com/MicrowaveDev/microwave-girls/issues/595).
-User decisions: 22 October 2026. Implementation is under verification; no production files/pins were removed.
+User decisions: 22 October 2026. Implementation verified locally; merge/deployment remain user-controlled. No production files/pins were removed.
 
-## Active simplification — user-approved, implementation in progress
+## Contents
+
+- [Active simplification](#active-simplification--completed)
+- [Requirements](#requirements)
+- [Measured evidence](#measured-evidence)
+- [Saving contract](#saving-contract)
+- [Replacement and cleanup](#replacement-and-cleanup)
+- [Workstreams and verification](#workstreams-and-verification)
+- [Deployment](#deployment)
+
+## Active simplification — completed
 
 Latest instruction (22 October 2026): remove the separate `imageOptimization`
 subsystem and reduce its five models. The user approved the redistribution below,
 then explicitly requested recording it here so execution survives context compaction.
-This section supersedes the earlier implementation architecture below; prior test
-results describe commit `326f0861`, NOT this pending refactor.
+The responsibilities below are implemented in the existing modules. Baseline test
+results for `326f0861` are kept separately from this refactor's verification.
 
 ### Frozen requirements
 
@@ -77,59 +87,37 @@ an ORM facade over five replacement models is not the intended simplification.
    PR #1383 title/body around the final design. Commit/push any publisher changes
    on dev, update only eligible hub pointers. Never merge PRs.
 
-### Resume checkpoint
+### Delivery checkpoint
 
-- GeeSome checkout: `codex/image-optimization-retirement`; implementation baseline
-  `326f0861`, approved plan committed/pushed as `e418c4d6`. Existing open PR:
-  https://github.com/galtproject/geesome-node/pull/1383. Continue this branch.
-- Microwave Girls: dev, previously delivered `c221a10a`; task:context currently
-  reports clean. Backend refactor first; no publisher changes made in this turn.
-- **Uncommitted, untested source work exists. Do not reset it or report it ready.**
-  New `asyncOperation/durableJobs.ts` stores replacement state in existing queue
-  `inputJson` and operation output, with request identity, transaction admission and
-  CAS checkpoints. Public replacement IDs use existing numeric queue IDs; inspected
-  Microwave Girls consumers accept these without a UUID constraint.
-- Content policy/resave/provenance moved into `content/publicationImagePolicy.ts`
-  and `content/resave.ts`; Content properties map sources to reusable saved results.
-  Static site service/API/worker moved into `staticSiteGenerator/replacements.ts`,
-  `replacementApi.ts`, `replacementWorker.ts`; its models now include one
-  `staticSiteRevision`. Cleanup moved to `storageSpace/siteRetirement.ts`.
-  Common identity helpers are in `app/storageIdentity.ts`; bounded site-data reads
-  are in `staticSiteGenerator/siteData.ts`.
-- `asyncOperation/storageHolds.ts` derives active holds and temporary pending-cleanup
-  write gates from queues. Database reference registration supports named counters.
-  Module wiring, save/archive guards and async workers have been partly updated.
-  **The old `app/modules/imageOptimization/` files still exist:** inspect remaining
-  imports, convert tests, then remove them and their five model definitions.
-- Next safety fixes/review before tests:
-  1. Temporary write guards must ignore supported non-IPFS identities, rather than
-     rejecting ordinary remote content through strict CID normalization.
-  2. Recheck saved provenance after locking the source Content during resave
-     admission; use the locked snapshot so concurrent completion cannot re-encode.
-  3. Protect both replacement receipts and active resave operations from generic
-     async-operation retention; verify startup, cancellation and replay behavior.
-  4. Inspect generated replacement service and CAS wrapper semantics; add revision
-     cleanup to staticSiteGenerator.flushDatabase; inspect circular imports.
-  5. Verify derived holds, own-hold release, pending CID gates, per-Content restore
-     marker, and successful *new* upload of identical bytes after completed GC.
-- No tests have run against this refactor. Update old test imports/service access,
-  run focused host checks, then rebuild disposable Docker tests with real
-  PostgreSQL/Kubo. Existing 55 targeted backend passes belong to `326f0861` only.
-  Docker proxy tests require `--use-aliases`; offline block checks must use
-  `block.stat(..., {offline:true})`. Regenerate API/security/scalability inventories,
-  update docs and PR, commit/push completed product work after verification.
-- Hub and unrelated submodules have existing dirty work; preserve them. No new
-  subagents are authorized by this follow-up; perform the refactor in this thread.
-
-## Contents
-
-- [Active simplification](#active-simplification--user-approved-implementation-in-progress)
-- [Requirements](#requirements)
-- [Measured evidence](#measured-evidence)
-- [Saving contract](#saving-contract)
-- [Replacement and cleanup](#replacement-and-cleanup)
-- [Workstreams and verification](#workstreams-and-verification)
-- [Deployment](#deployment)
+- Completed the approved redistribution and checks. GeeSome branch:
+  `codex/image-optimization-retirement`, PR #1383 / issue #1382. User merges the PR;
+  no production deployment or deletion was performed. Microwave Girls needs no
+  source change for this refactor; its existing consumer accepts queue IDs.
+- Removed the standalone module and all five old model definitions. The only new
+  product table is `staticSiteRevision` under staticSiteGenerator. Content owns
+  policy/provenance; ordinary queue/operation rows own workflow state; storageSpace
+  owns retirement/GC. No separate image batch or additional execution queue.
+- Preserved short transactional admission, checkpoint CAS, successive live receipt
+  updates, per-render claims and replay. Workflow receipts and waiting operations
+  survive ordinary 30-day cleanup. Active inputs provide bounded temporary holds;
+  unknown/overflowing work conservatively blocks deletion.
+- Replaced permanent CID bans with pending-work gates and intentional per-Content
+  retirement markers. Old records cannot be restored (checked before network I/O),
+  while a new upload of identical bytes succeeds after cleanup. New references on
+  resumed GC get actual pins; no eligible candidates means no global GC.
+- Verification: broad PostgreSQL/Kubo run **72 passing**, including publisher HTTP
+  paths/auth, optimization, archives, old image/preview/site/archive collection,
+  shared roots, repeated rebuild reuse, lost fence and operation retention.
+  Final-source focused rerun: **32 passing**, including successive checkpoints
+  after the last wrapper fix; details are in the final verification section below.
+- Host codec/reference/queue/cleanup checks: **22 passing**. Bootstrap/background
+  worker/render checks: **12 passing**. Microwave Girls membership: **67 passing**.
+  apiDoc generated; security and scalability inventories checked and reviewed.
+- Repo-wide Docker suite and browser screenshot suites were not repeated for this
+  module/model-only refactor. Earlier baseline evidence remains below; it is not a
+  claim that the entire repository suite passed against this source.
+- Preserve unrelated dirty hub/submodules. This topic branch is not eligible for
+  a hub pointer update until the user merges it into the expected base branch.
 
 ## Requirements
 
@@ -174,7 +162,7 @@ Inspected the full first image and 680×680 native-scale crops of the original, 
 - `POST /v1/user/save-data`, JSON `{sourceContentId: 123, optimize: true}`: owned existing image resave; returns `status: queued`, the existing userOperationQueue id/asyncOperationId, or `status: completed` and saved Content. Poll ordinary operation-queue/async-operation endpoints. Queue module is `content-resave`.
 - Preview driver stores WebP quality 85 at existing 512/1024/2048 tiers with no enlargement. Persist `previewExtension`/MIME correctly; gallery uses preview extension independently of the full image.
 - Persist `publication-webp-v1` rendition provenance by owner/source CID/policy. Rebuilds and replays reuse the saved bytes; do not repeatedly lossy-encode optimized output. Unsupported new policies require a retained original, not another encode of a prior rendition.
-- Inputs bounded to 64 MiB/40 million pixels, single-page supported image formats. Corrupt/animated data fails explicitly. Queue admission is serialized by the rendition row, execution by a cross-process PostgreSQL advisory lock.
+- Inputs bounded to 64 MiB/40 million pixels, single-page supported image formats. Corrupt/animated data fails explicitly. Queue admission is serialized by the source Content row, execution by a cross-process PostgreSQL advisory lock.
 - Generic uploads do not opt into full-image conversion implicitly. Generation import sets the flag; new membership publication also prepares missing renditions through the same mechanism.
 
 ## Replacement and cleanup
@@ -184,7 +172,7 @@ Inspected the full first image and 680×680 native-scale crops of the original, 
 3. Renderer resolves ready saved contents using replacementId. It uses a fresh `/ssg-revisions/UUID` directory, copies only selected files, and records/pins the immutable root. A per-replacement advisory claim and render hash prevent parallel/changed render work. Ready replays return the recorded root; CAS prevents late finish from overwriting finalized state.
 4. Wait for the archive of that exact root. Atomically install the Microwave Girls numeric/manifest alias receipt. Update the same upstream Post's attachments, known non-cropped previews and page URL, preserving all other metadata. Then update the local page URL/version and acknowledge alias hash, Post ID and root through finalize.
 5. GeeSome verifies renderer receipt, immutable clientData, archive readiness, Post attachment order/page URL and consumer acknowledgment. `deleteReplacedFiles=false` completes without removing old files. True enters `retiring`; publication success and cleanup status are distinct.
-6. Retirement requires owner authorization, a private unencrypted membership group, unchanged finalized publication, and no active/unknown source work. PostgreSQL shared producer/exclusive cleanup fences cover storage writers and GC; no long database transaction spans media work. Retired CID tombstones prevent reintroducing removed files through Content writes.
+6. Retirement requires owner authorization, a private unencrypted membership group, unchanged finalized publication, and no active/unknown source work. PostgreSQL shared producer/exclusive cleanup fences cover storage writers and GC; no long database transaction spans media work. Pending-cleanup CID gates prevent late writes until the operation completes. A retirement marker blocks restoration of the old Content record; a new upload of identical bytes remains allowed after cleanup.
 7. Check Content, preview, catalog, Post metadata, static site/binding/history, archive, derived/DAG references, user/remote pins and other preparation references across CID v0/v1. Only exact owned revision paths and rows may be detached. Preflight external root references before MFS unlink. Pin retained/shared roots physically so global GC cannot remove SQL-only retained objects. Move eligible own catalog entries and recalculate folder sizes; other-owner catalog rows block retirement.
 8. Retire old archive mapping with owner/CID compare-and-swap. Remove only verified obsolete MFS revision paths; unpin eligible CID v0 AND v1 variants. Persist per-root checkpoints. Retry cleanup without resaving/rebuilding. Recheck references before resumed GC and restore pins for new blockers.
 9. Coalesce Kubo repository GC. Abort GC when fence connection is lost; check fence before terminal updates. Verify absence with offline block.stat (normal block.stat can fetch the network). Report GC time, collected blocks, before/after repo bytes and per-root absent/retained status. Unpin alone is not disk reclamation; do not claim an exact saving from logical object sizes.
@@ -197,8 +185,8 @@ Dependency order: GeeSome save/preview and retirement contracts first, Microwave
 
 | Workstream | Inputs / write scope | Completion evidence |
 | --- | --- | --- |
-| Saving | content, convert/preview drivers, rendition model | full-resolution/preview dimensions, MIME/extension, alpha, EXIF, corruption/animation rejection, repeated-output reuse |
-| Replacement/retirement | new lifecycle module, SSG revisions, archive owner-CAS | real PostgreSQL/Kubo: new WebP site/archive; cleanup true/false; shared MFS-only root; v0/v1 unpin; offline old archive absence; late render rejection |
+| Saving | content, convert/preview drivers, Content provenance | full-resolution/preview dimensions, MIME/extension, alpha, EXIF, corruption/animation rejection, repeated-output reuse |
+| Replacement/retirement | existing asyncOperation/storageSpace, SSG revision model, archive owner-CAS | real PostgreSQL/Kubo: new WebP site/archive; cleanup true/false; shared MFS-only root; v0/v1 unpin; offline old archive absence; late render rejection |
 | Publisher | membership workflow, Generation import/read aliases, SQL migration | existing membership/Generation regressions, real SQL alias isolation/replay/conflicts, upgrade browser flow desktop/narrow |
 | UX | Posts card rebuild button with automatic cleanup | optimization/render/upstream queue/cleanup states, automatic cleanup flag, no checkbox or extra status paragraphs, inspected screenshot sidecars/images |
 | Delivery | docs, route inventory, commits/PR | apiDoc smoke, inventory checks, committed/pushed intended branches, user-owned GeeSome merge |
@@ -209,14 +197,28 @@ Verification records are summarized in the implementation PR. Temporary logs and
 
 ## Deployment
 
-1. Merge GeeSome implementation into dev (user action), deploy an exact tested version with imageOptimization enabled by the improve module pack. Existing new tables use model sync; this change does not require a new-table migration in GeeSome.
+1. Merge GeeSome implementation into dev (user action), deploy an exact tested version with content/asyncOperation and the improve pack's staticSiteGenerator/archive/storageSpace modules enabled. There is no imageOptimization module; remove that name from an explicitly configured MODULES list. The only new lifecycle table, staticSiteRevision, uses model sync; no migration is needed for the four removed, unreleased model definitions.
 2. Apply Microwave Girls `20261022000100-create-image-asset-aliases.cjs` before starting the updated app. Build/restart through the documented server updater; use ordinary release promotion only after user approval/merge flow.
-3. Upgrade requires GeeSome capabilities contract 1 with resave support, and local Kubo retirement support when deletion is selected. An old backend fails before source cleanup. Rollback must preserve alias/retirement tables and saved new files; never restore old deleted Content pointers by discarding the receipts.
+3. Upgrade requires GeeSome capabilities contract 1 with resave support, and local Kubo retirement support when deletion is selected. An old backend fails before source cleanup. Rollback must preserve publisher aliases, Content provenance/retirement markers, existing queue/operation receipts, revision rows and saved new files; never restore old deleted Content pointers by discarding the receipts.
 4. Initial production verification should rebuild a small set without deletion, inspect site/archive and selected previews, then verify automatic cleanup for an owned set. Production deletion is not part of local development verification.
 
 ## Final verification record
 
-22 October 2026: final-source PostgreSQL/Kubo run passed **55 tests**, covering
+22 October 2026, completed module/model simplification: broad Docker validation
+passed **72 tests**. After the final successive-checkpoint fix, a rebuilt source
+snapshot passed **32 focused PostgreSQL/Kubo/codec/reference/queue tests**. These
+verify removal of the old model registrations, numeric publisher API receipts,
+owner/scoped-key boundaries, concurrent admission and checkpoint CAS/retention,
+actual original/preview/site/archive removal, shared MFS-only roots, repeated
+optimized-byte reuse, identical-byte re-upload and old-record restore rejection,
+lost-fence cancellation and skipping GC after new references retain all candidates.
+Host checks passed 22 policy/reference/queue/cleanup tests plus 12 bootstrap,
+background-worker and renderer tests. Microwave Girls membership passed 67 tests
+without consumer source changes. apiDoc generation and security/scalability checks
+passed. Full repository and browser suites were not repeated for this refactor;
+no production deployment/deletion was performed.
+
+Baseline `326f0861`, before simplification: PostgreSQL/Kubo run passed **55 tests**, covering
 HTTP/proxy assets, save/converted metadata, archives, tombstones, optimization and
 retirement, renderer queue/replay and storage-reference guards. Host codec/SSR/
 reference tests passed **14 tests**. apiDoc generation and security/scalability

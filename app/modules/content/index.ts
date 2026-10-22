@@ -1,4 +1,5 @@
 import fs from "fs";
+import {ContentResave} from './resave.js';
 import _ from 'lodash';
 import mime from 'mime';
 import debug from 'debug';
@@ -113,6 +114,9 @@ export function getContentServingSecurityHeaders(mimeType?: string) {
 
 export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
+	const resave = new ContentResave(app);
+	Object.assign(module, {publicationImages: resave, requestResave: resave.requestResave.bind(resave),
+		processResaveQueue: resave.processQueue.bind(resave)});
 	(await import('./api.js')).default(app, module);
 	return module;
 }
@@ -379,6 +383,9 @@ function getModule(app: IGeesomeApp) {
 			const content = await app.ms.database.getContent(contentId, {includeDeleted: true});
 			if (!content) {
 				throw createContentNotFoundError();
+			}
+			if (JSON.parse(content.propertiesJson || '{}').publicationRetirement) {
+				throw new ApiProblemError(409, 'content_retired', 'This Content was intentionally retired');
 			}
 			if (content.isDeleted === true) {
 				await this.ensureRestoreStorageExists(content);
@@ -894,7 +901,7 @@ function getModule(app: IGeesomeApp) {
 							await app.ms.database.updateContent(existsContent.id, previews);
 							existsContent = await this.updateContentManifest({...existsContent.toJSON(), ...previews});
 						}
-						await app.ms['imageOptimization']?.recordOptimizedContent(userId, existsContent);
+						await app.ms.content['publicationImages'].recordOptimizedContent(userId, existsContent);
 					}
 					return existsContent;
 				}
@@ -911,7 +918,7 @@ function getModule(app: IGeesomeApp) {
 					propertiesJson: JSON.stringify(merge(resultProperties || {}, options.properties || {}))
 				}, options);
 				if (options.optimize === true || options.optimize === 'true') {
-					await app.ms['imageOptimization']?.recordOptimizedContent(userId, saved);
+					await app.ms.content['publicationImages'].recordOptimizedContent(userId, saved);
 				}
 				return saved;
 			} finally {

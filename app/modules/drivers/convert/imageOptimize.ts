@@ -1,7 +1,7 @@
 import {Readable} from 'node:stream';
 import {DriverInput} from '../interface.js';
 import AbstractDriver from '../abstractDriver.js';
-import {encodePublicationImage} from '../../imageOptimization/policy.js';
+import {encodePublicationImage} from '../../content/publicationImagePolicy.js';
 
 export class ImageOptimizeDriver extends AbstractDriver {
     supportedInputs = [DriverInput.Stream];

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {Readable} from 'node:stream';
 import sharp from 'sharp';
-import {encodePublicationImage, contentIds} from '../app/modules/imageOptimization/policy.js';
+import {encodePublicationImage, contentIds} from '../app/modules/content/publicationImagePolicy.js';
 import {ImagePreviewDriver} from '../app/modules/drivers/preview/image.js';
 import {ImageOptimizeDriver} from '../app/modules/drivers/convert/imageOptimize.js';
 import {createApp} from '../app/modules/staticSiteGenerator/site/public/index.js';

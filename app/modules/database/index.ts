@@ -640,6 +640,12 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   }
 
   registerStorageIdReferenceSource(source: IStorageIdReferenceSource) {
+    if (source?.name && typeof source.count === 'function') {
+      if (!this.storageIdReferenceSources.some(existing => existing.name === source.name)) {
+        this.storageIdReferenceSources.push(source);
+      }
+      return;
+    }
     if (
       !source?.model ||
       !Array.isArray(source.columns) ||

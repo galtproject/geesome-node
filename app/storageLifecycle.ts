@@ -1,3 +1,5 @@
+import {assertStorageWritable} from './modules/asyncOperation/storageHolds.js';
+import {problem} from './modules/content/publicationImagePolicy.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import pg from 'pg';
 import {createHash} from 'node:crypto';
@@ -97,10 +99,13 @@ export function fenceStorageMethods(app, module, names: string[]) {
                 return withStorageFence(app, 'shared', async () => {
                     if (name === 'restoreContent') {
                         const content = await app.ms.database.getContent(args[0], {includeDeleted: true});
-                        await app.ms.imageOptimization?.assertWritableStorage(content);
+                        if (JSON.parse(content?.propertiesJson || '{}').publicationRetirement) {
+                            problem('content_retired');
+                        }
+                        await assertStorageWritable(app, content);
                     }
                     if (name === 'addContent' || name === 'updateContent') {
-                        await app.ms.imageOptimization?.assertWritableStorage(name === 'addContent' ? args[0] : args[1]);
+                        await assertStorageWritable(app, name === 'addContent' ? args[0] : args[1]);
                     }
                     return original.apply(this, args);
                 });

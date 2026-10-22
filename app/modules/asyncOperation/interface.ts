@@ -25,7 +25,7 @@ export default interface IGeesomeAsyncOperationModule {
 
 	addUserOperationQueue(userId, module, apiKeyId, inputs): Promise<IUserOperationQueue>;
 
-	addUniqueUserOperationQueue(userId, module, apiKeyId, inputs): Promise<IUserOperationQueue>;
+	addUniqueUserOperationQueue(userId, module, apiKeyId, inputs, options?: any): Promise<IUserOperationQueue>;
 
 	closeImportAsyncOperation(userId, asyncOperation, error);
 

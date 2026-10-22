@@ -154,7 +154,6 @@ function getModule(config, appPass) {
       api: IGeesomeApiModule,
       asyncOperation: IGeesomeAsyncOperationModule,
       archive: IGeesomeArchiveModule,
-      imageOptimization?: any,
       staticSiteGenerator?: any,
       asset: IGeesomeAssetModule,
       staticId: IGeesomeStaticIdModule,

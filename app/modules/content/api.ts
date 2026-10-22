@@ -112,8 +112,8 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
             if (req.body.content !== undefined || req.body.optimize !== true) {
                 throw new ApiProblemError(400, 'content_resave_input_invalid', 'Supply sourceContentId and optimize=true without content');
             }
-            app.checkModules(['imageOptimization']);
-            return res.send(await app.ms['imageOptimization'].requestResave(req.user.id, req.body.sourceContentId, req.apiKey.id), 202);
+            app.checkModules(['content']);
+            return res.send(await app.ms.content['requestResave'](req.user.id, req.body.sourceContentId, req.apiKey.id), 202);
         }
 
         res.send(await app.ms.asyncOperation.asyncOperationWrapper('content', 'saveData', [req.user.id, req.body['content'], req.body['fileName'] || req.body['name'], options], options));
@@ -260,6 +260,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiInterface (../database/interface.ts) {IContent} apiSuccess
      *
      * @apiError content_restore_storage_conflict The user already has an active row with the same storage id.
+     * @apiError content_retired The old Content was intentionally retired; upload bytes as a new file instead of restoring it.
      * @apiError content_restore_storage_missing The physical storage object has already been removed.
      */
     app.ms.api.onAuthorizedPost('admin/content/:contentId/restore', async (req, res) => {

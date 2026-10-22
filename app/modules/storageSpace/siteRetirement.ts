@@ -1,7 +1,10 @@
+import {pageCid, readSiteData} from '../staticSiteGenerator/siteData.js';
+import {countStorageHolds} from '../asyncOperation/storageHolds.js';
+import {properties} from '../content/resave.js';
 import {Op} from 'sequelize';
 import {storageFenceSignal} from '../../storageLifecycle.js';
-import {digest, imageFiles, pageCid, plain, readSiteData, sameCid, variants} from './service.js';
-import {problem} from './policy.js';
+import {digest, imageFiles, plain, sameCid, variants} from '../../storageIdentity.js';
+import {problem} from '../content/publicationImagePolicy.js';
 
 export async function finalizeReplacement(service, userId, id, body, apiKeyId = null) {
     const row = await service.replacement(userId, id);
@@ -31,7 +34,7 @@ export async function finalizeReplacement(service, userId, id, body, apiKeyId = 
     const consumer = receipt.consumer;
     if (!consumer || consumer.kind !== 'microwave-girls' || typeof consumer.receiptId !== 'string'
         || consumer.mappingsHash !== digest(mapping)
-        || metadata.imageReplacement?.id !== id
+        || Number(metadata.imageReplacement?.id) !== row.id
         || metadata.imageReplacement?.receiptId !== consumer.receiptId
         || metadata.imageReplacement?.mappingsHash !== consumer.mappingsHash) {
         problem('image_replacement_consumer_not_ready');
@@ -50,11 +53,8 @@ export async function finalizeReplacement(service, userId, id, body, apiKeyId = 
     await service.app.ms.storage.addPin(archive.archivedStorageId);
     const finalization = {...receipt, hash, archiveStorageId: archive.archivedStorageId,
         postHash: digest({metadata, contentIds: attachments.map(c => c.id)})};
-    const [updated] = await service.models.Replacement.update({status: row.input.deleteReplacedFiles ? 'retiring' : 'complete',
-        result: {...row.result, finalization}}, {where: {id, userId, status: 'rendered', updatedAt: row.updatedAt}});
-    if (!updated) {
-        problem('image_replacement_finalize_conflict');
-    }
+    await row.update({status: row.input.deleteReplacedFiles ? 'retiring' : 'complete',
+        result: {...row.result, finalization}});
     return service.status(userId, id);
 }
 
@@ -121,7 +121,7 @@ async function sharedSiteRoot(service, row) {
             sequelize.model('staticIdBinding').count({where: {staticId: previous.staticId, dynamicId: cid}}),
             sequelize.model('contentArchive').count({where: {userId: row.userId, originalStorageId: cid,
                 archivedStorageId: previous.archiveStorageId}}),
-            service.models.Reference.count({where: {scope: `replacement:${row.id}`, storageId: cid}}),
+            Promise.resolve(row.result?.cleanup?.holdsReleased ? 0 : 1),
             service.models.Revision.count({where: {userId: row.userId, staticSiteId: previous.siteId,
                 storageId: cid, workPath: {[Op.in]: previous.paths.map(path => path.path)}}}),
         ]);
@@ -189,21 +189,19 @@ export async function retireReplacement(service, row, assertHeld) {
                 }
             }
         }
-        // Only this replacement/rendition's retention references are released.
-        // Concurrent replacements have their own references and still block GC.
-        await models.Reference.destroy({where: {scope: `replacement:${row.id}`}});
+        // Release only this workflow's holds in its persisted checkpoint.
+        journal.holdsReleased = true;
+        await save();
         for (let i = 0; i < row.input.sources.length; i++) {
             const source = row.input.sources[i];
             const target = result.images[i].content;
             if (source.id === target.id || sameCid(source.storageId, target.storageId)) {
                 continue;
             }
-            const rendition = await models.Rendition.findOne({where: {userId: row.userId, sourceContentId: source.id,
-                sourceStorageId: normalize(source.storageId)}});
-            if (rendition) {
-                await models.Reference.destroy({where: {scope: `rendition:${rendition.id}`}});
+            let references = 0;
+            for (const cid of imageFiles(source)) {
+                references += await countStorageHolds(app, cid, row.id);
             }
-            const references = await models.Reference.count({where: {storageId: {[Op.in]: imageFiles(source)}}});
             if (references) {
                 journal.retained.push({contentId: source.id, reason: 'other_preparation_reference'});
                 continue;
@@ -252,6 +250,8 @@ export async function retireReplacement(service, row, assertHeld) {
             for (const cid of imageFiles(source)) {
                 await app.ms.storage.addPin(cid);
             }
+            await app.ms.database.updateContent(source.id, {propertiesJson: JSON.stringify({...properties(current),
+                publicationRetirement: {operationQueueId: row.id, retiredAt: new Date().toISOString()}})});
             await app.ms.database.deleteContent(source.id);
             journal.candidates.push(...imageFiles(source).filter(cid => !keep.has(cid)).map(storageId => ({storageId, role: 'source'})));
         }
@@ -316,8 +316,6 @@ export async function retireReplacement(service, row, assertHeld) {
                     }
                 }
             }
-            await service.models.RetiredStorage.findOrCreate({where: {storageId: candidate.storageId},
-                defaults: {replacementId: row.id}});
             await assertHeld();
             for (const cid of variants(candidate.storageId)) {
                 try {
@@ -341,8 +339,7 @@ export async function retireReplacement(service, row, assertHeld) {
 }
 
 function normalize(cid) {
-    // Imported lazily through the common service's normalizer to keep all
-    // deletion comparisons in canonical v1 form.
+    // Keep all deletion comparisons in canonical v1 form.
     return variants(cid).find(value => value.startsWith('b')) || cid;
 }
 
@@ -365,6 +362,15 @@ export async function collectRetiredBlocks(service, rows, assertHeld) {
         }
         await assertHeld();
         await row.update({result});
+    }
+    if (!rows.some(row => row.result.cleanup.candidates.some(candidate => candidate.unpinned))) {
+        for (const row of rows) {
+            const journal = row.result.cleanup;
+            const retained = journal.retained.length || journal.candidates.some(candidate => candidate.retained);
+            await assertHeld();
+            await row.update({status: retained ? 'complete_with_retained' : 'complete', error: null});
+        }
+        return;
     }
     const before = await node.repo.stat();
     let collectedBlocks = 0;

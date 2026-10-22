@@ -48,7 +48,14 @@ export default async function (sequelize: Sequelize) {
 		]
 	} as any);
 
+    const Revision = sequelize.define('staticSiteRevision', {
+        id: {type: DataTypes.UUID, primaryKey: true}, userId: {type: DataTypes.INTEGER, allowNull: false},
+        staticSiteId: {type: DataTypes.INTEGER, allowNull: false}, replacementId: DataTypes.INTEGER,
+        storageId: DataTypes.STRING(100), workPath: {type: DataTypes.STRING(200), allowNull: false}, retiredAt: DataTypes.DATE,
+    }, {indexes: [{fields: ['storageId']}, {fields: ['workPath'], unique: true}, {fields: ['replacementId']}]});
+    await Revision.sync({});
 	return {
+        Revision,
 		StaticSite: await StaticSite.sync({})
 	};
 };

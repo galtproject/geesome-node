@@ -1,3 +1,4 @@
+import {assertStorageWritable} from '../asyncOperation/storageHolds.js';
 import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
@@ -30,7 +31,7 @@ export function getModule(app: IGeesomeApp, models): IGeesomeArchiveModule {
 	});
 	const module = {
 		async requestArchive(userId, storageId, apiKeyId = null) {
-			await app.ms.imageOptimization?.assertWritableStorage({storageId});
+			await assertStorageWritable(app, {storageId});
 			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
 			const originalStorageId = normalizeStorageId(storageId);
 			await checkOwnership(userId, originalStorageId);

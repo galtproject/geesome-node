@@ -492,7 +492,7 @@ function buildPublicDiscovery(app: IGeesomeApp, version: string, port: number | 
 			assetUpload: Boolean(app.ms['asset']),
 			asyncOperations: Boolean(app.ms.asyncOperation),
 			batchContentUpload: Boolean(app.ms['asset']?.supportsBatches),
-            imageOptimization: app.ms['imageOptimization']?.capabilities || null
+            imageOptimization: app.ms.staticSiteGenerator?.['replacements']?.capabilities || null
 		},
 		limits: {
 			maxUploadBytes

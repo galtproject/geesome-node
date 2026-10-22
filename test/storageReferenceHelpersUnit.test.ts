@@ -3,6 +3,11 @@ import {Op} from 'sequelize';
 import {countDerivedStorageIdReferences, countStorageObjectChildReferences} from '../app/modules/database/storageReferenceHelpers.js';
 
 describe('storage reference helpers', () => {
+    it('includes named dynamic job holds in the same derived reference safety count', async () => {
+        assert.equal(await countDerivedStorageIdReferences({}, {models: {}}, 'cid', {},
+            [{name: 'active-storage-jobs', count: async cid => cid === 'cid' ? 3 : 0}]), 3);
+    });
+
     it('retirement ignores deleted Content roots but still preserves independent live roots', async () => {
         const models: any = {
             Content: {count: async ({where}) => where.isDeleted ? 0 : 1},

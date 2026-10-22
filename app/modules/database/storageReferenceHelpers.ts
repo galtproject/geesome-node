@@ -144,7 +144,7 @@ async function countDirectDerivedStorageIdReferences(
 ) {
   const refCounts = await Promise.all([
     ...[...derivedStorageReferenceSources, ...registeredSources].map((source) => {
-      return countStorageIdColumnReferences(models, sequelize, source, storageId, options);
+      return source.count ? source.count(storageId) : countStorageIdColumnReferences(models, sequelize, source, storageId, options);
     }),
     countLatestStaticIdHistoryFallbackReferences(models, sequelize, storageId),
   ]);

@@ -2,20 +2,21 @@ import assert from 'node:assert/strict';
 import sharp from 'sharp';
 import {QueryTypes} from 'sequelize';
 import {withStorageFence, withStorageTaskLock} from '../app/storageLifecycle.js';
-import {collectRetiredBlocks} from '../app/modules/imageOptimization/retirement.js';
+import {collectRetiredBlocks} from '../app/modules/storageSpace/siteRetirement.js';
 import {randomUUID} from 'node:crypto';
-import {digest, pageCid, sameCid} from '../app/modules/imageOptimization/service.js';
+import {digest, sameCid} from '../app/storageIdentity.js';
+import {pageCid} from '../app/modules/staticSiteGenerator/siteData.js';
 import {readArchive} from './helpers/archive.js';
 
 describe('persisted image saving and local site retirement', function () {
     this.timeout(120000);
-    let app: any, user: any, group: any;
+    let app: any, user: any, group: any, admin: any;
     before(async () => {
         const config = (await import('../app/config.js')).default;
         config.storageConfig.jsNode.pass = 'test test test test test test test test test test';
         app = await (await import('../app/index.js')).default({storageConfig: config.storageConfig, port: 7771});
         await app.flushDatabase();
-        await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
+        admin = (await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'})).user;
         user = await app.registerUser({email: 'optimize@test.com', name: 'optimize', password: 'pass', permissions: ['user:all']});
         group = await app.ms.group.createGroup(user.id, {name: 'optimize_private', title: 'Private', isPublic: false});
     });
@@ -41,14 +42,14 @@ describe('persisted image saving and local site retirement', function () {
         const post = await app.ms.group.createPost(user.id, {groupId: group.id, status: 'published', name: `post-${sourceKey}`,
             contents: [{id: source.id, view: 'attachment'}], propertiesJson: JSON.stringify({membership: {sourceKey,
                 pageUrl: `https://eraofwave.com/ipfs/${old.storageId}/#/`, title: 'Original', free: false}})});
-        const service = app.ms.imageOptimization;
+        const service = app.ms.staticSiteGenerator.replacements;
         const receipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), contentIds: [source.id],
             previousSiteStorageId: old.storageId, postId: post.id, deleteReplacedFiles: mode !== 'keep'});
-        const admissions = await Promise.all(Array.from({length: 3}, () => service.requestResave(user.id, source.id)));
+        const admissions = await Promise.all(Array.from({length: 3}, () => app.ms.content.requestResave(user.id, source.id)));
         assert.equal(new Set(admissions.map(value => value.id)).size, 1, 'concurrent resaves share one queue receipt');
         const accepted = admissions[0];
         assert.equal(accepted.status, 'queued');
-        await service.processQueue();
+        await app.ms.content.processResaveQueue();
         const queue = await app.ms.asyncOperation.getUserOperationQueue(user.id, accepted.id);
         assert.equal(queue.asyncOperation.errorMessage, null);
         const output = JSON.parse(queue.asyncOperation.output);
@@ -58,7 +59,7 @@ describe('persisted image saving and local site retirement', function () {
         assert.deepEqual(Buffer.from((await app.ms.storage.getFileData(source.storageId)).slice()), originalBytes);
         const beforeQueues = await app.ms.database.sequelize.model('userOperationQueue').count({where: {module: 'content-resave'}});
         for (let index = 0; index < 3; index++) {
-            const reused = await service.requestResave(user.id, output.content.id);
+            const reused = await app.ms.content.requestResave(user.id, output.content.id);
             assert.equal(reused.status, 'completed');
             assert.equal(reused.content.storageId, output.content.storageId);
         }
@@ -75,7 +76,7 @@ describe('persisted image saving and local site retirement', function () {
             await app.ms.database.sequelize.model('staticSite').create({...site.toJSON(), id: undefined,
                 userId: user.id + 100, name: `shared_${mode}`});
             // Legacy roots can be reachable only from MFS, without a direct pin.
-            const {variants} = await import('../app/modules/imageOptimization/service.js');
+            const {variants} = await import('../app/storageIdentity.js');
             for (const cid of variants(old.storageId)) {
                 try { await app.ms.storage.unPin(cid); } catch { /* no pin in this encoding */ }
             }
@@ -119,7 +120,8 @@ describe('persisted image saving and local site retirement', function () {
         }
         assert.ok(finished.result.cleanup.gc.completedAt);
         assert.equal(await app.ms.archive.getArchive(old.storageId), null, 'old archive mapping retired');
-        await assert.rejects(() => app.ms.database.restoreContent(source.id), {code: 'storage_id_retired'});
+        await assert.rejects(() => app.ms.database.restoreContent(source.id), {code: 'content_retired'});
+        await assert.rejects(() => app.ms.content.restoreDeletedContent(admin.id, source.id), {code: 'content_retired'});
         assert.equal(finished.result.cleanup.candidates.find(c => c.role === 'archive').localStatus, 'absent', JSON.stringify(finished.result.cleanup));
         assert.equal(finished.result.cleanup.candidates.find(c => c.role === 'site').localStatus, 'absent');
         for (const cid of [source.storageId, source.mediumPreviewStorageId]) {
@@ -127,9 +129,9 @@ describe('persisted image saving and local site retirement', function () {
         }
         await assert.rejects(() => app.ms.storage.node.block.stat(pageCid(`https://x/ipfs/${oldArchive.archivedStorageId}`), {offline: true}));
         assert.ok(await app.ms.storage.node.block.stat(pageCid(`https://x/ipfs/${archive.archivedStorageId}`), {offline: true}));
-        assert.equal((await service.requestResave(user.id, source.id)).content.storageId, output.content.storageId,
+        assert.equal((await app.ms.content.requestResave(user.id, source.id)).content.storageId, output.content.storageId,
             'idempotent source replay still works after source retirement');
-        const reused = await service.requestResave(user.id, output.content.id);
+        const reused = await app.ms.content.requestResave(user.id, output.content.id);
         assert.deepEqual(Buffer.from((await app.ms.storage.getFileData(reused.content.storageId)).slice()),
             Buffer.from((await app.ms.storage.getFileData(output.content.storageId)).slice()));
         const thirdReceipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), contentIds: [output.content.id],
@@ -159,6 +161,12 @@ describe('persisted image saving and local site retirement', function () {
         assert.equal(await app.ms.archive.getArchive(replacement.storageId), null, 'repeated rebuild retires its previous archive');
         assert.equal(thirdResult.result.images[0].content.storageId, output.content.storageId, 'third generation reuses identical optimized bytes');
         assert.ok(await app.ms.storage.node.block.stat(output.content.storageId, {offline: true}));
+        const uploadedAgain = await app.ms.content.saveData(user.id, originalBytes, 'uploaded-again.png', {waitForPin: true});
+        assert.notEqual(uploadedAgain.id, source.id, 'retired Content stays a tombstone');
+        assert.ok(sameCid(uploadedAgain.storageId, source.storageId), 'same bytes can be uploaded again after cleanup');
+        assert.deepEqual(Buffer.from((await app.ms.storage.getFileData(uploadedAgain.storageId)).slice()), originalBytes);
+        await assert.rejects(() => app.ms.database.restoreContent(source.id), {code: 'content_retired'});
+        await assert.rejects(() => app.ms.content.restoreDeletedContent(admin.id, source.id), {code: 'content_retired'});
     });
 
     }
@@ -181,7 +189,10 @@ describe('persisted image saving and local site retirement', function () {
             await new Promise((resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), {once: true}));
         };
         try {
-            const result = withStorageFence(app, 'exclusive', assertHeld => collectRetiredBlocks(app.ms.imageOptimization, [], assertHeld));
+            const file = await app.ms.storage.saveFileByData(Buffer.from(randomUUID()));
+            const pending: any = {result: {cleanup: {candidates: [{storageId: file.id, unpinned: true}], retained: []}},
+                update: async patch => Object.assign(pending, patch)};
+            const result = withStorageFence(app, 'exclusive', assertHeld => collectRetiredBlocks(app.ms.staticSiteGenerator.replacements, [pending], assertHeld));
             const rejected = assert.rejects(result, /storage_fence_lost|terminat/i);
             await running;
             const locks = await app.ms.database.sequelize.query(`SELECT pid FROM pg_locks WHERE locktype='advisory'
@@ -194,9 +205,82 @@ describe('persisted image saving and local site retirement', function () {
         }
     });
 
+    it('preserves publisher HTTP routes and enforces owner/scoped-key boundaries', async () => {
+        const origin = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
+        const token = await app.generateUserApiKey(user.id, {scopes: ['content:write', 'operations:read']});
+        const headers = {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'};
+        const caps = await fetch(`${origin}/user/image-optimization/capabilities`, {headers});
+        assert.equal(caps.status, 200);
+        assert.deepEqual(await caps.json(), {contract: 1, policy: 'publication-webp-v1', resave: true, retirement: true});
+        const png = await sharp({create: {width: 40, height: 60, channels: 3, background: '#123abc'}}).png().toBuffer();
+        const content = await app.ms.content.saveData(user.id, png, 'http-contract.png', {optimize: true, waitForPin: true});
+        const body = {requestKey: randomUUID(), contentIds: [content.id], deleteReplacedFiles: false};
+        const create = await fetch(`${origin}/user/site-replacements`, {method: 'POST', headers, body: JSON.stringify(body)});
+        assert.equal(create.status, 202, await create.clone().text());
+        const receipt = await create.json();
+        assert.equal(typeof receipt.id, 'number');
+        const replay = await fetch(`${origin}/user/site-replacements`, {method: 'POST', headers, body: JSON.stringify(body)});
+        assert.equal((await replay.json()).id, receipt.id);
+        const status = await fetch(`${origin}/user/site-replacements/${receipt.id}`, {headers});
+        assert.equal((await status.json()).status, 'preparing');
+        const conflict = await fetch(`${origin}/user/site-replacements`, {method: 'POST', headers,
+            body: JSON.stringify({...body, deleteReplacedFiles: true})});
+        assert.equal(conflict.status, 403, 'retirement requires storage:retire even on replay');
+        const changed = await fetch(`${origin}/user/site-replacements`, {method: 'POST', headers,
+            body: JSON.stringify({...body, postId: 123})});
+        assert.equal(changed.status, 409);
+        const reused = await fetch(`${origin}/user/save-data`, {method: 'POST', headers,
+            body: JSON.stringify({sourceContentId: content.id, optimize: true})});
+        assert.equal(reused.status, 202, await reused.clone().text());
+        assert.equal((await reused.json()).content.storageId, content.storageId);
+        const other = await app.registerUser({name: `reader_${randomUUID().slice(0, 8)}`, password: 'pass', permissions: ['user:all']});
+        const otherToken = await app.generateUserApiKey(other.id, {scopes: ['content:write']});
+        const denied = await fetch(`${origin}/user/site-replacements/${receipt.id}`, {headers: {Authorization: `Bearer ${otherToken}`}});
+        assert.equal(denied.status, 404);
+    });
+
+    it('uses existing operation persistence with CAS and protects recovery receipts from retention', async () => {
+        const service = app.ms.staticSiteGenerator.replacements;
+        const sequelize = app.ms.database.sequelize;
+        for (const obsolete of ['imageRendition', 'imageReplacement', 'imageOptimizationReference', 'imageSiteRevision', 'retiredStorage']) {
+            assert.equal(sequelize.models[obsolete], undefined, `${obsolete} is not registered`);
+        }
+        assert.ok(sequelize.models.staticSiteRevision);
+        const key = randomUUID();
+        const state = {requestKey: key, requestHash: 'test', status: 'preparing',
+            input: {sources: [], contentIds: []}, result: null, error: null};
+        const receipts = await Promise.all(Array.from({length: 3}, () => service.jobs.create(user.id, null, key, state)));
+        assert.equal(new Set(receipts.map(row => row.id)).size, 1);
+        const row = receipts[0];
+        const stale = await service.replacement(user.id, row.id);
+        await row.update({result: {checkpoint: 1}});
+        assert.equal(row.result.checkpoint, 1, 'checkpoint updates the live receipt snapshot');
+        await row.update({result: {checkpoint: 2}});
+        assert.equal(row.result.checkpoint, 2, 'successive checkpoints keep updating the same receipt');
+        await assert.rejects(() => stale.update({result: {checkpoint: 0}}), {code: 'site_replacement_checkpoint_conflict'});
+        await row.update({status: 'complete'});
+        assert.equal(row.status, 'complete');
+        const Queue = sequelize.model('userOperationQueue');
+        const Operation = sequelize.model('userAsyncOperation');
+        const queue = await Queue.findByPk(row.id);
+        const pending = await Operation.create({userId: user.id, module: 'content-resave', inProcess: false});
+        const waiting = await Queue.create({userId: user.id, module: 'content-resave', isWaiting: true,
+            inputJson: JSON.stringify({source: {}}), asyncOperationId: pending.id});
+        const disposable = await Operation.create({userId: user.id, module: 'content-resave', inProcess: false});
+        await sequelize.query(`UPDATE "userAsyncOperations" SET "updatedAt" = '2000-01-01' WHERE id IN (:ids)`,
+            {replacements: {ids: [pending.id, disposable.id, queue.asyncOperationId]}});
+        await app.ms.asyncOperation.cleanupFinishedAsyncOperations();
+        assert.ok(await Operation.findByPk(queue.asyncOperationId), 'completed workflow replay receipt survives retention');
+        assert.ok(await Operation.findByPk(pending.id), 'waiting resave survives retention after restart');
+        assert.equal(await Operation.findByPk(disposable.id), null, 'ordinary finished operations still expire');
+        assert.equal((await service.status(user.id, row.id)).result.checkpoint, 2);
+        await waiting.destroy();
+        await pending.destroy();
+    });
+
     it('rejects foreign IDs and changed replacement keys', async () => {
-        const service = app.ms.imageOptimization;
-        await assert.rejects(() => service.requestResave(user.id + 100000, 1));
+        const service = app.ms.staticSiteGenerator.replacements;
+        await assert.rejects(() => app.ms.content.requestResave(user.id + 100000, 1));
         await assert.rejects(() => service.requestReplacement(user.id, {requestKey: randomUUID(), contentIds: [999999]}));
     });
 });
