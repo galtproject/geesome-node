@@ -19,6 +19,7 @@ import {FileUploadDriver} from "./upload/file.js";
 import {GifPreviewDriver} from "./preview/gif.js";
 import IGeesomeDriversModule from "./interface.js";
 import {ImageWatermarkDriver} from "./convert/imageWatermark.js";
+import {ImageOptimizeDriver} from './convert/imageOptimize.js';
 
 export default () => ({
   preview: {
@@ -37,6 +38,7 @@ export default () => ({
     file: new FileUploadDriver(),
   },
   convert: {
+    imageOptimize: new ImageOptimizeDriver(),
     videoToStreamable: new VideoToStreambleDriver(),
     imageWatermark: new ImageWatermarkDriver(),
   }

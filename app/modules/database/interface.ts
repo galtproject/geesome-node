@@ -328,6 +328,7 @@ export interface IStorageObjectPinProvenance {
 }
 
 export interface IStorageIdReferenceOptions {
+  ignoreDeletedContentSources?: boolean;
   excludeFileCatalogItemId?: number;
   excludeContentId?: number;
 }

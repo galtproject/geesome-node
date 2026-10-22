@@ -12,6 +12,24 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Image Saving And Local IPFS Retirement
+
+The [implementation contract](./image-optimization-retirement-plan.md) uses the
+existing save-file/save-data pipeline with `optimize=true` and ordinary per-file
+operation receipts. Full-resolution WebP and smaller WebP previews are persisted
+and reused by policy; no separate optimization batch is added. Site replacement
+receipts verify immutable revision, archive and consumer/Post cutover before
+optional retirement of eligible old images, previews, MFS site roots and archive.
+Shared references retain actual pins; Kubo GC/offline checks report physical local
+removal. PostgreSQL writer/cleanup fences, render claims and CAS protect recovery.
+Microwave Girls integrates the card action, automatic cleanup default, independent
+GeeSome queue tracking and owner-scoped Generation import aliases.
+
+Verification includes codec/preview/SSR tests and real PostgreSQL/Kubo replacement,
+cleanup on/off, MFS-only shared roots, replay and concurrency checks. Deployment
+must follow the contract's backend-first order and consumer alias migration.
+Tracking: [#1382](https://github.com/galtproject/geesome-node/issues/1382).
+
 ## Runtime And Test Foundation
 
 - Node.js 22 is the supported runtime baseline in package metadata, Docker, and

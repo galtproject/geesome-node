@@ -50,6 +50,8 @@ export interface IGeesomeApp {
     content: IGeesomeContentModule,
     asyncOperation: IGeesomeAsyncOperationModule;
     archive: IGeesomeArchiveModule;
+    imageOptimization?: any;
+    staticSiteGenerator?: any;
     asset: IGeesomeAssetModule;
     staticId: IGeesomeStaticIdModule;
     invite: IGeesomeInviteModule;
