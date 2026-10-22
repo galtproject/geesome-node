@@ -29,6 +29,30 @@ The `staticSiteGenerator` module renders GeeSome groups and content lists into s
 - Storage references created by generated output must stay visible to storage-space and delete-safety checks.
 - Static ID binding is separate from rendering and should remain explicit.
 
+## Downloaded sites
+
+Generated HTML uses a standalone classic `public/client.js` bundle (Vue with its
+template compiler and router included). Escaped per-page JSON is embedded in
+`#site-data`, so opening an extracted archive's `index.html` through `file://`
+requires no module loader, API call, local server or browser security override.
+The existing `clientData.js` export stays available for publication verification.
+Nested group pages preserve their server-rendered route during hydration.
+
+The image viewer supports clicking a thumbnail, switching images with the arrows
+or keyboard, and closing with its button or backdrop. The archive download control
+is hidden in local copies; HTTP/IPFS pages retain their relative archive API.
+Previously generated CIDs/archives are immutable and need rebuilding to receive
+the new browser client. No database migration is required.
+
+The `archives a standalone gallery` case in `test/staticSiteGenerator.test.ts`
+exports real gallery/group archives to `test/output` (the Docker host mount is
+`test/.geesome-test-output`). After generating those fixtures, install the test
+browser once with `npx playwright install chromium --only-shell`, then run
+`npm run test:ssg-offline`. `GEESOME_TEST_OUTPUT` can select another fixture/output
+directory. It opens the extracted archives directly via `file://` with networking
+disabled, verifies modal/keyboard/close behavior, safe JSON and nested routes,
+and checks the same gallery over HTTP. Screenshots stay in the ignored output.
+
 ## Related Docs
 
 - [Group module overview](../../group/docs/overview.md)

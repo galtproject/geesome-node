@@ -36,11 +36,12 @@ async function renderApp(storageData, rootContent, url, headers, lang) {
     const title = getHeaderContent(headers, 'og:title');
 
     // VueSSR: replace index.html variable with result values
-    return rootContent
-        .replace(/\{\{relativeRoot}}/g, relativeRoot)
-        .replace('{{lang}}', lang)
-        .replace('{{headers}}', `<title>${escapeHtml(title)}</title>\n` + headers.map(([tag, attr]) => getHeaderTagHtml(tag, attr)).join('\n'))
-        .replace('{{content}}', content);
+    const replacements = {
+        relativeRoot, lang, content,
+        headers: `<title>${escapeHtml(title)}</title>\n` + headers.map(([tag, attr]) => getHeaderTagHtml(tag, attr)).join('\n'),
+        clientData: JSON.stringify({...storageData, path: url}).replace(/</g, '\\u003c'),
+    };
+    return rootContent.replace(/\{\{(relativeRoot|lang|headers|content|clientData)}}/g, (_token, key) => replacements[key]);
 }
 
 function getHeaderContent(headers, name) {

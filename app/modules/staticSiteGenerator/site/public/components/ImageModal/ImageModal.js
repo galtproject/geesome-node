@@ -3,14 +3,16 @@ import {ModalItem} from "../AsyncModal/index.js";
 export default {
     template: `
       <modal-item class="large-modal image-modal">
-        <template slot="header">
-          <button class="md-icon-button close" @click="close">✖</button>
+        <template #header>
+          <button class="md-icon-button close" aria-label="Close image" @click="close">✖</button>
         </template>
 
-        <template slot="body">
-          <div class="arrow-left" @click.prevent.stop="left"><div>▲</div></div>
-          <img :src="image"/>
-          <div class="arrow-right" @click.prevent.stop="right"><div>▲</div></div>
+        <template #body>
+          <div class="modal-body">
+            <div class="arrow-left" @click.prevent.stop="left"><div>▲</div></div>
+            <img :src="image"/>
+            <div class="arrow-right" @click.prevent.stop="right"><div>▲</div></div>
+          </div>
         </template>
       </modal-item>`,
     props: ['imageList', 'imageIndex'],
