@@ -15,13 +15,13 @@ import {IGeesomeApp} from "../../interface.js";
 import helpers from '../../helpers.js';
 import ssgHelpers from './helpers.js';
 import site from './site/index.js';
-import vendorAssets from './site/vendorAssets.js';
+import {buildBrowserClient} from './site/browserBundle.js';
 const {clone, uniq, merge, pick, last} = _;
 const log = debug('geesome:app:staticSiteGenerator');
 const {getPostTitleAndDescription, getOgHeaders, sanitizeStaticSiteContents} = ssgHelpers;
 const {prepareRender} = site;
 const base = '/';
-let publicDirStorageId, faviconStorageId, vendorAssetsStorageId;
+let publicDirStorageId, faviconStorageId, clientScriptStorageId;
 const customStylesCssMaxLength = 128 * 1024;
 const generatedGroupPostsLimit = 9999;
 const generatedGroupPostBatchLimit = 100;
@@ -619,29 +619,15 @@ export async function getModule(app: IGeesomeApp, models) {
                     console.warn('ssg favicon', e);
                 }
             }
-            if (!vendorAssetsStorageId) {
-                const vendorAssetsDirectory = '/ssgVendorAssets'
-                await app.ms.storage.makeDir(vendorAssetsDirectory).catch(() => {/*already made*/});
-
-                const vendorAssetsLit = Object.keys(vendorAssets);
-                await pIteration.forEachSeries(vendorAssetsLit, async (a) => {
-                    const assetPath = vendorAssets[a];
-                    let assetStorageId;
-                    if (assetPath.endsWith('/')) {
-                        ({id: assetStorageId} = await app.ms.storage.saveDirectory(assetPath));
-                    } else {
-                        ({id: assetStorageId} = await app.ms.storage.saveFileByPath(assetPath));
-                    }
-                    await app.ms.storage.copyFileFromId(assetStorageId, `${vendorAssetsDirectory}/${a}`);
-                });
-                vendorAssetsStorageId = await app.ms.storage.getDirectoryId(vendorAssetsDirectory);
+            if (!clientScriptStorageId) {
+                ({id: clientScriptStorageId} = await app.ms.storage.saveFileByData(await buildBrowserClient()));
             }
         }
 
         async copySiteAssets(siteStorageDir: string, faviconSourceStorageId?: string) {
             await this.saveSiteAssets();
             await app.ms.storage.copyFileFromId(publicDirStorageId, `${siteStorageDir}/public`);
-            await app.ms.storage.copyFileFromId(vendorAssetsStorageId, `${siteStorageDir}/vendor`);
+            await app.ms.storage.copyFileFromId(clientScriptStorageId, `${siteStorageDir}/public/client.js`);
             const faviconId = faviconSourceStorageId || faviconStorageId;
             if (faviconId) {
                 await app.ms.storage.copyFileFromId(faviconId, `${siteStorageDir}/favicon.ico`);

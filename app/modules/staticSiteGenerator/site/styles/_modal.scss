@@ -146,6 +146,15 @@
     overflow: scroll;
 }
 
+.image-modal {
+    justify-content: center;
+}
+
+.image-modal .modal-dialog {
+    max-width: calc(100vw - 20px);
+    margin: 10px;
+}
+
 .image-modal .modal-body {
     position: relative;
     .arrow-left, .arrow-right {
@@ -167,8 +176,9 @@
         right: 10px;
     }
     img {
+        display: block;
         max-width: 100%;
-        max-height: calc(100vh - 60px);
+        max-height: calc(100vh - 100px);
     }
 }
 

@@ -16,7 +16,7 @@ export default {
     components: {DownloadIcon},
     inject: ['store'],
     data() {
-        return {state: 'checking', lookup: null, timer: null, controller: null, checks: 0, disposed: false};
+        return {state: 'checking', lookup: null, timer: null, controller: null, checks: 0, disposed: false, localFile: false};
     },
     computed: {
         enabled() {
@@ -36,6 +36,10 @@ export default {
         },
     },
     mounted() {
+        if (window.location.protocol === 'file:') {
+            this.localFile = true;
+            return;
+        }
         if (!this.enabled) {
             return;
         }
@@ -94,7 +98,7 @@ export default {
         },
     },
     template: `
-      <div v-if="enabled" class="archive-download" data-testid="site-archive-control">
+      <div v-if="enabled && !localFile" class="archive-download" data-testid="site-archive-control">
         <a v-if="state === 'ready'" :href="lookup + '/download'" class="archive-download-action" data-testid="site-archive-download" download><download-icon /> <span>Download archive</span></a>
         <button v-else class="archive-download-action" data-testid="site-archive-status" :disabled="state !== 'error'" :aria-busy="state === 'checking' || state === 'pending'" @click="retry">
           <svg v-if="state === 'checking'" class="archive-icon archive-icon-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9"/></svg>

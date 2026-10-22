@@ -9,6 +9,8 @@
 
 import {assertArchiveMatchesStorage, readArchive} from './helpers/archive.js';
 import fs from "fs";
+import sharp from 'sharp';
+import {Script} from 'node:vm';
 import assert from "assert";
 import IGeesomeStaticSiteGeneratorModule from "../app/modules/staticSiteGenerator/interface.js";
 import {ContentView, CorePermissionName, IUser} from "../app/modules/database/interface.js";
@@ -54,6 +56,44 @@ describe("staticSiteGenerator", function () {
 		await app.stop();
 	});
 
+	it('archives a standalone gallery client and inline data for offline browsers', async () => {
+        const contents = [];
+        for (const color of ['#bd5566', '#5599bb']) {
+            const image = await sharp({create: {width: 1200, height: 1600, channels: 3, background: color}}).webp().toBuffer();
+            contents.push(await app.ms.content.saveData(testUser.id, image, 'offline.webp', {waitForPin: true}));
+        }
+        const title = 'Offline </script><script>window.injected=true</script> {{clientData}} $&';
+        const gallery = await staticSiteGenerator.generateContentListSite(testUser.id,
+            {entityType: 'content-list', entityIds: contents.map(c => c.id)}, {archive: true, site: {name: 'offline_gallery', title}});
+        const html = Buffer.from((await app.ms.storage.getFileData(`${gallery.storageId}/index.html`)).slice()).toString();
+        assert.equal(html.includes('type="module"'), false);
+        assert.equal(html.includes('type="importmap"'), false);
+        assert.equal(html.includes('<script>window.injected'), false);
+        const data = JSON.parse(html.match(/<script id="site-data" type="application\/json">([\s\S]*?)<\/script>/)[1]);
+        assert.equal(data.options.site.title, title);
+        assert.equal(data.contents.length, 2);
+        const bundle = Buffer.from((await app.ms.storage.getFileData(`${gallery.storageId}/public/client.js`)).slice()).toString();
+        new Script(bundle); // Classic-script syntax, with no module loader required.
+        const manifest = Buffer.from((await app.ms.storage.getFileData(`${gallery.storageId}/clientData.js`)).slice()).toString();
+        assert.equal(JSON.parse(manifest.slice('export default '.length)).contents.length, 2, 'existing metadata API remains compatible');
+        const post = await app.ms.group.createPost(testUser.id, {groupId: testGroup.id, status: PostStatus.Published,
+            contents: [{id: contents[0].id, view: ContentView.Contents}]});
+        const groupCid = await staticSiteGenerator.generateGroupSite(testUser.id, {entityType: 'group', entityId: testGroup.id},
+            {site: {name: 'offline_group', title: 'Offline posts'}});
+        fs.mkdirSync('test/output', {recursive: true});
+        for (const [name, cid] of [['offline-gallery', gallery.storageId], ['offline-group', groupCid]]) {
+            await app.ms.archive.requestArchive(testUser.id, cid);
+            await app.ms.archive.processQueue();
+            const archive = await app.ms.archive.getArchive(cid);
+            const bytes = Buffer.from((await app.ms.storage.getFileData(archive.archivedStorageId)).slice());
+            const entries = await readArchive(bytes);
+            assert.ok(entries.has(`${archive.originalStorageId}/public/client.js`));
+            if (name === 'offline-group') {
+                assert.ok(entries.has(`${archive.originalStorageId}/post/${post.localId}/index.html`));
+            }
+            fs.writeFileSync(`test/output/${name}.tar.gz`, bytes);
+        }
+    });
 	it('title and description should working properly', async () => {
 		const text = 'Кто плюсист?<br><a href="https://en.wikipedia.org/wiki/C%2B%2B20">https://en.wikipedia.org/wiki/C%2B%2B20</a><br><br><i>Language<br>concepts[6], with terse syntax.[7]<br>modules[8]<br><br>Library<br>ranges (The One Ranges Proposal)[35]</i>';
 		const {title, description} = getTitleAndDescription([{view: 'contents', text}], {

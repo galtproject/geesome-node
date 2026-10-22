@@ -6,8 +6,6 @@ import {
 
 const isServer = typeof window === 'undefined';
 
-let history = isServer ? createMemoryHistory() : createWebHashHistory();
-
 let routes = [
     {
         path: '',
@@ -19,6 +17,7 @@ let routes = [
 ];
 
 export default function (defaultRoute = null) {
+    const history = isServer ? createMemoryHistory() : createWebHashHistory();
     if (defaultRoute) {
         routes = routes.filter((r) => r.name === defaultRoute);
         routes[0].path = '';

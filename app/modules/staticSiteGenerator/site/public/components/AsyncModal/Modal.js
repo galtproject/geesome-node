@@ -23,7 +23,7 @@ export default {
     template: `
       <div v-if="modals.length">
         <div class="modal-backdrop" v-if="currModal && currModal.options.backdrop"></div>
-        <component v-for="{id, component, props, options} of modals" :is="component" :key="id" ref="modal" v-bind="props" v-show="options.show" @click.native="e => handleBackdrop(e, id, options.backdrop)"></component>
+        <component v-for="{id, component, props, options} of modals" :is="component" :key="id" ref="modal" v-bind="props" v-show="options.show" @click="e => handleBackdrop(e, id, options.backdrop)"></component>
       </div>
     `,
     data() {
@@ -147,8 +147,9 @@ export default {
             this.resetCurrModal(modalId)
         },
         handleBackdrop(e, id, backdrop) {
-            // if (e.target !== e.currentTarget || backdrop === 'static')
-            //     return;
+            if (e.target !== e.currentTarget || backdrop === 'static') {
+                return;
+            }
 
             const modal = this.getModal(id);
             if(!modal.options.closeOnBackdrop)

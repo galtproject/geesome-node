@@ -1,5 +1,5 @@
 import { createApp } from './index.js';
-import clientData from 'clientData';
+const clientData = JSON.parse(document.querySelector('script#site-data[type="application/json"]').textContent);
 
 createApp(clientData).then(({app}) => {
     app.mount('#app');
