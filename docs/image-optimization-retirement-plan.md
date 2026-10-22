@@ -3,8 +3,100 @@
 Tracking: [implementation #1382](https://github.com/galtproject/geesome-node/issues/1382), [planning #1380](https://github.com/galtproject/geesome-node/issues/1380), [Microwave Girls #595](https://github.com/MicrowaveDev/microwave-girls/issues/595).
 User decisions: 22 October 2026. Implementation is under verification; no production files/pins were removed.
 
+## Active simplification — user-approved, not yet implemented
+
+Latest instruction (22 October 2026): remove the separate `imageOptimization`
+subsystem and reduce its five models. The user approved the redistribution below,
+then explicitly requested recording it here so execution survives context compaction.
+This section supersedes the earlier implementation architecture below; prior test
+results describe commit `326f0861`, NOT this pending refactor.
+
+### Frozen requirements
+
+- Keep `optimize=true` in existing save-file/save-data, existing per-file operation
+  queues and reusable full-size/preview WebP results. No image batch subsystem.
+- Microwave Girls rebuild removes eligible old originals, previews, old site and
+  **old archive automatically**, after the replacement site/archive and Post/alias
+  acknowledgment are ready. No checkbox or additional UI status paragraphs.
+- Preserve shared/foreign/pinned/active-job data, actual local Kubo GC and offline
+  absence proof, crash recovery, replay/CAS and protection against late writes.
+- Existing publisher API contracts should remain usable. Its separate numeric/
+  manifest aliases and migration are consumer state and are not the five models
+  being removed from GeeSome.
+- No production deletion/deployment for validation; user owns all PR merges.
+
+### Approved destination of responsibilities
+
+| Current model/responsibility | Refactor target |
+| --- | --- |
+| `imageRendition` | Optimization policy/provenance and source→saved-result mapping on existing Content metadata/relations, managed by `content`. Preserve reuse without another lossy encode. |
+| `imageReplacement` | Existing userOperationQueue/userAsyncOperation records hold accepted inputs, status, renderer/cutover/cleanup checkpoints and error. No new replacement table. Ensure maintenance cannot purge receipts needed for recovery/replay. |
+| `imageSiteRevision` | Keep one useful version model under `staticSiteGenerator` (CID, owner, exact MFS work path, associated replacement operation). |
+| `imageOptimizationReference` | Derive temporary holds from active existing jobs and their frozen inputs/checkpoints, integrated into the existing storage-reference checks. Do not drop holds without replacing their safety function. |
+| `retiredStorage` | Remove the permanent global CID ban. Keep only a temporary write fence for pending destructive work; intentional retirement may mark the old Content record so restore of that record cannot revive incomplete assets. A legitimate new upload of identical bytes must not be banned forever. |
+
+Saving belongs in `content`; revision/render/cutover belongs in
+`staticSiteGenerator`; physical retirement/GC belongs in existing storage management;
+job persistence/execution belongs in `asyncOperation`. A file helper/service inside
+those modules is acceptable; a renamed standalone image-optimization subsystem or
+an ORM facade over five replacement models is not the intended simplification.
+
+### Execution order and completion checklist
+
+1. Read existing async-operation schema/processor/retention and reference-source
+   registration. Confirm open PR/base state. Continue the existing feature branch
+   and tracking issue #1382 / PR #1383; do not rewrite pushed history.
+2. Persist Content optimization provenance with owner/source/version checks and
+   concurrency-safe admission to existing resave queue. Keep old-source replay
+   after retirement and repeated optimized-output reuse.
+3. Store site replacement state in existing operation records. Use indexed queue
+   identity/request hashes and explicit CAS; decide numeric existing queue IDs vs
+   UUID compatibility after checking Microwave Girls consumers. Prevent generic
+   startup/retention cleanup from losing long-running or historical receipts.
+4. Move the revision model and renderer hooks into staticSiteGenerator. Preserve
+   isolated MFS roots, render hash excluding asyncOperationId, ready replay and
+   terminal-state protection.
+5. Replace reference-table holds with active-job holds (including frozen sources,
+   previous site/archive, resaves, competing replacements and malformed/unknown
+   jobs conservatively). Release only the current operation's holds at its saved
+   detach checkpoint. Integrate this into shared-root preflight and GC rechecks.
+6. Move retirement/GC to storage management and replace RetiredStorage guards with
+   pending-work fences plus per-Content retirement/restore rules. Preserve other
+   owners/catalog/metadata/pins, both CID encodings, GC cancellation on lost fence,
+   retry checkpoints and no GC when nothing was unpinned.
+7. Remove old module registration/types/routes wiring and all four unnecessary
+   model definitions/references. Register compatible API handlers in their owners;
+   update publisher only if the contract actually changes (GeeSome first).
+8. Update this plan, implemented docs, apiDoc and security/scalability inventories.
+   Test incrementally: codec/provenance/references, real PostgreSQL operation
+   admission/replay/retention and render claims, real disposable Kubo removal of
+   originals/previews/site/**archive**, shared MFS-only roots, repeated rebuild,
+   lost fence, recovery. Add a regression for re-uploading identical retired bytes.
+   Re-run publisher compatibility/SQL/browser evidence only when impacted.
+9. Review final diff against these requirements, commit/push GeeSome and update
+   PR #1383 title/body around the final design. Commit/push any publisher changes
+   on dev, update only eligible hub pointers. Never merge PRs.
+
+### Resume checkpoint
+
+- GeeSome checkout: `codex/image-optimization-retirement`, clean at `326f0861` before
+  this plan edit. Existing PR: https://github.com/galtproject/geesome-node/pull/1383.
+- Microwave Girls: dev, previously delivered `c221a10a`; task:context currently
+  reports clean. Backend refactor first; no publisher changes made in this turn.
+- Current five-model implementation is still present under
+  `app/modules/imageOptimization/`. Initial read confirmed ordinary queue fields
+  (`module`, `inputHash`, `inputJson`, `isWaiting`, asyncOperationId) and operation
+  output/status fields can persist workflow state, but lifecycle/retention changes
+  must be designed before removing the old stores.
+- No product source edits or refactor tests have been performed for this new
+  simplification yet. Next action is inspect asyncOperation cleanup/processor and
+  storage reference helper interfaces, then implement steps 2–6.
+- Hub and unrelated submodules have existing dirty work; preserve them. No new
+  subagents are authorized by this follow-up; perform the refactor in this thread.
+
 ## Contents
 
+- [Active simplification](#active-simplification--user-approved-not-yet-implemented)
 - [Requirements](#requirements)
 - [Measured evidence](#measured-evidence)
 - [Saving contract](#saving-contract)
