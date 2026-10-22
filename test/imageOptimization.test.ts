@@ -5,7 +5,7 @@ import {withStorageFence, withStorageTaskLock} from '../app/storageLifecycle.js'
 import {collectRetiredBlocks} from '../app/modules/storageSpace/siteRetirement.js';
 import {randomUUID} from 'node:crypto';
 import {digest, sameCid} from '../app/storageIdentity.js';
-import {pageCid} from '../app/modules/staticSiteGenerator/siteData.js';
+import {pageCid, readSiteData} from '../app/modules/staticSiteGenerator/siteData.js';
 import {readArchive} from './helpers/archive.js';
 
 describe('persisted image saving and local site retirement', function () {
@@ -33,7 +33,8 @@ describe('persisted image saving and local site retirement', function () {
         source = await app.ms.content.updateContentManifest((await app.ms.database.getContent(source.id)).toJSON());
         const originalBytes = Buffer.from((await app.ms.storage.getFileData(source.storageId)).slice());
         const old = await app.ms.staticSiteGenerator.generateContentListSite(user.id,
-            {entityType: 'content-list', entityIds: [source.id]}, {archive: true, site: {name: `old_optimized_site_${mode}`, title: 'Original'}});
+            {entityType: 'content-list', entityIds: [source.id, source.id]}, {archive: true, site: {name: `old_optimized_site_${mode}`, title: 'Original'}});
+        assert.deepEqual((await readSiteData(app.ms.storage, old.storageId)).contents.map(c => c.id), [source.id, source.id]);
         await app.ms.archive.requestArchive(user.id, old.storageId);
         await app.ms.archive.processQueue();
         const oldArchive = await app.ms.archive.getArchive(old.storageId);
@@ -67,6 +68,8 @@ describe('persisted image saving and local site retirement', function () {
         const replacement = await app.ms.staticSiteGenerator.generateContentListSite(user.id,
             {entityType: 'content-list', entityIds: [source.id]}, {archive: true, replacementId: receipt.id,
                 site: {name: `new_optimized_site_${mode}`, title: 'Original'}});
+        assert.deepEqual((await readSiteData(app.ms.storage, replacement.storageId)).contents.map(c => c.id), [output.content.id],
+            'the rebuilt site contains each source image once');
         const replay = await app.ms.staticSiteGenerator.generateContentListSite(user.id,
             {entityType: 'content-list', entityIds: [source.id]}, {archive: true, replacementId: receipt.id,
                 asyncOperationId: 999999, site: {name: `new_optimized_site_${mode}`, title: 'Original'}});

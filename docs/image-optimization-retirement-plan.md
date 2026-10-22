@@ -5,6 +5,7 @@ User decisions: 22 October 2026. Implementation verified locally; merge/deployme
 
 ## Contents
 
+- [Legacy duplicate images](#legacy-duplicate-images)
 - [Audit follow-up](#audit-follow-up--completed)
 - [Active simplification](#active-simplification--completed)
 - [Requirements](#requirements)
@@ -13,6 +14,25 @@ User decisions: 22 October 2026. Implementation verified locally; merge/deployme
 - [Replacement and cleanup](#replacement-and-cleanup)
 - [Workstreams and verification](#workstreams-and-verification)
 - [Deployment](#deployment)
+
+## Legacy duplicate images
+
+Follow-up #1385, requested 22 October 2026 after read-only SSH diagnosis. The legacy
+site QmYWQu4zcgiBCR5ztA4PYwMyCYXLRuWngxuwnjJVH929mE has 118 entries / 117 unique
+Content IDs; ID 48199 repeats at positions 35 and 41. Admission failed three times
+with image_optimization_ids_invalid, before any optimization or retirement.
+
+The publisher now keeps the first occurrence of each resolved Content ID before
+admission/resaving, including retries of already failed preparation. GeeSome still
+requires unique ordered request IDs, comparing them with the first occurrences
+in the old page and checking the CID of every old entry. The resulting site and
+archive contain the unique images. No migration or production mutation is needed.
+Deploy the backend validation fix before the publisher change.
+
+Verification: 15 PostgreSQL/Kubo image saving and replacement tests passed,
+including duplicate-source site/archive/retirement cases (remove, keep, shared);
+68 publisher membership tests and 3 PostgreSQL consumer scenarios passed. API docs
+regenerated; security route inventory checked. No frontend behavior/schema changed.
 
 ## Audit follow-up — completed
 

@@ -20,7 +20,7 @@ export default function (app, service) {
      * @apiUse ApiKey
      * @apiDescription Records an owned publication/source snapshot before resaving. This does not create an optimization batch: resave each file through user/save-data with sourceContentId and optimize=true, using the existing operation queue. Requires content:write; deleteReplacedFiles additionally requires storage:retire. Replays reuse the owner/requestKey receipt; changed requests conflict.
      * @apiBody {String} requestKey Stable caller identity, up to 200 characters.
-     * @apiBody {Number[]} contentIds Ordered owned image IDs, 1..1000, no duplicates.
+     * @apiBody {Number[]} contentIds Ordered owned image IDs, 1..1000, no duplicates. For a previous site, keep the first occurrence of each ID; all old entries must still match the owned source CIDs.
      * @apiBody {String} [previousSiteStorageId] Exact replaced site CID.
      * @apiBody {Number} [postId] Existing owned membership publication, required with a previous site.
      * @apiBody {Boolean} [deleteReplacedFiles=false] Retire eligible old images, previews, site and archive after verified cutover.
