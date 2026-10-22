@@ -12,6 +12,41 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Image Saving And Local IPFS Retirement
+
+The [implementation contract](./image-optimization-retirement-plan.md) uses the
+existing save-file/save-data pipeline with `optimize=true` and ordinary per-file
+operation receipts. Full-resolution WebP and smaller WebP previews are persisted
+and reused by policy in existing Content metadata; no separate optimization batch
+or imageOptimization module is added. Replacement state and CAS checkpoints live
+in existing operation queues/receipts; staticSiteGenerator owns the single new
+revision model, and storageSpace owns physical retirement. Site replacement
+receipts verify immutable revision, archive and consumer/Post cutover before
+optional retirement of eligible old images, previews, MFS site roots and archive.
+Shared references retain actual pins; Kubo GC/offline checks report physical local
+removal. PostgreSQL writer/cleanup fences, render claims and CAS protect recovery.
+Accepted queue inputs remain immutable; only operation.output contains the mutable
+checkpoint. Source snapshots contain only cleanup/replay identities. The common
+queue processor has an opt-in same-operation restart mode used by resaves, with
+finished-result replay and cancellation preserved. Active queue inputs provide
+temporary holds, indexed once per exclusive cleanup pass and refreshed before GC.
+Ordinary writes query only exact pending cleanup CIDs, independent of backlog size.
+Resave admission uses one transaction/connection, including provenance lookups.
+Durable revision pins are limited to replacement renders; ordinary sites keep
+existing current MFS paths. Failed/retried unfinished revision directories are
+removed without touching published roots. SSG owns publication finalization;
+fileCatalog owns transactional catalog remapping. Workflow receipts and waiting jobs
+survive ordinary history cleanup. Pending CID gates release after cleanup; retired
+Content records cannot be restored, while identical bytes can be uploaded as a new
+file. Resumed cleanup repins new references and skips GC when no candidates remain.
+Microwave Girls integrates the card action, automatic cleanup default, independent
+GeeSome queue tracking and owner-scoped Generation import aliases.
+
+Verification includes codec/preview/SSR tests and real PostgreSQL/Kubo replacement,
+cleanup on/off, MFS-only shared roots, replay and concurrency checks. Deployment
+must follow the contract's backend-first order and consumer alias migration.
+Tracking: [#1382](https://github.com/galtproject/geesome-node/issues/1382).
+
 ## Runtime And Test Foundation
 
 - Node.js 22 is the supported runtime baseline in package metadata, Docker, and

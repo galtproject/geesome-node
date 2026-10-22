@@ -687,6 +687,34 @@ function getModule(app: IGeesomeApp, models) {
 			}
 		}
 
+		async replaceOwnedContent(userId, sourceContentId, target) {
+			const catalog = app.ms.database.models.FileCatalogItem;
+			await app.ms.database.sequelize.transaction(async transaction => {
+				const items = await catalog.findAll({where: {userId: userId, contentId: sourceContentId},
+					transaction, lock: transaction.LOCK.UPDATE});
+				await catalog.update({contentId: target.id, size: target.size},
+					{where: {userId: userId, contentId: sourceContentId}, transaction});
+				const parents = items.map(item => item.parentItemId).filter(Boolean);
+				const visited = new Set();
+				while (parents.length) {
+					const id = parents.shift();
+					if (visited.has(id)) {
+						continue;
+					}
+					visited.add(id);
+					if (visited.size > 256) {
+						throw new Error('image_retirement_catalog_depth');
+					}
+					const folder = await catalog.findByPk(id, {transaction, lock: transaction.LOCK.UPDATE});
+					const size = await catalog.sum('size', {where: {parentItemId: id, isDeleted: false}, transaction});
+					await folder.update({size: size || 0}, {transaction});
+					if (folder.parentItemId) {
+						parents.push(folder.parentItemId);
+					}
+				}
+			});
+		}
+
 		async flushDatabase() {
 			await pIteration.forEachSeries(['FileCatalogItem', 'FileCatalogItemPermission'], (modelName) => {
 				return models[modelName].destroy({where: {}});

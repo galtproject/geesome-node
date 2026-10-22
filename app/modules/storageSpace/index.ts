@@ -1,3 +1,4 @@
+import {retireReplacement, collectRetiredBlocks} from './siteRetirement.js';
 import debug from 'debug';
 import {Op} from 'sequelize';
 import {IGeesomeApp} from "../../interface.js";
@@ -131,6 +132,7 @@ const storageSpaceStorageRemovalWorkerBatchLimit = parsePositiveInteger(process.
 export default async function (app: IGeesomeApp) {
   app.checkModules(['database', 'api', 'asyncOperation', 'group', 'fileCatalog', 'staticSiteGenerator', 'storage']);
   const module = new StorageSpaceModule(app);
+  Object.assign(module, {retireSiteReplacement: retireReplacement, collectRetiredSiteBlocks: collectRetiredBlocks});
   module.startStorageSpaceAvailabilityNetworkSampleRefreshWorker();
   module.startStorageObjectRemovalQueueWorker();
   (await import('./api.js')).default(app, module);

@@ -13,6 +13,7 @@ import debug from 'debug';
 import pIteration from 'p-iteration';
 import uuidAPIKey from "uuid-apikey";
 import {AsyncLocalStorage} from "node:async_hooks";
+import {fenceStorageMethods, stopStorageFence} from './storageLifecycle.js';
 import commonHelper from "geesome-libs/src/common.js";
 import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
 import IGeesomeEntityJsonManifestModule from "./modules/entityJsonManifest/interface.js";
@@ -93,6 +94,18 @@ export default async (extendConfig, bootstrapOptions: AppBootstrapOptions = {}) 
       log(`Start ${moduleName} module...`);
       try {
         app.ms[moduleName] = await loadConfiguredModule(moduleName, app, bootstrapOptions);
+        const producers = {
+          database: ['addContent', 'updateContent', 'restoreContent'],
+          content: ['saveData', 'saveDataByUrl', 'createContentByObject', 'createContentByRemoteStorageId', 'regenerateUserContentPreviews'],
+          group: ['createPost', 'updatePost', 'createGroup', 'updateGroup'],
+          staticId: ['bindToStaticId'],
+          staticSiteGenerator: ['generateContentListSite', 'generateGroupSite'],
+          archive: ['processQueue'],
+          asyncOperation: ['processModuleOperationQueueItem'],
+          pin: ['processQueue'],
+          storage: ['saveFile', 'saveFileByData', 'saveFileByPath', 'saveDirectory', 'saveObject', 'addPin', 'copyFileFromId'],
+        };
+        fenceStorageMethods(app, app.ms[moduleName], producers[moduleName] || []);
       } catch (error) {
         throw annotateModuleInitializationError(error, moduleName);
       }
@@ -141,6 +154,7 @@ function getModule(config, appPass) {
       api: IGeesomeApiModule,
       asyncOperation: IGeesomeAsyncOperationModule,
       archive: IGeesomeArchiveModule,
+      staticSiteGenerator?: any,
       asset: IGeesomeAssetModule,
       staticId: IGeesomeStaticIdModule,
       invite: IGeesomeInviteModule,
@@ -754,6 +768,7 @@ function getModule(config, appPass) {
     async stopModules() {
       await pIteration.forEachSeries(getModuleStopOrder(this.config.modules), async (moduleName: string) => {
         if (moduleName === 'database') {
+          await cleanupResource('storage_fence', () => stopStorageFence(this));
           await cleanupResource('memory_profiler', () => this.memoryProfilerHandle?.stop());
         }
         if (this.ms[moduleName] && this.ms[moduleName].stop) {

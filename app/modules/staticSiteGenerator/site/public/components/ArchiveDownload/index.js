@@ -23,7 +23,7 @@ export default {
             return this.store.options.archive === true;
         },
         label() {
-            if (this.state === 'pending') {
+            if (this.state === 'checking' || this.state === 'pending') {
                 return 'Archive is preparing…';
             }
             if (this.state === 'error') {

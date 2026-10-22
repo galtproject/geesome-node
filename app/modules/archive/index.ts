@@ -1,3 +1,4 @@
+import {assertStorageWritable} from '../asyncOperation/storageHolds.js';
 import {mkdtemp, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
@@ -30,6 +31,7 @@ export function getModule(app: IGeesomeApp, models): IGeesomeArchiveModule {
 	});
 	const module = {
 		async requestArchive(userId, storageId, apiKeyId = null) {
+			await assertStorageWritable(app, {storageId});
 			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
 			const originalStorageId = normalizeStorageId(storageId);
 			await checkOwnership(userId, originalStorageId);
@@ -46,6 +48,19 @@ export function getModule(app: IGeesomeApp, models): IGeesomeArchiveModule {
 			const row = await models.ContentArchive.findOne({where: {originalStorageId: normalizeStorageId(storageId)}});
 			return row ? {originalStorageId: row.originalStorageId, archivedStorageId: row.archivedStorageId} : null;
 		},
+
+        async retireArchive(userId, storageId, expectedArchiveStorageId) {
+            const originalStorageId = normalizeStorageId(storageId);
+            const row = await models.ContentArchive.findOne({where: {originalStorageId}});
+            if (!row) {
+                return;
+            }
+            if (Number(row.userId) !== Number(userId) || !expectedArchiveStorageId
+                || normalizeStorageId(row.archivedStorageId) !== normalizeStorageId(expectedArchiveStorageId)) {
+                throw new ApiProblemError(409, 'archive_retirement_conflict', 'Archive changed since replacement admission');
+            }
+            await models.ContentArchive.destroy({where: {id: row.id, userId, originalStorageId, archivedStorageId: row.archivedStorageId}});
+        },
 
 		processQueue() {
 			if (stopped) {

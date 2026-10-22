@@ -22,7 +22,7 @@ function walkApiFiles(dir: string): string[] {
     if (entry.isDirectory()) {
       return walkApiFiles(fullPath);
     }
-    return entry.isFile() && entry.name === 'api.ts' ? [fullPath] : [];
+    return entry.isFile() && (entry.name === 'api.ts' || entry.name.endsWith('Api.ts')) ? [fullPath] : [];
   }).sort();
 }
 
@@ -101,6 +101,9 @@ function notesFor(route: RouteRow, block: string): string[] {
     notes.add(route.auth === 'public'
       ? 'completed archives are explicitly public by original CID'
       : 'module checks local upload/site ownership and user:save_data; scoped keys require content:write');
+  }
+  if (routeLower.includes('/site-replacements') || routeLower.includes('/image-optimization/capabilities')) {
+    notes.add('service checks actor ownership and content:write; deletion/finalization also verifies storage:retire when selected, exact publication and consumer receipts');
   }
   if (route.moduleName === 'imageComposition') {
     notes.add('module enforces actor-owned catalog Content and dependency authorization');

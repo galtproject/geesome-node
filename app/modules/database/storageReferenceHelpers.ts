@@ -144,7 +144,7 @@ async function countDirectDerivedStorageIdReferences(
 ) {
   const refCounts = await Promise.all([
     ...[...derivedStorageReferenceSources, ...registeredSources].map((source) => {
-      return countStorageIdColumnReferences(models, sequelize, source, storageId, options);
+      return source.count ? source.count(storageId) : countStorageIdColumnReferences(models, sequelize, source, storageId, options);
     }),
     countLatestStaticIdHistoryFallbackReferences(models, sequelize, storageId),
   ]);
@@ -156,7 +156,8 @@ async function countStorageObjectReferenceSourceContents(models, sequelize, sour
   if (!contentModel) {
     return 0;
   }
-  const where: any = {storageId: sourceStorageId};
+  const where: any = {storageId: sourceStorageId,
+    ...(options.ignoreDeletedContentSources ? {isDeleted: {[Op.ne]: true}} : {})};
   if (options.excludeContentId) {
     where.id = {[Op.ne]: options.excludeContentId};
   }

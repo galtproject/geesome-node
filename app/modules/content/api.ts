@@ -5,6 +5,7 @@ import IGeesomeContentModule from "./interface.js";
 import {IGeesomeApp} from "../../interface.js";
 import asyncBusboy from "./asyncBusboy.js";
 import {sendBadRequestOnContentRouteError} from "../api/routeErrorHelpers.js";
+import {ApiProblemError} from '../api/problem.js';
 const {pick} = _;
 const log = debug('geesome:content:api');
 
@@ -27,6 +28,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @api {post} /v1/user/save-file Save file
      * @apiDescription Store file from browser by FormData class in "file" field. Other fields can be stored as key value.
      * @apiName UserSaveFile
+     * @apiBody {Boolean} [optimize=false] Encode the uploaded image as full-resolution WebP plus WebP previews.
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
@@ -54,6 +56,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
         });
         const uploadFields = pick(body, [
             'driver',
+            'optimize',
             'groupId',
             'folderId',
             'path',
@@ -72,8 +75,15 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
 
     /**
      * @api {post} /v1/user/save-data Save data
-     * @apiDescription Store data (string or buffer)
+     * @apiDescription Store data (string or buffer), or resave an owned image by sourceContentId with optimize=true. Resaves reuse the existing operation queue and return its receipt, or a completed saved Content. Poll ordinary operation endpoints. Requires content:write for resaving.
      * @apiName UserSaveData
+     * @apiBody {Boolean} [optimize=false] Encode full-resolution WebP and WebP previews through the save pipeline.
+     * @apiBody {Number} [sourceContentId] Existing owned image to resave, instead of content; requires optimize=true.
+     * @apiSuccess {String} [status] queued or completed for sourceContentId resaves.
+     * @apiSuccess {Number} [id] Existing operation-queue ID when queued.
+     * @apiSuccess {Number} [asyncOperationId] Existing operation ID when assigned.
+     * @apiSuccess {Object} [content] Saved optimized Content when already completed.
+     * @apiError content_resave_input_invalid Conflicting content/sourceContentId or missing optimize=true.
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
@@ -95,8 +105,16 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
         const options = {
             userId: req.user.id,
             userApiKeyId: req.apiKey.id,
-            ...pick(req.body, ['groupId', 'folderId', 'mimeType', 'path', 'async', 'driver'])
+            ...pick(req.body, ['groupId', 'folderId', 'mimeType', 'path', 'async', 'driver', 'optimize'])
         };
+
+        if (req.body.sourceContentId !== undefined) {
+            if (req.body.content !== undefined || req.body.optimize !== true) {
+                throw new ApiProblemError(400, 'content_resave_input_invalid', 'Supply sourceContentId and optimize=true without content');
+            }
+            app.checkModules(['content']);
+            return res.send(await app.ms.content['requestResave'](req.user.id, req.body.sourceContentId, req.apiKey.id), 202);
+        }
 
         res.send(await app.ms.asyncOperation.asyncOperationWrapper('content', 'saveData', [req.user.id, req.body['content'], req.body['fileName'] || req.body['name'], options], options));
     });
@@ -242,6 +260,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiInterface (../database/interface.ts) {IContent} apiSuccess
      *
      * @apiError content_restore_storage_conflict The user already has an active row with the same storage id.
+     * @apiError content_retired The old Content was intentionally retired; upload bytes as a new file instead of restoring it.
      * @apiError content_restore_storage_missing The physical storage object has already been removed.
      */
     app.ms.api.onAuthorizedPost('admin/content/:contentId/restore', async (req, res) => {

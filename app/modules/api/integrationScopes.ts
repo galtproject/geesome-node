@@ -6,7 +6,8 @@ const SCOPE_PERMISSION_MAP = {
 	'assets:read-private': CorePermissionName.UserSaveData,
 	'content:write': CorePermissionName.UserSaveData,
 	'operations:read': CorePermissionName.UserSaveData,
-	'asset-batches:write': CorePermissionName.UserSaveData
+	'asset-batches:write': CorePermissionName.UserSaveData,
+    'storage:retire': CorePermissionName.UserFileCatalogManagement
 };
 
 export function normalizeIntegrationScopes(value: any): string[] {

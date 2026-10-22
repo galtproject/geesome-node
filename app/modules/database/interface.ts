@@ -308,8 +308,10 @@ export interface IStorageIdReferenceCounts {
 }
 
 export interface IStorageIdReferenceSource {
-  model: any;
-  columns: string[];
+  model?: any;
+  columns?: string[];
+  name?: string;
+  count?: (storageId: string) => Promise<number>;
 }
 
 export interface IStorageObjectPinProvenance {
@@ -328,6 +330,7 @@ export interface IStorageObjectPinProvenance {
 }
 
 export interface IStorageIdReferenceOptions {
+  ignoreDeletedContentSources?: boolean;
   excludeFileCatalogItemId?: number;
   excludeContentId?: number;
 }

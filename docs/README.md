@@ -20,6 +20,8 @@ API reference output with handwritten architecture, operations, and module notes
 - [Active TODO](./todo.md): unfinished deterministic implementation sections.
 - [Implemented work](./implemented.md): delivered foundations and verification
   history previously mixed into the TODO.
+- [Image optimization and local IPFS retirement plan](./image-optimization-retirement-plan.md):
+  persisted image renditions, site/archive replacement, safe cleanup and disk reclamation.
 
 For implementation slices, list deterministic TODO section ids with
 `npm run todo:sections`, then print the exact context for one slice with
