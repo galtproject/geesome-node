@@ -208,6 +208,41 @@ describe('persisted image saving and local site retirement', function () {
         }
     });
 
+    it('rejects concurrent HTTP producers promptly during cleanup and accepts the same request after release', async () => {
+        const origin = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
+        const token = await app.generateUserApiKey(user.id, {scopes: ['content:write', 'operations:read']});
+        const headers = {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'};
+        const png = await sharp({create: {width: 40, height: 60, channels: 3, background: '#789abc'}}).png().toBuffer();
+        const content = await app.ms.content.saveData(user.id, png, 'storage-wait.png', {optimize: true, waitForPin: true});
+        const body = JSON.stringify({requestKey: randomUUID(), contentIds: [content.id]});
+        const Queue = app.ms.database.sequelize.model('userOperationQueue');
+        const before = await Queue.count({where: {module: 'site-replacement'}});
+        let unlock, started;
+        const held = new Promise<void>(resolve => { started = resolve; });
+        const release = new Promise<void>(resolve => { unlock = resolve; });
+        const cleanup = withStorageFence(app, 'exclusive', async () => { started(); await release; });
+        await held;
+        try {
+            const responses = await Promise.all(Array.from({length: 20}, () => fetch(`${origin}/user/site-replacements`,
+                {method: 'POST', headers, body, signal: AbortSignal.timeout(5000)})));
+            for (const response of responses) {
+                assert.equal(response.status, 503);
+                assert.equal((await response.json()).code, 'storage_maintenance_busy');
+            }
+            assert.equal(await Queue.count({where: {module: 'site-replacement'}}), before, 'rejected callbacks never ran');
+            const caps = await fetch(`${origin}/user/image-optimization/capabilities`, {headers, signal: AbortSignal.timeout(5000)});
+            assert.equal(caps.status, 200, 'GET polling remains available');
+        } finally {
+            unlock();
+            await cleanup;
+        }
+        const response = await fetch(`${origin}/user/site-replacements`, {method: 'POST', headers, body});
+        assert.equal(response.status, 202, await response.clone().text());
+        const replay = await fetch(`${origin}/user/site-replacements`, {method: 'POST', headers, body});
+        assert.equal((await replay.json()).id, (await response.json()).id);
+        assert.equal(await Queue.count({where: {module: 'site-replacement'}}), before + 1);
+    });
+
     it('preserves publisher HTTP routes and enforces owner/scoped-key boundaries', async () => {
         const origin = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
         const token = await app.generateUserApiKey(user.id, {scopes: ['content:write', 'operations:read']});

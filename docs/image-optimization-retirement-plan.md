@@ -5,6 +5,7 @@ User decisions: 22 October 2026. Implementation verified locally; merge/deployme
 
 ## Contents
 
+- [Waiting during cleanup](#waiting-during-cleanup)
 - [Legacy duplicate images](#legacy-duplicate-images)
 - [Audit follow-up](#audit-follow-up--completed)
 - [Active simplification](#active-simplification--completed)
@@ -14,6 +15,31 @@ User decisions: 22 October 2026. Implementation verified locally; merge/deployme
 - [Replacement and cleanup](#replacement-and-cleanup)
 - [Workstreams and verification](#workstreams-and-verification)
 - [Deployment](#deployment)
+
+## Waiting during cleanup
+
+Follow-up #1388 (22 October 2026): real repo/gc holds an exclusive storage fence
+for minutes. New HTTP producers formerly occupied the bounded lock pool waiting
+for shared locks, timed out, and exhausted the publisher's real-failure budget.
+
+API POST entry points now request a nonblocking storage fence, returning 503
+storage_maintenance_busy before handler execution when the fence/pool is busy.
+Internal producers retain blocking/reentrant fencing. The publisher recognizes
+only that explicit 503/code pair, preserves inputs/receipts and failure count,
+and schedules a retry in 10 seconds. GET status reads remain available; ambiguous
+network/render errors retain existing reconciliation and publication deadlines.
+No migration is needed. Deploy GeeSome first, then Microwave Girls; previously
+failed cards still need one Retry to re-enter the queue. No live mutation/deploy
+is part of this implementation.
+
+Verified: 28 Docker PostgreSQL/Kubo/queue/retirement tests passed, including
+20 concurrent HTTP requests rejected promptly without receipts during an exclusive
+fence and the same request accepted exactly once after release. All 70 publisher
+membership tests and 3 PostgreSQL scenarios passed: ten maintenance waits across
+group/render requests preserve failure budgets and links, then ordinary lost-render
+response reconciliation still applies. API docs regenerated and security route
+inventory regenerated/reviewed/checked. Both desktop/narrow Docker browser upgrade tests also passed; all 16 mapped
+captures were reviewed against their descriptions. No frontend/schema was changed.
 
 ## Legacy duplicate images
 

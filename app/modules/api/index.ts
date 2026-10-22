@@ -146,13 +146,13 @@ async function getModule(app: IGeesomeApp, version, port, host) {
 		onUnversionPost(routeName: string, callback: (req: IApiModulePotInput, res: IApiModuleCommonOutput) => any) {
 			routeName = trimStart(routeName, '/');
 			trackRoute('POST', `/${routeName}`);
-			service.post(`/${routeName}`, (req, res) => this.handleCallback(req, res, (input, output) => withStorageFence(app, 'shared', () => callback(input, output))));
+			service.post(`/${routeName}`, (req, res) => this.handleCallback(req, res, (input, output) => withStorageFence(app, 'shared', () => callback(input, output), {wait: false})));
 		}
 
 		onPost(routeName: string, callback: (req: IApiModulePotInput, res: IApiModuleCommonOutput) => any) {
 			routeName = trimStart(routeName, '/');
 			trackRoute('POST', `/${version}/${routeName}`);
-			service.post(`/${version}/${routeName}`, (req, res) => this.handleCallback(req, res, (input, output) => withStorageFence(app, 'shared', () => callback(input, output))));
+			service.post(`/${version}/${routeName}`, (req, res) => this.handleCallback(req, res, (input, output) => withStorageFence(app, 'shared', () => callback(input, output), {wait: false})));
 		}
 
 		onHead(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
