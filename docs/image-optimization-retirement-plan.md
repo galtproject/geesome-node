@@ -34,12 +34,12 @@ is part of this implementation.
 
 Verified: 28 Docker PostgreSQL/Kubo/queue/retirement tests passed, including
 20 concurrent HTTP requests rejected promptly without receipts during an exclusive
-fence and the same request accepted exactly once after release. All 69 publisher
+fence and the same request accepted exactly once after release. All 70 publisher
 membership tests and 3 PostgreSQL scenarios passed: ten maintenance waits across
 group/render requests preserve failure budgets and links, then ordinary lost-render
 response reconciliation still applies. API docs regenerated and security route
-inventory regenerated/reviewed/checked. Browser upgrade regression is also run
-for the existing desktop/narrow status controls; no frontend/schema was changed.
+inventory regenerated/reviewed/checked. Both desktop/narrow Docker browser upgrade tests also passed; all 16 mapped
+captures were reviewed against their descriptions. No frontend/schema was changed.
 
 ## Legacy duplicate images
 
