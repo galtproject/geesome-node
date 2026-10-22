@@ -30,7 +30,7 @@ export default (_app: IGeesomeApp, ssgModule: IGeesomeStaticSiteGeneratorModule)
 	 * @apiBody {String} [entityId] Group id for group rendering.
 	 * @apiBody {Number[]} [entityIds] Ordered content ids for content-list rendering.
 	 * @apiBody {Object} [options] Render options.
-	 * @apiBody {Boolean} [options.archive=false] Queue a public tar.gz archive after rendering and show its top-right download control. Requires archive module and save permission. Rendering does not wait for compression.
+	 * @apiBody {Boolean} [options.archive=false] Queue a public tar.gz archive after rendering and show its top-right download control. Requires archive module and save permission. Rendering does not wait for compression. Generated controls use /api/v1/archive on the current page origin; gateway hosts must proxy that API path.
 	 * @apiSuccess {Number} id Render queue id; poll the existing user operation-queue endpoint.
 	 */
 	api.onAuthorizedPost('run', async (req, res) => {

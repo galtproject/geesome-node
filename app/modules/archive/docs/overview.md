@@ -66,8 +66,10 @@ requesting user/API key and then completes rendering without waiting for archive
 compression. The archive module must be enabled. The download control is rendered
 only for this explicit option, in both gallery and group layouts.
 
-The generated client gets the canonical public API base from node configuration,
-not from caller-supplied options. It derives the immutable original CID from
+The generated client uses the root-relative `/api/v1/archive/<cid>` status and
+download paths. The browser uses the current page origin, so Wave and Meat each
+use their own nginx API proxy. Absolute `archiveApiBase` values from stored options
+are ignored by the current control. It derives the immutable original CID from
 `/ipfs/<cid>/...` or a CID subdomain at runtime, avoiding a self-referential site
 hash. Visitors only perform public GETs without credentials. A 404 shows a pending
 state with bounded polling; transient failures expose a retry control. Extracted
@@ -83,3 +85,22 @@ and screenshot manifest stay in the ignored runtime evidence directory.
 
 The control uses decorative outline SVGs for download, waiting and retry, plus a
 small loading indicator. Motion is disabled under `prefers-reduced-motion`.
+
+For artist domains that proxy `/ipfs/`, also proxy `/api/v1/` to GeeSome while
+retaining the application-specific `/api/` routes. Public archive GETs need no
+credentials. Existing immutable sites retain their old JavaScript and must be
+regenerated after this change; proxy configuration cannot change stored IPFS bytes.
+
+A standalone renderer fixture is available with
+`node --import tsx test/staticSiteArchiveBrowserFixture.mjs`. Mount its output
+(`test/.geesome-test-output/relative-archive-browser`) at `/evidence/archive-browser` in the
+Microwave Girls Playwright image and run `test/staticSiteArchiveBrowser.mjs`.
+It intentionally includes a stale loopback URL in stored options to verify that
+the control ignores it, requests `/api/v1/archive/` on the current origin, and
+downloads the exact fixture archive bytes. This does not exercise IPFS compression;
+the database/IPFS integration cases above own that coverage.
+
+Relative-path verification: seven focused helper/SSR/branding cases passed.
+The browser workflow passed at desktop and narrow widths with six mapped,
+reviewed screenshots and byte-for-byte download verification. Public production
+archive lookups through both artist-domain API proxies returned HTTP 200.
