@@ -1,5 +1,4 @@
 import fs from 'fs';
-import {getPublicApiContext} from '../api/publicUrls.js';
 import {requireIntegrationScopes} from '../api/integrationScopes.js';
 import {sanitizeStaticSiteLayoutHtml} from '../../htmlSafety.js';
 import _ from 'lodash';
@@ -388,7 +387,7 @@ export async function getModule(app: IGeesomeApp, models) {
                 }
             });
             const normalized = normalizeStaticSiteOptions(merged);
-            normalized.archiveApiBase = normalized.archive ? getPublicApiContext(app).apiBaseUrl : undefined;
+            normalized.archiveApiBase = normalized.archive ? '/api/v1' : undefined;
             if (!normalized.site.avatarUrl && normalized.site.avatarStorageId) {
                 normalized.site.avatarUrl = options.baseStorageUri + normalized.site.avatarStorageId;
             }
@@ -625,7 +624,7 @@ export async function getModule(app: IGeesomeApp, models) {
 
         async generateContentListSite(userId, renderArgs: IStaticSiteRenderArgs, options: any = {}): Promise<{storageId, staticSiteId}> {
             options = normalizeStaticSiteOptions(options);
-            options.archiveApiBase = options.archive ? getPublicApiContext(app).apiBaseUrl : undefined;
+            options.archiveApiBase = options.archive ? '/api/v1' : undefined;
             const {entityType, entityIds} = renderArgs;
             const {
                 staticSite,

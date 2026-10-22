@@ -1,15 +1,11 @@
-export function archiveLookupUrl(apiBase, location) {
+export function archiveLookupUrl(location) {
     const pathCid = location.pathname.match(/(?:^|\/)ipfs\/([A-Za-z0-9]+)(?:\/|$)/)?.[1];
     const subdomainCid = location.hostname.match(/^([A-Za-z0-9]+)\.ipfs\./)?.[1];
     const cid = pathCid || subdomainCid;
-    if (!cid || !apiBase) {
+    if (!cid) {
         return null;
     }
-    const url = new URL(apiBase);
-    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
-        return null;
-    }
-    return apiBase.replace(/\/+$/, '') + '/archive/' + encodeURIComponent(cid);
+    return '/api/v1/archive/' + encodeURIComponent(cid);
 }
 
 const DownloadIcon = {
@@ -44,7 +40,7 @@ export default {
             return;
         }
         try {
-            this.lookup = archiveLookupUrl(this.store.options.archiveApiBase, window.location);
+            this.lookup = archiveLookupUrl(window.location);
         } catch (_error) {
             this.lookup = null;
         }
@@ -107,7 +103,6 @@ export default {
           <download-icon v-else />
           <span>{{label}}</span>
         </button>
-        <span class="archive-download-message" role="status" v-if="state === 'pending'">Your archive will be available here shortly.</span>
       </div>
     `,
 };
