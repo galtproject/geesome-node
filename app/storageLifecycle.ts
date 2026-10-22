@@ -24,7 +24,7 @@ function storageLockPool(app) {
     return pool;
 }
 
-export async function withStorageFence<T>(app, mode: 'shared' | 'exclusive', run: (assertHeld?: () => Promise<void>) => Promise<T>): Promise<T> {
+export async function withStorageFence<T>(app, mode: 'shared' | 'exclusive', run: (assertHeld?: () => Promise<void>) => Promise<T>, options: {wait?: boolean} = {}): Promise<T> {
     const existing = contexts.getStore();
     if (existing?.app === app && existing.active) {
         if (mode === 'exclusive' && existing.mode !== 'exclusive') {
@@ -45,6 +45,9 @@ export async function withStorageFence<T>(app, mode: 'shared' | 'exclusive', run
         return run(async () => undefined);
     }
     const pool = storageLockPool(app);
+    if (options.wait === false && pool.idleCount === 0 && pool.totalCount >= pool.options.max) {
+        problem('storage_maintenance_busy', 503);
+    }
     const connection = await pool.connect();
     const suffix = mode === 'shared' ? '_shared' : '';
     let broken = false;
@@ -81,12 +84,22 @@ export async function withStorageFence<T>(app, mode: 'shared' | 'exclusive', run
             connection.release(broken);
         }
     };
+    let acquired = true;
     try {
-        await connection.query(`SELECT pg_advisory_lock${suffix}($1, $2)`, [namespace, storageKey]);
+        if (options.wait === false) {
+            acquired = (await connection.query(`SELECT pg_try_advisory_lock${suffix}($1, $2) AS locked`, [namespace, storageKey])).rows[0].locked;
+        } else {
+            await connection.query(`SELECT pg_advisory_lock${suffix}($1, $2)`, [namespace, storageKey]);
+        }
     } catch (error) {
         connection.removeListener('error', onError);
         connection.release(true);
         throw error;
+    }
+    if (!acquired) {
+        connection.removeListener('error', onError);
+        connection.release();
+        problem('storage_maintenance_busy', 503);
     }
     return contexts.run(context, async () => {
         try {

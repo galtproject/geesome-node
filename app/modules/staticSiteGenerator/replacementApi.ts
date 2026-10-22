@@ -27,6 +27,7 @@ export default function (app, service) {
      * @apiSuccess {Number} id Existing operation-queue ID.
      * @apiSuccess {String} status preparing
      * @apiError image_replacement_idempotency_conflict Request key was used with other inputs.
+     * @apiError (503) storage_maintenance_busy Storage cleanup is active; this request has not executed. Retry with the same requestKey.
      */
     app.ms.api.onAuthorizedPost('user/site-replacements', async (req, res) => {
         res.send(await service.requestReplacement(req.user.id, req.body, req.apiKey.id), 202);
