@@ -3,7 +3,7 @@
 Tracking: [implementation #1382](https://github.com/galtproject/geesome-node/issues/1382), [planning #1380](https://github.com/galtproject/geesome-node/issues/1380), [Microwave Girls #595](https://github.com/MicrowaveDev/microwave-girls/issues/595).
 User decisions: 22 October 2026. Implementation is under verification; no production files/pins were removed.
 
-## Active simplification — user-approved, not yet implemented
+## Active simplification — user-approved, implementation in progress
 
 Latest instruction (22 October 2026): remove the separate `imageOptimization`
 subsystem and reduce its five models. The user approved the redistribution below,
@@ -79,24 +79,51 @@ an ORM facade over five replacement models is not the intended simplification.
 
 ### Resume checkpoint
 
-- GeeSome checkout: `codex/image-optimization-retirement`, clean at `326f0861` before
-  this plan edit. Existing PR: https://github.com/galtproject/geesome-node/pull/1383.
+- GeeSome checkout: `codex/image-optimization-retirement`; implementation baseline
+  `326f0861`, approved plan committed/pushed as `e418c4d6`. Existing open PR:
+  https://github.com/galtproject/geesome-node/pull/1383. Continue this branch.
 - Microwave Girls: dev, previously delivered `c221a10a`; task:context currently
   reports clean. Backend refactor first; no publisher changes made in this turn.
-- Current five-model implementation is still present under
-  `app/modules/imageOptimization/`. Initial read confirmed ordinary queue fields
-  (`module`, `inputHash`, `inputJson`, `isWaiting`, asyncOperationId) and operation
-  output/status fields can persist workflow state, but lifecycle/retention changes
-  must be designed before removing the old stores.
-- No product source edits or refactor tests have been performed for this new
-  simplification yet. Next action is inspect asyncOperation cleanup/processor and
-  storage reference helper interfaces, then implement steps 2–6.
+- **Uncommitted, untested source work exists. Do not reset it or report it ready.**
+  New `asyncOperation/durableJobs.ts` stores replacement state in existing queue
+  `inputJson` and operation output, with request identity, transaction admission and
+  CAS checkpoints. Public replacement IDs use existing numeric queue IDs; inspected
+  Microwave Girls consumers accept these without a UUID constraint.
+- Content policy/resave/provenance moved into `content/publicationImagePolicy.ts`
+  and `content/resave.ts`; Content properties map sources to reusable saved results.
+  Static site service/API/worker moved into `staticSiteGenerator/replacements.ts`,
+  `replacementApi.ts`, `replacementWorker.ts`; its models now include one
+  `staticSiteRevision`. Cleanup moved to `storageSpace/siteRetirement.ts`.
+  Common identity helpers are in `app/storageIdentity.ts`; bounded site-data reads
+  are in `staticSiteGenerator/siteData.ts`.
+- `asyncOperation/storageHolds.ts` derives active holds and temporary pending-cleanup
+  write gates from queues. Database reference registration supports named counters.
+  Module wiring, save/archive guards and async workers have been partly updated.
+  **The old `app/modules/imageOptimization/` files still exist:** inspect remaining
+  imports, convert tests, then remove them and their five model definitions.
+- Next safety fixes/review before tests:
+  1. Temporary write guards must ignore supported non-IPFS identities, rather than
+     rejecting ordinary remote content through strict CID normalization.
+  2. Recheck saved provenance after locking the source Content during resave
+     admission; use the locked snapshot so concurrent completion cannot re-encode.
+  3. Protect both replacement receipts and active resave operations from generic
+     async-operation retention; verify startup, cancellation and replay behavior.
+  4. Inspect generated replacement service and CAS wrapper semantics; add revision
+     cleanup to staticSiteGenerator.flushDatabase; inspect circular imports.
+  5. Verify derived holds, own-hold release, pending CID gates, per-Content restore
+     marker, and successful *new* upload of identical bytes after completed GC.
+- No tests have run against this refactor. Update old test imports/service access,
+  run focused host checks, then rebuild disposable Docker tests with real
+  PostgreSQL/Kubo. Existing 55 targeted backend passes belong to `326f0861` only.
+  Docker proxy tests require `--use-aliases`; offline block checks must use
+  `block.stat(..., {offline:true})`. Regenerate API/security/scalability inventories,
+  update docs and PR, commit/push completed product work after verification.
 - Hub and unrelated submodules have existing dirty work; preserve them. No new
   subagents are authorized by this follow-up; perform the refactor in this thread.
 
 ## Contents
 
-- [Active simplification](#active-simplification--user-approved-not-yet-implemented)
+- [Active simplification](#active-simplification--user-approved-implementation-in-progress)
 - [Requirements](#requirements)
 - [Measured evidence](#measured-evidence)
 - [Saving contract](#saving-contract)
