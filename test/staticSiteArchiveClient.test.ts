@@ -7,10 +7,11 @@ import {normalizeStaticSiteOptions} from '../app/modules/staticSiteGenerator/ind
 
 describe('static-site archive control', () => {
     it('resolves immutable roots on path and subdomain gateways, including nested pages', () => {
-        assert.equal(archiveLookupUrl('https://node.test/api/v1/', {pathname: '/prefix/ipfs/bafy123/post/2/', hostname: 'site.test'}), 'https://node.test/api/v1/archive/bafy123');
-        assert.equal(archiveLookupUrl('https://node.test/v1', {pathname: '/', hostname: 'bafy123.ipfs.site.test'}), 'https://node.test/v1/archive/bafy123');
-        assert.equal(archiveLookupUrl('https://node.test/v1', {pathname: '/', hostname: 'site.test'}), null);
-        assert.equal(archiveLookupUrl('https://user:pass@node.test/v1', {pathname: '/ipfs/bafy123/', hostname: 'site.test'}), null);
+        for (const hostname of ['eraofwave.com', 'eraofmeat.com']) {
+            assert.equal(archiveLookupUrl({pathname: '/ipfs/bafy123/post/2/', hostname}), '/api/v1/archive/bafy123');
+        }
+        assert.equal(archiveLookupUrl({pathname: '/', hostname: 'bafy123.ipfs.site.test'}), '/api/v1/archive/bafy123');
+        assert.equal(archiveLookupUrl({pathname: '/', hostname: 'site.test'}), null);
     });
 
     it('renders the download control only after explicit archive opt-in', async () => {

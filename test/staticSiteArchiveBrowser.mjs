@@ -14,6 +14,11 @@ const types = {'.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html
 const server = http.createServer(async (req, res) => {
     try {
         const url = new URL(req.url, 'http://localhost');
+        if (url.pathname === `/api/v1/archive/${storageId}/download`) {
+            res.writeHead(200, {'content-type': 'application/gzip', 'content-length': archive.length,
+                'content-disposition': 'attachment; filename="gallery.tar.gz"'}).end(archive);
+            return;
+        }
         const relative = decodeURIComponent(url.pathname).replace(/^\/ipfs\//, '');
         const filename = path.resolve(root, 'site', relative, url.pathname.endsWith('/') ? 'index.html' : '');
         if (!filename.startsWith(path.resolve(root, 'site') + '/')) {
@@ -38,13 +43,13 @@ try {
         let lookupCount = 0;
         await page.route(`**/archive/${storageId}`, async route => {
             lookupCount++;
+            assert.equal(new URL(route.request().url()).origin, origin);
+            assert.equal(new URL(route.request().url()).pathname, `/api/v1/archive/${storageId}`);
             assert.equal(route.request().headers().authorization, undefined);
             await route.fulfill({status: state === 'pending' ? 404 : state === 'error' ? 503 : 200,
                 headers: {'access-control-allow-origin': '*'}, contentType: 'application/json',
                 body: JSON.stringify(state === 'ready' ? {originalStorageId: storageId, archivedStorageId} : {})});
         });
-        await page.route(`**/archive/${storageId}/download`, route => route.fulfill({status: 200,
-            headers: {'content-type': 'application/gzip', 'content-disposition': 'attachment; filename="gallery.tar.gz"'}, body: archive}));
         await page.goto(`${origin}/ipfs/${storageId}/`);
         const capture = async (stateName, description) => {
             await page.getByTestId('site-archive-control').waitFor();
@@ -71,11 +76,12 @@ try {
         const downloadLink = page.getByTestId('site-archive-download');
         await downloadLink.waitFor();
         assert.equal(await downloadLink.evaluate(element => getComputedStyle(element).color), 'rgb(255, 255, 255)', 'download link remains readable while hovered');
-        assert.match(await downloadLink.getAttribute('href'), new RegExp(`/archive/${storageId}/download$`));
+        assert.equal(await downloadLink.getAttribute('href'), `/api/v1/archive/${storageId}/download`);
         await capture('ready', 'Published gallery with an active top-right Download archive link after a successful retry.');
         const downloadPromise = page.waitForEvent('download');
         await downloadLink.click();
         const download = await downloadPromise;
+        assert.equal(await download.failure(), null);
         const downloaded = await fs.readFile(await download.path());
         assert.equal(createHash('sha256').update(downloaded).digest('hex'), createHash('sha256').update(archive).digest('hex'));
         assert.ok(lookupCount >= 3);
