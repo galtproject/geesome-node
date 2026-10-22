@@ -67,7 +67,8 @@ try {
         };
         await page.getByText('Archive is preparing…', {exact: false}).waitFor();
         await page.locator('img').evaluateAll(images => Promise.all(images.map(image => image.decode())));
-        await capture('pending', 'Published gallery with the archive preparing message and disabled download control in the top-right.');
+        assert.equal(await page.locator('.archive-download-message').count(), 0);
+        await capture('pending', 'Published gallery with preparation status only in the disabled top-right button, without an extra helper message.');
         state = 'error';
         await page.getByRole('button', {name: 'Retry archive download', exact: true}).waitFor();
         await capture('retry', 'Published gallery remains available after archive lookup fails, with a top-right Retry archive download button.');

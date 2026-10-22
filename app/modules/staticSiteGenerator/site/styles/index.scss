@@ -243,7 +243,6 @@ th, td {
 .archive-download-action { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; box-sizing: border-box; padding: 10px 16px; border: 1px solid #c4d4e3; border-radius: 12px; background: #183b69; color: #fff; font: inherit; font-size: 14px; text-decoration: none; cursor: pointer; }
 .archive-download-action:disabled { background: #e8eff6; color: #334b65; cursor: default; }
 .archive-download-action:focus-visible { outline: 3px solid #4e9bfa; outline-offset: 3px; }
-.archive-download-message { font-size: 12px; color: #496078; }
 .archive-download a.archive-download-action,
 .archive-download a.archive-download-action:hover,
 .archive-download a.archive-download-action:visited { color: #fff; }

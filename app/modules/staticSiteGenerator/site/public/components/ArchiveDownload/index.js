@@ -103,7 +103,6 @@ export default {
           <download-icon v-else />
           <span>{{label}}</span>
         </button>
-        <span class="archive-download-message" role="status" v-if="state === 'pending'">Your archive will be available here shortly.</span>
       </div>
     `,
 };
