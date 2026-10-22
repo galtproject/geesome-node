@@ -26,6 +26,7 @@ export default interface IGeesomeDriversModule {
     file: IDriver,
   },
   convert: {
+    imageOptimize: IDriver,
     videoToStreamable: IDriver,
     imageWatermark: IDriver,
   }

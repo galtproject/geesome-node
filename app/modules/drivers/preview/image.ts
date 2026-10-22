@@ -22,7 +22,7 @@ export class ImagePreviewDriver extends AbstractDriver {
 
   async processByStream(inputStream, options: any = {}) {
     log('ImagePreviewDriver.processByStream');
-    const extension = normalizeImageExtension(options.extension || 'jpg');
+    const extension = 'webp';
 
     // TODO: get size by settings
     let size = {width: 1024};
@@ -33,9 +33,9 @@ export class ImagePreviewDriver extends AbstractDriver {
       size = {width: 2048};
     }
     const resizerStream = sharp()
+        .rotate()
         .resize(extend(size, {withoutEnlargement: true}))
-        .withMetadata()
-        .toFormat(extension);
+        .webp({quality: 85, effort: 6});
     log('ImagePreviewDriver.resizerStream');
 
     const resultStream = inputStream.pipe(resizerStream) as Stream;
@@ -47,22 +47,8 @@ export class ImagePreviewDriver extends AbstractDriver {
 
     return {
       stream: resultStream,
-      type: getImageMimeType(extension),
+      type: 'image/webp',
       extension: extension
     };
   }
-}
-
-function normalizeImageExtension(extension) {
-  if (extension === 'jpeg') {
-    return 'jpg';
-  }
-  return extension;
-}
-
-function getImageMimeType(extension) {
-  if (extension === 'jpg') {
-    return 'image/jpeg';
-  }
-  return 'image/' + extension;
 }

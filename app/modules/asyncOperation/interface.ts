@@ -25,7 +25,7 @@ export default interface IGeesomeAsyncOperationModule {
 
 	addUserOperationQueue(userId, module, apiKeyId, inputs): Promise<IUserOperationQueue>;
 
-	addUniqueUserOperationQueue(userId, module, apiKeyId, inputs): Promise<IUserOperationQueue>;
+	addUniqueUserOperationQueue(userId, module, apiKeyId, inputs, options?: any): Promise<IUserOperationQueue>;
 
 	closeImportAsyncOperation(userId, asyncOperation, error);
 
@@ -96,6 +96,7 @@ export interface IUserOperationQueue {
 }
 
 export interface IModuleOperationQueueProcessorOptions {
+	resumeInterrupted?: boolean;
 	limit?: number;
 	getPayload?: (waitingQueue: IUserOperationQueue) => Promise<any> | any;
 	getAsyncOperationData: (waitingQueue: IUserOperationQueue, payload: any) => Promise<any> | any;

@@ -1,4 +1,8 @@
 import fs from 'fs';
+import {SiteReplacements} from './replacements.js';
+import {configureSiteReplacements} from './replacementWorker.js';
+import registerReplacementApi from './replacementApi.js';
+import {withStorageTaskLock} from '../../storageLifecycle.js';
 import {requireIntegrationScopes} from '../api/integrationScopes.js';
 import {sanitizeStaticSiteLayoutHtml} from '../../htmlSafety.js';
 import _ from 'lodash';
@@ -189,6 +193,12 @@ export default async (app: IGeesomeApp) => {
     // VueSSR: import JS [type: module] (by workspaces in package.json)
     app.checkModules(['asyncOperation', 'group', 'content']);
     const module = await getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
+    const models = {Revision: app.ms.database.sequelize.model('staticSiteRevision')};
+    const replacements = new SiteReplacements(app, models);
+    configureSiteReplacements(app, replacements);
+    Object.assign(module, {replacements, processSiteReplacementQueue: replacements.processQueue});
+    app.ms.database.registerStorageIdReferenceSource({model: models.Revision, columns: ['storageId']});
+    registerReplacementApi(app, replacements);
     (await import('./api.js')).default(app, module);
     return module;
 }
@@ -250,6 +260,19 @@ export async function getModule(app: IGeesomeApp, models) {
         }
 
         async processQueue() {
+            if (app.ms.database.sequelize?.getDialect?.() !== 'postgres') {
+                return this.processClaimedQueue();
+            }
+            try {
+                return await withStorageTaskLock(app, 'static-site-generator-queue', () => this.processClaimedQueue());
+            } catch (error) {
+                if (error.message !== 'image_render_in_process') {
+                    throw error;
+                }
+            }
+        }
+
+        async processClaimedQueue() {
             const waitingQueue = await app.ms.asyncOperation.getWaitingOperationByModule(this.moduleName);
             log('waitingQueue', waitingQueue);
             if (!waitingQueue) {
@@ -262,7 +285,7 @@ export async function getModule(app: IGeesomeApp, models) {
                     return;
                 } else {
                     await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(waitingQueue.asyncOperation.id);
-                    return this.processQueue();
+                    return this.processClaimedQueue();
                 }
             }
 
@@ -312,7 +335,7 @@ export async function getModule(app: IGeesomeApp, models) {
                 }
                 delete finishCallbacks[waitingQueue.id];
             }
-            this.processQueue();
+            await this.processClaimedQueue();
 
             return waitingQueue;
         }
@@ -407,9 +430,12 @@ export async function getModule(app: IGeesomeApp, models) {
             const contentById = {};
             contents.forEach(c => contentById[c.id] = c);
             contents = entityIds.map(entityId => contentById[entityId]);
-            const siteStorageDir = `/${staticSite.staticId}-site`;
-
-            await app.ms.storage.makeDir(siteStorageDir).catch(() => {/*already made*/});
+            const siteStorageDir = options.replacementId
+                ? await this['replacements'].beginRevision(userId, staticSite.id, options.replacementId)
+                : `/${staticSite.staticId}-site`;
+            if (!options.replacementId) {
+                await app.ms.storage.makeDir(siteStorageDir).catch(() => {/* already made */});
+            }
             await this.copyContentsToSite(siteStorageDir, contents, true);
 
             return {
@@ -442,7 +468,7 @@ export async function getModule(app: IGeesomeApp, models) {
             let staticSite = await this.getOrCreateStaticSite(userId, entityType, entityId, options);
 
             const siteStorageDir = `/${staticSite.staticId}-site`;
-            await app.ms.storage.makeDir(siteStorageDir).catch(() => {/*already made*/});
+            await app.ms.storage.makeDir(siteStorageDir).catch(() => {/* already made */});
 
             const postsPerPage = options.postList.postsPerPage;
             const renderPostCount = Math.min(await app.ms.group.getGroupPostsCount(entityId), generatedGroupPostsLimit);
@@ -528,7 +554,7 @@ export async function getModule(app: IGeesomeApp, models) {
             if (!site || !site.name || !site.title) {
                 throw new Error("incorrect_static_site_options");
             }
-            let staticSite = await models.StaticSite.findOne({where: {entityType, entityId: entityId.toString()}});
+            let staticSite = await models.StaticSite.findOne({where: {userId, entityType, entityId: entityId.toString()}});
             if (!staticSite) {
                 staticSite = await this.createDbStaticSite({userId, entityType, entityId, title: site.title, name: site.name, options: JSON.stringify(options)});
                 await this.bindSiteToStaticId(userId, staticSite.id);
@@ -625,7 +651,18 @@ export async function getModule(app: IGeesomeApp, models) {
         async generateContentListSite(userId, renderArgs: IStaticSiteRenderArgs, options: any = {}): Promise<{storageId, staticSiteId}> {
             options = normalizeStaticSiteOptions(options);
             options.archiveApiBase = options.archive ? '/api/v1' : undefined;
-            const {entityType, entityIds} = renderArgs;
+            if (options.replacementId) {
+                return this['replacements'].withRender(userId, options.replacementId, renderArgs, options,
+                    () => this.generateContentListSiteRevision(userId, renderArgs, options));
+            }
+            return this.generateContentListSiteRevision(userId, renderArgs, options);
+        }
+
+        async generateContentListSiteRevision(userId, renderArgs, options) {
+            const {entityType} = renderArgs;
+            const entityIds = options.replacementId
+                ? await this['replacements'].renderIds(userId, options.replacementId, renderArgs.entityIds)
+                : renderArgs.entityIds;
             const {
                 staticSite,
                 siteStorageDir,
@@ -646,6 +683,9 @@ export async function getModule(app: IGeesomeApp, models) {
             await this.renderAndSave(renderPage, options, siteStorageDir, `/${renderData.defaultRoute}`, 'simple');
             log('renderAndSave done');
             const storageId = await app.ms.storage.getDirectoryId(siteStorageDir);
+            if (options.replacementId) {
+                await this['replacements'].finishRevision(siteStorageDir, storageId);
+            }
             log('getDirectoryId storageId', storageId);
             const baseData = {storageId, options: JSON.stringify(options)};
             await this.updateDbStaticSite(staticSite.id, baseData);
@@ -828,7 +868,7 @@ export async function getModule(app: IGeesomeApp, models) {
         }
 
         async flushDatabase() {
-            await pIteration.forEachSeries(['StaticSite'], (modelName) => {
+            await pIteration.forEachSeries(['Revision', 'StaticSite'], (modelName) => {
                 return models[modelName].destroy({where: {}});
             });
         }

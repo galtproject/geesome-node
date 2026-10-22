@@ -1,6 +1,8 @@
+import {startIntervalWorker} from '../../backgroundWorker.js';
+import {countStorageHolds} from './storageHolds.js';
 import _ from 'lodash';
 import debug from 'debug';
-import {Op} from "sequelize";
+import {Op, literal} from "sequelize";
 import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeAsyncOperationModule, {IModuleOperationQueueProcessorOptions, IUserAsyncOperation, IUserOperationQueue} from "./interface.js";
 import {CorePermissionName, IListParams, IListParamsOptions} from "../database/interface.js";
@@ -23,6 +25,16 @@ export default async (app: IGeesomeApp) => {
 	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
 	await module.closeAllAsyncOperation();
 	await module.cleanupFinishedAsyncOperations();
+	app.ms.database.registerStorageIdReferenceSource({name: 'active-storage-jobs', count: cid => countStorageHolds(app, cid)});
+	const worker = startIntervalWorker(async () => {
+		await app.ms.content?.['processResaveQueue']?.();
+		await app.ms.staticSiteGenerator?.['processSiteReplacementQueue']?.();
+	}, {intervalMs: 2000, onError: error => console.error('storage_job_worker_error', error)});
+	const stop = module.stop.bind(module);
+	module.stop = async () => {
+		await worker.stop();
+		await stop();
+	};
 	(await import('./api.js')).default(app, module);
 	return module;
 }
@@ -230,9 +242,10 @@ export function getModule(app: IGeesomeApp, models) {
 			});
 		}
 
-		async addUniqueUserOperationQueue(userId, module, userApiKeyId, input) {
+		async addUniqueUserOperationQueue(userId, module, userApiKeyId, input, options: any = {}) {
 			const {inputJson, inputHash} = getOperationQueueInputData(input);
 			const existingQueue = await models.UserOperationQueue.findOne({
+				transaction: options.transaction,
 				where: {module, inputHash, isWaiting: true},
 				order: [['createdAt', 'ASC'], ['id', 'ASC']],
 				include: [ {association: 'asyncOperation'} ]
@@ -249,7 +262,7 @@ export function getModule(app: IGeesomeApp, models) {
 				userApiKeyId,
 				inputHash,
 				isWaiting: true,
-			});
+			}, {transaction: options.transaction});
 		}
 
 		getWaitingOperationByModule(module) {
@@ -273,7 +286,7 @@ export function getModule(app: IGeesomeApp, models) {
 			const limit = helpers.parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
 
 			while (processed < limit) {
-				const waitingQueue = await this.getNextProcessableOperationQueue(moduleName);
+				const waitingQueue = await this.getNextProcessableOperationQueue(moduleName, options.resumeInterrupted);
 				if (!waitingQueue) {
 					return {processed};
 				}
@@ -284,7 +297,7 @@ export function getModule(app: IGeesomeApp, models) {
 			return {processed};
 		}
 
-		async getNextProcessableOperationQueue(moduleName: string) {
+		async getNextProcessableOperationQueue(moduleName: string, resumeInterrupted = false) {
 			while (true) {
 				const waitingQueue = await this.getWaitingOperationQueueByModule(moduleName);
 				if (!waitingQueue) {
@@ -297,6 +310,9 @@ export function getModule(app: IGeesomeApp, models) {
 					return null;
 				}
 
+				if (resumeInterrupted && !waitingQueue.asyncOperation.finishedAt) {
+					return waitingQueue;
+				}
 				await this.closeUserOperationQueue(waitingQueue.id);
 			}
 		}
@@ -311,19 +327,28 @@ export function getModule(app: IGeesomeApp, models) {
 			}
 
 			await this.updateUserOperationQueue(waitingQueue.id, {startedAt: new Date()});
-			const asyncOperationData = await options.getAsyncOperationData(waitingQueue, payload);
-			const asyncOperation = await this.addAsyncOperation(waitingQueue.userId, {
-				userApiKeyId: waitingQueue.userApiKeyId,
-				module: waitingQueue.module,
-				...asyncOperationData,
-			});
-
-			await this.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
+			let asyncOperation = options.resumeInterrupted ? waitingQueue.asyncOperation : null;
+			if (!asyncOperation) {
+				const asyncOperationData = await options.getAsyncOperationData(waitingQueue, payload);
+				asyncOperation = await this.addAsyncOperation(waitingQueue.userId, {
+					userApiKeyId: waitingQueue.userApiKeyId, module: waitingQueue.module, ...asyncOperationData});
+				await this.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
+			} else {
+				await this.updateUserAsyncOperation(asyncOperation.id, {inProcess: true, errorType: null, errorMessage: null});
+			}
 
 			try {
+				if (options.resumeInterrupted) {
+					await this.handleOperationCancel(waitingQueue.userId, asyncOperation.id);
+				}
 				const result = await options.run(waitingQueue, asyncOperation, payload);
-				await this.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
-				await this.finishAsyncOperation(waitingQueue.userId, asyncOperation.id, null, getOperationQueueOutput(result));
+				if (!options.resumeInterrupted) {
+					await this.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+				}
+				await this.finishAsyncOperation(waitingQueue.userId, asyncOperation.id, options.resumeInterrupted ? result?.content?.id : null, getOperationQueueOutput(result));
+				if (options.resumeInterrupted) {
+					await this.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
+				}
 				return result;
 			} catch (e) {
 				await this.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
@@ -376,6 +401,9 @@ export function getModule(app: IGeesomeApp, models) {
 				attributes: ['id'],
 				where: {
 					inProcess: false,
+					module: {[Op.or]: [{[Op.ne]: 'site-replacement'}, {[Op.is]: null}]},
+					[Op.and]: literal(`NOT EXISTS (SELECT 1 FROM "userOperationQueues" AS waiting
+						WHERE waiting."asyncOperationId" = "userAsyncOperation"."id" AND waiting."isWaiting" = true)`),
 					updatedAt: {[Op.lt]: cutoff}
 				},
 				order: [['updatedAt', 'ASC'], ['id', 'ASC']],

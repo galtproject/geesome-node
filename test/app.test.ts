@@ -493,8 +493,8 @@ describe("app", function () {
 		assert.equal(imageContent.extension, 'jpg');
 		assert.equal(properties.format, 'jpeg');
 		assert.equal(contentObj.mimeType, 'image/jpeg');
-		assert.equal(contentObj.preview.medium.mimeType, 'image/jpeg');
-		assert.equal(imageContent.previewExtension, 'jpg');
+		assert.equal(contentObj.preview.medium.mimeType, 'image/webp');
+		assert.equal(imageContent.previewExtension, 'webp');
 	});
 
 	it('should correctly save video', async () => {

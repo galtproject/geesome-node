@@ -564,7 +564,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
 
   async getContent(id, options: any = {}) {
     const where = options.includeDeleted ? {id} : getActiveContentWhere({id});
-    return this.models.Content.findOne({where}) as IContent;
+    return this.models.Content.findOne({where, transaction: options.transaction}) as IContent;
   }
 
   async getContentByStorageId(storageId, findByPreviews = false) {
@@ -640,6 +640,12 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   }
 
   registerStorageIdReferenceSource(source: IStorageIdReferenceSource) {
+    if (source?.name && typeof source.count === 'function') {
+      if (!this.storageIdReferenceSources.some(existing => existing.name === source.name)) {
+        this.storageIdReferenceSources.push(source);
+      }
+      return;
+    }
     if (
       !source?.model ||
       !Array.isArray(source.columns) ||
