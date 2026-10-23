@@ -60,6 +60,9 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	/**
 	 * @apiDefine UploadErrors
 	 *
+	 * @apiError (503) StorageBusy The bounded storage-lock connection wait expired; code storage_busy. The upload handler has not run.
+	 * @apiError (503) StorageMaintenanceBusy An exclusive cleanup fence prevents the upload; code storage_maintenance_busy. The upload handler has not run.
+	 *
 	 * @apiError (413) UploadLimitExceeded Uploaded content is larger than the current user's remaining limit.
 	 * @apiErrorExample {json} Upload limit exceeded
 	 *   HTTP/1.1 413 Payload Too Large
