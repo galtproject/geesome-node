@@ -38,6 +38,18 @@ async function checkGallery(page, url, screenshot) {
     await page.goto(url);
     await page.waitForFunction(() => Boolean(document.querySelector('#app')?.__vue_app__));
     assert.equal(await page.evaluate(() => window.injected), undefined, 'inline JSON cannot terminate its script element');
+    const previewLoaded = await page.locator('.content-item').first().evaluate(async element => {
+        const background = getComputedStyle(element).backgroundImage;
+        const url = background.match(/^url\(["']?(.*?)["']?\)$/)?.[1];
+        if (!url || !url.includes('/preview/')) {
+            return false;
+        }
+        const image = new Image();
+        image.src = url;
+        await image.decode();
+        return image.naturalWidth > 0;
+    });
+    assert.equal(previewLoaded, true, 'gallery previews load from preview/');
     await page.locator('.content-item').first().click();
     const modal = page.locator('.image-modal');
     await modal.waitFor({state: 'visible'});
@@ -51,6 +63,7 @@ async function checkGallery(page, url, screenshot) {
             bounds.y + bounds.height <= viewport.height + 1, 'viewer image and close control fit the viewport');
     }
     const first = await image.getAttribute('src');
+    assert.ok(first.includes('content/'), 'the viewer opens the original from content/');
     await modal.locator('.arrow-right').click();
     await page.waitForFunction(first => document.querySelector('.image-modal img')?.getAttribute('src') !== first, first);
     await page.waitForFunction(() => {

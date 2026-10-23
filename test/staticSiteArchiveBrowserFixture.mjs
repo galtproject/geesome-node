@@ -10,6 +10,7 @@ const root = path.resolve(process.env.ARCHIVE_BROWSER_EVIDENCE || 'test/.geesome
 const storageId = 'bafyrelativearchivefixture01';
 const site = path.join(root, 'site', storageId);
 await fs.mkdir(path.join(site, 'content'), {recursive: true});
+await fs.mkdir(path.join(site, 'preview'), {recursive: true});
 await fs.cp('app/modules/staticSiteGenerator/site/public', path.join(site, 'public'), {recursive: true});
 await fs.writeFile(path.join(site, 'public', 'client.js'), await buildBrowserClient());
 const data = {defaultRoute: 'content-list', contents: [{id: 1, type: 'image', name: 'Rendered gallery image',
@@ -21,6 +22,7 @@ await fs.writeFile(path.join(site, 'index.html'), await prepared.renderPage('/co
 await fs.writeFile(path.join(site, 'style.css'), prepared.css);
 await fs.writeFile(path.join(site, 'clientData.js'), 'export default ' + JSON.stringify(data));
 await fs.writeFile(path.join(site, 'content', '1_imageFixture.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400"><rect width="600" height="400" fill="#71918a"/><circle cx="300" cy="200" r="110" fill="#dcebe3"/></svg>');
+await fs.copyFile(path.join(site, 'content', '1_imageFixture.svg'), path.join(site, 'preview', '1_imageFixture.svg'));
 execFileSync('tar', ['-czf', path.join(root, 'archive.tar.gz'), '-C', path.join(root, 'site'), storageId]);
 await fs.writeFile(path.join(root, 'site.json'), JSON.stringify({storageId, archivedStorageId: 'bafyfixturearchivebytes01'}));
 console.log(root);
