@@ -5,7 +5,8 @@ export default function (app, service) {
      * @apiGroup StaticSiteGenerator
      * @apiUse ApiKey
      * @apiSuccess {Number} contract Contract version, currently 1.
-     * @apiSuccess {String} policy Persisted rendition policy.
+     * @apiSuccess {String} policy Current preferred rendition policy.
+     * @apiSuccess {String[]} imagePolicies Supported explicit saving policies; legacy default remains publication-webp-v1.
      * @apiSuccess {Boolean} resave Existing save-data accepts sourceContentId and optimize=true.
      * @apiSuccess {Boolean} watermark Watermark driver is supported with optimization and frozen replacement receipts.
      * @apiSuccess {Boolean} retirement Local Kubo retirement adapter is supported.
@@ -21,6 +22,7 @@ export default function (app, service) {
      * @apiUse ApiKey
      * @apiDescription Records an owned publication/source snapshot before resaving. This does not create an optimization batch: resave each file through user/save-data with sourceContentId and optimize=true, using the existing operation queue. Requires content:write; deleteReplacedFiles additionally requires storage:retire. Replays reuse the owner/requestKey receipt; changed requests conflict.
      * @apiBody {String} requestKey Stable caller identity, up to 200 characters.
+     * @apiBody {String} [imagePolicy=publication-webp-v1] Frozen saving policy, including publication-jpeg95-v1 for JPEG originals with WebP previews.
      * @apiBody {Object} [driver] imageWatermark convert driver. Frozen with the replacement; renderer requires matching marked renditions.
      * @apiBody {Number[]} contentIds Ordered owned image IDs, 1..1000, no duplicates. For a previous site, keep the first occurrence of each ID; all old entries must still match the owned source CIDs.
      * @apiBody {String} [previousSiteStorageId] Exact replaced site CID.

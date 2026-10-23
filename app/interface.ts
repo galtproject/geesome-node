@@ -162,6 +162,10 @@ export interface IUserAuthMessageResponse {
 }
 
 export interface IContentInput {
+  /** Use the publication image pipeline, with WebP previews. */
+  optimize?: boolean;
+  /** Explicit full-image policy; omitted values retain legacy WebP compatibility. */
+  imagePolicy?: 'publication-webp-v1' | 'publication-jpeg95-v1';
   /**
    * Bind content to specific group
    */

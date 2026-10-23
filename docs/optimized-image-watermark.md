@@ -18,12 +18,12 @@ Tracking: GeeSome #1406 and Microwave Girls #613.
 
 The save pipeline accepts only the existing imageWatermark convert driver with
 optimize=true; other drivers remain rejected. Normalize/freeze its text, color,
-background, font, spacing and size ratio. Compose before the final WebP encode,
+background, font, spacing and size ratio. Compose before the final JPEG quality 95 encode for the new policy,
 using only lossless intermediate pixels. Previews derive from the saved full file.
 Ordinary Upload keeps its output format and records the same watermark identity.
 
 Content properties persist watermark provenance alongside the unchanged
-publication-webp-v1 optimization receipt. A required marked resave cannot reuse an
+versioned publication image receipt. A required marked resave cannot reuse an
 unmarked optimized result. The normal content-resave queue freezes the driver;
 replacement admission hashes/freezes it too and rendering requires matching
 marked mappings. No new queue, model or migration is introduced.
@@ -63,3 +63,36 @@ Verified on 2026-10-23:
 
 Deploy GeeSome first, then Microwave Girls. No migration is required. Start a fresh
 rebuild for completed old unmarked sites; accepted old jobs keep their receipts.
+
+## JPEG originals and WebP previews (#1408)
+
+New Microwave Girls imports/rebuilds explicitly request
+`imagePolicy: publication-jpeg95-v1` with optimize=true. Full images use JPEG
+quality 95, 4:4:4 chroma sampling for colored watermark text, and a white
+background for transparency; the existing WebP preview encoder stays unchanged.
+File suffix, MIME, Content metadata, generated site and archive use JPEG.
+
+Bare optimize=true retains publication-webp-v1 for old clients and already
+accepted jobs. Capabilities advertise both imagePolicies; new Generation imports
+and replacement admissions require JPEG support before sending files or creating
+receipts. Existing jobs without a saved policy continue WebP. There is no PNG
+policy: the user's final choice supersedes the earlier PNG proposal.
+
+Content properties retain receipts per policy while preserving the legacy
+publicationImage field. A WebP result cannot satisfy a JPEG request; switching
+format runs once, then subsequent JPEG rebuilds retain the CID. The old WebP
+receipt remains addressable for accepted legacy work while its content is still
+retained. Converting an existing WebP to JPEG does not recover lost original
+detail. Automatic retirement keeps its existing cutover/reference protections.
+No schema migration or new queue is needed. Final verification is recorded in
+the delivery PR and companion publication workflow.
+
+JPEG delivery verification (2026-10-23): 30 PostgreSQL/Kubo/parser/driver tests
+passed, including actual JPEG MIME/suffix/bytes, 4:4:4 chroma, white transparency
+background, WebP previews, watermark retention, separate WebP/JPEG receipts,
+stable JPEG CIDs on repeated resaves, real multipart JPEG import and archive
+entries containing .jpg originals plus .webp previews. Security route inventory
+and full apiDoc smoke passed. Companion tests: 21 gateway/preparation tests,
+71 membership tests, three PostgreSQL scenarios and four browser publication
+cases passed. All 30 mapped desktop/narrow captures were reviewed. The browser
+provider is mocked; actual encoded bytes were checked in the Kubo tests.

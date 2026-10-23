@@ -89,6 +89,64 @@ describe('persisted image saving and local site retirement', function () {
         assert.equal((await app.ms.content.requestResave(user.id, upload.id, null, driver)).status, 'completed');
     });
 
+    it('publishes JPEG quality 95 originals with WebP previews while preserving legacy receipts', async () => {
+        const jpegPolicy = 'publication-jpeg95-v1';
+        const driver = watermarkDriver({name: 'imageWatermark', module: 'convert', params: {
+            text: 'eraofwave.com', color: '#874ee6', background: 'black', font: 'monospace', spacing: 50, sizeRatio: 1 / 50}});
+        const bytes = await sharp({create: {width: 1200, height: 1600, channels: 3, background: '#789abc'}}).png().toBuffer();
+        const source = await app.ms.content.saveData(user.id, bytes, 'source.png', {waitForPin: true});
+        const legacy = await app.ms.content.requestResave(user.id, source.id, null, driver);
+        await app.ms.content.processResaveQueue();
+        const webp = (await app.ms.content.requestResave(user.id, source.id, null, driver)).content;
+        assert.equal(webp.extension, 'webp');
+        const accepted = await app.ms.content.requestResave(user.id, source.id, null, driver, jpegPolicy);
+        assert.equal(accepted.status, 'queued', 'a cached WebP cannot satisfy JPEG');
+        assert.notEqual(accepted.id, legacy.id);
+        await app.ms.content.processResaveQueue();
+        const jpeg = (await app.ms.content.requestResave(user.id, source.id, null, driver, jpegPolicy)).content;
+        assert.equal(jpeg.extension, 'jpg');
+        assert.equal(jpeg.mimeType, 'image/jpeg');
+        assert.equal(jpeg.previewExtension, 'webp');
+        assert.ok(jpeg.name.endsWith('.jpg'));
+        const full = Buffer.from((await app.ms.storage.getFileData(jpeg.storageId)).slice());
+        const metadata = await sharp(full).metadata();
+        assert.equal(metadata.format, 'jpeg');
+        assert.equal(metadata.chromaSubsampling, '4:4:4');
+        assert.equal(metadata.height, 1664);
+        assert.equal(await hasWatermarkBand(full, 1200, 1664, driver.params), true);
+        assert.equal((await sharp(Buffer.from((await app.ms.storage.getFileData(jpeg.mediumPreviewStorageId)).slice())).metadata()).format, 'webp');
+        for (const id of [source.id, jpeg.id]) {
+            assert.equal((await app.ms.content.requestResave(user.id, id, null, driver, jpegPolicy)).content.storageId, jpeg.storageId);
+        }
+        assert.equal((await app.ms.content.requestResave(user.id, source.id, null, driver)).content.storageId, webp.storageId,
+            'legacy receipt is still usable after JPEG conversion');
+        const service = app.ms.staticSiteGenerator.replacements;
+        const receipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), contentIds: [source.id], driver, imagePolicy: jpegPolicy});
+        const site = await app.ms.staticSiteGenerator.generateContentListSite(user.id,
+            {entityType: 'content-list', entityIds: [source.id]}, {replacementId: receipt.id, archive: true,
+                site: {name: `jpeg_${randomUUID().replace(/-/g, '')}`, title: 'JPEG'}});
+        assert.deepEqual((await readSiteData(app.ms.storage, site.storageId)).contents.map(c => c.storageId), [jpeg.storageId]);
+        await app.ms.archive.requestArchive(user.id, site.storageId);
+        await app.ms.archive.processQueue();
+        const archive = await app.ms.archive.getArchive(site.storageId);
+        const archived = await readArchive(Buffer.from((await app.ms.storage.getFileData(archive.archivedStorageId)).slice()));
+        assert.ok([...archived.keys()].some(name => name.endsWith('.jpg')), 'archive contains JPEG originals');
+        assert.ok([...archived.keys()].some(name => name.endsWith('.webp')), 'archive contains WebP previews');
+        const form = new FormData();
+        form.append('file', new Blob([bytes], {type: 'image/png'}), 'generation.png');
+        form.append('optimize', 'true');
+        form.append('imagePolicy', jpegPolicy);
+        form.append('driver', JSON.stringify(driver));
+        const token = await app.generateUserApiKey(user.id, {});
+        const response = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-file`,
+            {method: 'POST', headers: {Authorization: `Bearer ${token}`}, body: form});
+        assert.equal(response.status, 200);
+        const uploaded = await response.json();
+        assert.equal(uploaded.extension, 'jpg');
+        assert.equal(uploaded.mimeType, 'image/jpeg');
+        assert.equal(uploaded.previewExtension, 'webp');
+    });
+
     for (const mode of ['remove', 'keep', 'shared']) {
     it(`${mode}: resaves through the normal queue, publishes WebP, and collects the old archive/site/images locally`, async () => {
         const png = await sharp({create: {width: 1200, height: 1600, channels: 3, background: `#${randomUUID().replace(/-/g, '').slice(0, 6)}`}}).png().toBuffer();
@@ -444,7 +502,7 @@ describe('persisted image saving and local site retirement', function () {
         const headers = {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'};
         const caps = await fetch(`${origin}/user/image-optimization/capabilities`, {headers});
         assert.equal(caps.status, 200);
-        assert.deepEqual(await caps.json(), {contract: 1, policy: 'publication-webp-v1', resave: true, watermark: true, retirement: true});
+        assert.deepEqual(await caps.json(), {contract: 1, policy: 'publication-jpeg95-v1', imagePolicies: ['publication-webp-v1', 'publication-jpeg95-v1'], resave: true, watermark: true, retirement: true});
         const png = await sharp({create: {width: 40, height: 60, channels: 3, background: '#123abc'}}).png().toBuffer();
         const content = await app.ms.content.saveData(user.id, png, 'http-contract.png', {optimize: true, waitForPin: true});
         const body = {requestKey: randomUUID(), contentIds: [content.id], deleteReplacedFiles: false};
