@@ -21,8 +21,8 @@ credential material are never returned.
 | `asset_batch_incomplete` | 409 | One or more declared batch items still require upload. |
 | `operation_not_found` | 404 | The operation does not exist or is not visible to this owner. |
 | `internal_error` | 500 | The request failed without exposing implementation details. |
-| `storage_busy` | 503 | No storage-lock connection became available within the bounded acquisition timeout. The POST handler has not run; retry after a delay. This does not indicate GC. |
-| `storage_maintenance_busy` | 503 | An exclusive storage fence prevents this POST from running. The POST handler has not run; retry the same request/key after a delay. GET polling remains available. |
+| `storage_busy` | 503 | No storage-lock connection became available within the bounded acquisition timeout. The POST handler has not run; retry after the `Retry-After: 2` delay without spending the terminal failure budget. This does not indicate GC. |
+| `storage_maintenance_busy` | 503 | An exclusive storage fence prevents this POST from running. The POST handler has not run; retry the same request/key after the `Retry-After: 2` delay. GET and audited read-only POST status/catalog polling remain available. |
 
 Clients should branch on `status` and `code`, log `requestId`, and treat all
 other fields as explanatory or forward-compatible extensions.
