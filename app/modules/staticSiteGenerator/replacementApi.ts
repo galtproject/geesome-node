@@ -20,10 +20,10 @@ export default function (app, service) {
      * @apiName SiteReplacementCreate
      * @apiGroup StaticSiteGenerator
      * @apiUse ApiKey
-     * @apiDescription Records an owned publication/source snapshot before resaving. This does not create an optimization batch: resave each file through user/save-data with sourceContentId and optimize=true, using the existing operation queue. Requires content:write; deleteReplacedFiles additionally requires storage:retire. Replays reuse the owner/requestKey receipt; changed requests conflict.
+     * @apiDescription Records an owned publication/source snapshot before resaving. This does not create an optimization batch: resave each file through user/save-data with sourceContentId and the same imageOptimize driver (legacy optimize=true remains accepted), using the existing operation queue. Requires content:write; deleteReplacedFiles additionally requires storage:retire. Replays reuse the owner/requestKey receipt; changed requests conflict.
      * @apiBody {String} requestKey Stable caller identity, up to 200 characters.
+     * @apiBody {Object} [driver] imageOptimize convert driver with params.policy and optional params.watermark; normalized and frozen with this replacement. Legacy imageWatermark drivers remain accepted.
      * @apiBody {String} [imagePolicy=publication-webp-v1] Frozen saving policy, including publication-jpeg95-v1 for JPEG originals with WebP previews.
-     * @apiBody {Object} [driver] imageWatermark convert driver. Frozen with the replacement; renderer requires matching marked renditions.
      * @apiBody {Number[]} contentIds Ordered owned image IDs, 1..1000, no duplicates. For a previous site, keep the first occurrence of each ID; all old entries must still match the owned source CIDs.
      * @apiBody {String} [previousSiteStorageId] Exact replaced site CID.
      * @apiBody {Number} [postId] Existing owned membership publication, required with a previous site.

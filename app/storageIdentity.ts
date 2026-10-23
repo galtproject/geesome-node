@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import ipfsHelper from 'geesome-libs/src/ipfsHelper.js';
-import {problem} from './modules/content/publicationImagePolicy.js';
+import {problem} from './modules/content/publicationInput.js';
 export const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export const plain = row => typeof row?.toJSON === 'function' ? row.toJSON() : row;
 export function normalizeStorageId(value) {

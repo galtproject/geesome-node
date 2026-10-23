@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
 import {Readable} from 'node:stream';
-import {watermarkDriver, addWatermark} from '../app/modules/content/imageWatermark.js';
-import {encodePublicationImage} from '../app/modules/content/publicationImagePolicy.js';
+import {watermarkDriver, addWatermark} from '../app/modules/drivers/convert/imageWatermarkHelpers.js';
+import {encodePublicationImage} from '../app/modules/drivers/convert/imageOptimize.js';
 import {ImageWatermarkDriver} from '../app/modules/drivers/convert/imageWatermark.js';
 
 describe('optimized publication watermark strip', () => {

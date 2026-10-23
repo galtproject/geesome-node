@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import {Readable} from 'node:stream';
 import sharp from 'sharp';
-import {encodePublicationImage, contentIds} from '../app/modules/content/publicationImagePolicy.js';
+import {contentIds} from '../app/modules/content/publicationInput.js';
 import {ImagePreviewDriver} from '../app/modules/drivers/preview/image.js';
-import {ImageOptimizeDriver} from '../app/modules/drivers/convert/imageOptimize.js';
+import {ImageOptimizeDriver, encodePublicationImage, optimizationRequest} from '../app/modules/drivers/convert/imageOptimize.js';
 import {createApp} from '../app/modules/staticSiteGenerator/site/public/index.js';
 import {renderToString} from 'vue/server-renderer';
 import {load} from 'cheerio';
@@ -18,6 +18,17 @@ async function bytes(stream) {
 
 describe('image optimization saving policy', function () {
     this.timeout(15000);
+    it('normalizes new drivers and legacy flags to one profile and rejects conflicting instructions', () => {
+        const driver = {name: 'imageOptimize', module: 'convert', params: {policy: 'publication-jpeg95-v1'}};
+        assert.deepEqual(optimizationRequest(driver), optimizationRequest(null, 'publication-jpeg95-v1', true));
+        assert.deepEqual(optimizationRequest(JSON.stringify(driver)), {policy: 'publication-jpeg95-v1', watermark: null});
+        assert.equal(optimizationRequest(null), null);
+        assert.throws(() => optimizationRequest(driver, 'publication-webp-v1'), /policy conflict/);
+        assert.throws(() => optimizationRequest(driver, undefined, false), /driver conflict/);
+        assert.throws(() => optimizationRequest({...driver, module: 'upload'}), /driver conflict/);
+        assert.throws(() => optimizationRequest({...driver, params: {policy: 'unknown'}}), /policy invalid/);
+    });
+
     it('creates a full-resolution WebP and smaller WebP preview from a PNG', async () => {
         const png = await sharp({create: {width: 1344, height: 1920, channels: 3, background: '#bc798f'}})
             .composite([{input: Buffer.from('<svg width="1344" height="1920"><path d="M1 1L1340 1910" stroke="black" stroke-width="4"/></svg>')}]).png().toBuffer();
@@ -51,7 +62,7 @@ describe('image optimization saving policy', function () {
 
     it('keeps alpha and never enlarges small previews', async () => {
         const png = await sharp({create: {width: 40, height: 60, channels: 4, background: {r: 100, g: 25, b: 80, alpha: 0.3}}}).png().toBuffer();
-        const full = await encodePublicationImage(Readable.from([png]));
+        const full = await encodePublicationImage(Readable.from([png]), null, false, 'publication-webp-v1');
         assert.equal((await sharp(full.bytes).metadata()).hasAlpha, true);
         for (const size of ['small', 'medium', 'large']) {
             const preview = await new ImagePreviewDriver().processByStream(Readable.from([png]), {size});

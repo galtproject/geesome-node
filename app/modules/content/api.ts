@@ -1,3 +1,4 @@
+import {optimizationRequest} from '../drivers/convert/imageOptimize.js';
 import _ from 'lodash';
 import debug from 'debug';
 import {CorePermissionName, UserLimitName} from "../database/interface.js";
@@ -28,8 +29,9 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @api {post} /v1/user/save-file Save file
      * @apiDescription Store file from browser by FormData class in "file" field. Other fields can be stored as key value.
      * @apiName UserSaveFile
-     * @apiBody {String} [imagePolicy=publication-webp-v1] Use publication-jpeg95-v1 for JPEG quality 95 originals and WebP previews; legacy default preserves accepted clients. Requires optimize=true.
-     * @apiBody {Boolean} [optimize=false] Encode the uploaded image with the selected imagePolicy plus WebP previews. May be combined with the imageWatermark convert driver.
+     * @apiBody {String} [imagePolicy=publication-webp-v1] Use publication-jpeg95-v1 for JPEG quality 95 originals and WebP previews; legacy default preserves accepted clients. Legacy alternative to driver.params.policy.
+     * @apiBody {Object} [driver] Use {name:"imageOptimize",module:"convert",params:{policy:"publication-jpeg95-v1",watermark:optionalImageWatermarkDriver}}. Saves JPEG quality 95 plus WebP previews without separate flags.
+     * @apiBody {Boolean} [optimize=false] Encode the uploaded image with the selected imagePolicy plus WebP previews. Legacy alternative to the imageOptimize convert driver.
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
@@ -77,16 +79,17 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
 
     /**
      * @api {post} /v1/user/save-data Save data
-     * @apiDescription Store data (string or buffer), or resave an owned image by sourceContentId with optimize=true. Resaves reuse the existing operation queue and return its receipt, or a completed saved Content. Poll ordinary operation endpoints. Requires content:write for resaving.
+     * @apiDescription Store data (string or buffer), or resave an owned image by sourceContentId with an imageOptimize driver (legacy optimize=true remains accepted). Resaves reuse the existing operation queue and return its receipt, or a completed saved Content. Poll ordinary operation endpoints. Requires content:write for resaving.
      * @apiName UserSaveData
-     * @apiBody {String} [imagePolicy=publication-webp-v1] Use publication-jpeg95-v1 for JPEG quality 95 originals and WebP previews; legacy default preserves accepted clients. Requires optimize=true.
+     * @apiBody {String} [imagePolicy=publication-webp-v1] Use publication-jpeg95-v1 for JPEG quality 95 originals and WebP previews; legacy default preserves accepted clients. Legacy alternative to driver.params.policy.
+     * @apiBody {Object} [driver] Use {name:"imageOptimize",module:"convert",params:{policy:"publication-jpeg95-v1",watermark:optionalImageWatermarkDriver}}. Saves JPEG quality 95 plus WebP previews without separate flags.
      * @apiBody {Boolean} [optimize=false] Encode the selected full-image format and WebP previews through the save pipeline.
-     * @apiBody {Number} [sourceContentId] Existing owned image to resave, instead of content; requires optimize=true. Optional imageWatermark driver is frozen in the queue; marked renditions are reused only when they satisfy that watermark.
+     * @apiBody {Number} [sourceContentId] Existing owned image to resave, instead of content; requires an imageOptimize driver or legacy optimize=true. Optional driver watermark is frozen in the queue; marked renditions are reused only when they satisfy that watermark.
      * @apiSuccess {String} [status] queued or completed for sourceContentId resaves.
      * @apiSuccess {Number} [id] Existing operation-queue ID when queued.
      * @apiSuccess {Number} [asyncOperationId] Existing operation ID when assigned.
      * @apiSuccess {Object} [content] Saved optimized Content when already completed.
-     * @apiError content_resave_input_invalid Conflicting content/sourceContentId or missing optimize=true.
+     * @apiError content_resave_input_invalid Conflicting content/sourceContentId or missing optimization driver/flag.
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
@@ -112,8 +115,8 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
         };
 
         if (req.body.sourceContentId !== undefined) {
-            if (req.body.content !== undefined || req.body.optimize !== true) {
-                throw new ApiProblemError(400, 'content_resave_input_invalid', 'Supply sourceContentId and optimize=true without content');
+            if (req.body.content !== undefined || !optimizationRequest(req.body.driver, req.body.imagePolicy, req.body.optimize)) {
+                throw new ApiProblemError(400, 'content_resave_input_invalid', 'Supply sourceContentId and an imageOptimize driver (or optimize=true) without content');
             }
             app.checkModules(['content']);
             return res.send(await app.ms.content['requestResave'](req.user.id, req.body.sourceContentId, req.apiKey.id, req.body.driver, req.body.imagePolicy), 202);

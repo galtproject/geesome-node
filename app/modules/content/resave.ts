@@ -1,7 +1,8 @@
 import {CorePermissionName} from '../database/interface.js';
 import {requireIntegrationScopes} from '../api/integrationScopes.js';
-import {watermarkDriver, watermarkIdentity} from './imageWatermark.js';
-import {policy, legacyPolicy, imagePolicy, imageFormat, contentIds, problem} from './publicationImagePolicy.js';
+import {watermarkIdentity} from '../drivers/convert/imageWatermarkHelpers.js';
+import {policy, legacyPolicy, imagePolicy, imageFormat, optimizationRequest} from '../drivers/convert/imageOptimize.js';
+import {contentIds, problem} from './publicationInput.js';
 import {plain, sameCid} from '../../storageIdentity.js';
 import {withStorageFence, withStorageWorker} from '../../storageLifecycle.js';
 
@@ -71,9 +72,10 @@ export class ContentResave {
         }
         return content;
     }
-    async requestResave(userId, sourceContentId, apiKeyId = null, driver = null, selectedPolicy = legacyPolicy) {
-        selectedPolicy = imagePolicy(selectedPolicy);
-        driver = watermarkDriver(driver);
+    async requestResave(userId, sourceContentId, apiKeyId = null, driver = null, selectedPolicy = undefined) {
+        const optimization = optimizationRequest(driver, selectedPolicy, true);
+        selectedPolicy = optimization.policy;
+        driver = optimization.watermark;
         await this.authorize(userId, apiKeyId);
         contentIds([sourceContentId]);
         return withStorageFence(this.app, 'shared', async () => {

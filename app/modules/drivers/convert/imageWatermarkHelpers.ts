@@ -1,6 +1,6 @@
 import sharp from 'sharp';
-import {digest} from '../../storageIdentity.js';
-import {ApiProblemError} from '../api/problem.js';
+import {digest} from '../../../storageIdentity.js';
+import {ApiProblemError} from '../../api/problem.js';
 
 export function watermarkDriver(value) {
     if (!value) {

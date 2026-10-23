@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-import {watermarkDriver} from '../app/modules/content/imageWatermark.js';
+import {watermarkDriver} from '../app/modules/drivers/convert/imageWatermarkHelpers.js';
 import {QueryTypes} from 'sequelize';
 import {withStorageFence, withStorageTaskLock, withStorageWorker} from '../app/storageLifecycle.js';
 import {collectRetiredBlocks} from '../app/modules/storageSpace/siteRetirement.js';
@@ -110,17 +110,18 @@ describe('persisted image saving and local site retirement', function () {
         const jpegPolicy = 'publication-jpeg95-v1';
         const driver = watermarkDriver({name: 'imageWatermark', module: 'convert', params: {
             text: 'eraofwave.com', color: '#874ee6', background: 'black', font: 'monospace', spacing: 50, sizeRatio: 1 / 50}});
+        const optimizeDriver = {name: 'imageOptimize', module: 'convert', params: {policy: jpegPolicy, watermark: driver}};
         const bytes = await sharp({create: {width: 1200, height: 1600, channels: 3, background: '#789abc'}}).png().toBuffer();
         const source = await app.ms.content.saveData(user.id, bytes, 'source.png', {waitForPin: true});
         const legacy = await app.ms.content.requestResave(user.id, source.id, null, driver);
         await app.ms.content.processResaveQueue();
         const webp = (await app.ms.content.requestResave(user.id, source.id, null, driver)).content;
         assert.equal(webp.extension, 'webp');
-        const accepted = await app.ms.content.requestResave(user.id, source.id, null, driver, jpegPolicy);
+        const accepted = await app.ms.content.requestResave(user.id, source.id, null, optimizeDriver);
         assert.equal(accepted.status, 'queued', 'a cached WebP cannot satisfy JPEG');
         assert.notEqual(accepted.id, legacy.id);
         await app.ms.content.processResaveQueue();
-        const jpeg = (await app.ms.content.requestResave(user.id, source.id, null, driver, jpegPolicy)).content;
+        const jpeg = (await app.ms.content.requestResave(user.id, source.id, null, optimizeDriver)).content;
         assert.equal(jpeg.extension, 'jpg');
         assert.equal(jpeg.mimeType, 'image/jpeg');
         assert.equal(jpeg.previewExtension, 'webp');
@@ -138,7 +139,10 @@ describe('persisted image saving and local site retirement', function () {
         assert.equal((await app.ms.content.requestResave(user.id, source.id, null, driver)).content.storageId, webp.storageId,
             'legacy receipt is still usable after JPEG conversion');
         const service = app.ms.staticSiteGenerator.replacements;
-        const receipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), contentIds: [source.id], driver, imagePolicy: jpegPolicy});
+        const replacementRequest = {requestKey: randomUUID(), contentIds: [source.id], driver: optimizeDriver};
+        const receipt = await service.requestReplacement(user.id, replacementRequest);
+        assert.equal((await service.requestReplacement(user.id, {...replacementRequest, driver, imagePolicy: jpegPolicy})).id, receipt.id,
+            'equivalent legacy and driver envelopes reuse the same replacement receipt');
         const site = await app.ms.staticSiteGenerator.generateContentListSite(user.id,
             {entityType: 'content-list', entityIds: [source.id]}, {replacementId: receipt.id, archive: true,
                 site: {name: `jpeg_${randomUUID().replace(/-/g, '')}`, title: 'JPEG'}});
@@ -151,9 +155,7 @@ describe('persisted image saving and local site retirement', function () {
         assert.ok([...archived.keys()].some(name => name.endsWith('.webp')), 'archive contains WebP previews');
         const form = new FormData();
         form.append('file', new Blob([bytes], {type: 'image/png'}), 'generation.png');
-        form.append('optimize', 'true');
-        form.append('imagePolicy', jpegPolicy);
-        form.append('driver', JSON.stringify(driver));
+        form.append('driver', JSON.stringify(optimizeDriver));
         const token = await app.generateUserApiKey(user.id, {});
         const response = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-file`,
             {method: 'POST', headers: {Authorization: `Bearer ${token}`}, body: form});
@@ -162,6 +164,11 @@ describe('persisted image saving and local site retirement', function () {
         assert.equal(uploaded.extension, 'jpg');
         assert.equal(uploaded.mimeType, 'image/jpeg');
         assert.equal(uploaded.previewExtension, 'webp');
+        const resaved = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-data`, {method: 'POST',
+            headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+            body: JSON.stringify({sourceContentId: uploaded.id, driver: optimizeDriver})});
+        assert.equal(resaved.status, 202);
+        assert.equal((await resaved.json()).content.storageId, uploaded.storageId, 'driver-only API resave reuses Content');
     });
 
     for (const mode of ['remove', 'keep', 'shared']) {
@@ -519,7 +526,7 @@ describe('persisted image saving and local site retirement', function () {
         const headers = {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'};
         const caps = await fetch(`${origin}/user/image-optimization/capabilities`, {headers});
         assert.equal(caps.status, 200);
-        assert.deepEqual(await caps.json(), {contract: 1, policy: 'publication-jpeg95-v1', imagePolicies: ['publication-webp-v1', 'publication-jpeg95-v1'], resave: true, watermark: true, retirement: true});
+        assert.deepEqual(await caps.json(), {contract: 1, policy: 'publication-jpeg95-v1', imagePolicies: ['publication-webp-v1', 'publication-jpeg95-v1'], resave: true, watermark: true, imageOptimizeDriver: true, retirement: true});
         const png = await sharp({create: {width: 40, height: 60, channels: 3, background: '#123abc'}}).png().toBuffer();
         const content = await app.ms.content.saveData(user.id, png, 'http-contract.png', {optimize: true, waitForPin: true});
         const body = {requestKey: randomUUID(), contentIds: [content.id], deleteReplacedFiles: false};

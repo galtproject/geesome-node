@@ -1,8 +1,8 @@
-import {watermarkDriver} from '../content/imageWatermark.js';
 import {imageSourceSnapshot} from '../content/resave.js';
 import {randomUUID} from 'node:crypto';
 import {Op} from 'sequelize';
-import {imagePolicy, contentIds, problem, requestKey} from '../content/publicationImagePolicy.js';
+import {imagePolicy, optimizationRequest} from '../drivers/convert/imageOptimize.js';
+import {contentIds, problem, requestKey} from '../content/publicationInput.js';
 import {withStorageFence, withStorageTaskLock} from '../../storageLifecycle.js';
 import {digest, normalizeStorageId, variants, sameCid} from '../../storageIdentity.js';
 import {pageCid, readSiteData} from './siteData.js';
@@ -41,12 +41,13 @@ export class SiteReplacements {
 
     async requestReplacement(userId, input, apiKeyId = null) {
         const ids = contentIds(input.contentIds);
-        const driver = watermarkDriver(input.driver);
+        const optimization = optimizationRequest(input.driver, input.imagePolicy, true);
+        const driver = optimization.watermark;
         const key = requestKey(input.requestKey);
         if (input.deleteReplacedFiles !== undefined && typeof input.deleteReplacedFiles !== 'boolean') {
             problem('image_replacement_cleanup_flag_invalid', 400);
         }
-        const request = {contentIds: ids, ...(input.imagePolicy !== undefined ? {imagePolicy: imagePolicy(input.imagePolicy)} : {}), ...(driver ? {driver} : {}), previousSiteStorageId: input.previousSiteStorageId
+        const request = {contentIds: ids, ...(input.imagePolicy !== undefined || optimization.policy !== imagePolicy() ? {imagePolicy: optimization.policy} : {}), ...(driver ? {driver} : {}), previousSiteStorageId: input.previousSiteStorageId
             ? normalizeStorageId(input.previousSiteStorageId) : null,
             postId: input.postId ? Number(input.postId) : null, deleteReplacedFiles: input.deleteReplacedFiles === true};
         await this.authorize(userId, apiKeyId, request.deleteReplacedFiles);

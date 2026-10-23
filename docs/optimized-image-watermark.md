@@ -108,3 +108,37 @@ Verification: 30 Docker PostgreSQL/Kubo/parser/driver tests passed, including
 legacy marked Upload without provenance/driver, explicit repair, stable repeated
 CID, JPEG/WebP encoding, archive/site mapping and retirement regressions. Four
 host encoder tests also passed after the helper rename to `addWatermark`.
+
+## Driver-owned image optimization plan (2026-10-23)
+
+1. Move encoder/profile selection into imageOptimize; keep publication input/queue validation separate.
+2. New clients send only the existing driver envelope with params.policy and optional params.watermark.
+3. Normalize legacy optimize/imagePolicy requests at admission; freeze the same canonical policy/watermark receipts, preserving accepted jobs and stable Content reuse.
+4. Require explicit driver capability before new client submissions. Keep the three historical watermark exceptions and automatic retirement unchanged.
+5. Verify direct driver upload/resave/replacement, legacy compatibility, repeated CID reuse, client imports/preparation and Docker publication. Commit/push both repositories; do not deploy production.
+
+Driver-owned implementation: encoder/profile constants now live in
+`app/modules/drivers/convert/imageOptimize.ts`; watermark composition helpers live
+beside the convert drivers. The former content/publicationImagePolicy module is
+removed. Content/publicationInput contains only publication request validation.
+
+New save-file/save-data/site-replacement requests use:
+
+```json
+{"driver":{"name":"imageOptimize","module":"convert","params":{"policy":"publication-jpeg95-v1"}}}
+```
+
+Optional `params.watermark` is the existing imageWatermark driver envelope.
+No separate optimize/imagePolicy is needed. Conflicting old fields/profile or
+optimize=false are rejected. Old flags/profile requests normalize to the same
+policy/watermark; queue snapshots and Content receipts keep their existing shape.
+Capability `imageOptimizeDriver: true` gates new clients. The two immutable profile
+identifiers remain versioned so changing the encoder never silently invalidates
+accepted work or reuses the wrong rendition. No migration or new queue/model.
+
+Verification of driver contract: 36 Docker PostgreSQL/Kubo/parser/driver tests
+passed, plus an additional final real JPEG replacement replay proving legacy
+fields and driver-only envelopes resolve to the same request-key receipt.
+Ten host codec/unit tests, route inventory generation/check and full apiDoc parse
+passed. Direct multipart driver upload and sourceContentId driver-only HTTP resave
+reuse the expected Content; JPEG archive entries and old policy receipts remain valid.

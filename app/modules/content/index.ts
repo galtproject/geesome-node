@@ -1,6 +1,6 @@
 import fs from "fs";
-import {watermarkDriver, watermarkIdentity, watermarkProperties} from './imageWatermark.js';
-import {imagePolicy, imageFormat} from './publicationImagePolicy.js';
+import {watermarkIdentity, watermarkProperties} from '../drivers/convert/imageWatermarkHelpers.js';
+import {imagePolicy, imageFormat, optimizationRequest} from '../drivers/convert/imageOptimize.js';
 import {ContentResave} from './resave.js';
 import _ from 'lodash';
 import mime from 'mime';
@@ -811,13 +811,12 @@ function getModule(app: IGeesomeApp) {
 
 		async saveData(userId: number, dataToSave, fileName, options: { view?, driver?, previews?: {content, mimeType, previewSize, driver?}[], apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties?, forceNewContentEntity?: boolean, requirePreview?: boolean, skipFileCatalog?: boolean, chatAttachmentReservationId?: string, optimize?: boolean | string, imagePolicy?: string } = {}) {
 			log('saveData');
-			if (options.optimize !== undefined && ![true, false, 'true', 'false'].includes(options.optimize)) {
-				throw new ApiProblemError(400, 'image_optimization_flag_invalid', 'Invalid optimization flag');
-			}
-			if (options.optimize === true || options.optimize === 'true') {
-				const watermark = watermarkDriver(options.driver);
+			const optimization = optimizationRequest(options.driver, options.imagePolicy, options.optimize);
+			if (optimization) {
+				const watermark = optimization.watermark;
 				const watermarkApplied = Boolean(watermark && options.properties?.imageWatermark?.identity === watermarkIdentity(watermark));
-				options = {...options, driver: {name: 'imageOptimize', module: 'convert', params: {watermark, watermarkApplied, imagePolicy: imagePolicy(options.imagePolicy)}},
+				options = {...options, optimize: true, imagePolicy: optimization.policy,
+					driver: {name: 'imageOptimize', module: 'convert', params: {watermark, watermarkApplied, policy: optimization.policy}},
 					properties: {...options.properties, ...watermarkProperties(watermark)}, requirePreview: true};
 			}
 

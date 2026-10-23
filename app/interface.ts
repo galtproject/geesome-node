@@ -162,9 +162,9 @@ export interface IUserAuthMessageResponse {
 }
 
 export interface IContentInput {
-  /** Use the publication image pipeline, with WebP previews. */
+  /** Legacy optimization flag; prefer the imageOptimize convert driver. */
   optimize?: boolean;
-  /** Explicit full-image policy; omitted values retain legacy WebP compatibility. */
+  /** Legacy profile field; new clients use imageOptimize driver params.policy. */
   imagePolicy?: 'publication-webp-v1' | 'publication-jpeg95-v1';
   /**
    * Bind content to specific group
