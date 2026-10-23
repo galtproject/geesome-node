@@ -12,6 +12,17 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Static-Site Media Folders (#1410)
+
+Newly generated galleries and group sites put originals in root `content/` and
+previews in root `preview/`. Gallery backgrounds use preview paths while full
+images, video sources and the image viewer keep original paths. Numeric names
+and content identifiers are unchanged. Published IPFS roots are immutable;
+existing sites need rebuilding to receive the new layout.
+
+Verification covers rendered mixed-format URLs, real JPEG/WebP archive entries,
+and extracted gallery navigation on desktop/mobile `file://` and HTTP.
+
 ## Image Saving And Local IPFS Retirement
 
 The [implementation contract](./image-optimization-retirement-plan.md) uses the

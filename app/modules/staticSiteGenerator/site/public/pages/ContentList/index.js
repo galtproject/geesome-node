@@ -15,6 +15,9 @@ export default {
         contentRoot() {
             return getRelativeRoot(this.$route.path) + 'content/';
         },
+        previewRoot() {
+            return getRelativeRoot(this.$route.path) + 'preview/';
+        },
     },
     methods: {
       openMedia(imageIndex) {
@@ -36,7 +39,7 @@ export default {
           <div 
               v-for="(c, index) in contents" 
               :class="['content-item', c.type]" 
-              :style='{"background-image": "url(" + contentRoot + (index + 1).toString() + "_" + c.previewStorageId + "." + (c.previewExtension || c.extension) + ")"}'
+              :style='{"background-image": "url(" + previewRoot + (index + 1).toString() + "_" + c.previewStorageId + "." + (c.previewExtension || c.extension) + ")"}'
               @click="openMedia(index)"
           >
             <p v-if="c.type === 'text' && c.view === 'contents'" v-html="c.text"></p>

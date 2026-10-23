@@ -155,8 +155,9 @@ describe('persisted image saving and local site retirement', function () {
         await app.ms.archive.processQueue();
         const archive = await app.ms.archive.getArchive(site.storageId);
         const archived = await readArchive(Buffer.from((await app.ms.storage.getFileData(archive.archivedStorageId)).slice()));
-        assert.ok([...archived.keys()].some(name => name.endsWith('.jpg')), 'archive contains JPEG originals');
-        assert.ok([...archived.keys()].some(name => name.endsWith('.webp')), 'archive contains WebP previews');
+        assert.ok([...archived.keys()].some(name => /\/content\/1_.*\.jpg$/.test(name)), 'originals live in content/');
+        assert.ok([...archived.keys()].some(name => /\/preview\/1_.*\.webp$/.test(name)), 'previews live in preview/');
+        assert.equal([...archived.keys()].some(name => /\/content\/.*\.webp$/.test(name)), false, 'previews are not mixed with originals');
         const form = new FormData();
         form.append('file', new Blob([bytes], {type: 'image/png'}), 'generation.png');
         form.append('driver', JSON.stringify(optimizeDriver));
