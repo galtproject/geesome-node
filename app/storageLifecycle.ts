@@ -45,10 +45,17 @@ export async function withStorageFence<T>(app, mode: 'shared' | 'exclusive', run
         return run(async () => undefined);
     }
     const pool = storageLockPool(app);
-    if (options.wait === false && pool.idleCount === 0 && pool.totalCount >= pool.options.max) {
-        problem('storage_maintenance_busy', 503);
+    // Pool capacity is unrelated to an exclusive GC fence. Queue behind shared
+    // writers within the pool's bounded acquisition timeout, then probe the lock.
+    let connection;
+    try {
+        connection = await pool.connect();
+    } catch (error) {
+        if (error.message === 'timeout exceeded when trying to connect') {
+            problem('storage_busy', 503);
+        }
+        throw error;
     }
-    const connection = await pool.connect();
     const suffix = mode === 'shared' ? '_shared' : '';
     let broken = false;
     const controller = new AbortController();

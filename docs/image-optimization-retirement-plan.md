@@ -6,6 +6,7 @@ User decisions: 22 October 2026. Implementation verified locally; merge/deployme
 ## Contents
 
 - [Offline archive behavior](#offline-archive-behavior)
+- [Parallel upload pool regression](#parallel-upload-pool-regression)
 - [Waiting during cleanup](#waiting-during-cleanup)
 - [Legacy duplicate images](#legacy-duplicate-images)
 - [Audit follow-up](#audit-follow-up--completed)
@@ -39,6 +40,35 @@ work over HTTP; generated screenshots/manifest remain ignored. See the module
 overview and npm run test:ssg-offline for reproduction. No schema migration or
 live deployment; existing immutable sites need a rebuild and a new archive download.
 
+## Parallel upload pool regression
+
+Follow-up #1398, 23 October 2026: Media admits ten concurrent uploads, but the
+four-connection storage-lock pool immediately rejected additional producers with
+storage_maintenance_busy even without GC. Production stacks identified the
+pool-capacity precheck, rather than the advisory-lock conflict branch. The earlier
+assumption that these upload failures proved cleanup was incorrect.
+
+Remove the immediate capacity rejection and use pg.Pool's existing bounded
+10-second acquisition wait. Actual advisory-lock conflicts still fail before the
+POST handler runs with storage_maintenance_busy. A pool acquisition timeout now
+returns storage_busy instead. Preserve the four-connection bound, the complete
+shared/exclusive storage safety lifetime and ten client submissions. No publisher
+or Media concurrency change, schema migration or production deployment.
+
+Real PostgreSQL/Kubo regressions hold all four shared connections, submit ten
+multipart async image uploads, release the holders and verify all ten operations
+persist content. A separate capacity-timeout check distinguishes storage_busy;
+the existing twenty-request exclusive-GC check verifies no rejected handlers run,
+GET polling remains available and the same request is accepted after release.
+The three focused tests passed. The broader run passed 23 checks; three proxy
+checks initially used the wrong API port. With the proxy's configured port 7772,
+all four asset integration tests passed on the same source snapshot (26 distinct
+checks green across these runs). apiDoc generation to a temporary directory,
+security route inventory verification and git diff --check also passed. Full
+repository tests and browser scenarios were not repeated for this backend-only
+change. The common API problem table and upload error definitions document the
+distinction.
+
 ## Waiting during cleanup
 
 Follow-up #1388 (22 October 2026): real repo/gc holds an exclusive storage fence
@@ -46,7 +76,7 @@ for minutes. New HTTP producers formerly occupied the bounded lock pool waiting
 for shared locks, timed out, and exhausted the publisher's real-failure budget.
 
 API POST entry points now request a nonblocking storage fence, returning 503
-storage_maintenance_busy before handler execution when the fence/pool is busy.
+storage_maintenance_busy before handler execution when an exclusive fence is busy.
 Internal producers retain blocking/reentrant fencing. The publisher recognizes
 only that explicit 503/code pair, preserves inputs/receipts and failure count,
 and schedules a retry in 10 seconds. GET status reads remain available; ambiguous

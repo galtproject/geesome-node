@@ -208,6 +208,85 @@ describe('persisted image saving and local site retirement', function () {
         }
     });
 
+    it('queues ten concurrent multipart uploads behind shared writers instead of reporting maintenance', async () => {
+        const origin = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
+        const token = await app.generateUserApiKey(user.id, {});
+        let unlock;
+        const release = new Promise<void>(resolve => { unlock = resolve; });
+        let held = 0, started;
+        const ready = new Promise<void>(resolve => { started = resolve; });
+        const writers = Array.from({length: 4}, () => withStorageFence(app, 'shared', async () => {
+            if (++held === 4) {
+                started();
+            }
+            await release;
+        }));
+        await ready;
+        let settled = 0;
+        const uploads = Array.from({length: 10}, async (_unused, index) => {
+            const png = await sharp({create: {width: 40, height: 60, channels: 3,
+                background: `#${randomUUID().replace(/-/g, '').slice(0, 6)}`}}).png().toBuffer();
+            const form = new FormData();
+            form.append('file', new Blob([png], {type: 'image/png'}), `parallel-${index}.png`);
+            form.append('async', 'true');
+            form.append('path', `/parallel-${randomUUID()}/${index}.png`);
+            return fetch(`${origin}/user/save-file`, {method: 'POST', headers: {Authorization: `Bearer ${token}`},
+                body: form, signal: AbortSignal.timeout(15000)}).finally(() => { settled++; });
+        });
+        try {
+            await new Promise(resolve => setTimeout(resolve, 300));
+            assert.equal(settled, 0, 'pool exhaustion waits rather than rejecting compatible writers');
+        } finally {
+            unlock();
+            await Promise.all(writers);
+        }
+        const responses = await Promise.all(uploads);
+        const receipts = await Promise.all(responses.map(async response => {
+            assert.equal(response.status, 200, await response.clone().text());
+            const receipt = await response.json();
+            assert.ok(receipt.asyncOperationId);
+            return receipt;
+        }));
+        assert.equal(new Set(receipts.map(receipt => receipt.asyncOperationId)).size, 10);
+        for (const receipt of receipts) {
+            let operation;
+            for (let attempt = 0; attempt < 100; attempt++) {
+                operation = await app.ms.asyncOperation.getUserAsyncOperation(receipt.asyncOperationId);
+                if (!operation.inProcess) {
+                    break;
+                }
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            assert.equal(operation.errorMessage, null);
+            assert.ok(operation.contentId, 'each accepted upload persisted content');
+        }
+    });
+
+    it('reports a bounded pool acquisition timeout separately from storage maintenance', async () => {
+        const origin = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
+        const token = await app.generateUserApiKey(user.id, {});
+        let unlock, started, held = 0;
+        const ready = new Promise<void>(resolve => { started = resolve; });
+        const release = new Promise<void>(resolve => { unlock = resolve; });
+        const writers = Array.from({length: 4}, () => withStorageFence(app, 'shared', async () => {
+            if (++held === 4) {
+                started();
+            }
+            await release;
+        }));
+        await ready;
+        try {
+            const response = await fetch(`${origin}/user/site-replacements`, {method: 'POST',
+                headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+                body: '{}', signal: AbortSignal.timeout(15000)});
+            assert.equal(response.status, 503);
+            assert.equal((await response.json()).code, 'storage_busy', 'capacity timeout does not claim GC is running');
+        } finally {
+            unlock();
+            await Promise.all(writers);
+        }
+    });
+
     it('rejects concurrent HTTP producers promptly during cleanup and accepts the same request after release', async () => {
         const origin = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
         const token = await app.generateUserApiKey(user.id, {scopes: ['content:write', 'operations:read']});
