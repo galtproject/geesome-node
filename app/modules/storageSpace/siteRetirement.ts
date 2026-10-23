@@ -1,7 +1,7 @@
 import {countStorageHolds, releaseStorageJobHolds, hasActiveSourceWork} from '../asyncOperation/storageHolds.js';
 import {properties} from '../content/resave.js';
+import {storageRpc, gcTimeoutMs} from '../storage/rpcDeadline.js';
 import {Op} from 'sequelize';
-import {storageFenceSignal} from '../../storageLifecycle.js';
 import {imageFiles, plain, sameCid, variants} from '../../storageIdentity.js';
 import {problem} from '../content/publicationInput.js';
 
@@ -81,7 +81,7 @@ export async function retireReplacement(service, row, assertHeld) {
                     problem('image_retirement_path_invalid');
                 }
                 try {
-                    const stat = await node.files.stat(path.path);
+                    const stat = await storageRpc('mfs_stat', {}, options => node.files.stat(path.path, options));
                     const cid = String(stat.cid || stat.hash);
                     if (!sameCid(cid, path.cid) || sameCid(cid, result.finalization.storageId)) {
                         oldSiteShared = true;
@@ -186,12 +186,12 @@ export async function retireReplacement(service, row, assertHeld) {
                         continue;
                     }
                     try {
-                        const stat = await node.files.stat(path.path);
+                        const stat = await storageRpc('mfs_stat', {}, options => node.files.stat(path.path, options));
                         if (!sameCid(String(stat.cid || stat.hash), candidate.storageId)) {
                             problem('image_retirement_mfs_root_changed');
                         }
                         await assertHeld();
-                        await node.files.rm(path.path, {recursive: true, signal: storageFenceSignal()});
+                        await storageRpc('mfs_remove', {recursive: true}, options => node.files.rm(path.path, options));
                         journal.paths.push({path: path.path, removed: true});
                         await save();
                     } catch (error) {
@@ -205,7 +205,7 @@ export async function retireReplacement(service, row, assertHeld) {
             for (const cid of variants(candidate.storageId)) {
                 try {
                     await assertHeld();
-                    await app.ms.storage.unPin(cid, {recursive: true, signal: storageFenceSignal()});
+                    await storageRpc('unpin', {recursive: true}, options => app.ms.storage.unPin(cid, options));
                 } catch (error) {
                     if (!absent(error)) {
                         throw error;
@@ -219,7 +219,7 @@ export async function retireReplacement(service, row, assertHeld) {
     const status = journal.candidates.some(candidate => candidate.unpinned) ? 'gc_pending'
         : journal.retained.length || journal.candidates.some(candidate => candidate.retained) ? 'complete_with_retained' : 'complete';
     await assertHeld();
-    await row.update({status, result, error: null});
+    await row.update({status, result: {...result, cleanupRetry: {failures: 0}}, error: null});
     return {deferred: false};
 }
 
@@ -257,16 +257,18 @@ export async function collectRetiredBlocks(service, rows, assertHeld) {
         }
         return;
     }
-    const before = await node.repo.stat();
     let collectedBlocks = 0;
-    for await (const item of node.repo.gc({signal: AbortSignal.any([AbortSignal.timeout(10 * 60 * 1000), storageFenceSignal()].filter(Boolean))})) {
-        if (item.err) {
-            throw new Error(String(item.err));
+    const {before, after} = await storageRpc('gc', {}, async options => {
+        const before = await node.repo.stat(options);
+        for await (const item of node.repo.gc(options)) {
+            if (item.err) {
+                throw new Error(String(item.err));
+            }
+            collectedBlocks++;
         }
-        collectedBlocks++;
-    }
-    await assertHeld();
-    const after = await node.repo.stat();
+        await assertHeld();
+        return {before, after: await node.repo.stat(options)};
+    }, gcTimeoutMs);
     for (const row of rows) {
         const result = structuredClone(row.result);
         for (const candidate of result.cleanup.candidates) {

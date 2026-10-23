@@ -1,5 +1,6 @@
 import {withStorageFence, withStorageWorker} from '../../storageLifecycle.js';
 import {withStorageJobSnapshot} from '../asyncOperation/storageHolds.js';
+import {cleanupDue, cleanupFailure} from './cleanupRetry.js';
 import {policy, imagePolicies} from '../drivers/convert/imageOptimize.js';
 
 export function configureSiteReplacements(app, service) {
@@ -7,7 +8,8 @@ export function configureSiteReplacements(app, service) {
         const row = await service.replacement(userId, id);
         await service.authorize(userId, apiKeyId, true);
         if (row.status === 'cleanup_failed') {
-            await row.update({status: 'retiring', error: null});
+            await row.update({status: row.result?.cleanupRetry?.resumeStatus || 'retiring',
+                result: {...row.result, cleanupRetry: {failures: 0}}, error: null});
         }
         return service.status(userId, id);
     };
@@ -29,8 +31,8 @@ export function configureSiteReplacements(app, service) {
         if (!app.ms.storageSpace) {
             return;
         }
-        const retiring = await service.jobs.list(['retiring']);
-        const pending = await service.jobs.list(['gc_pending'], 100);
+        const retiring = (await service.jobs.list(['retiring'])).filter(row => cleanupDue(row));
+        const pending = (await service.jobs.list(['gc_pending'], 100)).filter(row => cleanupDue(row));
         if (!retiring.length && !pending.length) {
             return;
         }
@@ -41,18 +43,21 @@ export function configureSiteReplacements(app, service) {
                         await app.ms.storageSpace.retireSiteReplacement(service, row, assertHeld);
                     } catch (error) {
                         await assertHeld();
-                        await row.update({status: 'cleanup_failed', error: error.code || error.message});
+                        await row.update(cleanupFailure(row, error));
                     }
                 }
             });
-            const gc = await service.jobs.list(['gc_pending'], 100);
+            const gc = (await service.jobs.list(['gc_pending'], 100)).filter(row => cleanupDue(row));
             if (gc.length) {
                 try {
                     await withStorageJobSnapshot(app, () => app.ms.storageSpace.collectRetiredSiteBlocks(service, gc, assertHeld));
                 } catch (error) {
                     await assertHeld();
                     for (const row of gc) {
-                        await row.update({error: error.message});
+                        if (row.status !== 'gc_pending') {
+                            continue;
+                        }
+                        await row.update(cleanupFailure(row, error));
                     }
                 }
             }

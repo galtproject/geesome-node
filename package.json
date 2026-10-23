@@ -6,7 +6,7 @@
   "type": "module",
   "packageManager": "yarn@1.22.22",
   "engines": {
-    "node": ">=22 <25"
+    "node": ">=22.19 <25"
   },
   "scripts": {
     "start": "yarn --no-optional -W && ./node_modules/.bin/tsx --experimental-global-customevent ./index.ts",
@@ -66,6 +66,7 @@
     "test:frontend-dist-publish": "bash test/frontendDistPublish.test.sh",
     "test:frontend-cache:docker": "bash test/frontendBuildCacheDocker.test.sh",
     "test:docker-images:compose": "bash test/dockerImageCompose.test.sh",
+    "test:kubo-migration": "bash test/kuboMigration.test.sh",
     "test:docker-images": "node --test test/dockerImageDeployment.test.mjs",
     "test:docker-retention": "bash test/dockerRetention.test.sh",
     "testCoverage": "GROUP_DERIVED_STATE_ASYNC=0 node --import tsx --experimental-global-customevent ./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha test/**/*.test.ts && nyc report",
@@ -81,6 +82,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "undici": "8.11.2",
     "@geesome/ui": "https://github.com/galtproject/geesome-ui#4c155e9",
     "@revoinc/async-busboy": "^2.0.3",
     "apidoc": "^1.2.0",

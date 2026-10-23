@@ -71,8 +71,8 @@ export default function (app, service) {
      * @apiGroup StaticSiteGenerator
      * @apiUse ApiKey
      * @apiParam {String} id Owned operation-queue ID.
-     * @apiDescription Requires storage:retire and reuses persisted cleanup checkpoints. Publication and archive are checked again by the worker.
-     * @apiSuccess {String} status retiring or current cleanup state.
+     * @apiDescription Requires storage:retire and reuses persisted cleanup checkpoints. Resets the three-failure cleanup retry budget and resumes its persisted retirement or GC phase without rerendering. Publication and archive are checked again by the worker.
+     * @apiSuccess {String} status retiring, gc_pending or current cleanup state.
      */
     app.ms.api.onAuthorizedPost('user/site-replacements/:id/retry-cleanup', async (req, res) => {
         res.send(await service.retryCleanup(req.user.id, Number(req.params.id), req.apiKey.id), 202);
