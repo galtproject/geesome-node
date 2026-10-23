@@ -39,7 +39,9 @@ The existing `clientData.js` export stays available for publication verification
 Nested group pages preserve their server-rendered route during hydration.
 
 The image viewer supports clicking a thumbnail, switching images with the arrows
-or keyboard, and closing with its button or backdrop. The archive download control
+or keyboard, and closing with its button or backdrop. The transparent 32px close
+icon overlays the image’s top-right corner with a 48px hit area; keyboard focus
+remains visible. The archive download control
 is hidden in local copies; HTTP/IPFS pages retain their relative archive API.
 Previously generated CIDs/archives are immutable and need rebuilding to receive
 the new browser client. No database migration is required.
