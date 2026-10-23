@@ -27,4 +27,4 @@ printf '19\n' > "$work/repo/version"
 if bash "$root/bash/ipfs-upgrade-preflight.sh" >/dev/null 2>&1; then
   echo 'Newer repository was accepted for downgrade' >&2; exit 1
 fi
-echo 'IPFS upgrade snapshot preflight passed' 
+echo 'IPFS upgrade snapshot preflight passed'
