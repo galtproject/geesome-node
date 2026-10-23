@@ -60,8 +60,8 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	/**
 	 * @apiDefine UploadErrors
 	 *
-	 * @apiError (503) StorageBusy The bounded storage-lock connection wait expired; code storage_busy. The upload handler has not run.
-	 * @apiError (503) StorageMaintenanceBusy An exclusive cleanup fence prevents the upload; code storage_maintenance_busy. The upload handler has not run.
+	 * @apiError (503) StorageBusy The bounded storage-lock connection wait expired; code storage_busy. The upload handler has not run. Retry-After: 2 permits a delayed retry without spending the terminal failure budget.
+	 * @apiError (503) StorageMaintenanceBusy An exclusive cleanup fence prevents the upload; code storage_maintenance_busy. The upload handler has not run. Retry-After: 2 permits a delayed retry without spending the terminal failure budget.
 	 *
 	 * @apiError (413) UploadLimitExceeded Uploaded content is larger than the current user's remaining limit.
 	 * @apiErrorExample {json} Upload limit exceeded

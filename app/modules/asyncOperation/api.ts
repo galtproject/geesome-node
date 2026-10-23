@@ -13,7 +13,7 @@ export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationMo
      * @apiGroup UserOther
      * @apiUse ApiKey
      * @apiUse AuthErrors
-     * @apiDescription Requires operations:read for scoped keys. Returns only the current user's operations, sorted by ID. Missing or inaccessible IDs are omitted; duplicate IDs appear once.
+     * @apiDescription Requires operations:read for scoped keys. Returns only the current user's operations, sorted by ID. Missing or inaccessible IDs are omitted; duplicate IDs appear once. Read-only polling remains available while storage capacity or cleanup is busy.
      * @apiBody {Number[]} ids Between 1 and 100 positive safe integer IDs.
      * @apiSuccess {Object[]} list Operation records with the same fields as the single-operation endpoint, including inProcess, contentId, output and errorMessage.
      * @apiError (400) invalid_operation_ids Invalid IDs or batch size.
@@ -26,7 +26,7 @@ export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationMo
     app.ms.api.onAuthorizedPost('user/get-async-operations', async (req, res) => {
         requireIntegrationScopes(req.apiKey, ['operations:read']);
         res.send({list: await asyncOperationModule.getAsyncOperations(req.user.id, req.body?.ids)});
-    });
+    }, {storageReadOnly: true});
 
     /**
      * @api {get} /v1/operations/:id Get operation resource
@@ -75,7 +75,7 @@ export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationMo
      */
     app.ms.api.onAuthorizedPost('user/get-operation-queue/:operationId', async (req, res) => {
         res.send(await asyncOperationModule.getUserOperationQueue(req.user.id, req.params.operationId));
-    });
+    }, {storageReadOnly: true});
 
     /**
      * @api {post} /v1/user/get-operation-queue-list List waiting operation queue items
@@ -90,11 +90,11 @@ export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationMo
      */
     app.ms.api.onAuthorizedPost('user/get-operation-queue-list', async (req, res) => {
         res.send(await asyncOperationModule.getWaitingOperationQueueListByModule(req.user.id, req.body.module, helpers.prepareListParams(req.body)));
-    });
+    }, {storageReadOnly: true});
 
     /**
      * @api {post} /v1/user/get-async-operation/:id Get async operation
-     * @apiDescription Get async operation info: operation type, status, percent, and content when it will be ready.
+     * @apiDescription Get async operation info: operation type, status, percent, and content when it will be ready. Read-only polling remains available during storage contention and cleanup.
      * @apiName UserAsyncOperation
      * @apiGroup UserOther
      *
@@ -107,7 +107,7 @@ export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationMo
      */
     app.ms.api.onAuthorizedPost('user/get-async-operation/:id', async (req, res) => {
         res.send(await asyncOperationModule.getAsyncOperation(req.user.id, req.params.id));
-    });
+    }, {storageReadOnly: true});
 
     /**
      * @api {post} /v1/user/find-async-operations Find async operations
@@ -128,7 +128,7 @@ export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationMo
      */
     app.ms.api.onAuthorizedPost('user/find-async-operations', async (req, res) => {
         res.send(await asyncOperationModule.findAsyncOperations(req.user.id, req.body.name, req.body.channelLike, req.body.inProcess));
-    });
+    }, {storageReadOnly: true});
 
     /**
      * @api {post} /v1/user/cancel-async-operation/:id Cancel async operation
