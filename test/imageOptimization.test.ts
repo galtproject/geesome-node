@@ -10,9 +10,14 @@ import {digest, sameCid} from '../app/storageIdentity.js';
 import {pageCid, readSiteData} from '../app/modules/staticSiteGenerator/siteData.js';
 import {readArchive} from './helpers/archive.js';
 
+const imageDriver = (watermark = null, policy = 'publication-webp-v1') => ({name: 'imageOptimize', module: 'convert',
+    params: {policy, ...(watermark ? {watermark} : {})}});
+
 describe('persisted image saving and local site retirement', function () {
     this.timeout(120000);
     let app: any, user: any, group: any, admin: any;
+    const resave = (userId, id, apiKeyId = null, watermark = null, policy = 'publication-webp-v1') =>
+        app.ms.content.requestResave(userId, id, apiKeyId, watermark?.name === 'imageOptimize' ? watermark : imageDriver(watermark, policy));
     before(async () => {
         const config = (await import('../app/config.js')).default;
         config.storageConfig.jsNode.pass = 'test test test test test test test test test test';
@@ -28,14 +33,14 @@ describe('persisted image saving and local site retirement', function () {
         const driver = watermarkDriver({name: 'imageWatermark', module: 'convert', params: {
             text: 'eraofwave.com', color: '#874ee6', background: 'black', font: 'monospace', spacing: 50, sizeRatio: 1 / 50}});
         const bytes = await sharp({create: {width: 1200, height: 1600, channels: 3, background: '#abc789'}}).png().toBuffer();
-        const unmarked = await app.ms.content.saveData(user.id, bytes, 'legacy-unmarked.png', {optimize: true, waitForPin: true});
+        const unmarked = await app.ms.content.saveData(user.id, bytes, 'legacy-unmarked.png', {driver: imageDriver(), waitForPin: true});
         const service = app.ms.staticSiteGenerator.replacements;
-        const request = {requestKey: randomUUID(), contentIds: [unmarked.id], driver};
+        const request = {requestKey: randomUUID(), contentIds: [unmarked.id], driver: imageDriver(driver)};
         const receipt = await service.requestReplacement(user.id, request);
         await assert.rejects(() => service.renderIds(user.id, receipt.id, [unmarked.id]), /image optimization not ready/);
-        await assert.rejects(() => service.requestReplacement(user.id, {...request, driver: {...driver, params: {...driver.params, text: 'other.test'}}}),
+        await assert.rejects(() => service.requestReplacement(user.id, {...request, driver: imageDriver({...driver, params: {...driver.params, text: 'other.test'}})}),
             /image replacement idempotency conflict/);
-        const accepted = await app.ms.content.requestResave(user.id, unmarked.id, null, driver);
+        const accepted = await resave(user.id, unmarked.id, null, driver);
         assert.equal(accepted.status, 'queued', 'unmarked optimization receipt cannot satisfy a marked rebuild');
         await app.ms.content.processResaveQueue();
         const queue = await app.ms.asyncOperation.getUserOperationQueue(user.id, accepted.id);
@@ -67,7 +72,7 @@ describe('persisted image saving and local site retirement', function () {
             }
         }
         for (const id of [unmarked.id, marked.id]) {
-            const repeat = await app.ms.content.requestResave(user.id, id, null, driver);
+            const repeat = await resave(user.id, id, null, driver);
             assert.equal(repeat.status, 'completed');
             assert.equal(repeat.content.storageId, marked.storageId, 'later rebuilds preserve CID and avoid cumulative compression');
         }
@@ -77,8 +82,7 @@ describe('persisted image saving and local site retirement', function () {
         assert.deepEqual((await readSiteData(app.ms.storage, site.storageId)).contents.map(c => c.storageId), [marked.storageId]);
         const form = new FormData();
         form.append('file', new Blob([bytes], {type: 'image/png'}), 'generation-import.png');
-        form.append('optimize', 'true');
-        form.append('driver', JSON.stringify(driver));
+        form.append('driver', JSON.stringify(imageDriver(driver)));
         const token = await app.generateUserApiKey(user.id, {});
         const response = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-file`,
             {method: 'POST', headers: {Authorization: `Bearer ${token}`}, body: form});
@@ -86,7 +90,7 @@ describe('persisted image saving and local site retirement', function () {
         const upload = await response.json();
         assert.equal((await sharp(Buffer.from((await app.ms.storage.getFileData(upload.storageId)).slice())).metadata()).height, 1664,
             'Generation multipart import stores one strip with optimization enabled');
-        assert.equal((await app.ms.content.requestResave(user.id, upload.id, null, driver)).status, 'completed');
+        assert.equal((await resave(user.id, upload.id, null, driver)).status, 'completed');
     });
 
     it('resaves a legacy marked Upload without a driver or provenance without adding another strip', async () => {
@@ -94,15 +98,15 @@ describe('persisted image saving and local site retirement', function () {
         const bytes = await sharp({create: {width: 1200, height: 1600, channels: 3, background: '#abcdef'}}).png().toBuffer();
         const source = await app.ms.content.saveData(user.id, bytes, 'legacy-marked.jpg', {driver, waitForPin: true});
         await app.ms.database.updateContent(source.id, {propertiesJson: '{}'});
-        const accepted = await app.ms.content.requestResave(user.id, source.id, null, null, 'publication-jpeg95-v1');
+        const accepted = await resave(user.id, source.id, null, null, 'publication-jpeg95-v1');
         assert.equal(accepted.status, 'queued');
         await app.ms.content.processResaveQueue();
-        const result = await app.ms.content.requestResave(user.id, source.id, null, null, 'publication-jpeg95-v1');
+        const result = await resave(user.id, source.id, null, null, 'publication-jpeg95-v1');
         assert.equal(result.status, 'completed');
         const image = Buffer.from((await app.ms.storage.getFileData(result.content.storageId)).slice());
         assert.equal((await sharp(image).metadata()).height, 1664);
         assert.equal(JSON.parse(result.content.propertiesJson).imageWatermark, undefined, 'no invented provenance');
-        assert.equal((await app.ms.content.requestResave(user.id, result.content.id, null, null, 'publication-jpeg95-v1')).content.storageId,
+        assert.equal((await resave(user.id, result.content.id, null, null, 'publication-jpeg95-v1')).content.storageId,
             result.content.storageId, 'ordinary later rebuild reuses the rendition');
     });
 
@@ -113,15 +117,15 @@ describe('persisted image saving and local site retirement', function () {
         const optimizeDriver = {name: 'imageOptimize', module: 'convert', params: {policy: jpegPolicy, watermark: driver}};
         const bytes = await sharp({create: {width: 1200, height: 1600, channels: 3, background: '#789abc'}}).png().toBuffer();
         const source = await app.ms.content.saveData(user.id, bytes, 'source.png', {waitForPin: true});
-        const legacy = await app.ms.content.requestResave(user.id, source.id, null, driver);
+        const legacy = await resave(user.id, source.id, null, driver);
         await app.ms.content.processResaveQueue();
-        const webp = (await app.ms.content.requestResave(user.id, source.id, null, driver)).content;
+        const webp = (await resave(user.id, source.id, null, driver)).content;
         assert.equal(webp.extension, 'webp');
-        const accepted = await app.ms.content.requestResave(user.id, source.id, null, optimizeDriver);
+        const accepted = await resave(user.id, source.id, null, optimizeDriver);
         assert.equal(accepted.status, 'queued', 'a cached WebP cannot satisfy JPEG');
         assert.notEqual(accepted.id, legacy.id);
         await app.ms.content.processResaveQueue();
-        const jpeg = (await app.ms.content.requestResave(user.id, source.id, null, optimizeDriver)).content;
+        const jpeg = (await resave(user.id, source.id, null, optimizeDriver)).content;
         assert.equal(jpeg.extension, 'jpg');
         assert.equal(jpeg.mimeType, 'image/jpeg');
         assert.equal(jpeg.previewExtension, 'webp');
@@ -134,15 +138,15 @@ describe('persisted image saving and local site retirement', function () {
         assert.ok(JSON.parse(jpeg.propertiesJson).imageWatermark?.identity);
         assert.equal((await sharp(Buffer.from((await app.ms.storage.getFileData(jpeg.mediumPreviewStorageId)).slice())).metadata()).format, 'webp');
         for (const id of [source.id, jpeg.id]) {
-            assert.equal((await app.ms.content.requestResave(user.id, id, null, driver, jpegPolicy)).content.storageId, jpeg.storageId);
+            assert.equal((await resave(user.id, id, null, driver, jpegPolicy)).content.storageId, jpeg.storageId);
         }
-        assert.equal((await app.ms.content.requestResave(user.id, source.id, null, driver)).content.storageId, webp.storageId,
+        assert.equal((await resave(user.id, source.id, null, driver)).content.storageId, webp.storageId,
             'legacy receipt is still usable after JPEG conversion');
         const service = app.ms.staticSiteGenerator.replacements;
         const replacementRequest = {requestKey: randomUUID(), contentIds: [source.id], driver: optimizeDriver};
         const receipt = await service.requestReplacement(user.id, replacementRequest);
-        assert.equal((await service.requestReplacement(user.id, {...replacementRequest, driver, imagePolicy: jpegPolicy})).id, receipt.id,
-            'equivalent legacy and driver envelopes reuse the same replacement receipt');
+        await assert.rejects(() => service.requestReplacement(user.id, {...replacementRequest, imagePolicy: jpegPolicy}),
+            /driver required/, 'top-level imagePolicy is not accepted');
         const site = await app.ms.staticSiteGenerator.generateContentListSite(user.id,
             {entityType: 'content-list', entityIds: [source.id]}, {replacementId: receipt.id, archive: true,
                 site: {name: `jpeg_${randomUUID().replace(/-/g, '')}`, title: 'JPEG'}});
@@ -169,6 +173,10 @@ describe('persisted image saving and local site retirement', function () {
             body: JSON.stringify({sourceContentId: uploaded.id, driver: optimizeDriver})});
         assert.equal(resaved.status, 202);
         assert.equal((await resaved.json()).content.storageId, uploaded.storageId, 'driver-only API resave reuses Content');
+        const obsolete = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-data`, {method: 'POST',
+            headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+            body: JSON.stringify({sourceContentId: uploaded.id, driver: optimizeDriver, imagePolicy: jpegPolicy})});
+        assert.equal(obsolete.status, 400, 'top-level imagePolicy is explicitly rejected');
     });
 
     for (const mode of ['remove', 'keep', 'shared']) {
@@ -193,9 +201,9 @@ describe('persisted image saving and local site retirement', function () {
             contents: [{id: source.id, view: 'attachment'}], propertiesJson: JSON.stringify({membership: {sourceKey,
                 pageUrl: `https://eraofwave.com/ipfs/${old.storageId}/#/`, title: 'Original', free: false}})});
         const service = app.ms.staticSiteGenerator.replacements;
-        const receipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), contentIds: [source.id],
+        const receipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), driver: imageDriver(), contentIds: [source.id],
             previousSiteStorageId: old.storageId, postId: post.id, deleteReplacedFiles: mode !== 'keep'});
-        const admissions = await Promise.all(Array.from({length: 3}, () => app.ms.content.requestResave(user.id, source.id)));
+        const admissions = await Promise.all(Array.from({length: 3}, () => resave(user.id, source.id)));
         assert.equal(new Set(admissions.map(value => value.id)).size, 1, 'concurrent resaves share one queue receipt');
         const accepted = admissions[0];
         assert.equal(accepted.status, 'queued');
@@ -209,7 +217,7 @@ describe('persisted image saving and local site retirement', function () {
         assert.deepEqual(Buffer.from((await app.ms.storage.getFileData(source.storageId)).slice()), originalBytes);
         const beforeQueues = await app.ms.database.sequelize.model('userOperationQueue').count({where: {module: 'content-resave'}});
         for (let index = 0; index < 3; index++) {
-            const reused = await app.ms.content.requestResave(user.id, output.content.id);
+            const reused = await resave(user.id, output.content.id);
             assert.equal(reused.status, 'completed');
             assert.equal(reused.content.storageId, output.content.storageId);
         }
@@ -281,12 +289,12 @@ describe('persisted image saving and local site retirement', function () {
         }
         await assert.rejects(() => app.ms.storage.node.block.stat(pageCid(`https://x/ipfs/${oldArchive.archivedStorageId}`), {offline: true}));
         assert.ok(await app.ms.storage.node.block.stat(pageCid(`https://x/ipfs/${archive.archivedStorageId}`), {offline: true}));
-        assert.equal((await app.ms.content.requestResave(user.id, source.id)).content.storageId, output.content.storageId,
+        assert.equal((await resave(user.id, source.id)).content.storageId, output.content.storageId,
             'idempotent source replay still works after source retirement');
-        const reused = await app.ms.content.requestResave(user.id, output.content.id);
+        const reused = await resave(user.id, output.content.id);
         assert.deepEqual(Buffer.from((await app.ms.storage.getFileData(reused.content.storageId)).slice()),
             Buffer.from((await app.ms.storage.getFileData(output.content.storageId)).slice()));
-        const thirdReceipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), contentIds: [output.content.id],
+        const thirdReceipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), driver: imageDriver(), contentIds: [output.content.id],
             previousSiteStorageId: replacement.storageId, postId: post.id, deleteReplacedFiles: true});
         const third = await app.ms.staticSiteGenerator.generateContentListSite(user.id,
             {entityType: 'content-list', entityIds: [output.content.id]}, {archive: true, replacementId: thirdReceipt.id,
@@ -490,8 +498,8 @@ describe('persisted image saving and local site retirement', function () {
         const token = await app.generateUserApiKey(user.id, {scopes: ['content:write', 'operations:read']});
         const headers = {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'};
         const png = await sharp({create: {width: 40, height: 60, channels: 3, background: '#789abc'}}).png().toBuffer();
-        const content = await app.ms.content.saveData(user.id, png, 'storage-wait.png', {optimize: true, waitForPin: true});
-        const body = JSON.stringify({requestKey: randomUUID(), contentIds: [content.id]});
+        const content = await app.ms.content.saveData(user.id, png, 'storage-wait.png', {driver: imageDriver(), waitForPin: true});
+        const body = JSON.stringify({requestKey: randomUUID(), driver: imageDriver(), contentIds: [content.id]});
         const Queue = app.ms.database.sequelize.model('userOperationQueue');
         const before = await Queue.count({where: {module: 'site-replacement'}});
         let unlock, started;
@@ -528,8 +536,8 @@ describe('persisted image saving and local site retirement', function () {
         assert.equal(caps.status, 200);
         assert.deepEqual(await caps.json(), {contract: 1, policy: 'publication-jpeg95-v1', imagePolicies: ['publication-webp-v1', 'publication-jpeg95-v1'], resave: true, watermark: true, imageOptimizeDriver: true, retirement: true});
         const png = await sharp({create: {width: 40, height: 60, channels: 3, background: '#123abc'}}).png().toBuffer();
-        const content = await app.ms.content.saveData(user.id, png, 'http-contract.png', {optimize: true, waitForPin: true});
-        const body = {requestKey: randomUUID(), contentIds: [content.id], deleteReplacedFiles: false};
+        const content = await app.ms.content.saveData(user.id, png, 'http-contract.png', {driver: imageDriver(), waitForPin: true});
+        const body = {requestKey: randomUUID(), driver: imageDriver(), contentIds: [content.id], deleteReplacedFiles: false};
         const create = await fetch(`${origin}/user/site-replacements`, {method: 'POST', headers, body: JSON.stringify(body)});
         assert.equal(create.status, 202, await create.clone().text());
         const receipt = await create.json();
@@ -545,7 +553,7 @@ describe('persisted image saving and local site retirement', function () {
             body: JSON.stringify({...body, postId: 123})});
         assert.equal(changed.status, 409);
         const reused = await fetch(`${origin}/user/save-data`, {method: 'POST', headers,
-            body: JSON.stringify({sourceContentId: content.id, optimize: true})});
+            body: JSON.stringify({sourceContentId: content.id, driver: imageDriver()})});
         assert.equal(reused.status, 202, await reused.clone().text());
         assert.equal((await reused.json()).content.storageId, content.storageId);
         const other = await app.registerUser({name: `reader_${randomUUID().slice(0, 8)}`, password: 'pass', permissions: ['user:all']});
@@ -622,7 +630,7 @@ describe('persisted image saving and local site retirement', function () {
         let gate;
         try {
             const bytes = await sharp({create: {width: 40, height: 60, channels: 3, background: '#998877'}}).png().toBuffer();
-            const saved = await app.ms.content.saveData(user.id, bytes, 'backlog.png', {optimize: true, waitForPin: true});
+            const saved = await app.ms.content.saveData(user.id, bytes, 'backlog.png', {driver: imageDriver(), waitForPin: true});
             assert.ok(saved.id);
             gate = await service.jobs.create(user.id, null, randomUUID(), {status: 'cleanup_failed', requestHash: 'gate',
                 input: {sources: []}, result: {cleanup: {candidates: [{storageId: pageCid(`https://x/ipfs/${saved.storageId}`)}]}}});
@@ -640,13 +648,13 @@ describe('persisted image saving and local site retirement', function () {
     it('cleans failed revision attempts and leaves ordinary generation outside durable revision history', async () => {
         const service = app.ms.staticSiteGenerator.replacements;
         const content = await app.ms.content.saveData(user.id, await sharp({create: {width: 20, height: 30,
-            channels: 3, background: '#ccddee'}}).png().toBuffer(), 'revision.png', {optimize: true, waitForPin: true});
+            channels: 3, background: '#ccddee'}}).png().toBuffer(), 'revision.png', {driver: imageDriver(), waitForPin: true});
         const before = await service.models.Revision.count();
         const renderArgs = {entityType: 'content-list', entityIds: [content.id]};
         await app.ms.staticSiteGenerator.generateContentListSite(user.id, renderArgs, {site: {name: 'ordinary_revision_test', title: 'Ordinary revision'}});
         await app.ms.staticSiteGenerator.generateContentListSite(user.id, renderArgs, {site: {name: 'ordinary_revision_test', title: 'Ordinary revision'}});
         assert.equal(await service.models.Revision.count(), before);
-        const receipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), contentIds: [content.id]});
+        const receipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), driver: imageDriver(), contentIds: [content.id]});
         let failedPath;
         await assert.rejects(() => service.withRender(user.id, receipt.id, {}, {}, async () => {
             failedPath = await service.beginRevision(user.id, 1, receipt.id);
@@ -665,8 +673,8 @@ describe('persisted image saving and local site retirement', function () {
 
     it('rejects foreign IDs and changed replacement keys', async () => {
         const service = app.ms.staticSiteGenerator.replacements;
-        await assert.rejects(() => app.ms.content.requestResave(user.id + 100000, 1));
-        await assert.rejects(() => service.requestReplacement(user.id, {requestKey: randomUUID(), contentIds: [999999]}));
+        await assert.rejects(() => resave(user.id + 100000, 1));
+        await assert.rejects(() => service.requestReplacement(user.id, {requestKey: randomUUID(), driver: imageDriver(), contentIds: [999999]}));
     });
     it('admits and processes concurrent resaves with a one-connection SQL pool', async () => {
         const sources = [];
@@ -678,7 +686,7 @@ describe('persisted image saving and local site retirement', function () {
         await app.stop();
         app = await (await import('../app/index.js')).default({storageConfig, port: 7771,
             databaseConfig: {pool: {max: 1, min: 0, acquire: 3000}}});
-        const admitted = await Promise.all([sources[0], sources[0], sources[1]].map(source => app.ms.content.requestResave(user.id, source.id)));
+        const admitted = await Promise.all([sources[0], sources[0], sources[1]].map(source => resave(user.id, source.id)));
         assert.equal(admitted[0].id, admitted[1].id);
         for (let attempt = 0; attempt < 30; attempt++) {
             await app.ms.content.processResaveQueue();

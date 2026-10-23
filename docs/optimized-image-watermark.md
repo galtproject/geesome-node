@@ -16,9 +16,9 @@ Tracking: GeeSome #1406 and Microwave Girls #613.
 
 ## Implementation
 
-The save pipeline accepts only the existing imageWatermark convert driver with
-optimize=true; other drivers remain rejected. Normalize/freeze its text, color,
-background, font, spacing and size ratio. Compose before the final JPEG quality 95 encode for the new policy,
+The save pipeline uses the imageOptimize convert driver. Its optional watermark
+parameter accepts the existing imageWatermark driver. Normalize/freeze its text,
+color, background, font, spacing and size ratio. Compose before the final JPEG quality 95 encode for the new policy,
 using only lossless intermediate pixels. Previews derive from the saved full file.
 Ordinary Upload keeps its output format and records the same watermark identity.
 
@@ -109,36 +109,28 @@ legacy marked Upload without provenance/driver, explicit repair, stable repeated
 CID, JPEG/WebP encoding, archive/site mapping and retirement regressions. Four
 host encoder tests also passed after the helper rename to `addWatermark`.
 
-## Driver-owned image optimization plan (2026-10-23)
+## Driver-owned image optimization (2026-10-23)
 
-1. Move encoder/profile selection into imageOptimize; keep publication input/queue validation separate.
-2. New clients send only the existing driver envelope with params.policy and optional params.watermark.
-3. Normalize legacy optimize/imagePolicy requests at admission; freeze the same canonical policy/watermark receipts, preserving accepted jobs and stable Content reuse.
-4. Require explicit driver capability before new client submissions. Keep the three historical watermark exceptions and automatic retirement unchanged.
-5. Verify direct driver upload/resave/replacement, legacy compatibility, repeated CID reuse, client imports/preparation and Docker publication. Commit/push both repositories; do not deploy production.
-
-Driver-owned implementation: encoder/profile constants now live in
-`app/modules/drivers/convert/imageOptimize.ts`; watermark composition helpers live
-beside the convert drivers. The former content/publicationImagePolicy module is
-removed. Content/publicationInput contains only publication request validation.
-
-New save-file/save-data/site-replacement requests use:
+The imageOptimize convert driver owns encoder/profile selection and limits.
+Content contains publication/queue validation and receipts, without image codecs.
+New requests use only:
 
 ```json
 {"driver":{"name":"imageOptimize","module":"convert","params":{"policy":"publication-jpeg95-v1"}}}
 ```
 
-Optional `params.watermark` is the existing imageWatermark driver envelope.
-No separate optimize/imagePolicy is needed. Conflicting old fields/profile or
-optimize=false are rejected. Old flags/profile requests normalize to the same
-policy/watermark; queue snapshots and Content receipts keep their existing shape.
-Capability `imageOptimizeDriver: true` gates new clients. The two immutable profile
-identifiers remain versioned so changing the encoder never silently invalidates
-accepted work or reuses the wrong rendition. No migration or new queue/model.
+Optional params.watermark is the existing imageWatermark driver envelope.
+Top-level imagePolicy and optimize are rejected; no legacy request adapter or
+fifth requestResave policy argument remains. New client admissions require
+imageOptimizeDriver capability. Profile/version identifiers remain in Content and
+frozen operation receipts to reuse the correct rendition without recompression.
+Workers reconstruct the driver from accepted job snapshots; they never submit
+legacy fields. Microwave Girls resumes saved preparation with the same frozen
+profile and watermark using the new envelope. No new model, queue or migration.
+The three historical unmarked site exceptions remain only in Microwave Girls.
 
-Verification of driver contract: 36 Docker PostgreSQL/Kubo/parser/driver tests
-passed, plus an additional final real JPEG replacement replay proving legacy
-fields and driver-only envelopes resolve to the same request-key receipt.
-Ten host codec/unit tests, route inventory generation/check and full apiDoc parse
-passed. Direct multipart driver upload and sourceContentId driver-only HTTP resave
-reuse the expected Content; JPEG archive entries and old policy receipts remain valid.
+Final verification after removing old-request support: 36 real Docker PostgreSQL/
+Kubo/parser/driver tests and ten host codec tests passed. Direct driver upload,
+resave and replacement work; top-level imagePolicy is explicitly rejected. Queued
+work, stable repeated CIDs, marked previews, JPEG archive entries and automatic
+retirement remain covered. Route inventory and full apiDoc parsing passed.

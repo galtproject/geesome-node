@@ -162,10 +162,6 @@ export interface IUserAuthMessageResponse {
 }
 
 export interface IContentInput {
-  /** Legacy optimization flag; prefer the imageOptimize convert driver. */
-  optimize?: boolean;
-  /** Legacy profile field; new clients use imageOptimize driver params.policy. */
-  imagePolicy?: 'publication-webp-v1' | 'publication-jpeg95-v1';
   /**
    * Bind content to specific group
    */
@@ -196,7 +192,7 @@ export interface IFileContentInput extends IContentInput {
   /**
    * Source/processing driver. A string (e.g. "youtubeVideo") selects an upload driver from geesome-node/drivers/upload, or an object for more control: `{ name?, params?, raw? }`. Set `raw: true` to store the original bytes unchanged — skips video transcoding and preview generation, so the stored content CID matches the uploaded file (useful for archival/hash-binding and to avoid transcode timeouts on large media). Combine with a source name, e.g. `{ "name": "youtubeVideo", "raw": true }`. In multipart form-data, pass the object as a JSON string.
    */
-  driver?: string | { name?: string, params?: any, raw?: boolean };
+  driver?: string | { name?: string, module?: string, params?: any, raw?: boolean };
 }
 
 export interface IDataContentInput extends IContentInput {
@@ -216,7 +212,7 @@ export interface IDataContentInput extends IContentInput {
   /**
    * Source/processing driver. A string (e.g. "youtubeVideo") selects an upload driver from geesome-node/drivers/upload, or an object for more control: `{ name?, params?, raw? }`. Set `raw: true` to store the original bytes unchanged — skips video transcoding and preview generation, so the stored content CID matches the uploaded file (useful for archival/hash-binding and to avoid transcode timeouts on large media). Combine with a source name, e.g. `{ "name": "youtubeVideo", "raw": true }`. In multipart form-data, pass the object as a JSON string.
    */
-  driver?: string | { name?: string, params?: any, raw?: boolean };
+  driver?: string | { name?: string, module?: string, params?: any, raw?: boolean };
 }
 
 export interface IUrlContentInput extends IContentInput {
@@ -224,7 +220,7 @@ export interface IUrlContentInput extends IContentInput {
   /**
    * Source/processing driver. A string (e.g. "youtubeVideo") selects an upload driver from geesome-node/drivers/upload, or an object for more control: `{ name?, params?, raw? }`. Set `raw: true` to store the original bytes unchanged — skips video transcoding and preview generation, so the stored content CID matches the uploaded file (useful for archival/hash-binding and to avoid transcode timeouts on large media). Combine with a source name, e.g. `{ "name": "youtubeVideo", "raw": true }`. In multipart form-data, pass the object as a JSON string.
    */
-  driver?: string | { name?: string, params?: any, raw?: boolean };
+  driver?: string | { name?: string, module?: string, params?: any, raw?: boolean };
   mimeType?: string;
 }
 

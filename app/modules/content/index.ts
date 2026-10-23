@@ -1,6 +1,6 @@
 import fs from "fs";
 import {watermarkIdentity, watermarkProperties} from '../drivers/convert/imageWatermarkHelpers.js';
-import {imagePolicy, imageFormat, optimizationRequest} from '../drivers/convert/imageOptimize.js';
+import {imageFormat, optimizationRequest} from '../drivers/convert/imageOptimize.js';
 import {ContentResave} from './resave.js';
 import _ from 'lodash';
 import mime from 'mime';
@@ -809,13 +809,13 @@ function getModule(app: IGeesomeApp) {
 			return this.saveData(userId, dataToSave, fileName, options).then(c => c.storageId);
 		}
 
-		async saveData(userId: number, dataToSave, fileName, options: { view?, driver?, previews?: {content, mimeType, previewSize, driver?}[], apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties?, forceNewContentEntity?: boolean, requirePreview?: boolean, skipFileCatalog?: boolean, chatAttachmentReservationId?: string, optimize?: boolean | string, imagePolicy?: string } = {}) {
+		async saveData(userId: number, dataToSave, fileName, options: { view?, driver?, previews?: {content, mimeType, previewSize, driver?}[], apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties?, forceNewContentEntity?: boolean, requirePreview?: boolean, skipFileCatalog?: boolean, chatAttachmentReservationId?: string } = {}) {
 			log('saveData');
-			const optimization = optimizationRequest(options.driver, options.imagePolicy, options.optimize);
+			const optimization = optimizationRequest(options.driver);
 			if (optimization) {
 				const watermark = optimization.watermark;
 				const watermarkApplied = Boolean(watermark && options.properties?.imageWatermark?.identity === watermarkIdentity(watermark));
-				options = {...options, optimize: true, imagePolicy: optimization.policy,
+				options = {...options,
 					driver: {name: 'imageOptimize', module: 'convert', params: {watermark, watermarkApplied, policy: optimization.policy}},
 					properties: {...options.properties, ...watermarkProperties(watermark)}, requirePreview: true};
 			}
@@ -831,8 +831,8 @@ function getModule(app: IGeesomeApp) {
 			if (options.path) {
 				fileName = commonHelper.getFilenameFromPath(options.path);
 			}
-			if (options.optimize === true || options.optimize === 'true') {
-				fileName = String(fileName || 'image').replace(/\.[^.]+$/, '') + '.' + imageFormat(options.imagePolicy).extension;
+			if (optimization) {
+				fileName = String(fileName || 'image').replace(/\.[^.]+$/, '') + '.' + imageFormat(optimization.policy).extension;
 			}
 			//TODO: use for streams https://github.com/mscdex/busboy/issues/212
 			const extensionFromName = commonHelper.getExtensionFromName(fileName);
@@ -906,13 +906,13 @@ function getModule(app: IGeesomeApp) {
 						await app.ms.database.updateContent(existsContent.id, {propertiesJson});
 						existsContent.propertiesJson = propertiesJson;
 					}
-					if (options.optimize === true || options.optimize === 'true') {
+					if (optimization) {
 						if (existsContent.previewExtension !== 'webp') {
 							const previews = await this.getPreview({id: existsContent.storageId, size: existsContent.size}, existsContent.extension, existsContent.mimeType);
 							await app.ms.database.updateContent(existsContent.id, previews);
 							existsContent = await this.updateContentManifest({...existsContent.toJSON(), ...previews});
 						}
-						await app.ms.content['publicationImages'].recordOptimizedContent(userId, existsContent, imagePolicy(options.imagePolicy));
+						await app.ms.content['publicationImages'].recordOptimizedContent(userId, existsContent, optimization.policy);
 					}
 					return existsContent;
 				}
@@ -928,8 +928,8 @@ function getModule(app: IGeesomeApp) {
 					name: fileName,
 					propertiesJson: JSON.stringify(merge(resultProperties || {}, options.properties || {}))
 				}, options);
-				if (options.optimize === true || options.optimize === 'true') {
-					await app.ms.content['publicationImages'].recordOptimizedContent(userId, saved, imagePolicy(options.imagePolicy));
+				if (optimization) {
+					await app.ms.content['publicationImages'].recordOptimizedContent(userId, saved, optimization.policy);
 				}
 				return saved;
 			} finally {

@@ -11,7 +11,7 @@ export class ImageOptimizeDriver extends AbstractDriver {
     async processByStream(stream, options: any = {}) {
         const timer = setTimeout(() => stream.destroy(new Error('image_optimization_input_timeout')), 60000);
         try {
-            const selectedPolicy = imagePolicy(options.policy ?? options.imagePolicy);
+            const selectedPolicy = imagePolicy(options.policy);
             const result = await encodePublicationImage(stream, options.watermark, options.watermarkApplied, selectedPolicy);
             const format = imageFormat(selectedPolicy);
             return {stream: Readable.from([result.bytes]), type: format.mimeType, extension: format.extension};
@@ -67,33 +67,21 @@ export async function encodePublicationImage(stream: Readable, watermark = null,
         codec: `sharp:${sharp.versions.sharp};${imageFormat(selectedPolicy).extension}:95`};
 }
 
-// Normalize the driver envelope and the historical optimize/imagePolicy fields to
-// the same frozen profile/mark used by existing Content and operation receipts.
-export function optimizationRequest(value, selectedPolicy = undefined, optimize = undefined) {
-    if (optimize !== undefined && ![true, false, 'true', 'false'].includes(optimize)) {
-        problem('image_optimization_flag_invalid', 400);
-    }
+// The driver is the only input contract. Versioned profiles remain in receipts.
+export function optimizationRequest(value) {
     let driver = value;
     if (typeof value === 'string') {
         try {
             driver = JSON.parse(value);
         } catch {
-            driver = null;
+            return null;
         }
     }
-    if (driver?.name === 'imageOptimize') {
-        if (driver.module !== 'convert' || optimize === false || optimize === 'false') {
-            problem('image_optimization_driver_conflict', 400);
-        }
-        const params = driver.params || {};
-        const selected = imagePolicy(params.policy ?? params.imagePolicy);
-        if (selectedPolicy !== undefined && imagePolicy(selectedPolicy) !== selected) {
-            problem('image_optimization_policy_conflict', 400);
-        }
-        return {policy: selected, watermark: watermarkDriver(params.watermark)};
+    if (driver?.name !== 'imageOptimize') {
+        return null;
     }
-    if (optimize === true || optimize === 'true') {
-        return {policy: imagePolicy(selectedPolicy), watermark: watermarkDriver(value)};
+    if (driver.module !== 'convert' || driver.params?.imagePolicy !== undefined) {
+        problem('image_optimization_driver_invalid', 400);
     }
-    return null;
+    return {policy: imagePolicy(driver.params?.policy ?? policy), watermark: watermarkDriver(driver.params?.watermark)};
 }

@@ -72,9 +72,12 @@ export class ContentResave {
         }
         return content;
     }
-    async requestResave(userId, sourceContentId, apiKeyId = null, driver = null, selectedPolicy = undefined) {
-        const optimization = optimizationRequest(driver, selectedPolicy, true);
-        selectedPolicy = optimization.policy;
+    async requestResave(userId, sourceContentId, apiKeyId = null, driver = null) {
+        const optimization = optimizationRequest(driver);
+        if (!optimization) {
+            problem('image_optimization_driver_required', 400);
+        }
+        const selectedPolicy = optimization.policy;
         driver = optimization.watermark;
         await this.authorize(userId, apiKeyId);
         contentIds([sourceContentId]);
@@ -122,7 +125,7 @@ export class ContentResave {
             await this.app.ms.asyncOperation.handleOperationCancel(queue.userId, operation.id);
             content = plain(await this.app.ms.content.saveData(queue.userId,
                 await this.app.ms.storage.getFileStream(source.storageId), source.name || `image-${source.id}.png`,
-                {optimize: true, imagePolicy: selectedPolicy, driver: input.driver, properties: properties(source).imageWatermark ? {imageWatermark: properties(source).imageWatermark} : {}, mimeType: source.mimeType, waitForPin: true, skipFileCatalog: true, requirePreview: true}));
+                {driver: {name: 'imageOptimize', module: 'convert', params: {policy: selectedPolicy, watermark: input.driver}}, properties: properties(source).imageWatermark ? {imageWatermark: properties(source).imageWatermark} : {}, mimeType: source.mimeType, waitForPin: true, skipFileCatalog: true, requirePreview: true}));
             if (!content.mediumPreviewStorageId || content.previewExtension !== 'webp') {
                 problem('image_optimization_preview_missing');
             }

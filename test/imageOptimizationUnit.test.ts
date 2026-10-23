@@ -18,14 +18,13 @@ async function bytes(stream) {
 
 describe('image optimization saving policy', function () {
     this.timeout(15000);
-    it('normalizes new drivers and legacy flags to one profile and rejects conflicting instructions', () => {
+    it('reads profile and watermark only from the optimization driver', () => {
         const driver = {name: 'imageOptimize', module: 'convert', params: {policy: 'publication-jpeg95-v1'}};
-        assert.deepEqual(optimizationRequest(driver), optimizationRequest(null, 'publication-jpeg95-v1', true));
-        assert.deepEqual(optimizationRequest(JSON.stringify(driver)), {policy: 'publication-jpeg95-v1', watermark: null});
+        assert.deepEqual(optimizationRequest(driver), {policy: 'publication-jpeg95-v1', watermark: null});
+        assert.deepEqual(optimizationRequest(JSON.stringify(driver)), optimizationRequest(driver));
         assert.equal(optimizationRequest(null), null);
-        assert.throws(() => optimizationRequest(driver, 'publication-webp-v1'), /policy conflict/);
-        assert.throws(() => optimizationRequest(driver, undefined, false), /driver conflict/);
-        assert.throws(() => optimizationRequest({...driver, module: 'upload'}), /driver conflict/);
+        assert.throws(() => optimizationRequest({...driver, module: 'upload'}), /driver invalid/);
+        assert.throws(() => optimizationRequest({...driver, params: {imagePolicy: 'publication-jpeg95-v1'}}), /driver invalid/);
         assert.throws(() => optimizationRequest({...driver, params: {policy: 'unknown'}}), /policy invalid/);
     });
 
