@@ -1,7 +1,7 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {Op, literal} from 'sequelize';
 import {imageFiles, sameCid, normalizeStorageId} from '../../storageIdentity.js';
-import {problem} from '../content/publicationImagePolicy.js';
+import {problem} from '../content/publicationInput.js';
 
 const snapshots = new AsyncLocalStorage<any>();
 export async function storageJobs(app) {

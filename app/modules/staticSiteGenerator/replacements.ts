@@ -1,7 +1,8 @@
 import {imageSourceSnapshot} from '../content/resave.js';
 import {randomUUID} from 'node:crypto';
 import {Op} from 'sequelize';
-import {contentIds, problem, requestKey} from '../content/publicationImagePolicy.js';
+import {imagePolicy, optimizationRequest} from '../drivers/convert/imageOptimize.js';
+import {contentIds, problem, requestKey} from '../content/publicationInput.js';
 import {withStorageFence, withStorageTaskLock} from '../../storageLifecycle.js';
 import {digest, normalizeStorageId, variants, sameCid} from '../../storageIdentity.js';
 import {pageCid, readSiteData} from './siteData.js';
@@ -40,11 +41,19 @@ export class SiteReplacements {
 
     async requestReplacement(userId, input, apiKeyId = null) {
         const ids = contentIds(input.contentIds);
+        if (input.imagePolicy !== undefined || input.optimize !== undefined) {
+            problem('image_optimization_driver_required', 400);
+        }
+        const optimization = optimizationRequest(input.driver);
+        if (!optimization) {
+            problem('image_optimization_driver_required', 400);
+        }
+        const driver = optimization.watermark;
         const key = requestKey(input.requestKey);
         if (input.deleteReplacedFiles !== undefined && typeof input.deleteReplacedFiles !== 'boolean') {
             problem('image_replacement_cleanup_flag_invalid', 400);
         }
-        const request = {contentIds: ids, previousSiteStorageId: input.previousSiteStorageId
+        const request = {contentIds: ids, ...(optimization.policy !== imagePolicy() ? {imagePolicy: optimization.policy} : {}), ...(driver ? {driver} : {}), previousSiteStorageId: input.previousSiteStorageId
             ? normalizeStorageId(input.previousSiteStorageId) : null,
             postId: input.postId ? Number(input.postId) : null, deleteReplacedFiles: input.deleteReplacedFiles === true};
         await this.authorize(userId, apiKeyId, request.deleteReplacedFiles);
@@ -147,7 +156,7 @@ export class SiteReplacements {
         }
         const outputs = [];
         for (const source of replacement.input.sources) {
-            const content = await this.app.ms.content.publicationImages.saved(userId, source.id);
+            const content = await this.app.ms.content.publicationImages.saved(userId, source.id, null, undefined, replacement.input.driver, imagePolicy(replacement.input.imagePolicy));
             if (!content) {
                 problem('image_optimization_not_ready');
             }

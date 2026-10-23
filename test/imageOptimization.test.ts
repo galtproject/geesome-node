@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
+import {watermarkDriver} from '../app/modules/drivers/convert/imageWatermarkHelpers.js';
 import {QueryTypes} from 'sequelize';
 import {withStorageFence, withStorageTaskLock, withStorageWorker} from '../app/storageLifecycle.js';
 import {collectRetiredBlocks} from '../app/modules/storageSpace/siteRetirement.js';
@@ -9,9 +10,14 @@ import {digest, sameCid} from '../app/storageIdentity.js';
 import {pageCid, readSiteData} from '../app/modules/staticSiteGenerator/siteData.js';
 import {readArchive} from './helpers/archive.js';
 
+const imageDriver = (watermark = null, policy = 'publication-webp-v1') => ({name: 'imageOptimize', module: 'convert',
+    params: {policy, ...(watermark ? {watermark} : {})}});
+
 describe('persisted image saving and local site retirement', function () {
     this.timeout(120000);
     let app: any, user: any, group: any, admin: any;
+    const resave = (userId, id, apiKeyId = null, watermark = null, policy = 'publication-webp-v1') =>
+        app.ms.content.requestResave(userId, id, apiKeyId, watermark?.name === 'imageOptimize' ? watermark : imageDriver(watermark, policy));
     before(async () => {
         const config = (await import('../app/config.js')).default;
         config.storageConfig.jsNode.pass = 'test test test test test test test test test test';
@@ -22,6 +28,156 @@ describe('persisted image saving and local site retirement', function () {
         group = await app.ms.group.createGroup(user.id, {name: 'optimize_private', title: 'Private', isPublic: false});
     });
     after(async () => { await app?.stop(); });
+
+    it('rebuild repairs already optimized unmarked images, preserves one watermark and renders marked mappings', async () => {
+        const driver = watermarkDriver({name: 'imageWatermark', module: 'convert', params: {
+            text: 'eraofwave.com', color: '#874ee6', background: 'black', font: 'monospace', spacing: 50, sizeRatio: 1 / 50}});
+        const bytes = await sharp({create: {width: 1200, height: 1600, channels: 3, background: '#abc789'}}).png().toBuffer();
+        const unmarked = await app.ms.content.saveData(user.id, bytes, 'legacy-unmarked.png', {driver: imageDriver(), waitForPin: true});
+        const service = app.ms.staticSiteGenerator.replacements;
+        const request = {requestKey: randomUUID(), contentIds: [unmarked.id], driver: imageDriver(driver)};
+        const receipt = await service.requestReplacement(user.id, request);
+        await assert.rejects(() => service.renderIds(user.id, receipt.id, [unmarked.id]), /image optimization not ready/);
+        await assert.rejects(() => service.requestReplacement(user.id, {...request, driver: imageDriver({...driver, params: {...driver.params, text: 'other.test'}})}),
+            /image replacement idempotency conflict/);
+        const accepted = await resave(user.id, unmarked.id, null, driver);
+        assert.equal(accepted.status, 'queued', 'unmarked optimization receipt cannot satisfy a marked rebuild');
+        await app.ms.content.processResaveQueue();
+        const queue = await app.ms.asyncOperation.getUserOperationQueue(user.id, accepted.id);
+        assert.equal(queue.asyncOperation.errorMessage, null);
+        const marked = JSON.parse(queue.asyncOperation.output).content;
+        assert.notEqual(marked.id, unmarked.id);
+        for (const cid of [marked.storageId, marked.mediumPreviewStorageId]) {
+            const data = Buffer.from((await app.ms.storage.getFileData(cid)).slice());
+            const metadata = await sharp(data).metadata();
+            assert.equal(metadata.format, 'webp');
+            assert.equal(metadata.height, Math.round(metadata.width * 1664 / 1200));
+            if (cid === marked.storageId) {
+                assert.ok(JSON.parse(marked.propertiesJson).imageWatermark?.identity);
+            } else {
+                const height = Math.floor(metadata.height * 64 / 1664);
+                const pixels = await sharp(data).extract({left: 0, top: metadata.height - height, width: metadata.width, height})
+                    .removeAlpha().raw().toBuffer();
+                let dark = 0, purple = 0;
+                for (let index = 0; index < pixels.length; index += 3) {
+                    if (pixels[index] < 30 && pixels[index + 1] < 30 && pixels[index + 2] < 30) {
+                        dark++;
+                    }
+                    if (pixels[index + 2] > pixels[index + 1] + 30 && pixels[index] > pixels[index + 1] + 20) {
+                        purple++;
+                    }
+                }
+                assert.ok(dark / (pixels.length / 3) > 0.8, 'preview retains the black strip');
+                assert.ok(purple > 30, 'preview retains purple domain text');
+            }
+        }
+        for (const id of [unmarked.id, marked.id]) {
+            const repeat = await resave(user.id, id, null, driver);
+            assert.equal(repeat.status, 'completed');
+            assert.equal(repeat.content.storageId, marked.storageId, 'later rebuilds preserve CID and avoid cumulative compression');
+        }
+        const site = await app.ms.staticSiteGenerator.generateContentListSite(user.id,
+            {entityType: 'content-list', entityIds: [unmarked.id]}, {replacementId: receipt.id, archive: true,
+                site: {name: `watermark_${randomUUID().replace(/-/g, '')}`, title: 'Marked'}});
+        assert.deepEqual((await readSiteData(app.ms.storage, site.storageId)).contents.map(c => c.storageId), [marked.storageId]);
+        const form = new FormData();
+        form.append('file', new Blob([bytes], {type: 'image/png'}), 'generation-import.png');
+        form.append('driver', JSON.stringify(imageDriver(driver)));
+        const token = await app.generateUserApiKey(user.id, {});
+        const response = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-file`,
+            {method: 'POST', headers: {Authorization: `Bearer ${token}`}, body: form});
+        assert.equal(response.status, 200, await response.clone().text());
+        const upload = await response.json();
+        assert.equal((await sharp(Buffer.from((await app.ms.storage.getFileData(upload.storageId)).slice())).metadata()).height, 1664,
+            'Generation multipart import stores one strip with optimization enabled');
+        assert.equal((await resave(user.id, upload.id, null, driver)).status, 'completed');
+    });
+
+    it('resaves a legacy marked Upload without a driver or provenance without adding another strip', async () => {
+        const driver = watermarkDriver({name: 'imageWatermark', module: 'convert', params: {text: 'eraofwave.com'}});
+        const bytes = await sharp({create: {width: 1200, height: 1600, channels: 3, background: '#abcdef'}}).png().toBuffer();
+        const source = await app.ms.content.saveData(user.id, bytes, 'legacy-marked.jpg', {driver, waitForPin: true});
+        await app.ms.database.updateContent(source.id, {propertiesJson: '{}'});
+        const accepted = await resave(user.id, source.id, null, null, 'publication-jpeg95-v1');
+        assert.equal(accepted.status, 'queued');
+        await app.ms.content.processResaveQueue();
+        const result = await resave(user.id, source.id, null, null, 'publication-jpeg95-v1');
+        assert.equal(result.status, 'completed');
+        const image = Buffer.from((await app.ms.storage.getFileData(result.content.storageId)).slice());
+        assert.equal((await sharp(image).metadata()).height, 1664);
+        assert.equal(JSON.parse(result.content.propertiesJson).imageWatermark, undefined, 'no invented provenance');
+        assert.equal((await resave(user.id, result.content.id, null, null, 'publication-jpeg95-v1')).content.storageId,
+            result.content.storageId, 'ordinary later rebuild reuses the rendition');
+    });
+
+    it('publishes JPEG quality 95 originals with WebP previews while preserving legacy receipts', async () => {
+        const jpegPolicy = 'publication-jpeg95-v1';
+        const driver = watermarkDriver({name: 'imageWatermark', module: 'convert', params: {
+            text: 'eraofwave.com', color: '#874ee6', background: 'black', font: 'monospace', spacing: 50, sizeRatio: 1 / 50}});
+        const optimizeDriver = {name: 'imageOptimize', module: 'convert', params: {policy: jpegPolicy, watermark: driver}};
+        const bytes = await sharp({create: {width: 1200, height: 1600, channels: 3, background: '#789abc'}}).png().toBuffer();
+        const source = await app.ms.content.saveData(user.id, bytes, 'source.png', {waitForPin: true});
+        const legacy = await resave(user.id, source.id, null, driver);
+        await app.ms.content.processResaveQueue();
+        const webp = (await resave(user.id, source.id, null, driver)).content;
+        assert.equal(webp.extension, 'webp');
+        const accepted = await resave(user.id, source.id, null, optimizeDriver);
+        assert.equal(accepted.status, 'queued', 'a cached WebP cannot satisfy JPEG');
+        assert.notEqual(accepted.id, legacy.id);
+        await app.ms.content.processResaveQueue();
+        const jpeg = (await resave(user.id, source.id, null, optimizeDriver)).content;
+        assert.equal(jpeg.extension, 'jpg');
+        assert.equal(jpeg.mimeType, 'image/jpeg');
+        assert.equal(jpeg.previewExtension, 'webp');
+        assert.ok(jpeg.name.endsWith('.jpg'));
+        const full = Buffer.from((await app.ms.storage.getFileData(jpeg.storageId)).slice());
+        const metadata = await sharp(full).metadata();
+        assert.equal(metadata.format, 'jpeg');
+        assert.equal(metadata.chromaSubsampling, '4:4:4');
+        assert.equal(metadata.height, 1664);
+        assert.ok(JSON.parse(jpeg.propertiesJson).imageWatermark?.identity);
+        assert.equal((await sharp(Buffer.from((await app.ms.storage.getFileData(jpeg.mediumPreviewStorageId)).slice())).metadata()).format, 'webp');
+        for (const id of [source.id, jpeg.id]) {
+            assert.equal((await resave(user.id, id, null, driver, jpegPolicy)).content.storageId, jpeg.storageId);
+        }
+        assert.equal((await resave(user.id, source.id, null, driver)).content.storageId, webp.storageId,
+            'legacy receipt is still usable after JPEG conversion');
+        const service = app.ms.staticSiteGenerator.replacements;
+        const replacementRequest = {requestKey: randomUUID(), contentIds: [source.id], driver: optimizeDriver};
+        const receipt = await service.requestReplacement(user.id, replacementRequest);
+        await assert.rejects(() => service.requestReplacement(user.id, {...replacementRequest, imagePolicy: jpegPolicy}),
+            /driver required/, 'top-level imagePolicy is not accepted');
+        const site = await app.ms.staticSiteGenerator.generateContentListSite(user.id,
+            {entityType: 'content-list', entityIds: [source.id]}, {replacementId: receipt.id, archive: true,
+                site: {name: `jpeg_${randomUUID().replace(/-/g, '')}`, title: 'JPEG'}});
+        assert.deepEqual((await readSiteData(app.ms.storage, site.storageId)).contents.map(c => c.storageId), [jpeg.storageId]);
+        await app.ms.archive.requestArchive(user.id, site.storageId);
+        await app.ms.archive.processQueue();
+        const archive = await app.ms.archive.getArchive(site.storageId);
+        const archived = await readArchive(Buffer.from((await app.ms.storage.getFileData(archive.archivedStorageId)).slice()));
+        assert.ok([...archived.keys()].some(name => name.endsWith('.jpg')), 'archive contains JPEG originals');
+        assert.ok([...archived.keys()].some(name => name.endsWith('.webp')), 'archive contains WebP previews');
+        const form = new FormData();
+        form.append('file', new Blob([bytes], {type: 'image/png'}), 'generation.png');
+        form.append('driver', JSON.stringify(optimizeDriver));
+        const token = await app.generateUserApiKey(user.id, {});
+        const response = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-file`,
+            {method: 'POST', headers: {Authorization: `Bearer ${token}`}, body: form});
+        assert.equal(response.status, 200);
+        const uploaded = await response.json();
+        assert.equal(uploaded.extension, 'jpg');
+        assert.equal(uploaded.mimeType, 'image/jpeg');
+        assert.equal(uploaded.previewExtension, 'webp');
+        const resaved = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-data`, {method: 'POST',
+            headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+            body: JSON.stringify({sourceContentId: uploaded.id, driver: optimizeDriver})});
+        assert.equal(resaved.status, 202);
+        assert.equal((await resaved.json()).content.storageId, uploaded.storageId, 'driver-only API resave reuses Content');
+        const obsolete = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-data`, {method: 'POST',
+            headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+            body: JSON.stringify({sourceContentId: uploaded.id, driver: optimizeDriver, imagePolicy: jpegPolicy})});
+        assert.equal(obsolete.status, 400, 'top-level imagePolicy is explicitly rejected');
+    });
 
     for (const mode of ['remove', 'keep', 'shared']) {
     it(`${mode}: resaves through the normal queue, publishes WebP, and collects the old archive/site/images locally`, async () => {
@@ -45,9 +201,9 @@ describe('persisted image saving and local site retirement', function () {
             contents: [{id: source.id, view: 'attachment'}], propertiesJson: JSON.stringify({membership: {sourceKey,
                 pageUrl: `https://eraofwave.com/ipfs/${old.storageId}/#/`, title: 'Original', free: false}})});
         const service = app.ms.staticSiteGenerator.replacements;
-        const receipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), contentIds: [source.id],
+        const receipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), driver: imageDriver(), contentIds: [source.id],
             previousSiteStorageId: old.storageId, postId: post.id, deleteReplacedFiles: mode !== 'keep'});
-        const admissions = await Promise.all(Array.from({length: 3}, () => app.ms.content.requestResave(user.id, source.id)));
+        const admissions = await Promise.all(Array.from({length: 3}, () => resave(user.id, source.id)));
         assert.equal(new Set(admissions.map(value => value.id)).size, 1, 'concurrent resaves share one queue receipt');
         const accepted = admissions[0];
         assert.equal(accepted.status, 'queued');
@@ -61,7 +217,7 @@ describe('persisted image saving and local site retirement', function () {
         assert.deepEqual(Buffer.from((await app.ms.storage.getFileData(source.storageId)).slice()), originalBytes);
         const beforeQueues = await app.ms.database.sequelize.model('userOperationQueue').count({where: {module: 'content-resave'}});
         for (let index = 0; index < 3; index++) {
-            const reused = await app.ms.content.requestResave(user.id, output.content.id);
+            const reused = await resave(user.id, output.content.id);
             assert.equal(reused.status, 'completed');
             assert.equal(reused.content.storageId, output.content.storageId);
         }
@@ -133,12 +289,12 @@ describe('persisted image saving and local site retirement', function () {
         }
         await assert.rejects(() => app.ms.storage.node.block.stat(pageCid(`https://x/ipfs/${oldArchive.archivedStorageId}`), {offline: true}));
         assert.ok(await app.ms.storage.node.block.stat(pageCid(`https://x/ipfs/${archive.archivedStorageId}`), {offline: true}));
-        assert.equal((await app.ms.content.requestResave(user.id, source.id)).content.storageId, output.content.storageId,
+        assert.equal((await resave(user.id, source.id)).content.storageId, output.content.storageId,
             'idempotent source replay still works after source retirement');
-        const reused = await app.ms.content.requestResave(user.id, output.content.id);
+        const reused = await resave(user.id, output.content.id);
         assert.deepEqual(Buffer.from((await app.ms.storage.getFileData(reused.content.storageId)).slice()),
             Buffer.from((await app.ms.storage.getFileData(output.content.storageId)).slice()));
-        const thirdReceipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), contentIds: [output.content.id],
+        const thirdReceipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), driver: imageDriver(), contentIds: [output.content.id],
             previousSiteStorageId: replacement.storageId, postId: post.id, deleteReplacedFiles: true});
         const third = await app.ms.staticSiteGenerator.generateContentListSite(user.id,
             {entityType: 'content-list', entityIds: [output.content.id]}, {archive: true, replacementId: thirdReceipt.id,
@@ -312,6 +468,79 @@ describe('persisted image saving and local site retirement', function () {
         assert.equal(new Set(uploaded).size, 10, 'all complete uploads persist after aborted requests');
     });
 
+    it('serves three owners uploading ten files each while saturated-pool polling stays available', async () => {
+        const origin = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
+        const owners = [user];
+        for (let index = 0; index < 2; index++) {
+            owners.push(await app.registerUser({name: `parallel_${randomUUID().slice(0, 8)}`,
+                password: 'pass', permissions: ['user:all']}));
+        }
+        const clients = await Promise.all(owners.map(async owner => ({owner,
+            token: await app.generateUserApiKey(owner.id, {}),
+            operation: await app.ms.asyncOperation.addAsyncOperation(owner.id, {name: 'multi-client-wait', channel: randomUUID()}),
+        })));
+        let unlock, started, held = 0;
+        const ready = new Promise<void>(resolve => { started = resolve; });
+        const release = new Promise<void>(resolve => { unlock = resolve; });
+        const holders = Array.from({length: 10}, () => withStorageFence(app, 'shared', async () => {
+            if (++held === 10) {
+                started();
+            }
+            await release;
+        }));
+        await ready;
+        const uploads = clients.map(client => Promise.all(Array.from({length: 10}, async (_unused, index) => {
+            const png = await sharp({create: {width: 40, height: 60, channels: 3,
+                background: `#${randomUUID().replace(/-/g, '').slice(0, 6)}`}}).png().toBuffer();
+            const form = new FormData();
+            form.append('file', new Blob([png], {type: 'image/png'}), `${index}.png`);
+            form.append('async', 'true');
+            form.append('path', `/multi-client/${index}.png`);
+            const response = await fetch(`${origin}/user/save-file`, {method: 'POST',
+                headers: {Authorization: `Bearer ${client.token}`}, body: form, signal: AbortSignal.timeout(20000)});
+            assert.equal(response.status, 200, await response.clone().text());
+            return response.json();
+        })));
+        try {
+            const anonymous = await fetch(`${origin}/user/get-async-operations`, {method: 'POST',
+                headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: [clients[0].operation.id]}),
+                signal: AbortSignal.timeout(3000)});
+            assert.equal(anonymous.status, 401, 'read-only polling still requires authorization');
+            for (const client of clients) {
+                const batch = await fetch(`${origin}/user/get-async-operations`, {method: 'POST',
+                    headers: {Authorization: `Bearer ${client.token}`, 'Content-Type': 'application/json'},
+                    body: JSON.stringify({ids: clients.map(value => value.operation.id)}), signal: AbortSignal.timeout(3000)});
+                assert.equal(batch.status, 200, 'status polling does not need a storage writer slot');
+                assert.deepEqual((await batch.json()).list.map(value => value.id), [client.operation.id], 'status ownership remains isolated');
+                const catalog = await fetch(`${origin}/user/file-catalog/get-item-by-path`, {method: 'POST',
+                    headers: {Authorization: `Bearer ${client.token}`, 'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: '/multi-client', type: 'folder'}), signal: AbortSignal.timeout(3000)});
+                assert.equal(catalog.status, 200, 'owned catalog lookup remains available');
+            }
+        } finally {
+            unlock();
+            await Promise.all(holders);
+        }
+        const receipts = await Promise.all(uploads);
+        assert.equal(new Set(receipts.flat().map(receipt => receipt.asyncOperationId)).size, 30);
+        for (let clientIndex = 0; clientIndex < clients.length; clientIndex++) {
+            for (const receipt of receipts[clientIndex]) {
+                let operation;
+                for (let attempt = 0; attempt < 100; attempt++) {
+                    operation = await app.ms.asyncOperation.getUserAsyncOperation(receipt.asyncOperationId);
+                    if (!operation.inProcess) {
+                        break;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                assert.equal(operation.errorMessage, null);
+                assert.ok(operation.contentId);
+                const content = await app.ms.database.getContent(operation.contentId);
+                assert.equal(content.userId, clients[clientIndex].owner.id, 'completed uploads stay with their submitting owner');
+            }
+        }
+    });
+
     it('reports a bounded pool acquisition timeout separately from storage maintenance', async () => {
         const origin = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
         const token = await app.generateUserApiKey(user.id, {});
@@ -342,10 +571,11 @@ describe('persisted image saving and local site retirement', function () {
         const token = await app.generateUserApiKey(user.id, {scopes: ['content:write', 'operations:read']});
         const headers = {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'};
         const png = await sharp({create: {width: 40, height: 60, channels: 3, background: '#789abc'}}).png().toBuffer();
-        const content = await app.ms.content.saveData(user.id, png, 'storage-wait.png', {optimize: true, waitForPin: true});
-        const body = JSON.stringify({requestKey: randomUUID(), contentIds: [content.id]});
+        const content = await app.ms.content.saveData(user.id, png, 'storage-wait.png', {driver: imageDriver(), waitForPin: true});
+        const body = JSON.stringify({requestKey: randomUUID(), driver: imageDriver(), contentIds: [content.id]});
         const Queue = app.ms.database.sequelize.model('userOperationQueue');
         const before = await Queue.count({where: {module: 'site-replacement'}});
+        const polling = await app.ms.asyncOperation.addAsyncOperation(user.id, {name: 'gc-poll', channel: randomUUID()});
         let unlock, started;
         const held = new Promise<void>(resolve => { started = resolve; });
         const release = new Promise<void>(resolve => { unlock = resolve; });
@@ -356,11 +586,16 @@ describe('persisted image saving and local site retirement', function () {
                 {method: 'POST', headers, body, signal: AbortSignal.timeout(5000)})));
             for (const response of responses) {
                 assert.equal(response.status, 503);
+                assert.equal(response.headers.get('retry-after'), '2');
                 assert.equal((await response.json()).code, 'storage_maintenance_busy');
             }
             assert.equal(await Queue.count({where: {module: 'site-replacement'}}), before, 'rejected callbacks never ran');
             const caps = await fetch(`${origin}/user/image-optimization/capabilities`, {headers, signal: AbortSignal.timeout(5000)});
             assert.equal(caps.status, 200, 'GET polling remains available');
+            const batch = await fetch(`${origin}/user/get-async-operations`, {method: 'POST', headers,
+                body: JSON.stringify({ids: [polling.id]}), signal: AbortSignal.timeout(3000)});
+            assert.equal(batch.status, 200, 'read-only POST polling remains available during exclusive GC');
+            assert.equal((await batch.json()).list[0].id, polling.id);
         } finally {
             unlock();
             await cleanup;
@@ -378,10 +613,10 @@ describe('persisted image saving and local site retirement', function () {
         const headers = {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'};
         const caps = await fetch(`${origin}/user/image-optimization/capabilities`, {headers});
         assert.equal(caps.status, 200);
-        assert.deepEqual(await caps.json(), {contract: 1, policy: 'publication-webp-v1', resave: true, retirement: true});
+        assert.deepEqual(await caps.json(), {contract: 1, policy: 'publication-jpeg95-v1', imagePolicies: ['publication-webp-v1', 'publication-jpeg95-v1'], resave: true, watermark: true, imageOptimizeDriver: true, retirement: true});
         const png = await sharp({create: {width: 40, height: 60, channels: 3, background: '#123abc'}}).png().toBuffer();
-        const content = await app.ms.content.saveData(user.id, png, 'http-contract.png', {optimize: true, waitForPin: true});
-        const body = {requestKey: randomUUID(), contentIds: [content.id], deleteReplacedFiles: false};
+        const content = await app.ms.content.saveData(user.id, png, 'http-contract.png', {driver: imageDriver(), waitForPin: true});
+        const body = {requestKey: randomUUID(), driver: imageDriver(), contentIds: [content.id], deleteReplacedFiles: false};
         const create = await fetch(`${origin}/user/site-replacements`, {method: 'POST', headers, body: JSON.stringify(body)});
         assert.equal(create.status, 202, await create.clone().text());
         const receipt = await create.json();
@@ -397,7 +632,7 @@ describe('persisted image saving and local site retirement', function () {
             body: JSON.stringify({...body, postId: 123})});
         assert.equal(changed.status, 409);
         const reused = await fetch(`${origin}/user/save-data`, {method: 'POST', headers,
-            body: JSON.stringify({sourceContentId: content.id, optimize: true})});
+            body: JSON.stringify({sourceContentId: content.id, driver: imageDriver()})});
         assert.equal(reused.status, 202, await reused.clone().text());
         assert.equal((await reused.json()).content.storageId, content.storageId);
         const other = await app.registerUser({name: `reader_${randomUUID().slice(0, 8)}`, password: 'pass', permissions: ['user:all']});
@@ -474,7 +709,7 @@ describe('persisted image saving and local site retirement', function () {
         let gate;
         try {
             const bytes = await sharp({create: {width: 40, height: 60, channels: 3, background: '#998877'}}).png().toBuffer();
-            const saved = await app.ms.content.saveData(user.id, bytes, 'backlog.png', {optimize: true, waitForPin: true});
+            const saved = await app.ms.content.saveData(user.id, bytes, 'backlog.png', {driver: imageDriver(), waitForPin: true});
             assert.ok(saved.id);
             gate = await service.jobs.create(user.id, null, randomUUID(), {status: 'cleanup_failed', requestHash: 'gate',
                 input: {sources: []}, result: {cleanup: {candidates: [{storageId: pageCid(`https://x/ipfs/${saved.storageId}`)}]}}});
@@ -492,13 +727,13 @@ describe('persisted image saving and local site retirement', function () {
     it('cleans failed revision attempts and leaves ordinary generation outside durable revision history', async () => {
         const service = app.ms.staticSiteGenerator.replacements;
         const content = await app.ms.content.saveData(user.id, await sharp({create: {width: 20, height: 30,
-            channels: 3, background: '#ccddee'}}).png().toBuffer(), 'revision.png', {optimize: true, waitForPin: true});
+            channels: 3, background: '#ccddee'}}).png().toBuffer(), 'revision.png', {driver: imageDriver(), waitForPin: true});
         const before = await service.models.Revision.count();
         const renderArgs = {entityType: 'content-list', entityIds: [content.id]};
         await app.ms.staticSiteGenerator.generateContentListSite(user.id, renderArgs, {site: {name: 'ordinary_revision_test', title: 'Ordinary revision'}});
         await app.ms.staticSiteGenerator.generateContentListSite(user.id, renderArgs, {site: {name: 'ordinary_revision_test', title: 'Ordinary revision'}});
         assert.equal(await service.models.Revision.count(), before);
-        const receipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), contentIds: [content.id]});
+        const receipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), driver: imageDriver(), contentIds: [content.id]});
         let failedPath;
         await assert.rejects(() => service.withRender(user.id, receipt.id, {}, {}, async () => {
             failedPath = await service.beginRevision(user.id, 1, receipt.id);
@@ -517,8 +752,8 @@ describe('persisted image saving and local site retirement', function () {
 
     it('rejects foreign IDs and changed replacement keys', async () => {
         const service = app.ms.staticSiteGenerator.replacements;
-        await assert.rejects(() => app.ms.content.requestResave(user.id + 100000, 1));
-        await assert.rejects(() => service.requestReplacement(user.id, {requestKey: randomUUID(), contentIds: [999999]}));
+        await assert.rejects(() => resave(user.id + 100000, 1));
+        await assert.rejects(() => service.requestReplacement(user.id, {requestKey: randomUUID(), driver: imageDriver(), contentIds: [999999]}));
     });
     it('admits and processes concurrent resaves with a one-connection SQL pool', async () => {
         const sources = [];
@@ -530,7 +765,7 @@ describe('persisted image saving and local site retirement', function () {
         await app.stop();
         app = await (await import('../app/index.js')).default({storageConfig, port: 7771,
             databaseConfig: {pool: {max: 1, min: 0, acquire: 3000}}});
-        const admitted = await Promise.all([sources[0], sources[0], sources[1]].map(source => app.ms.content.requestResave(user.id, source.id)));
+        const admitted = await Promise.all([sources[0], sources[0], sources[1]].map(source => resave(user.id, source.id)));
         assert.equal(admitted[0].id, admitted[1].id);
         for (let attempt = 0; attempt < 30; attempt++) {
             await app.ms.content.processResaveQueue();

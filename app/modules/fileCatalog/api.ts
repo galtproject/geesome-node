@@ -19,12 +19,30 @@ export default (app: IGeesomeApp, fileCatalogModule: IGeesomeFileCatalogModule) 
     fileCatalogApi.onAuthorizedPost('save-content-by-path', async (req, res) => {
         res.send(await fileCatalogModule.saveContentByPath(req.user.id, req.body.path, req.body.contentId));
     });
+    /**
+     * @api {post} /v1/user/file-catalog/get-content-by-path Look up owned content by path
+     * @apiName CatalogContentByPath
+     * @apiGroup FileCatalog
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiDescription Read-only owned lookup, available during storage contention and cleanup. Existing catalog permissions still apply.
+     * @apiBody {String} path Catalog path.
+     */
     fileCatalogApi.onAuthorizedPost('get-content-by-path', async (req, res) => {
         res.send(await fileCatalogModule.getContentByPath(req.user.id, req.body.path));
-    });
+    }, {storageReadOnly: true});
+    /**
+     * @api {post} /v1/user/file-catalog/get-item-by-path Look up an owned catalog item by path
+     * @apiName CatalogItemByPath
+     * @apiGroup FileCatalog
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiDescription Read-only owned lookup, available during storage contention and cleanup. Existing catalog permissions still apply.
+     * @apiBody {String} path Catalog path.
+     */
     fileCatalogApi.onAuthorizedPost('get-item-by-path', async (req, res) => {
         res.send(await fileCatalogModule.getFileCatalogItemByPath(req.user.id, req.body.path, req.body.type));
-    });
+    }, {storageReadOnly: true});
     fileCatalogApi.onAuthorizedPost('publish-folder/:itemId', async (req, res) => {
         res.send(await fileCatalogModule.publishFolder(req.user.id, req.params.itemId, req.body));
     });

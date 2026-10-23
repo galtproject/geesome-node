@@ -1,3 +1,4 @@
+import {optimizationRequest} from '../drivers/convert/imageOptimize.js';
 import _ from 'lodash';
 import debug from 'debug';
 import {CorePermissionName, UserLimitName} from "../database/interface.js";
@@ -28,7 +29,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @api {post} /v1/user/save-file Save file
      * @apiDescription Store file from browser by FormData class in "file" field. Other fields can be stored as key value.
      * @apiName UserSaveFile
-     * @apiBody {Boolean} [optimize=false] Encode the uploaded image as full-resolution WebP plus WebP previews.
+     * @apiBody {Object} [driver] Use {name:"imageOptimize",module:"convert",params:{policy:"publication-jpeg95-v1",watermark:optionalImageWatermarkDriver}}. Saves JPEG quality 95 plus WebP previews without separate flags.
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
@@ -54,9 +55,15 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
                 fileSize: await app.getUserLimitRemained(req.user.id, UserLimitName.SaveContentSize)
             }
         });
+        if (body.imagePolicy !== undefined || body.optimize !== undefined) {
+            for (const file of files) {
+                file.destroy();
+                file.emitFinish();
+            }
+            throw new ApiProblemError(400, 'image_optimization_driver_required', 'Use the imageOptimize driver');
+        }
         const uploadFields = pick(body, [
             'driver',
-            'optimize',
             'groupId',
             'folderId',
             'path',
@@ -75,15 +82,15 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
 
     /**
      * @api {post} /v1/user/save-data Save data
-     * @apiDescription Store data (string or buffer), or resave an owned image by sourceContentId with optimize=true. Resaves reuse the existing operation queue and return its receipt, or a completed saved Content. Poll ordinary operation endpoints. Requires content:write for resaving.
+     * @apiDescription Store data (string or buffer), or resave an owned image by sourceContentId with an imageOptimize driver. Resaves reuse the existing operation queue and return its receipt, or a completed saved Content. Poll ordinary operation endpoints. Requires content:write for resaving.
      * @apiName UserSaveData
-     * @apiBody {Boolean} [optimize=false] Encode full-resolution WebP and WebP previews through the save pipeline.
-     * @apiBody {Number} [sourceContentId] Existing owned image to resave, instead of content; requires optimize=true.
+     * @apiBody {Object} [driver] Use {name:"imageOptimize",module:"convert",params:{policy:"publication-jpeg95-v1",watermark:optionalImageWatermarkDriver}}. Saves JPEG quality 95 plus WebP previews without separate flags.
+     * @apiBody {Number} [sourceContentId] Existing owned image to resave, instead of content; requires an imageOptimize driver. Optional driver watermark is frozen in the queue; marked renditions are reused only when they satisfy that watermark.
      * @apiSuccess {String} [status] queued or completed for sourceContentId resaves.
      * @apiSuccess {Number} [id] Existing operation-queue ID when queued.
      * @apiSuccess {Number} [asyncOperationId] Existing operation ID when assigned.
      * @apiSuccess {Object} [content] Saved optimized Content when already completed.
-     * @apiError content_resave_input_invalid Conflicting content/sourceContentId or missing optimize=true.
+     * @apiError content_resave_input_invalid Conflicting content/sourceContentId or missing optimization driver.
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
@@ -102,18 +109,21 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      *     -d '{"content":"hello","fileName":"hello.txt","mimeType":"text/plain"}'
      */
     app.ms.api.onAuthorizedPost('user/save-data', async (req, res) => {
+        if (req.body.imagePolicy !== undefined || req.body.optimize !== undefined) {
+            throw new ApiProblemError(400, 'image_optimization_driver_required', 'Use the imageOptimize driver');
+        }
         const options = {
             userId: req.user.id,
             userApiKeyId: req.apiKey.id,
-            ...pick(req.body, ['groupId', 'folderId', 'mimeType', 'path', 'async', 'driver', 'optimize'])
+            ...pick(req.body, ['groupId', 'folderId', 'mimeType', 'path', 'async', 'driver'])
         };
 
         if (req.body.sourceContentId !== undefined) {
-            if (req.body.content !== undefined || req.body.optimize !== true) {
-                throw new ApiProblemError(400, 'content_resave_input_invalid', 'Supply sourceContentId and optimize=true without content');
+            if (req.body.content !== undefined || !optimizationRequest(req.body.driver)) {
+                throw new ApiProblemError(400, 'content_resave_input_invalid', 'Supply sourceContentId and an imageOptimize driver without content');
             }
             app.checkModules(['content']);
-            return res.send(await app.ms.content['requestResave'](req.user.id, req.body.sourceContentId, req.apiKey.id), 202);
+            return res.send(await app.ms.content['requestResave'](req.user.id, req.body.sourceContentId, req.apiKey.id, req.body.driver), 202);
         }
 
         res.send(await app.ms.asyncOperation.asyncOperationWrapper('content', 'saveData', [req.user.id, req.body['content'], req.body['fileName'] || req.body['name'], options], options));

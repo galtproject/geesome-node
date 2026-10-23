@@ -14,11 +14,11 @@ export default interface IGeesomeApiModule {
 
 	onUnversionHead(routeName: string, callback: (IApiModuleGetInput, IApiModuleCommonOutput) => any): any;
 
-	onPost(routeName: string, callback: (IApiModulePotInput, IApiModuleCommonOutput) => any): any;
+	onPost(routeName: string, callback: (IApiModulePotInput, IApiModuleCommonOutput) => any, options?: {storageReadOnly?: boolean}): any;
 
 	onAuthorizedGet(routeName: string, callback: (IApiModuleGetInput, IApiModuleCommonOutput) => any): any;
 
-	onAuthorizedPost(routeName: string, callback: (IApiModulePotInput, IApiModuleCommonOutput) => any): any;
+	onAuthorizedPost(routeName: string, callback: (IApiModulePotInput, IApiModuleCommonOutput) => any, options?: {storageReadOnly?: boolean}): any;
 
 	handleAuthResult(IApiModuleCommonOutput, user: IUser): Promise<any>;
 

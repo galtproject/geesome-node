@@ -43,6 +43,9 @@ export function sendApiProblem(res: any, error: any, requestId?: string) {
 	const problem = getApiProblem(error, requestId || res.requestId || res.locals?.requestId);
 	setResponseHeader(res, 'Content-Type', PROBLEM_CONTENT_TYPE);
 	setResponseHeader(res, 'X-Request-Id', problem.requestId);
+	if (problem.status === 503 && ['storage_busy', 'storage_maintenance_busy'].includes(problem.code)) {
+		setResponseHeader(res, 'Retry-After', '2');
+	}
 	return sendResponse(res, problem, problem.status);
 }
 
