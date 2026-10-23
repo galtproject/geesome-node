@@ -468,6 +468,79 @@ describe('persisted image saving and local site retirement', function () {
         assert.equal(new Set(uploaded).size, 10, 'all complete uploads persist after aborted requests');
     });
 
+    it('serves three owners uploading ten files each while saturated-pool polling stays available', async () => {
+        const origin = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
+        const owners = [user];
+        for (let index = 0; index < 2; index++) {
+            owners.push(await app.registerUser({name: `parallel_${randomUUID().slice(0, 8)}`,
+                password: 'pass', permissions: ['user:all']}));
+        }
+        const clients = await Promise.all(owners.map(async owner => ({owner,
+            token: await app.generateUserApiKey(owner.id, {}),
+            operation: await app.ms.asyncOperation.addAsyncOperation(owner.id, {name: 'multi-client-wait', channel: randomUUID()}),
+        })));
+        let unlock, started, held = 0;
+        const ready = new Promise<void>(resolve => { started = resolve; });
+        const release = new Promise<void>(resolve => { unlock = resolve; });
+        const holders = Array.from({length: 10}, () => withStorageFence(app, 'shared', async () => {
+            if (++held === 10) {
+                started();
+            }
+            await release;
+        }));
+        await ready;
+        const uploads = clients.map(client => Promise.all(Array.from({length: 10}, async (_unused, index) => {
+            const png = await sharp({create: {width: 40, height: 60, channels: 3,
+                background: `#${randomUUID().replace(/-/g, '').slice(0, 6)}`}}).png().toBuffer();
+            const form = new FormData();
+            form.append('file', new Blob([png], {type: 'image/png'}), `${index}.png`);
+            form.append('async', 'true');
+            form.append('path', `/multi-client/${index}.png`);
+            const response = await fetch(`${origin}/user/save-file`, {method: 'POST',
+                headers: {Authorization: `Bearer ${client.token}`}, body: form, signal: AbortSignal.timeout(20000)});
+            assert.equal(response.status, 200, await response.clone().text());
+            return response.json();
+        })));
+        try {
+            const anonymous = await fetch(`${origin}/user/get-async-operations`, {method: 'POST',
+                headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: [clients[0].operation.id]}),
+                signal: AbortSignal.timeout(3000)});
+            assert.equal(anonymous.status, 401, 'read-only polling still requires authorization');
+            for (const client of clients) {
+                const batch = await fetch(`${origin}/user/get-async-operations`, {method: 'POST',
+                    headers: {Authorization: `Bearer ${client.token}`, 'Content-Type': 'application/json'},
+                    body: JSON.stringify({ids: clients.map(value => value.operation.id)}), signal: AbortSignal.timeout(3000)});
+                assert.equal(batch.status, 200, 'status polling does not need a storage writer slot');
+                assert.deepEqual((await batch.json()).list.map(value => value.id), [client.operation.id], 'status ownership remains isolated');
+                const catalog = await fetch(`${origin}/user/file-catalog/get-item-by-path`, {method: 'POST',
+                    headers: {Authorization: `Bearer ${client.token}`, 'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: '/multi-client', type: 'folder'}), signal: AbortSignal.timeout(3000)});
+                assert.equal(catalog.status, 200, 'owned catalog lookup remains available');
+            }
+        } finally {
+            unlock();
+            await Promise.all(holders);
+        }
+        const receipts = await Promise.all(uploads);
+        assert.equal(new Set(receipts.flat().map(receipt => receipt.asyncOperationId)).size, 30);
+        for (let clientIndex = 0; clientIndex < clients.length; clientIndex++) {
+            for (const receipt of receipts[clientIndex]) {
+                let operation;
+                for (let attempt = 0; attempt < 100; attempt++) {
+                    operation = await app.ms.asyncOperation.getUserAsyncOperation(receipt.asyncOperationId);
+                    if (!operation.inProcess) {
+                        break;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                assert.equal(operation.errorMessage, null);
+                assert.ok(operation.contentId);
+                const content = await app.ms.database.getContent(operation.contentId);
+                assert.equal(content.userId, clients[clientIndex].owner.id, 'completed uploads stay with their submitting owner');
+            }
+        }
+    });
+
     it('reports a bounded pool acquisition timeout separately from storage maintenance', async () => {
         const origin = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
         const token = await app.generateUserApiKey(user.id, {});
@@ -502,6 +575,7 @@ describe('persisted image saving and local site retirement', function () {
         const body = JSON.stringify({requestKey: randomUUID(), driver: imageDriver(), contentIds: [content.id]});
         const Queue = app.ms.database.sequelize.model('userOperationQueue');
         const before = await Queue.count({where: {module: 'site-replacement'}});
+        const polling = await app.ms.asyncOperation.addAsyncOperation(user.id, {name: 'gc-poll', channel: randomUUID()});
         let unlock, started;
         const held = new Promise<void>(resolve => { started = resolve; });
         const release = new Promise<void>(resolve => { unlock = resolve; });
@@ -512,11 +586,16 @@ describe('persisted image saving and local site retirement', function () {
                 {method: 'POST', headers, body, signal: AbortSignal.timeout(5000)})));
             for (const response of responses) {
                 assert.equal(response.status, 503);
+                assert.equal(response.headers.get('retry-after'), '2');
                 assert.equal((await response.json()).code, 'storage_maintenance_busy');
             }
             assert.equal(await Queue.count({where: {module: 'site-replacement'}}), before, 'rejected callbacks never ran');
             const caps = await fetch(`${origin}/user/image-optimization/capabilities`, {headers, signal: AbortSignal.timeout(5000)});
             assert.equal(caps.status, 200, 'GET polling remains available');
+            const batch = await fetch(`${origin}/user/get-async-operations`, {method: 'POST', headers,
+                body: JSON.stringify({ids: [polling.id]}), signal: AbortSignal.timeout(3000)});
+            assert.equal(batch.status, 200, 'read-only POST polling remains available during exclusive GC');
+            assert.equal((await batch.json()).list[0].id, polling.id);
         } finally {
             unlock();
             await cleanup;

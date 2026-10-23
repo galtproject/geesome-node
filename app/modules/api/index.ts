@@ -149,10 +149,12 @@ async function getModule(app: IGeesomeApp, version, port, host) {
 			service.post(`/${routeName}`, (req, res) => this.handleCallback(req, res, (input, output) => withStorageFence(app, 'shared', () => callback(input, output), {wait: false})));
 		}
 
-		onPost(routeName: string, callback: (req: IApiModulePotInput, res: IApiModuleCommonOutput) => any) {
+		onPost(routeName: string, callback: (req: IApiModulePotInput, res: IApiModuleCommonOutput) => any, options: {storageReadOnly?: boolean} = {}) {
 			routeName = trimStart(routeName, '/');
 			trackRoute('POST', `/${version}/${routeName}`);
-			service.post(`/${version}/${routeName}`, (req, res) => this.handleCallback(req, res, (input, output) => withStorageFence(app, 'shared', () => callback(input, output), {wait: false})));
+			service.post(`/${version}/${routeName}`, (req, res) => this.handleCallback(req, res, (input, output) =>
+				options.storageReadOnly ? callback(input, output)
+					: withStorageFence(app, 'shared', () => callback(input, output), {wait: false})));
 		}
 
 		onHead(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
@@ -187,10 +189,10 @@ async function getModule(app: IGeesomeApp, version, port, host) {
 			markLastRouteAuthorized();
 		}
 
-		onAuthorizedPost(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
+		onAuthorizedPost(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any, options: {storageReadOnly?: boolean} = {}) {
 			this.onPost(routeName, (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => {
 				return this.authorizeAndHandleCallback(req, res, callback);
-			});
+			}, options);
 			markLastRouteAuthorized();
 		}
 
@@ -221,8 +223,8 @@ async function getModule(app: IGeesomeApp, version, port, host) {
 				onUnversionGet: (routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) => {
 					return this.onUnversionGet(routePrefix + routeName, callback);
 				},
-				onPost: (routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) => {
-					return this.onPost(routePrefix + routeName, callback);
+				onPost: (routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any, options = {}) => {
+					return this.onPost(routePrefix + routeName, callback, options);
 				},
 				onUnversionPost: (routeName: string, callback: (req: IApiModulePotInput, res: IApiModuleCommonOutput) => any) => {
 					return this.onUnversionPost(routePrefix + routeName, callback);
@@ -236,8 +238,8 @@ async function getModule(app: IGeesomeApp, version, port, host) {
 				onAuthorizedGet: (routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) => {
 					return this.onAuthorizedGet(routePrefix + routeName, callback);
 				},
-				onAuthorizedPost: (routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) => {
-					return this.onAuthorizedPost(routePrefix + routeName, callback);
+				onAuthorizedPost: (routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any, options = {}) => {
+					return this.onAuthorizedPost(routePrefix + routeName, callback, options);
 				},
 				prefix: this.prefix.bind(this),
 				setDefaultHeaders: this.setDefaultHeaders.bind(this),
