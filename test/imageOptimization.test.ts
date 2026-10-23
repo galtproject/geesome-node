@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
+import {watermarkDriver, hasWatermarkBand} from '../app/modules/content/imageWatermark.js';
 import {QueryTypes} from 'sequelize';
 import {withStorageFence, withStorageTaskLock, withStorageWorker} from '../app/storageLifecycle.js';
 import {collectRetiredBlocks} from '../app/modules/storageSpace/siteRetirement.js';
@@ -22,6 +23,71 @@ describe('persisted image saving and local site retirement', function () {
         group = await app.ms.group.createGroup(user.id, {name: 'optimize_private', title: 'Private', isPublic: false});
     });
     after(async () => { await app?.stop(); });
+
+    it('rebuild repairs already optimized unmarked images, preserves one watermark and renders marked mappings', async () => {
+        const driver = watermarkDriver({name: 'imageWatermark', module: 'convert', params: {
+            text: 'eraofwave.com', color: '#874ee6', background: 'black', font: 'monospace', spacing: 50, sizeRatio: 1 / 50}});
+        const bytes = await sharp({create: {width: 1200, height: 1600, channels: 3, background: '#abc789'}}).png().toBuffer();
+        const unmarked = await app.ms.content.saveData(user.id, bytes, 'legacy-unmarked.png', {optimize: true, waitForPin: true});
+        const service = app.ms.staticSiteGenerator.replacements;
+        const request = {requestKey: randomUUID(), contentIds: [unmarked.id], driver};
+        const receipt = await service.requestReplacement(user.id, request);
+        await assert.rejects(() => service.renderIds(user.id, receipt.id, [unmarked.id]), /image optimization not ready/);
+        await assert.rejects(() => service.requestReplacement(user.id, {...request, driver: {...driver, params: {...driver.params, text: 'other.test'}}}),
+            /image replacement idempotency conflict/);
+        const accepted = await app.ms.content.requestResave(user.id, unmarked.id, null, driver);
+        assert.equal(accepted.status, 'queued', 'unmarked optimization receipt cannot satisfy a marked rebuild');
+        await app.ms.content.processResaveQueue();
+        const queue = await app.ms.asyncOperation.getUserOperationQueue(user.id, accepted.id);
+        assert.equal(queue.asyncOperation.errorMessage, null);
+        const marked = JSON.parse(queue.asyncOperation.output).content;
+        assert.notEqual(marked.id, unmarked.id);
+        for (const cid of [marked.storageId, marked.mediumPreviewStorageId]) {
+            const data = Buffer.from((await app.ms.storage.getFileData(cid)).slice());
+            const metadata = await sharp(data).metadata();
+            assert.equal(metadata.format, 'webp');
+            assert.equal(metadata.height, Math.round(metadata.width * 1664 / 1200));
+            if (cid === marked.storageId) {
+                assert.equal(await hasWatermarkBand(data, metadata.width, metadata.height, driver.params), true);
+            } else {
+                const height = Math.floor(metadata.height * 64 / 1664);
+                const pixels = await sharp(data).extract({left: 0, top: metadata.height - height, width: metadata.width, height})
+                    .removeAlpha().raw().toBuffer();
+                let dark = 0, purple = 0;
+                for (let index = 0; index < pixels.length; index += 3) {
+                    if (pixels[index] < 30 && pixels[index + 1] < 30 && pixels[index + 2] < 30) {
+                        dark++;
+                    }
+                    if (pixels[index + 2] > pixels[index + 1] + 30 && pixels[index] > pixels[index + 1] + 20) {
+                        purple++;
+                    }
+                }
+                assert.ok(dark / (pixels.length / 3) > 0.8, 'preview retains the black strip');
+                assert.ok(purple > 30, 'preview retains purple domain text');
+            }
+        }
+        for (const id of [unmarked.id, marked.id]) {
+            const repeat = await app.ms.content.requestResave(user.id, id, null, driver);
+            assert.equal(repeat.status, 'completed');
+            assert.equal(repeat.content.storageId, marked.storageId, 'later rebuilds preserve CID and avoid cumulative compression');
+        }
+        const site = await app.ms.staticSiteGenerator.generateContentListSite(user.id,
+            {entityType: 'content-list', entityIds: [unmarked.id]}, {replacementId: receipt.id, archive: true,
+                site: {name: `watermark_${randomUUID().replace(/-/g, '')}`, title: 'Marked'}});
+        assert.deepEqual((await readSiteData(app.ms.storage, site.storageId)).contents.map(c => c.storageId), [marked.storageId]);
+        const form = new FormData();
+        form.append('file', new Blob([bytes], {type: 'image/png'}), 'generation-import.png');
+        form.append('optimize', 'true');
+        form.append('driver', JSON.stringify(driver));
+        const token = await app.generateUserApiKey(user.id, {});
+        const response = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-file`,
+            {method: 'POST', headers: {Authorization: `Bearer ${token}`}, body: form});
+        assert.equal(response.status, 200, await response.clone().text());
+        const upload = await response.json();
+        assert.equal((await sharp(Buffer.from((await app.ms.storage.getFileData(upload.storageId)).slice())).metadata()).height, 1664,
+            'Generation multipart import stores one strip with optimization enabled');
+        assert.equal((await app.ms.content.requestResave(user.id, upload.id, null, driver)).status, 'completed');
+    });
 
     for (const mode of ['remove', 'keep', 'shared']) {
     it(`${mode}: resaves through the normal queue, publishes WebP, and collects the old archive/site/images locally`, async () => {
@@ -378,7 +444,7 @@ describe('persisted image saving and local site retirement', function () {
         const headers = {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'};
         const caps = await fetch(`${origin}/user/image-optimization/capabilities`, {headers});
         assert.equal(caps.status, 200);
-        assert.deepEqual(await caps.json(), {contract: 1, policy: 'publication-webp-v1', resave: true, retirement: true});
+        assert.deepEqual(await caps.json(), {contract: 1, policy: 'publication-webp-v1', resave: true, watermark: true, retirement: true});
         const png = await sharp({create: {width: 40, height: 60, channels: 3, background: '#123abc'}}).png().toBuffer();
         const content = await app.ms.content.saveData(user.id, png, 'http-contract.png', {optimize: true, waitForPin: true});
         const body = {requestKey: randomUUID(), contentIds: [content.id], deleteReplacedFiles: false};

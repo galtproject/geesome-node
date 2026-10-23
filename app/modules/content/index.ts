@@ -1,4 +1,5 @@
 import fs from "fs";
+import {watermarkDriver, watermarkIdentity, watermarkProperties} from './imageWatermark.js';
 import {ContentResave} from './resave.js';
 import _ from 'lodash';
 import mime from 'mime';
@@ -813,10 +814,15 @@ function getModule(app: IGeesomeApp) {
 				throw new ApiProblemError(400, 'image_optimization_flag_invalid', 'Invalid optimization flag');
 			}
 			if (options.optimize === true || options.optimize === 'true') {
-				if (options.driver) {
-					throw new ApiProblemError(400, 'image_optimization_driver_conflict', 'Optimization cannot be combined with another driver');
-				}
-				options = {...options, driver: {name: 'imageOptimize', module: 'convert'}, requirePreview: true};
+				const watermark = watermarkDriver(options.driver);
+				const watermarkApplied = Boolean(watermark && options.properties?.imageWatermark?.identity === watermarkIdentity(watermark));
+				options = {...options, driver: {name: 'imageOptimize', module: 'convert', params: {watermark, watermarkApplied}},
+					properties: {...options.properties, ...watermarkProperties(watermark)}, requirePreview: true};
+			}
+
+			const selectedDriver = this.getDriverNameAndParams(options);
+			if (selectedDriver.name === 'imageWatermark' && selectedDriver.module === 'convert') {
+				options = {...options, properties: {...options.properties, ...watermarkProperties(selectedDriver)}};
 			}
 
 			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
@@ -895,6 +901,11 @@ function getModule(app: IGeesomeApp) {
 					log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
 					await this.updateExistsContentMetadata(userId, existsContent, options);
 					await app.callHook('content', 'existsContentAdding', [userId, existsContent, options]);
+					if (options.properties?.imageWatermark) {
+						const propertiesJson = JSON.stringify({...JSON.parse(existsContent.propertiesJson || '{}'), imageWatermark: options.properties.imageWatermark});
+						await app.ms.database.updateContent(existsContent.id, {propertiesJson});
+						existsContent.propertiesJson = propertiesJson;
+					}
 					if (options.optimize === true || options.optimize === 'true') {
 						if (existsContent.previewExtension !== 'webp') {
 							const previews = await this.getPreview({id: existsContent.storageId, size: existsContent.size}, existsContent.extension, existsContent.mimeType);

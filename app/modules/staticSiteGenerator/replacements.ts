@@ -1,3 +1,4 @@
+import {watermarkDriver} from '../content/imageWatermark.js';
 import {imageSourceSnapshot} from '../content/resave.js';
 import {randomUUID} from 'node:crypto';
 import {Op} from 'sequelize';
@@ -40,11 +41,12 @@ export class SiteReplacements {
 
     async requestReplacement(userId, input, apiKeyId = null) {
         const ids = contentIds(input.contentIds);
+        const driver = watermarkDriver(input.driver);
         const key = requestKey(input.requestKey);
         if (input.deleteReplacedFiles !== undefined && typeof input.deleteReplacedFiles !== 'boolean') {
             problem('image_replacement_cleanup_flag_invalid', 400);
         }
-        const request = {contentIds: ids, previousSiteStorageId: input.previousSiteStorageId
+        const request = {contentIds: ids, ...(driver ? {driver} : {}), previousSiteStorageId: input.previousSiteStorageId
             ? normalizeStorageId(input.previousSiteStorageId) : null,
             postId: input.postId ? Number(input.postId) : null, deleteReplacedFiles: input.deleteReplacedFiles === true};
         await this.authorize(userId, apiKeyId, request.deleteReplacedFiles);
@@ -147,7 +149,7 @@ export class SiteReplacements {
         }
         const outputs = [];
         for (const source of replacement.input.sources) {
-            const content = await this.app.ms.content.publicationImages.saved(userId, source.id);
+            const content = await this.app.ms.content.publicationImages.saved(userId, source.id, null, undefined, replacement.input.driver);
             if (!content) {
                 problem('image_optimization_not_ready');
             }

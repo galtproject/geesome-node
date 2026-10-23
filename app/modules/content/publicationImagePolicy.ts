@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import {ensureWatermark} from './imageWatermark.js';
 import {Readable} from 'node:stream';
 import {ApiProblemError} from '../api/problem.js';
 
@@ -26,7 +27,7 @@ export function requestKey(value): string {
     return value;
 }
 
-export async function encodePublicationImage(stream: Readable) {
+export async function encodePublicationImage(stream: Readable, watermark = null, watermarkApplied = false) {
     const chunks: Buffer[] = [];
     let size = 0;
     try {
@@ -46,7 +47,8 @@ export async function encodePublicationImage(stream: Readable) {
     if (!['png', 'jpeg', 'webp', 'avif', 'heif', 'tiff'].includes(metadata.format) || (metadata.pages || 1) !== 1) {
         problem('image_optimization_format_unsupported', 415);
     }
-    const result = await sharp(bytes, options).rotate().webp({quality: 95, effort: 6})
+    const input = watermark && !watermarkApplied ? await ensureWatermark(bytes, watermark) : bytes;
+    const result = await sharp(input, options).rotate().webp({quality: 95, effort: 6})
         .timeout({seconds: 30}).toBuffer({resolveWithObject: true});
     return {bytes: result.data, width: result.info.width, height: result.info.height,
         codec: `sharp:${sharp.versions.sharp};webp:${sharp.versions.webp}`};

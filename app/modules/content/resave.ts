@@ -1,5 +1,6 @@
 import {CorePermissionName} from '../database/interface.js';
 import {requireIntegrationScopes} from '../api/integrationScopes.js';
+import {watermarkDriver, watermarkIdentity} from './imageWatermark.js';
 import {policy, contentIds, problem} from './publicationImagePolicy.js';
 import {plain, sameCid} from '../../storageIdentity.js';
 import {withStorageFence, withStorageWorker} from '../../storageLifecycle.js';
@@ -41,7 +42,7 @@ export class ContentResave {
         await this.app.ms.database.updateContent(content.id, {propertiesJson: JSON.stringify(metadata)});
         content.propertiesJson = JSON.stringify(metadata);
     }
-    async saved(userId, sourceContentId, source = null, transaction = undefined) {
+    async saved(userId, sourceContentId, source = null, transaction = undefined, driver = null) {
         source = source || await this.owned(userId, sourceContentId, true, transaction);
         const saved = properties(source).publicationImage;
         if (saved?.policy !== policy || !saved.resultContentId) {
@@ -54,13 +55,17 @@ export class ContentResave {
         if (!sameCid(content.storageId, saved.resultStorageId)) {
             problem('image_optimization_rendition_changed');
         }
+        if (driver && properties(content).imageWatermark?.identity !== watermarkIdentity(driver)) {
+            return null;
+        }
         return content;
     }
-    async requestResave(userId, sourceContentId, apiKeyId = null) {
+    async requestResave(userId, sourceContentId, apiKeyId = null, driver = null) {
+        driver = watermarkDriver(driver);
         await this.authorize(userId, apiKeyId);
         contentIds([sourceContentId]);
         return withStorageFence(this.app, 'shared', async () => {
-            const existing = await this.saved(userId, sourceContentId);
+            const existing = await this.saved(userId, sourceContentId, null, undefined, driver);
             if (existing) {
                 return {status: 'completed', sourceContentId, content: existing};
             }
@@ -71,7 +76,7 @@ export class ContentResave {
                     problem('image_optimization_content_unavailable', 403);
                 }
                 // A worker may have completed while this admission waited for the lock.
-                const saved = await this.saved(userId, sourceContentId, source, transaction);
+                const saved = await this.saved(userId, sourceContentId, source, transaction, driver);
                 if (saved) {
                     return {status: 'completed', sourceContentId, content: saved};
                 }
@@ -82,14 +87,14 @@ export class ContentResave {
                     problem('image_optimization_format_unsupported', 415);
                 }
                 const queue = await this.app.ms.asyncOperation.addUniqueUserOperationQueue(userId, resaveModule, apiKeyId,
-                    {userId, sourceContentId, source: imageSourceSnapshot(source), policy}, {transaction});
+                    {userId, sourceContentId, source: imageSourceSnapshot(source), policy, ...(driver ? {driver} : {})}, {transaction});
                 return {status: 'queued', sourceContentId, id: queue.id, asyncOperationId: queue.asyncOperationId || null};
             });
         });
     }
     async execute(queue, operation, input) {
         await this.authorize(queue.userId, queue.userApiKeyId);
-        let content = await this.saved(queue.userId, input.sourceContentId);
+        let content = await this.saved(queue.userId, input.sourceContentId, null, undefined, input.driver);
         if (!content) {
             const source = await this.owned(queue.userId, input.sourceContentId);
             if (!sameCid(source.storageId, input.source.storageId)) {
@@ -102,7 +107,7 @@ export class ContentResave {
             await this.app.ms.asyncOperation.handleOperationCancel(queue.userId, operation.id);
             content = plain(await this.app.ms.content.saveData(queue.userId,
                 await this.app.ms.storage.getFileStream(source.storageId), source.name || `image-${source.id}.png`,
-                {optimize: true, mimeType: source.mimeType, waitForPin: true, skipFileCatalog: true, requirePreview: true}));
+                {optimize: true, driver: input.driver, properties: properties(source).imageWatermark ? {imageWatermark: properties(source).imageWatermark} : {}, mimeType: source.mimeType, waitForPin: true, skipFileCatalog: true, requirePreview: true}));
             if (!content.mediumPreviewStorageId || content.previewExtension !== 'webp') {
                 problem('image_optimization_preview_missing');
             }
