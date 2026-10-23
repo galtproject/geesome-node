@@ -67,15 +67,15 @@ rebuild for completed old unmarked sites; accepted old jobs keep their receipts.
 ## JPEG originals and WebP previews (#1408)
 
 New Microwave Girls imports/rebuilds explicitly request
-`imagePolicy: publication-jpeg95-v1` with optimize=true. Full images use JPEG
+`driver.params.policy: publication-jpeg95-v1`. Full images use JPEG
 quality 95, 4:4:4 chroma sampling for colored watermark text, and a white
 background for transparency; the existing WebP preview encoder stays unchanged.
 File suffix, MIME, Content metadata, generated site and archive use JPEG.
 
-Bare optimize=true retains publication-webp-v1 for old clients and already
-accepted jobs. Capabilities advertise both imagePolicies; new Generation imports
-and replacement admissions require JPEG support before sending files or creating
-receipts. Existing jobs without a saved policy continue WebP. There is no PNG
+Top-level optimize/imagePolicy fields are rejected. Capabilities advertise the
+supported driver profiles; new Generation imports and replacement admissions
+require the imageOptimize driver and JPEG support before sending files or
+creating receipts. Existing jobs without a saved policy continue WebP. There is no PNG
 policy: the user's final choice supersedes the earlier PNG proposal.
 
 Content properties retain receipts per policy while preserving the legacy
