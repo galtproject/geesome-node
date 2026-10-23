@@ -157,6 +157,28 @@
 
 .image-modal .modal-body {
     position: relative;
+    max-height: calc(100vh - 20px);
+    .image-modal-close {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        z-index: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 48px;
+        height: 48px;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: white;
+        cursor: pointer;
+        filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+        &:focus-visible {
+            outline: 2px solid white;
+            outline-offset: 2px;
+        }
+    }
     .arrow-left, .arrow-right {
         position: absolute;
         top: 50%;
@@ -178,7 +200,7 @@
     img {
         display: block;
         max-width: 100%;
-        max-height: calc(100vh - 100px);
+        max-height: calc(100vh - 20px);
     }
 }
 
