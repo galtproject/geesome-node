@@ -49,7 +49,7 @@ client counts.
 
 ## Verification and delivery
 
-Completed on 2026-10-23. Tracking: GeeSome #1403, delivery PR #1402, and
+Completed on 2026-10-23. Tracking: GeeSome #1403, a follow-up to merged PR #1402, and
 Microwave Girls #612. No schema migration or production mutation.
 
 - GeeSome: 32 tests passed against real disposable PostgreSQL/Kubo, covering
