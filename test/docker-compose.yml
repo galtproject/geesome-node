@@ -61,9 +61,10 @@ services:
 
   ipfs:
     container_name: go_ipfs
-    image: "ipfs/kubo:v0.31.0"
+    image: "ipfs/kubo:v0.42.0"
     environment:
       - IPFS_PROFILE
+      - IPFS_TELEMETRY=off
     expose:
       - 5001
     ports:
@@ -75,9 +76,10 @@ services:
 
   chat_ipfs_b:
     container_name: geesome_chat_ipfs_b
-    image: "ipfs/kubo:v0.31.0"
+    image: "ipfs/kubo:v0.42.0"
     environment:
       - IPFS_PROFILE
+      - IPFS_TELEMETRY=off
     expose:
       - 5001
     volumes:

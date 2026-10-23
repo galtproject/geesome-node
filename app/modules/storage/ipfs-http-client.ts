@@ -9,6 +9,7 @@
 
 import debug from 'debug';
 import { create } from 'kubo-rpc-client';
+import {createKuboGc} from './kuboGc.js';
 import JsIpfsServiceNode from "geesome-libs/src/JsIpfsServiceNode.js";
 import {IGeesomeApp} from "../../interface.js";
 const log = debug('geesome:app:storage');
@@ -17,6 +18,7 @@ export default async (app: IGeesomeApp) => {
   log('ipfsHttpClientCreate', app.config.storageConfig.goNode);
   const node = create(app.config.storageConfig.goNode);
   log('ipfsHttpClientConnected', {profile: process.env.IPFS_PROFILE});
+  node.repo.gc = createKuboGc(node.getEndpointConfig(), app.config.storageConfig.goNode?.headers);
   const service = new JsIpfsServiceNode(node, 'kubo-rpc');
   const stopRemoteNode = service.stop;
   service.stop = process.env.STORAGE_STOP_REMOTE_NODE === '1'

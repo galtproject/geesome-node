@@ -83,10 +83,11 @@ services:
 
   ipfs:
     container_name: go_ipfs
-    image: "ipfs/kubo:v0.21.0"
+    image: "ipfs/kubo:v0.42.0"
     restart: always
     environment:
       - IPFS_PROFILE
+      - IPFS_TELEMETRY=off
     # Use the image default entrypoint (start_ipfs) via command so the repo is
     # auto-initialized (ipfs init) on a fresh server and IPFS_PROFILE is applied.
     # Overriding entrypoint with a bare `ipfs daemon` skips init and crash-loops

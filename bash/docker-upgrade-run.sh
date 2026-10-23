@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+bash bash/ipfs-upgrade-preflight.sh
+
 echo "==> [2/7] Preparing published image or local build..."
 bash bash/docker-prepare-image.sh
 
