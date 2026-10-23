@@ -83,7 +83,7 @@ describe('image optimization saving policy', function () {
         const {app} = await createApp({options: {}, contents: [{id: 1, type: 'image', name: 'mixed formats',
             storageId: 'original', previewStorageId: 'preview', extension: 'png', previewExtension: 'webp'}], path: '/content-list'}, '/content-list');
         const $ = load(await renderToString(app));
-        assert.ok($('.content-item').attr('style').includes('1_preview.webp'));
+        assert.ok($('.content-item').attr('style').includes('./preview/1_preview.webp'));
         assert.equal($('.content-item img').attr('src'), './content/1_original.png');
     });
 });

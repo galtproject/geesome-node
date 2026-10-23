@@ -726,7 +726,7 @@ export async function getModule(app: IGeesomeApp, models) {
                 if(c.type !== 'text') {
                     const prefix = numericNames ? `${index + 1}_` : ``;
                     await app.ms.storage.copyFileFromId(c.storageId, `${contentPath}/${prefix}${c.storageId}.${c.extension}`).catch(e => console.warn('copyContentsToSite', e.message));
-                    await app.ms.storage.copyFileFromId(c.previewStorageId, `${contentPath}/${prefix}${c.previewStorageId}.${c.previewExtension}`).catch(e => console.warn('copyContentsToSite', e.message));
+                    await app.ms.storage.copyFileFromId(c.previewStorageId, `${siteStorageDir}/preview/${prefix}${c.previewStorageId}.${c.previewExtension}`).catch(e => console.warn('copyContentsToSite', e.message));
                 }
                 copied[c.storageId] = true;
             });
