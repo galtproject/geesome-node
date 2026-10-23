@@ -7,19 +7,21 @@ import {createHash} from 'node:crypto';
 // A separate, bounded pool avoids holding an application SQL-pool connection
 // while waiting for a writer/GC fence. No transaction spans media or IPFS I/O.
 const pools = new WeakMap<object, pg.Pool>();
+const workerPools = new WeakMap<object, pg.Pool>();
 const contexts = new AsyncLocalStorage<any>();
 const namespace = 17419;
 const storageKey = 9301;
 
-function storageLockPool(app) {
+function storageLockPool(app, purpose: 'fence' | 'worker' = 'fence') {
+    const registry = purpose === 'worker' ? workerPools : pools;
     const sequelize = app.ms.database.sequelize;
-    let pool = pools.get(app);
+    let pool = registry.get(app);
     if (!pool) {
         const config = sequelize.config;
         pool = new pg.Pool({host: config.host, port: config.port, database: config.database,
             user: config.username, password: config.password, ssl: sequelize.options?.dialectOptions?.ssl,
-            max: 4, idleTimeoutMillis: 1000, connectionTimeoutMillis: 10000, allowExitOnIdle: true});
-        pools.set(app, pool);
+            max: purpose === 'worker' ? 2 : 10, idleTimeoutMillis: 1000, connectionTimeoutMillis: 10000, allowExitOnIdle: true});
+        registry.set(app, pool);
     }
     return pool;
 }
@@ -144,7 +146,7 @@ export function fenceStorageMethods(app, module, names: string[]) {
 export async function withStorageWorker(app, run: () => Promise<any>) {
     // Session lock: a crashed process releases it; the next worker reconciles
     // persisted queue/retirement receipts rather than replaying accepted work.
-    const connection = await storageLockPool(app).connect();
+    const connection = await storageLockPool(app, 'worker').connect();
     let broken = false;
     const onError = () => { broken = true; };
     connection.on('error', onError);
@@ -170,8 +172,10 @@ export async function withStorageWorker(app, run: () => Promise<any>) {
 
 export async function stopStorageFence(app) {
     const pool = pools.get(app);
+    const workers = workerPools.get(app);
     pools.delete(app);
-    await pool?.end();
+    workerPools.delete(app);
+    await Promise.all([pool?.end(), workers?.end()]);
 }
 
 export function storageFenceSignal() {
