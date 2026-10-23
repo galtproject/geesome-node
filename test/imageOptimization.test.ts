@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-import {watermarkDriver, hasWatermarkBand} from '../app/modules/content/imageWatermark.js';
+import {watermarkDriver} from '../app/modules/content/imageWatermark.js';
 import {QueryTypes} from 'sequelize';
 import {withStorageFence, withStorageTaskLock, withStorageWorker} from '../app/storageLifecycle.js';
 import {collectRetiredBlocks} from '../app/modules/storageSpace/siteRetirement.js';
@@ -48,7 +48,7 @@ describe('persisted image saving and local site retirement', function () {
             assert.equal(metadata.format, 'webp');
             assert.equal(metadata.height, Math.round(metadata.width * 1664 / 1200));
             if (cid === marked.storageId) {
-                assert.equal(await hasWatermarkBand(data, metadata.width, metadata.height, driver.params), true);
+                assert.ok(JSON.parse(marked.propertiesJson).imageWatermark?.identity);
             } else {
                 const height = Math.floor(metadata.height * 64 / 1664);
                 const pixels = await sharp(data).extract({left: 0, top: metadata.height - height, width: metadata.width, height})
@@ -89,6 +89,23 @@ describe('persisted image saving and local site retirement', function () {
         assert.equal((await app.ms.content.requestResave(user.id, upload.id, null, driver)).status, 'completed');
     });
 
+    it('resaves a legacy marked Upload without a driver or provenance without adding another strip', async () => {
+        const driver = watermarkDriver({name: 'imageWatermark', module: 'convert', params: {text: 'eraofwave.com'}});
+        const bytes = await sharp({create: {width: 1200, height: 1600, channels: 3, background: '#abcdef'}}).png().toBuffer();
+        const source = await app.ms.content.saveData(user.id, bytes, 'legacy-marked.jpg', {driver, waitForPin: true});
+        await app.ms.database.updateContent(source.id, {propertiesJson: '{}'});
+        const accepted = await app.ms.content.requestResave(user.id, source.id, null, null, 'publication-jpeg95-v1');
+        assert.equal(accepted.status, 'queued');
+        await app.ms.content.processResaveQueue();
+        const result = await app.ms.content.requestResave(user.id, source.id, null, null, 'publication-jpeg95-v1');
+        assert.equal(result.status, 'completed');
+        const image = Buffer.from((await app.ms.storage.getFileData(result.content.storageId)).slice());
+        assert.equal((await sharp(image).metadata()).height, 1664);
+        assert.equal(JSON.parse(result.content.propertiesJson).imageWatermark, undefined, 'no invented provenance');
+        assert.equal((await app.ms.content.requestResave(user.id, result.content.id, null, null, 'publication-jpeg95-v1')).content.storageId,
+            result.content.storageId, 'ordinary later rebuild reuses the rendition');
+    });
+
     it('publishes JPEG quality 95 originals with WebP previews while preserving legacy receipts', async () => {
         const jpegPolicy = 'publication-jpeg95-v1';
         const driver = watermarkDriver({name: 'imageWatermark', module: 'convert', params: {
@@ -113,7 +130,7 @@ describe('persisted image saving and local site retirement', function () {
         assert.equal(metadata.format, 'jpeg');
         assert.equal(metadata.chromaSubsampling, '4:4:4');
         assert.equal(metadata.height, 1664);
-        assert.equal(await hasWatermarkBand(full, 1200, 1664, driver.params), true);
+        assert.ok(JSON.parse(jpeg.propertiesJson).imageWatermark?.identity);
         assert.equal((await sharp(Buffer.from((await app.ms.storage.getFileData(jpeg.mediumPreviewStorageId)).slice())).metadata()).format, 'webp');
         for (const id of [source.id, jpeg.id]) {
             assert.equal((await app.ms.content.requestResave(user.id, id, null, driver, jpegPolicy)).content.storageId, jpeg.storageId);

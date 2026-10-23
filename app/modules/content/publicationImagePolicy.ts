@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import {ensureWatermark} from './imageWatermark.js';
+import {addWatermark} from './imageWatermark.js';
 import {Readable} from 'node:stream';
 import {ApiProblemError} from '../api/problem.js';
 
@@ -58,7 +58,7 @@ export async function encodePublicationImage(stream: Readable, watermark = null,
     if (!['png', 'jpeg', 'webp', 'avif', 'heif', 'tiff'].includes(metadata.format) || (metadata.pages || 1) !== 1) {
         problem('image_optimization_format_unsupported', 415);
     }
-    const input = watermark && !watermarkApplied ? await ensureWatermark(bytes, watermark) : bytes;
+    const input = watermark && !watermarkApplied ? await addWatermark(bytes, watermark) : bytes;
     const image = sharp(input, options).rotate();
     const encoder = imagePolicy(selectedPolicy) === policy
         ? image.flatten({background: 'white'}).jpeg({quality: 95, chromaSubsampling: '4:4:4'})

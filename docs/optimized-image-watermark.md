@@ -28,11 +28,11 @@ unmarked optimized result. The normal content-resave queue freezes the driver;
 replacement admission hashes/freezes it too and rendering requires matching
 marked mappings. No new queue, model or migration is introduced.
 
-For legacy Upload files without provenance, compare the expected bottom band and
-foreground text pixels with compression tolerance. A plain black edge is not
-sufficient. Matching is intentionally limited to this layout; arbitrary edited,
-resized or cropped watermarks are not guaranteed to match. Recorded identity is
-the normal path; visual matching is a legacy fallback only.
+GeeSome does not inspect pixels to infer watermark presence. A supplied driver
+explicitly requests addition; Content provenance skips an already recorded mark.
+Ordinary legacy Upload resaves omit the driver and preserve their existing strip.
+Microwave Girls supplies the driver only for three explicitly identified historical
+unmarked sites, while fresh Generation imports always supply the owner driver.
 
 Microwave Girls uses the shared Upload template for Generation imports and the
 owned resource identity/domain for rebuild. Capability watermark=true prevents
@@ -96,3 +96,15 @@ and full apiDoc smoke passed. Companion tests: 21 gateway/preparation tests,
 71 membership tests, three PostgreSQL scenarios and four browser publication
 cases passed. All 30 mapped desktop/narrow captures were reviewed. The browser
 provider is mocked; actual encoded bytes were checked in the Kubo tests.
+
+## Explicit historical exceptions (2026-10-23)
+
+Removed `hasWatermarkBand` and all compression-tolerant pixel recognition.
+Microwave Girls owns the historical CID list; GeeSome has no application-specific
+exceptions or new flag. Existing Content watermark provenance and per-policy
+receipts continue preventing repeated marking and encoding.
+
+Verification: 30 Docker PostgreSQL/Kubo/parser/driver tests passed, including
+legacy marked Upload without provenance/driver, explicit repair, stable repeated
+CID, JPEG/WebP encoding, archive/site mapping and retirement regressions. Four
+host encoder tests also passed after the helper rename to `addWatermark`.
