@@ -138,3 +138,13 @@ Run `npm run test:docker-images`, `npm run test:docker-images:compose`, `npm run
 operational regressions. `bash bash/docker-image-smoke.sh IMAGE linux/amd64`
 starts isolated services, checks `/v1/health`, then removes its own containers and
 volumes. It does not operate on a deployed production stack.
+
+## Kubo repository upgrades
+
+Compose uses Kubo 0.42.0 (repository v18). Upgrading older repositories is an
+on-disk migration; see [the recovery plan](ipfs-recovery-plan.md). Before the
+normal updater prepares an image, `ipfs-upgrade-preflight.sh` checks that an old
+repository has a separate snapshot via `GEESOME_IPFS_UPGRADE_BACKUP`. Snapshot
+completeness/consistency must be verified by the operator. An explicitly authorized
+post-rehearsal upgrade can use `GEESOME_IPFS_UPGRADE_AFTER_REHEARSAL=1` instead.
+Never run an old Kubo binary against the migrated directory to roll back.

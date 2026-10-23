@@ -42,7 +42,9 @@ services:
       timeout: 3s
       retries: 30
   go_ipfs:
-    image: ipfs/kubo:v0.21.0
+    image: ipfs/kubo:v0.42.0
+    environment:
+      IPFS_TELEMETRY: "off"
     healthcheck:
       test: ["CMD", "ipfs", "id"]
       interval: 2s

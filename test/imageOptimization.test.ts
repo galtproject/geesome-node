@@ -332,6 +332,55 @@ describe('persisted image saving and local site retirement', function () {
 
     }
 
+    it('backs off failed cleanup, releases writers and resumes only after explicit retry', async () => {
+        const service = app.ms.staticSiteGenerator.replacements;
+        const key = randomUUID();
+        const receipt = await service.jobs.create(user.id, null, key, {requestKey: key, requestHash: key,
+            input: {}, status: 'gc_pending', result: {cleanup: {candidates: [], retained: []}}, error: null});
+        const peerKey = randomUUID();
+        const peer = await service.jobs.create(user.id, null, peerKey, {requestKey: peerKey, requestHash: peerKey,
+            input: {}, status: 'gc_pending', result: {cleanup: {candidates: [], retained: []}}, error: null});
+        const original = app.ms.storageSpace.collectRetiredSiteBlocks;
+        let calls = 0;
+        app.ms.storageSpace.collectRetiredSiteBlocks = async (_service, rows) => {
+            calls++;
+            if (calls === 1) {
+                await rows.find(row => row.id === peer.id).update({status: 'complete', error: null});
+            }
+            if (calls <= 3) {
+                throw Object.assign(new Error('test RPC unavailable'), {code: 'storage_gc_failed'});
+            }
+            for (const row of rows) {
+                await row.update({status: 'complete', error: null});
+            }
+        };
+        try {
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                await service.processQueue();
+                let row = await service.replacement(user.id, receipt.id);
+                assert.equal(row.result.cleanupRetry.failures, attempt);
+                const finishedPeer = await service.status(user.id, peer.id);
+                assert.equal(finishedPeer.status, 'complete', 'later failure cannot undo a completed cleanup');
+                assert.equal(finishedPeer.error, null);
+                assert.equal(row.status, attempt === 3 ? 'cleanup_failed' : 'gc_pending');
+                await withStorageFence(app, 'shared', async () => {}, {wait: false});
+                await service.processQueue();
+                assert.equal(calls, attempt, 'automatic retries respect persisted backoff');
+                if (attempt < 3) {
+                    await row.update({result: {...row.result, cleanupRetry: {...row.result.cleanupRetry,
+                        nextAttemptAt: new Date(0).toISOString()}}});
+                }
+            }
+            const resumed = await service.retryCleanup(user.id, receipt.id, null);
+            assert.equal(resumed.status, 'gc_pending');
+            await service.processQueue();
+            assert.equal(calls, 4);
+            assert.equal((await service.status(user.id, receipt.id)).status, 'complete');
+        } finally {
+            app.ms.storageSpace.collectRetiredSiteBlocks = original;
+        }
+    });
+
     it('rejects concurrent render claims and aborts GC if the PostgreSQL fence is lost', async () => {
         let unlock, started;
         const held = new Promise<void>(resolve => { started = resolve; });
@@ -366,9 +415,10 @@ describe('persisted image saving and local site retirement', function () {
         }
     });
 
-    it('queues ten concurrent multipart uploads behind shared writers instead of reporting maintenance', async () => {
+    it('queues two clients with ten multipart uploads each behind shared writers', async () => {
         const origin = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
         const token = await app.generateUserApiKey(user.id, {});
+        const clientTokens = [token, await app.generateUserApiKey(user.id, {})];
         let unlock;
         const release = new Promise<void>(resolve => { unlock = resolve; });
         let held = 0, started;
@@ -381,14 +431,14 @@ describe('persisted image saving and local site retirement', function () {
         }));
         await ready;
         let settled = 0;
-        const uploads = Array.from({length: 10}, async (_unused, index) => {
+        const uploads = Array.from({length: 20}, async (_unused, index) => {
             const png = await sharp({create: {width: 40, height: 60, channels: 3,
                 background: `#${randomUUID().replace(/-/g, '').slice(0, 6)}`}}).png().toBuffer();
             const form = new FormData();
             form.append('file', new Blob([png], {type: 'image/png'}), `parallel-${index}.png`);
             form.append('async', 'true');
             form.append('path', `/parallel-${randomUUID()}/${index}.png`);
-            return fetch(`${origin}/user/save-file`, {method: 'POST', headers: {Authorization: `Bearer ${token}`},
+            return fetch(`${origin}/user/save-file`, {method: 'POST', headers: {Authorization: `Bearer ${clientTokens[Math.floor(index / 10)]}`},
                 body: form, signal: AbortSignal.timeout(15000)}).finally(() => { settled++; });
         });
         try {
@@ -405,7 +455,7 @@ describe('persisted image saving and local site retirement', function () {
             assert.ok(receipt.asyncOperationId);
             return receipt;
         }));
-        assert.equal(new Set(receipts.map(receipt => receipt.asyncOperationId)).size, 10);
+        assert.equal(new Set(receipts.map(receipt => receipt.asyncOperationId)).size, 20);
         for (const receipt of receipts) {
             let operation;
             for (let attempt = 0; attempt < 100; attempt++) {

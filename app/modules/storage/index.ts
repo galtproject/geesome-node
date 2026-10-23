@@ -1,11 +1,12 @@
 import {IGeesomeApp} from "../../interface.js";
 import IGeesomeStorageModule from "./interface.js";
+import {storageRpc} from './rpcDeadline.js';
 import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
 
 export default async (app: IGeesomeApp, options = {implementation: null}) => {
 	const implementation = options.implementation || app.config.storageConfig.implementation;
 	const module: IGeesomeStorageModule = await (await import(`./${implementation}.js`)).default(app);
-	return makeStorageStopIdempotent(suppressStoragePinLogs(normalizeStorageAddresses(module)));
+	return makeStorageStopIdempotent(configureStoragePinning(normalizeStorageAddresses(module)));
 };
 
 function normalizeStorageAddress(address): string {
@@ -53,19 +54,21 @@ function normalizeStorageAddresses(module: IGeesomeStorageModule): IGeesomeStora
 	return module;
 }
 
-function suppressStoragePinLogs(module: IGeesomeStorageModule): IGeesomeStorageModule {
+export function configureStoragePinning(module: IGeesomeStorageModule): IGeesomeStorageModule {
 	if (!(module as any).addPin) {
 		return module;
 	}
-	(module as any).addPin = async hash => {
+	(module as any).addPin = async (hash, options = {}) => {
 		const cid = ipfsHelper.ipfsHashToCid(hash);
-		if ((module as any).type === 'helia') {
-			for await (const _value of module.node.pins.add(cid)) {
-				// Iterating completes the Helia pin operation.
+		return storageRpc('pin', options, async bounded => {
+			if ((module as any).type === 'helia') {
+				for await (const _value of module.node.pins.add(cid, bounded)) {
+					// Iterating completes the Helia pin operation.
+				}
+				return;
 			}
-			return;
-		}
-		await module.node.pin.add(cid);
+			await module.node.pin.add(cid, bounded);
+		});
 	};
 	return module;
 }

@@ -125,7 +125,7 @@ esac
       assert.doesNotMatch(fs.readFileSync(log, 'utf8'), /push /);
     }
     // Upgrade preparation failure must never touch systemd or overwrite selection.
-    for (const name of ['ipfs-ownership-preflight.sh', 'docker-deploy-readiness.sh', 'install-host-retention.sh', 'docker-post-deploy-retention.sh']) {
+    for (const name of ['ipfs-upgrade-preflight.sh', 'ipfs-ownership-preflight.sh', 'docker-deploy-readiness.sh', 'install-host-retention.sh', 'docker-post-deploy-retention.sh']) {
       fs.writeFileSync(path.join(repo, 'bash', name), '#!/bin/bash\nexit 0\n');
       fs.chmodSync(path.join(repo, 'bash', name), 0o755);
     }
