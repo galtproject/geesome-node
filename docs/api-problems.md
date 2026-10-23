@@ -14,6 +14,7 @@ credential material are never returned.
 | `insufficient_scope` | 403 | The credential lacks one or more `requiredScopes`. |
 | `idempotency_key_conflict` | 409 | The key was already used with different request data. |
 | `idempotency_request_in_progress` | 409 | The original request is still running. |
+| `upload_aborted` | 400 | The multipart request disconnected before its body completed. Partial temporary files are removed and no save is dispatched. The connection may already be closed. |
 | `upload_limit_exceeded` | 413 | Multipart or account upload limits were exceeded. |
 | `asset_digest_mismatch` | 422 | Uploaded bytes do not match `expectedSha256`. |
 | `asset_not_found` | 404 | No asset with that storage ID is visible to this owner. |

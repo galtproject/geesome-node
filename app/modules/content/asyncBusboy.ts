@@ -42,13 +42,18 @@ function onField (fields, name, value, info) {
  * @param {Readable} stream
  * @param {{ filename: string, encoding: string, mimeType: string }} info
  */
-function onFile (filePromises, file, stream, info) {
+function onFile (filePromises, signal, file, stream, info) {
   const { filename, encoding, mimeType } = info
   const tmpName = Math.random().toString(16).substring(2) + '-' + filename
   const saveTo = path.join(os.tmpdir(), path.basename(tmpName))
   const writeStream = fs.createWriteStream(saveTo)
   const hash = createHash('sha256')
   let bytes = 0
+  let complete = false
+  const abort = () => {
+    stream.destroy(signal.reason)
+    writeStream.destroy(signal.reason)
+  }
   const filePromise = new Promise((resolve, reject) => {
     stream.on('limit', () => {
       const err: any = new Error('Reach file size limit')
@@ -57,8 +62,22 @@ function onFile (filePromises, file, stream, info) {
       writeStream.destroy(err)
       stream.resume()
     })
+    stream.on('error', reject)
+    signal.addEventListener('abort', abort, {once: true})
+    writeStream.once('close', () => {
+      signal.removeEventListener('abort', abort)
+      if (!complete || signal.aborted) {
+        fs.rm(saveTo, {force: true}, () => {})
+      }
+    })
+    if (signal.aborted) {
+      abort()
+    }
     writeStream
       .on('open', () => {
+        if (signal.aborted) {
+          return
+        }
         // A data listener starts flowing mode. Attach it only when the writer
         // is ready, immediately before piping, so early bytes cannot be lost.
         stream.on('data', (chunk) => {
@@ -68,6 +87,7 @@ function onFile (filePromises, file, stream, info) {
         stream.pipe(writeStream)
           .on('error', reject)
           .on('finish', () => {
+            complete = true
             const readStream: any = fs.createReadStream(saveTo)
 
             readStream.fieldname = file
@@ -92,6 +112,8 @@ function onFile (filePromises, file, stream, info) {
         reject(err)
       })
   })
+  // Abort may reject a file before the multipart parser reaches its end.
+  filePromise.catch(() => {})
   filePromises.push(filePromise)
 }
 
@@ -172,67 +194,99 @@ export default function (request, options): Promise<any> {
   return new Promise((resolve, reject) => {
     const fields = {}
     const filePromises = []
+    const controller = new AbortController()
+    const fieldHandler = onField.bind(null, fields)
+    const fileHandler = customOnFile || onFile.bind(null, filePromises, controller.signal)
+    let settled = false
+    let ending = false
 
-    request.on('close', cleanup)
+    request.on('aborted', onAborted)
+    request.on('error', onError)
+    request.on('close', onClose)
 
-    bb.on('field', onField.bind(null, fields))
-        .on('file', customOnFile || onFile.bind(null, filePromises))
+    bb.on('field', fieldHandler)
+        .on('file', fileHandler)
         .on('error', onError)
         .on('end', onEnd)
         .on('close', onEnd)
-        .on('partsLimit', function () {
-          const err: any = new Error('Reach parts limit')
-          err.code = 'Request_parts_limit'
-          err.status = 413
-          onError(err)
-        })
-        .on('filesLimit', () => {
-          const err: any = new Error('Reach files limit')
-          err.code = 'Request_files_limit'
-          err.status = 413
-          onError(err)
-        })
-        .on('fieldsLimit', () => {
-          const err: any = new Error('Reach fields limit')
-          err.code = 'Request_fields_limit'
-          err.status = 413
-          onError(err)
-        })
+        .on('partsLimit', () => onLimit('parts'))
+        .on('filesLimit', () => onLimit('files'))
+        .on('fieldsLimit', () => onLimit('fields'))
 
-    request.pipe(bb)
-
-    function onError (err) {
-      cleanup()
-      return reject(err)
+    if (request.aborted || (request.destroyed && !request.readableEnded && request.complete !== true)) {
+      onAborted()
+    } else {
+      request.pipe(bb)
     }
 
-    function onEnd (err) {
-      if (err) {
-        return reject(err)
-      }
+    function onLimit (kind) {
+      const err: any = new Error(`Reach ${kind} limit`)
+      err.code = `Request_${kind}_limit`
+      err.status = 413
+      onError(err)
+    }
 
-      if (customOnFile) {
-        cleanup()
-        resolve({ fields })
-      } else {
-        Promise.all(filePromises)
-            .then((files) => {
-              cleanup()
-              resolve({ fields, files })
-            })
-            .catch(reject)
+    function onAborted () {
+      const err: any = new Error('Upload request aborted')
+      err.code = 'upload_aborted'
+      err.status = 400
+      onError(err)
+    }
+
+    function onClose () {
+      if (request.aborted || request.complete === false || (!request.complete && !request.readableEnded)) {
+        onAborted()
       }
+    }
+
+    function onError (err) {
+      if (settled) {
+        return
+      }
+      settled = true
+      controller.abort(err)
+      request.unpipe(bb)
+      // Destroying the parser stops file streams; its error listener remains
+      // installed until close so late stream errors cannot become unhandled.
+      bb.once('close', () => bb.removeListener('error', onError))
+      bb.destroy()
+      cleanup()
+      // IncomingMessage may emit its socket error after the aborted event.
+      request.on('error', onError)
+      for (const pending of filePromises) {
+        pending.then(file => {
+          file.on('error', () => {})
+          file.destroy()
+          file.emitFinish()
+        }, () => {})
+      }
+      reject(err)
+    }
+
+    function onEnd () {
+      if (settled || ending) {
+        return
+      }
+      ending = true
+      Promise.all(filePromises).then(files => {
+        if (settled) {
+          return
+        }
+        settled = true
+        cleanup()
+        bb.removeListener('error', onError)
+        resolve(customOnFile ? {fields} : {fields, files})
+      }).catch(onError)
     }
 
     function cleanup () {
-      bb.removeListener('field', onField)
-      bb.removeListener('file', customOnFile || onFile)
-      bb.removeListener('error', onEnd)
-      bb.removeListener('end', cleanup)
-      bb.removeListener('close', cleanup)
-      bb.removeListener('partsLimit', onEnd)
-      bb.removeListener('filesLimit', onEnd)
-      bb.removeListener('fieldsLimit', onEnd)
+      request.removeListener('aborted', onAborted)
+      request.removeListener('error', onError)
+      request.removeListener('close', onClose)
+      bb.removeListener('field', fieldHandler)
+      bb.removeListener('file', fileHandler)
+      bb.removeListener('end', onEnd)
+      bb.removeListener('close', onEnd)
     }
   })
 }
