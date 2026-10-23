@@ -3,12 +3,13 @@ import {ModalItem} from "../AsyncModal/index.js";
 export default {
     template: `
       <modal-item class="large-modal image-modal">
-        <template #header>
-          <button class="md-icon-button close" aria-label="Close image" @click="close">✖</button>
-        </template>
-
         <template #body>
           <div class="modal-body">
+            <button type="button" class="image-modal-close" aria-label="Close image" @click.stop="close">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18"/>
+              </svg>
+            </button>
             <div class="arrow-left" @click.prevent.stop="left"><div>▲</div></div>
             <img :src="image"/>
             <div class="arrow-right" @click.prevent.stop="right"><div>▲</div></div>
