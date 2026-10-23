@@ -7,6 +7,7 @@ User decisions: 22 October 2026. Implementation verified locally; merge/deployme
 
 - [Offline archive behavior](#offline-archive-behavior)
 - [Parallel upload pool regression](#parallel-upload-pool-regression)
+- [Aborted upload cleanup](#aborted-upload-cleanup)
 - [Waiting during cleanup](#waiting-during-cleanup)
 - [Legacy duplicate images](#legacy-duplicate-images)
 - [Audit follow-up](#audit-follow-up--completed)
@@ -39,6 +40,39 @@ all six mapped screenshots were reviewed. The same gallery and archive control a
 work over HTTP; generated screenshots/manifest remain ignored. See the module
 overview and npm run test:ssg-offline for reproduction. No schema migration or
 live deployment; existing immutable sites need a rebuild and a new archive download.
+
+## Aborted upload cleanup
+
+Follow-up #1401, 23 October 2026: after deploying the pool-wait fix, production
+inspection found all four shared storage sessions held for over four minutes.
+The multipart parser listened to request close only to remove listeners; it did
+not settle an aborted upload. Such a callback retained its storage fence and
+starved later uploads. This is separate from actual GC and from a bounded pool
+capacity wait.
+
+The parser now rejects aborted/already-closed requests, stops partial file streams,
+removes partial and earlier-completed temporary files on failure, and detaches its
+listeners after settlement. The HTTP handler unwinds normally, releasing its
+existing storage fence; the fence is never released while a callback can still
+save content. Successful uploads retain their byte counts and SHA-256 metadata.
+The fence pool now admits ten simultaneous storage operations as explicitly
+requested. Worker-election locks use a separate bounded two-connection pool;
+shutdown drains both pools. The database advisory lock identities and deletion
+safety remain unchanged. Real HTTP regression holds a worker-election lock and
+all ten shared upload sessions with partial bodies, aborts the uploads, verifies
+the shared locks disappear, then persists ten subsequent uploads.
+Parser tests cover abort before parsing, aborted/close/error events, multi-file
+cleanup, normal byte/digest preservation and existing size-limit rejection.
+The final PostgreSQL/Kubo run passed 27 parser, saving/retirement and HTTP asset
+integration checks, including the existing exclusive-GC and pool-timeout cases.
+All 9 parser tests also passed on the host.
+
+The accompanying Microwave Girls change gives multipart forwarding a bounded
+55-second deadline instead of the generic 5 seconds (browser attempts remain
+60 seconds), and makes final catalog-refresh failures a dismissible notification.
+Deploy GeeSome first, then Microwave Girls. No schema migration or production
+mutation/deployment is performed by these changes. A restart of the upgraded
+GeeSome process releases sessions retained by the old parser.
 
 ## Parallel upload pool regression
 

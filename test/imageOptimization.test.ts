@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
 import {QueryTypes} from 'sequelize';
-import {withStorageFence, withStorageTaskLock} from '../app/storageLifecycle.js';
+import {withStorageFence, withStorageTaskLock, withStorageWorker} from '../app/storageLifecycle.js';
 import {collectRetiredBlocks} from '../app/modules/storageSpace/siteRetirement.js';
 import {randomUUID} from 'node:crypto';
+import http from 'node:http';
 import {digest, sameCid} from '../app/storageIdentity.js';
 import {pageCid, readSiteData} from '../app/modules/staticSiteGenerator/siteData.js';
 import {readArchive} from './helpers/archive.js';
@@ -215,8 +216,8 @@ describe('persisted image saving and local site retirement', function () {
         const release = new Promise<void>(resolve => { unlock = resolve; });
         let held = 0, started;
         const ready = new Promise<void>(resolve => { started = resolve; });
-        const writers = Array.from({length: 4}, () => withStorageFence(app, 'shared', async () => {
-            if (++held === 4) {
+        const writers = Array.from({length: 10}, () => withStorageFence(app, 'shared', async () => {
+            if (++held === 10) {
                 started();
             }
             await release;
@@ -262,14 +263,63 @@ describe('persisted image saving and local site retirement', function () {
         }
     });
 
+    it('releases ten aborted multipart requests and accepts ten subsequent uploads', async () => {
+        const origin = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
+        const token = await app.generateUserApiKey(user.id, {});
+        let releaseWorker, workerStarted;
+        const workerReady = new Promise<void>(resolve => { workerStarted = resolve; });
+        const workerRelease = new Promise<void>(resolve => { releaseWorker = resolve; });
+        const worker = withStorageWorker(app, async () => { workerStarted(); await workerRelease; });
+        await workerReady;
+        const partial = Array.from({length: 10}, () => {
+            const request = http.request(`${origin}/user/save-file`, {method: 'POST', headers: {
+                Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data; boundary=partial',
+                'Content-Length': 100000,
+            }});
+            request.on('error', () => {});
+            request.write('--partial\r\nContent-Disposition: form-data; name="file"; filename="partial.png"\r\nContent-Type: image/png\r\n\r\npartial');
+            return request;
+        });
+        const sharedCount = async () => Number((await app.ms.database.sequelize.query(
+            "SELECT count(*) AS count FROM pg_locks WHERE locktype='advisory' AND classid=17419 AND objid=9301 AND mode='ShareLock' AND granted",
+            {type: QueryTypes.SELECT}))[0].count);
+        try {
+            for (let attempt = 0; attempt < 100 && await sharedCount() < 10; attempt++) {
+                await new Promise(resolve => setTimeout(resolve, 20));
+            }
+            assert.equal(await sharedCount(), 10, 'ten uploads can hold the storage fence concurrently');
+        } finally {
+            for (const request of partial) {
+                request.destroy();
+            }
+            releaseWorker();
+            await worker;
+        }
+        for (let attempt = 0; attempt < 100 && await sharedCount() !== 0; attempt++) {
+            await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        assert.equal(await sharedCount(), 0, 'disconnects release the storage fence without waiting for a body terminator');
+        const uploaded = await Promise.all(Array.from({length: 10}, async (_unused, index) => {
+            const form = new FormData();
+            form.append('file', new Blob([`recovered-${randomUUID()}`], {type: 'text/plain'}), `recovered-${index}.txt`);
+            const response = await fetch(`${origin}/user/save-file`, {method: 'POST',
+                headers: {Authorization: `Bearer ${token}`}, body: form, signal: AbortSignal.timeout(15000)});
+            assert.equal(response.status, 200, await response.clone().text());
+            const content = await response.json();
+            assert.ok(content.id);
+            return content.id;
+        }));
+        assert.equal(new Set(uploaded).size, 10, 'all complete uploads persist after aborted requests');
+    });
+
     it('reports a bounded pool acquisition timeout separately from storage maintenance', async () => {
         const origin = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
         const token = await app.generateUserApiKey(user.id, {});
         let unlock, started, held = 0;
         const ready = new Promise<void>(resolve => { started = resolve; });
         const release = new Promise<void>(resolve => { unlock = resolve; });
-        const writers = Array.from({length: 4}, () => withStorageFence(app, 'shared', async () => {
-            if (++held === 4) {
+        const writers = Array.from({length: 10}, () => withStorageFence(app, 'shared', async () => {
+            if (++held === 10) {
                 started();
             }
             await release;
