@@ -5,6 +5,7 @@ User decisions: 22 October 2026. Implementation verified locally; merge/deployme
 
 ## Contents
 
+- [Offline archive behavior](#offline-archive-behavior)
 - [Waiting during cleanup](#waiting-during-cleanup)
 - [Legacy duplicate images](#legacy-duplicate-images)
 - [Audit follow-up](#audit-follow-up--completed)
@@ -15,6 +16,28 @@ User decisions: 22 October 2026. Implementation verified locally; merge/deployme
 - [Replacement and cleanup](#replacement-and-cleanup)
 - [Workstreams and verification](#workstreams-and-verification)
 - [Deployment](#deployment)
+
+## Offline archive behavior
+
+Follow-up #1391, 23 October 2026: browsers reject the old ES-module entry point
+when a downloaded archive is opened through file://. New renders ship one cached
+classic browser bundle with Vue/compiler/router included and escaped per-page
+JSON in HTML. Existing clientData.js metadata remains compatible. Legacy vendor
+copies/import maps are no longer required in new output. Image modal slots/events
+use Vue 3 behavior; server/client compiler comments and nested initial routes are
+aligned. Local copies make no archive API calls and hide the download control.
+The agreed delivery is one bundle for both HTTP and file URLs; source modules and
+build-time tree shaking stay in place, without shipping a second browser build.
+
+Verification: 36 PostgreSQL/Kubo renderer/optimization/archive/helper regressions
+passed. Real exported gallery/group archives are opened directly in Chromium with
+networking disabled: desktop/narrow image opening, arrows/keyboard, close/backdrop,
+safe JSON, and nested post hydration. The final focused fixture/browser rerun uses
+1200x1600 images and checks the image/close control fit desktop and narrow viewports;
+all six mapped screenshots were reviewed. The same gallery and archive control also
+work over HTTP; generated screenshots/manifest remain ignored. See the module
+overview and npm run test:ssg-offline for reproduction. No schema migration or
+live deployment; existing immutable sites need a rebuild and a new archive download.
 
 ## Waiting during cleanup
 

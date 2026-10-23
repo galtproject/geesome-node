@@ -15,10 +15,12 @@ export async function createApp(store, serverRoute = null) {
             this.$root.$modal = this.$refs.modal;
         },
     }).use(asyncModal);
+    app.config.compilerOptions.comments = false;
 
     const isServer = typeof window === 'undefined';
+    const initialRoute = getInitialRoute(isServer, store, serverRoute);
     const router = createRouter(isServer ? null : store.defaultRoute);
-    await router.push(getInitialRoute(isServer, store, serverRoute));
+    await router.push(initialRoute);
     // await router.isReady();
     app.use(router);
     app.provide('store', store);
@@ -27,7 +29,7 @@ export async function createApp(store, serverRoute = null) {
 
 function getInitialRoute(isServer, store, serverRoute) {
     if (!isServer) {
-        return '/';
+        return window.location.hash.slice(1) || (store.defaultRoute ? '/' : getStoreRoute(store));
     }
     if (serverRoute) {
         return serverRoute;

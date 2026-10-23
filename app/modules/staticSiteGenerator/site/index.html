@@ -10,17 +10,7 @@
 <body>
     <div id="app">{{content}}</div>
 
-    <script async src="{{relativeRoot}}vendor/es-module-shims.js"></script>
-    <script type="importmap">
-        {
-          "imports": {
-            "vue": "{{relativeRoot}}vendor/vue.js",
-            "vue-router": "{{relativeRoot}}vendor/vue-router.js",
-            "@vue/devtools-api": "{{relativeRoot}}vendor/vue-devtools-api/index.js",
-            "clientData": "{{relativeRoot}}clientData.js"
-          }
-        }
-    </script>
-    <script type="module" src="{{relativeRoot}}public/client.js"></script>
+    <script id="site-data" type="application/json">{{clientData}}</script>
+    <script defer src="{{relativeRoot}}public/client.js"></script>
 </body>
 </html>
