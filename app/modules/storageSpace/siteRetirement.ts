@@ -3,7 +3,7 @@ import {properties} from '../content/resave.js';
 import {Op} from 'sequelize';
 import {storageFenceSignal} from '../../storageLifecycle.js';
 import {imageFiles, plain, sameCid, variants} from '../../storageIdentity.js';
-import {problem} from '../content/publicationImagePolicy.js';
+import {problem} from '../content/publicationInput.js';
 
 
 function absent(error) {

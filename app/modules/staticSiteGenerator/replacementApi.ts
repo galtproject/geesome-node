@@ -5,8 +5,10 @@ export default function (app, service) {
      * @apiGroup StaticSiteGenerator
      * @apiUse ApiKey
      * @apiSuccess {Number} contract Contract version, currently 1.
-     * @apiSuccess {String} policy Persisted rendition policy.
-     * @apiSuccess {Boolean} resave Existing save-data accepts sourceContentId and optimize=true.
+     * @apiSuccess {String} policy Current preferred rendition policy.
+     * @apiSuccess {String[]} imagePolicies Supported explicit saving policies; legacy default remains publication-webp-v1.
+     * @apiSuccess {Boolean} resave Existing save-data accepts sourceContentId and an imageOptimize driver.
+     * @apiSuccess {Boolean} watermark Watermark driver is supported with optimization and frozen replacement receipts.
      * @apiSuccess {Boolean} retirement Local Kubo retirement adapter is supported.
      */
     app.ms.api.onAuthorizedGet('user/image-optimization/capabilities', async (req, res) => {
@@ -18,8 +20,9 @@ export default function (app, service) {
      * @apiName SiteReplacementCreate
      * @apiGroup StaticSiteGenerator
      * @apiUse ApiKey
-     * @apiDescription Records an owned publication/source snapshot before resaving. This does not create an optimization batch: resave each file through user/save-data with sourceContentId and optimize=true, using the existing operation queue. Requires content:write; deleteReplacedFiles additionally requires storage:retire. Replays reuse the owner/requestKey receipt; changed requests conflict.
+     * @apiDescription Records an owned publication/source snapshot before resaving. This does not create an optimization batch: resave each file through user/save-data with sourceContentId and the same imageOptimize driver, using the existing operation queue. Requires content:write; deleteReplacedFiles additionally requires storage:retire. Replays reuse the owner/requestKey receipt; changed requests conflict.
      * @apiBody {String} requestKey Stable caller identity, up to 200 characters.
+     * @apiBody {Object} driver imageOptimize convert driver with params.policy and optional params.watermark; normalized and frozen with this replacement.
      * @apiBody {Number[]} contentIds Ordered owned image IDs, 1..1000, no duplicates. For a previous site, keep the first occurrence of each ID; all old entries must still match the owned source CIDs.
      * @apiBody {String} [previousSiteStorageId] Exact replaced site CID.
      * @apiBody {Number} [postId] Existing owned membership publication, required with a previous site.

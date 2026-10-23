@@ -1,6 +1,8 @@
 import {CorePermissionName} from '../database/interface.js';
 import {requireIntegrationScopes} from '../api/integrationScopes.js';
-import {policy, contentIds, problem} from './publicationImagePolicy.js';
+import {watermarkIdentity} from '../drivers/convert/imageWatermarkHelpers.js';
+import {policy, legacyPolicy, imagePolicy, imageFormat, optimizationRequest} from '../drivers/convert/imageOptimize.js';
+import {contentIds, problem} from './publicationInput.js';
 import {plain, sameCid} from '../../storageIdentity.js';
 import {withStorageFence, withStorageWorker} from '../../storageLifecycle.js';
 
@@ -35,16 +37,23 @@ export class ContentResave {
         }
         return content;
     }
-    async recordOptimizedContent(userId, value) {
+    receiptProperties(content, receipt) {
+        const metadata = properties(content);
+        const previous = metadata.publicationImage;
+        return {...metadata, publicationImage: receipt, publicationImages: {...metadata.publicationImages,
+            ...(previous?.policy ? {[previous.policy]: previous} : {}), [receipt.policy]: receipt}};
+    }
+    async recordOptimizedContent(userId, value, selectedPolicy = legacyPolicy) {
         const content = plain(value);
-        const metadata = {...properties(content), publicationImage: {policy, resultContentId: content.id, resultStorageId: content.storageId}};
+        const metadata = this.receiptProperties(content, {policy: selectedPolicy, resultContentId: content.id, resultStorageId: content.storageId});
         await this.app.ms.database.updateContent(content.id, {propertiesJson: JSON.stringify(metadata)});
         content.propertiesJson = JSON.stringify(metadata);
     }
-    async saved(userId, sourceContentId, source = null, transaction = undefined) {
+    async saved(userId, sourceContentId, source = null, transaction = undefined, driver = null, selectedPolicy = legacyPolicy) {
         source = source || await this.owned(userId, sourceContentId, true, transaction);
-        const saved = properties(source).publicationImage;
-        if (saved?.policy !== policy || !saved.resultContentId) {
+        const metadata = properties(source);
+        const saved = metadata.publicationImages?.[selectedPolicy] || metadata.publicationImage;
+        if (saved?.policy !== selectedPolicy || !saved.resultContentId) {
             return null;
         }
         if (saved.sourceStorageId && !sameCid(source.storageId, saved.sourceStorageId)) {
@@ -54,13 +63,26 @@ export class ContentResave {
         if (!sameCid(content.storageId, saved.resultStorageId)) {
             problem('image_optimization_rendition_changed');
         }
+        const format = imageFormat(selectedPolicy);
+        if (content.extension !== format.extension || content.mimeType !== format.mimeType) {
+            return null;
+        }
+        if (driver && properties(content).imageWatermark?.identity !== watermarkIdentity(driver)) {
+            return null;
+        }
         return content;
     }
-    async requestResave(userId, sourceContentId, apiKeyId = null) {
+    async requestResave(userId, sourceContentId, apiKeyId = null, driver = null) {
+        const optimization = optimizationRequest(driver);
+        if (!optimization) {
+            problem('image_optimization_driver_required', 400);
+        }
+        const selectedPolicy = optimization.policy;
+        driver = optimization.watermark;
         await this.authorize(userId, apiKeyId);
         contentIds([sourceContentId]);
         return withStorageFence(this.app, 'shared', async () => {
-            const existing = await this.saved(userId, sourceContentId);
+            const existing = await this.saved(userId, sourceContentId, null, undefined, driver, selectedPolicy);
             if (existing) {
                 return {status: 'completed', sourceContentId, content: existing};
             }
@@ -71,7 +93,7 @@ export class ContentResave {
                     problem('image_optimization_content_unavailable', 403);
                 }
                 // A worker may have completed while this admission waited for the lock.
-                const saved = await this.saved(userId, sourceContentId, source, transaction);
+                const saved = await this.saved(userId, sourceContentId, source, transaction, driver, selectedPolicy);
                 if (saved) {
                     return {status: 'completed', sourceContentId, content: saved};
                 }
@@ -82,37 +104,38 @@ export class ContentResave {
                     problem('image_optimization_format_unsupported', 415);
                 }
                 const queue = await this.app.ms.asyncOperation.addUniqueUserOperationQueue(userId, resaveModule, apiKeyId,
-                    {userId, sourceContentId, source: imageSourceSnapshot(source), policy}, {transaction});
+                    {userId, sourceContentId, source: imageSourceSnapshot(source), policy: selectedPolicy, ...(driver ? {driver} : {})}, {transaction});
                 return {status: 'queued', sourceContentId, id: queue.id, asyncOperationId: queue.asyncOperationId || null};
             });
         });
     }
     async execute(queue, operation, input) {
         await this.authorize(queue.userId, queue.userApiKeyId);
-        let content = await this.saved(queue.userId, input.sourceContentId);
+        const selectedPolicy = imagePolicy(input.policy);
+        let content = await this.saved(queue.userId, input.sourceContentId, null, undefined, input.driver, selectedPolicy);
         if (!content) {
             const source = await this.owned(queue.userId, input.sourceContentId);
             if (!sameCid(source.storageId, input.source.storageId)) {
                 problem('image_optimization_source_changed');
             }
             const previous = properties(source).publicationImage;
-            if (previous?.policy && previous.policy !== policy) {
+            if (previous?.policy && ![legacyPolicy, policy].includes(previous.policy)) {
                 problem('source_unavailable_for_policy_upgrade');
             }
             await this.app.ms.asyncOperation.handleOperationCancel(queue.userId, operation.id);
             content = plain(await this.app.ms.content.saveData(queue.userId,
                 await this.app.ms.storage.getFileStream(source.storageId), source.name || `image-${source.id}.png`,
-                {optimize: true, mimeType: source.mimeType, waitForPin: true, skipFileCatalog: true, requirePreview: true}));
+                {driver: {name: 'imageOptimize', module: 'convert', params: {policy: selectedPolicy, watermark: input.driver}}, properties: properties(source).imageWatermark ? {imageWatermark: properties(source).imageWatermark} : {}, mimeType: source.mimeType, waitForPin: true, skipFileCatalog: true, requirePreview: true}));
             if (!content.mediumPreviewStorageId || content.previewExtension !== 'webp') {
                 problem('image_optimization_preview_missing');
             }
             // Content owns provenance. The old row remains a diagnostic tombstone
             // after physical retirement, rather than a separate rendition table.
-            await this.app.ms.database.updateContent(source.id, {propertiesJson: JSON.stringify({...properties(source),
-                publicationImage: {policy, resultContentId: content.id, resultStorageId: content.storageId,
-                    sourceStorageId: source.storageId, sourceManifestStorageId: source.manifestStorageId}})});
+            await this.app.ms.database.updateContent(source.id, {propertiesJson: JSON.stringify(this.receiptProperties(source,
+                {policy: selectedPolicy, resultContentId: content.id, resultStorageId: content.storageId,
+                    sourceStorageId: source.storageId, sourceManifestStorageId: source.manifestStorageId}))});
         }
-        return {sourceContentId: input.sourceContentId, sourceManifestStorageId: input.source.manifestStorageId, content, policy};
+        return {sourceContentId: input.sourceContentId, sourceManifestStorageId: input.source.manifestStorageId, content, policy: selectedPolicy};
     }
     async processQueue() {
         return withStorageWorker(this.app, () => this.app.ms.asyncOperation.processModuleOperationQueue(resaveModule, {

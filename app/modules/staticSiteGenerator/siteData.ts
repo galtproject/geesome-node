@@ -1,5 +1,5 @@
 import {normalizeStorageId as normalizeUnixfsId} from '../archive/index.js';
-import {problem} from '../content/publicationImagePolicy.js';
+import {problem} from '../content/publicationInput.js';
 export function pageCid(value) {
     try {
         return normalizeUnixfsId(new URL(value).pathname.match(/^\/ipfs\/([A-Za-z0-9]+)(?:\/|$)/)?.[1]);

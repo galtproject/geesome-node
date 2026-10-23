@@ -1,4 +1,6 @@
 import fs from "fs";
+import {watermarkIdentity, watermarkProperties} from '../drivers/convert/imageWatermarkHelpers.js';
+import {imageFormat, optimizationRequest} from '../drivers/convert/imageOptimize.js';
 import {ContentResave} from './resave.js';
 import _ from 'lodash';
 import mime from 'mime';
@@ -807,16 +809,20 @@ function getModule(app: IGeesomeApp) {
 			return this.saveData(userId, dataToSave, fileName, options).then(c => c.storageId);
 		}
 
-		async saveData(userId: number, dataToSave, fileName, options: { view?, driver?, previews?: {content, mimeType, previewSize, driver?}[], apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties?, forceNewContentEntity?: boolean, requirePreview?: boolean, skipFileCatalog?: boolean, chatAttachmentReservationId?: string, optimize?: boolean | string } = {}) {
+		async saveData(userId: number, dataToSave, fileName, options: { view?, driver?, previews?: {content, mimeType, previewSize, driver?}[], apiKey?, userApiKeyId?, folderId?, mimeType?, path?, onProgress?, waitForPin?, properties?, forceNewContentEntity?: boolean, requirePreview?: boolean, skipFileCatalog?: boolean, chatAttachmentReservationId?: string } = {}) {
 			log('saveData');
-			if (options.optimize !== undefined && ![true, false, 'true', 'false'].includes(options.optimize)) {
-				throw new ApiProblemError(400, 'image_optimization_flag_invalid', 'Invalid optimization flag');
+			const optimization = optimizationRequest(options.driver);
+			if (optimization) {
+				const watermark = optimization.watermark;
+				const watermarkApplied = Boolean(watermark && options.properties?.imageWatermark?.identity === watermarkIdentity(watermark));
+				options = {...options,
+					driver: {name: 'imageOptimize', module: 'convert', params: {watermark, watermarkApplied, policy: optimization.policy}},
+					properties: {...options.properties, ...watermarkProperties(watermark)}, requirePreview: true};
 			}
-			if (options.optimize === true || options.optimize === 'true') {
-				if (options.driver) {
-					throw new ApiProblemError(400, 'image_optimization_driver_conflict', 'Optimization cannot be combined with another driver');
-				}
-				options = {...options, driver: {name: 'imageOptimize', module: 'convert'}, requirePreview: true};
+
+			const selectedDriver = this.getDriverNameAndParams(options);
+			if (selectedDriver.name === 'imageWatermark' && selectedDriver.module === 'convert') {
+				options = {...options, properties: {...options.properties, ...watermarkProperties(selectedDriver)}};
 			}
 
 			await app.checkUserCan(userId, CorePermissionName.UserSaveData);
@@ -825,8 +831,8 @@ function getModule(app: IGeesomeApp) {
 			if (options.path) {
 				fileName = commonHelper.getFilenameFromPath(options.path);
 			}
-			if (options.optimize === true || options.optimize === 'true') {
-				fileName = String(fileName || 'image').replace(/\.[^.]+$/, '') + '.webp';
+			if (optimization) {
+				fileName = String(fileName || 'image').replace(/\.[^.]+$/, '') + '.' + imageFormat(optimization.policy).extension;
 			}
 			//TODO: use for streams https://github.com/mscdex/busboy/issues/212
 			const extensionFromName = commonHelper.getExtensionFromName(fileName);
@@ -895,13 +901,18 @@ function getModule(app: IGeesomeApp) {
 					log(`Content ${storageFile.id} already exists in database, check preview and folder placement`);
 					await this.updateExistsContentMetadata(userId, existsContent, options);
 					await app.callHook('content', 'existsContentAdding', [userId, existsContent, options]);
-					if (options.optimize === true || options.optimize === 'true') {
+					if (options.properties?.imageWatermark) {
+						const propertiesJson = JSON.stringify({...JSON.parse(existsContent.propertiesJson || '{}'), imageWatermark: options.properties.imageWatermark});
+						await app.ms.database.updateContent(existsContent.id, {propertiesJson});
+						existsContent.propertiesJson = propertiesJson;
+					}
+					if (optimization) {
 						if (existsContent.previewExtension !== 'webp') {
 							const previews = await this.getPreview({id: existsContent.storageId, size: existsContent.size}, existsContent.extension, existsContent.mimeType);
 							await app.ms.database.updateContent(existsContent.id, previews);
 							existsContent = await this.updateContentManifest({...existsContent.toJSON(), ...previews});
 						}
-						await app.ms.content['publicationImages'].recordOptimizedContent(userId, existsContent);
+						await app.ms.content['publicationImages'].recordOptimizedContent(userId, existsContent, optimization.policy);
 					}
 					return existsContent;
 				}
@@ -917,8 +928,8 @@ function getModule(app: IGeesomeApp) {
 					name: fileName,
 					propertiesJson: JSON.stringify(merge(resultProperties || {}, options.properties || {}))
 				}, options);
-				if (options.optimize === true || options.optimize === 'true') {
-					await app.ms.content['publicationImages'].recordOptimizedContent(userId, saved);
+				if (optimization) {
+					await app.ms.content['publicationImages'].recordOptimizedContent(userId, saved, optimization.policy);
 				}
 				return saved;
 			} finally {

@@ -1,5 +1,5 @@
 import {assertStorageWritable} from './modules/asyncOperation/storageHolds.js';
-import {problem} from './modules/content/publicationImagePolicy.js';
+import {problem} from './modules/content/publicationInput.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
 import pg from 'pg';
 import {createHash} from 'node:crypto';

@@ -1,6 +1,6 @@
 import {withStorageFence, withStorageWorker} from '../../storageLifecycle.js';
 import {withStorageJobSnapshot} from '../asyncOperation/storageHolds.js';
-import {policy} from '../content/publicationImagePolicy.js';
+import {policy, imagePolicies} from '../drivers/convert/imageOptimize.js';
 
 export function configureSiteReplacements(app, service) {
     service.retryCleanup = async (userId, id, apiKeyId) => {
@@ -11,7 +11,7 @@ export function configureSiteReplacements(app, service) {
         }
         return service.status(userId, id);
     };
-    Object.defineProperty(service, 'capabilities', {get: () => ({contract: 1, policy, resave: true,
+    Object.defineProperty(service, 'capabilities', {get: () => ({contract: 1, policy, imagePolicies, resave: true, watermark: true, imageOptimizeDriver: true,
         retirement: Boolean(app.ms.storageSpace && app.ms.storage.node?.repo?.gc && app.ms.storage.node?.files?.rm)})});
     service.processQueue = () => withStorageWorker(app, async () => {
         for (const row of await service.jobs.list(['rendered'])) {

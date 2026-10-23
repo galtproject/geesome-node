@@ -1,6 +1,6 @@
 import {digest, sameCid} from '../../storageIdentity.js';
 import {pageCid, readSiteData} from './siteData.js';
-import {problem} from '../content/publicationImagePolicy.js';
+import {problem} from '../content/publicationInput.js';
 
 export async function finalizeReplacement(service, userId, id, body, apiKeyId = null) {
     const row = await service.replacement(userId, id);

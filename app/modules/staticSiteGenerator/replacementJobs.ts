@@ -1,7 +1,7 @@
 import {Op, cast, col, fn, where} from 'sequelize';
 import {digest} from '../../storageIdentity.js';
 import {checkpointOperation} from '../asyncOperation/checkpoint.js';
-import {problem} from '../content/publicationImagePolicy.js';
+import {problem} from '../content/publicationInput.js';
 
 // Accepted input is immutable on the queue; only operation.output is checkpointed.
 export class SiteReplacementJobs {
