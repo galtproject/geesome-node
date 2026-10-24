@@ -82,7 +82,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "undici": "8.11.2",
+    "undici": "8.12.2",
     "@geesome/ui": "https://github.com/galtproject/geesome-ui#4c155e9",
     "@revoinc/async-busboy": "^2.0.3",
     "apidoc": "^1.2.0",
