@@ -59,6 +59,7 @@
     "test": "yarn -W && bash bash/test-run.sh",
     "test:run": "bash bash/test-run.sh",
     "test:ssg-offline": "node --import tsx check/staticSiteOfflineBrowser.ts",
+    "test:ssg-gallery-loading": "node check/staticSiteGalleryLoading.mjs",
     "test:docker": "bash bash/docker-test",
     "test:docker:cold": "bash bash/docker-test --cold",
     "test:docker:no-build": "bash bash/docker-test --no-build",

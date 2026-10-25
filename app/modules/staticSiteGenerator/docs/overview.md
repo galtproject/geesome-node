@@ -38,6 +38,21 @@ requires no module loader, API call, local server or browser security override.
 The existing `clientData.js` export stays available for publication verification.
 Nested group pages preserve their server-rendered route during hydration.
 
+Content-list galleries request previews only for cards intersecting the viewport.
+After all currently visible previews load or fail, originals for those cards warm
+in document order with at most two concurrent requests. Scrolling immediately
+starts the new visible previews and stops scheduling old offscreen originals;
+at most two already active originals may finish. A preview failure does not block
+warming. Opening the viewer uses the same original URL so the browser can reuse
+its warmed cache. Unmounting disconnects visibility tracking and cancels warming.
+Videos use `preload="none"`. Visibility scheduling starts after the browser client
+hydrates; SSR no longer starts hidden original or offscreen preview downloads.
+
+Run `npm run test:ssg-gallery-loading` for standalone browser verification without
+Postgres/IPFS: delayed responses verify preview priority, two original slots,
+scroll ordering, failures, cleanup, modal cache reuse, and offline narrow layouts.
+Screenshots and their manifest stay under the ignored test output directory.
+
 The image viewer supports clicking a thumbnail, switching images with the arrows
 or keyboard, and closing with its button or backdrop. The transparent 32px close
 icon overlays the image’s top-right corner with a 48px hit area; keyboard focus
