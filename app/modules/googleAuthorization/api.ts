@@ -7,7 +7,8 @@ export default function (app, module) {
 	* @apiHeader {String} Host Configured creator-site host.
 	* @apiSuccess {String} nonce Pass to Google Identity Services initialize({nonce}).
 	* @apiSuccess {String} googleClientId Existing site's Google client id.
-	* @apiError (404) membership_site_not_found Unknown or disabled site.
+	* @apiError (404) membership_site_not_found Unconfigured site.
+	* @apiError (503) google_login_not_configured Site has no Google client ID.
 	* @apiError (429) login_rate_limited Too many attempts.
 	*/
 	app.ms.api.onGet('login/google/challenge', creatorSiteEndpoint(async (req, res) => {

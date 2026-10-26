@@ -1,6 +1,6 @@
 # Google Authorization
 
-Optional private creator-reader login. Load `googleAuthorization` after `database`
+Private creator-reader login, included in the default module pack. Load `googleAuthorization` after `database`
 and `api`; creator-site configuration is shared with `membership`.
 
 Google Identity Services uses the site's existing client ID and authorized origin.

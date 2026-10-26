@@ -13,7 +13,7 @@ export function configuredSite(app, req, mutation = false) {
 		const url = new URL(item.origin);
 		return url.protocol === 'https:' && url.origin === item.origin && url.host === host;
 	});
-	if (!site || app.config.membershipConfig?.enabled !== true) {
+	if (!site) {
 		siteProblem(404, 'membership_site_not_found');
 	}
 	if ((req.headers.origin && req.headers.origin !== site.origin)

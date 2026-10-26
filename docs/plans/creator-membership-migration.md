@@ -32,7 +32,7 @@ Source snapshots will be recorded below. Source of truth is executable source ra
 - A canonical HTTPS origin maps to one site. Reject unknown Host and cross-origin mutations; trust only the actual configured Host passed by a trusted reverse proxy, never arbitrary forwarded headers or browser-selected site IDs. Sessions carry a site identifier; one core identity may have separate cookies/sessions for Wave and Meat.
 - Public endpoints have explicit allowlisted response DTOs. Never spread untrusted group/site JSON into financial configuration. Feed exposes previews; full legacy Page URLs are returned only for free posts or an active period. This preserves the existing link-gating behavior; it does not claim protected IPFS bytes.
 - Proposed routes: `/v1/login/google`, `/v1/browser-session`, `/v1/browser-session/logout`; `/v1/membership/resource`, `/feed`, `/posts/:id`, `/account`, `/refunds`; `/v1/payments/crypto/methods`, `/invoices`, `/invoices/:id`; owner APIs use existing bearer authorization and resource/group ownership. Exact delivered routes are documented with the modules.
-- Optional modules load after `group`/`api`/`database`; payments before membership; Google initialization has no membership dependency. Runtime enablement, site config and payment workers fail closed by default. No signing/observer loops start merely because a seed exists.
+- Default creator modules load after `group`/`api`/`database`; payments before membership; Google initialization has no membership dependency. Site configuration gates public endpoints; Google login requires a site client ID and registration remains per-site. Payment workers are opt-in. No signing/observer loops start merely because a seed exists.
 
 ## Plan audit
 

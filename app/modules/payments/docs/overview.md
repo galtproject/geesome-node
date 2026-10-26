@@ -1,6 +1,6 @@
 # Payments
 
-Optional direct cryptocurrency engine extracted from microwave-girls at
+Direct cryptocurrency engine included in the default module pack, extracted from microwave-girls at
 `ec7841f1`. It owns the new `payments_*` invoice/refund/crypto tables. The maintained
 wallet/quote/finality/observer/balance-proof/treasury/swap/journal algorithms are
 preserved; imports use an isolated `ethers-v6` alias so legacy Ethereum auth stays

@@ -21,7 +21,7 @@ export function createGoogleAuthorization(app, models, dependencies: any = {}) {
 		expires: number;
 	}>();
 	function enabled(site) {
-		if (app.config.googleAuthorizationConfig?.enabled !== true || !site.googleClientId) {
+		if (!site.googleClientId) {
 			siteProblem(503, 'google_login_not_configured');
 		}
 	}

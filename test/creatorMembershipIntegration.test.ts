@@ -99,7 +99,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		const meat = await models.Group.create({ name: 'meat', creatorId: otherOwner.id, title: 'Era Of Meat', isPublic: false, isEncrypted: false, isOpen: false });
 		const sites = [{ id: 'wave', origin: 'https://eraofwave.com', groupId: wave.id, ownerId: owner.id }, { id: 'meat', origin: 'https://eraofmeat.com', groupId: meat.id, ownerId: otherOwner.id }]
 			.map(site => ({ ...site, googleClientId: 'existing-google-client', postsEnabled: true, registrationEnabled: true }));
-		app = { config: { domain: 'localhost', apiConfig: {}, googleAuthorizationConfig: { enabled: true }, paymentsConfig: { worker: false }, membershipConfig: { enabled: true, sites } }, ms: { database: { sequelize: db, models } },
+		app = { config: { domain: 'localhost', apiConfig: {}, paymentsConfig: { worker: false }, membershipConfig: { sites } }, ms: { database: { sequelize: db, models } },
 			checkModules(names) {
 				for (const name of names) {
 					assert(this.ms[name]);
@@ -297,8 +297,13 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 	});
 });
 describe('creator module input boundaries', () => {
-	it('rejects disabled sites', () => {
-		const app = { config: { membershipConfig: { enabled: false, sites: [] } } };
+	it('rejects Google login when the configured site has no client ID', async () => {
+		const app = { config: {}, ms: { database: { sequelize: {} } } };
+		const google = createGoogleAuthorization(app, {});
+		await assert.rejects(google.challenge({ headers: {} }, { id: 'wave' }), /google_login_not_configured/);
+	});
+	it('rejects unconfigured sites', () => {
+		const app = { config: { membershipConfig: { sites: [] } } };
 		assert.throws(() => configuredSite(app, { headers: { host: 'eraofwave.com' } }), /membership_site_not_found/);
 	});
 });

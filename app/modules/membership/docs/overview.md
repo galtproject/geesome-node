@@ -8,12 +8,13 @@ pivots and receive no upload/publication permissions.
 
 ## Configuration
 
-Default module packs add `googleAuthorization,payments,membership` only when
-`MEMBERSHIP_ENABLED=1`. A custom `MODULES` list must include them in that order,
-after `database,api,group` and their usual dependencies. Set
-`GOOGLE_AUTHORIZATION_ENABLED=1` to enable login, and
-`MEMBERSHIP_SITES_FILE=/absolute/path/creator-sites.json` to load a public
-configuration file. Worker flags remain disabled for preparation/rehearsal.
+Default module packs include `googleAuthorization,payments,membership`. A custom
+`MODULES` list must include them in that order, after `database,api,group` and
+their usual dependencies. Site bindings determine availability; Google login
+requires the site's `googleClientId`, and registration is controlled per site.
+Set `MEMBERSHIP_SITES_FILE=/absolute/path/creator-sites.json` to load a public
+configuration file. With no sites configured, creator endpoints reject requests.
+Worker flags remain disabled for preparation/rehearsal.
 
 Example file (replace numeric owner/group ids and use the existing Google client):
 
@@ -55,8 +56,6 @@ public site JSON under the persisted data directory, normally
 are:
 
 ```dotenv
-MEMBERSHIP_ENABLED=1
-GOOGLE_AUTHORIZATION_ENABLED=1
 MEMBERSHIP_SITES_FILE=/geesome-node/data/creator-sites.json
 PAYMENTS_WORKER=0
 PAYMENTS_COLLECTION_WORKER=0

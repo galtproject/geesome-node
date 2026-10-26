@@ -27,10 +27,8 @@ services:
       - GEESOME_API_BASE_PATH
       - GEESOME_VERSION
       - GEESOME_MAX_UPLOAD_BYTES
-      # Creator modules stay off until configured. File paths are container paths.
+      # Creator sites require configuration. File paths are container paths.
       - MODULES=${MODULES:-}
-      - MEMBERSHIP_ENABLED=${MEMBERSHIP_ENABLED:-0}
-      - GOOGLE_AUTHORIZATION_ENABLED=${GOOGLE_AUTHORIZATION_ENABLED:-0}
       - MEMBERSHIP_SITES_FILE=${MEMBERSHIP_SITES_FILE:-}
       - PAYMENTS_WORKER=${PAYMENTS_WORKER:-0}
       - PAYMENTS_COLLECTION_WORKER=${PAYMENTS_COLLECTION_WORKER:-0}
