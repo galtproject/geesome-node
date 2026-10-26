@@ -50,7 +50,7 @@ export async function finalizeReplacement(service, userId, id, body, apiKeyId = 
     const finalization = {...receipt, hash, archiveStorageId: archive.archivedStorageId,
         postHash: digest({metadata, contentIds: attachments.map(c => c.id)})};
     await row.update({status: row.input.deleteReplacedFiles ? 'retiring' : 'complete',
-        result: {...row.result, finalization}});
+        result: {...row.result, finalization, ...(row.input.deleteReplacedFiles ? {cleanupQueuedAt: new Date().toISOString()} : {})}});
     return service.status(userId, id);
 }
 
