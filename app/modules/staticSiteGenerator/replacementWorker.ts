@@ -1,6 +1,8 @@
 import {withStorageFence, withStorageWorker} from '../../storageLifecycle.js';
 import {withStorageJobSnapshot} from '../asyncOperation/storageHolds.js';
 import {cleanupDue, cleanupFailure} from './cleanupRetry.js';
+import {cleanupBatchReady} from './cleanupBatch.js';
+import {Op} from 'sequelize';
 import {policy, imagePolicies} from '../drivers/convert/imageOptimize.js';
 
 export function configureSiteReplacements(app, service) {
@@ -9,7 +11,7 @@ export function configureSiteReplacements(app, service) {
         await service.authorize(userId, apiKeyId, true);
         if (row.status === 'cleanup_failed') {
             await row.update({status: row.result?.cleanupRetry?.resumeStatus || 'retiring',
-                result: {...row.result, cleanupRetry: {failures: 0}}, error: null});
+                result: {...row.result, cleanupRetry: {failures: 0, force: true}}, error: null});
         }
         return service.status(userId, id);
     };
@@ -31,9 +33,20 @@ export function configureSiteReplacements(app, service) {
         if (!app.ms.storageSpace) {
             return;
         }
-        const retiring = (await service.jobs.list(['retiring'])).filter(row => cleanupDue(row));
+        const retiring = (await service.jobs.list(['retiring'], 100)).filter(row => cleanupDue(row));
         const pending = (await service.jobs.list(['gc_pending'], 100)).filter(row => cleanupDue(row));
         if (!retiring.length && !pending.length) {
+            return;
+        }
+        const batch = [...retiring, ...pending];
+        for (const row of batch) {
+            if (!row.result?.cleanupQueuedAt) {
+                await row.update({result: {...row.result, cleanupQueuedAt: new Date().toISOString()}});
+            }
+        }
+        const foreground = await service.jobs.Queue.findOne({attributes: ['id'], where: {isWaiting: true,
+            module: {[Op.in]: ['content-resave', 'static-site-generator', 'content-archive']}}});
+        if (!cleanupBatchReady(batch, Boolean(foreground))) {
             return;
         }
         await withStorageFence(app, 'exclusive', async assertHeld => {

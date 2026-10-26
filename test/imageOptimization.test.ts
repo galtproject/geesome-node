@@ -13,6 +13,13 @@ import {readArchive} from './helpers/archive.js';
 const imageDriver = (watermark = null, policy = 'publication-webp-v1') => ({name: 'imageOptimize', module: 'convert',
     params: {policy, ...(watermark ? {watermark} : {})}});
 
+async function processCleanupNow(service) {
+    for (const row of await service.jobs.list(['retiring', 'gc_pending'], 100)) {
+        await row.update({result: {...row.result, cleanupQueuedAt: new Date(1).toISOString()}});
+    }
+    await service.processQueue();
+}
+
 describe('persisted image saving and local site retirement', function () {
     this.timeout(120000);
     let app: any, user: any, group: any, admin: any;
@@ -255,11 +262,11 @@ describe('persisted image saving and local site retirement', function () {
             propertiesJson: JSON.stringify({membership: {sourceKey, pageUrl: `https://eraofwave.com/ipfs/${replacement.storageId}/#/`,
                 title: 'Original', free: false, imageReplacement: {id: receipt.id, receiptId: consumer.receiptId, mappingsHash: consumer.mappingsHash}}})});
         await service.finalize(user.id, receipt.id, {postId: post.id, storageId: replacement.storageId, consumer});
-        await service.processQueue();
+        await processCleanupNow(service);
         let finished = await service.status(user.id, receipt.id);
         for (let attempt = 0; ['retiring', 'gc_pending'].includes(finished.status) && attempt < 30; attempt++) {
             await new Promise(resolve => setTimeout(resolve, 250));
-            await service.processQueue();
+            await processCleanupNow(service);
             finished = await service.status(user.id, receipt.id);
         }
         assert.ok(['complete', 'complete_with_retained'].includes(finished.status), JSON.stringify(finished));
@@ -301,7 +308,7 @@ describe('persisted image saving and local site retirement', function () {
             {entityType: 'content-list', entityIds: [output.content.id]}, {archive: true, replacementId: thirdReceipt.id,
                 site: {name: 'third_optimized_site', title: 'Original'}});
         // A restart after render must recover missing archive admission.
-        await service.processQueue();
+        await processCleanupNow(service);
         await app.ms.archive.processQueue();
         const thirdConsumer = {kind: 'microwave-girls', receiptId: randomUUID(), mappingsHash: digest([
             [String(output.content.id), String(output.content.id), output.content.manifestStorageId, output.content.manifestStorageId]])};
@@ -311,7 +318,7 @@ describe('persisted image saving and local site retirement', function () {
         await service.finalize(user.id, thirdReceipt.id, {postId: post.id, storageId: third.storageId, consumer: thirdConsumer});
         let thirdResult;
         for (let attempt = 0; attempt < 60; attempt++) {
-            await service.processQueue();
+            await processCleanupNow(service);
             thirdResult = await service.status(user.id, thirdReceipt.id);
             if (!['retiring', 'gc_pending'].includes(thirdResult.status)) {
                 break;
@@ -331,6 +338,58 @@ describe('persisted image saving and local site retirement', function () {
     });
 
     }
+
+    it('batches twenty receipts behind foreground work, then reclaims once after the persisted maximum even after restart', async () => {
+        const {cleanupIdleWaitMs, cleanupMaxWaitMs} = await import('../app/modules/staticSiteGenerator/cleanupBatch.js');
+        const {SiteReplacements} = await import('../app/modules/staticSiteGenerator/replacements.js');
+        const {configureSiteReplacements} = await import('../app/modules/staticSiteGenerator/replacementWorker.js');
+        const service = app.ms.staticSiteGenerator.replacements;
+        const queuedAt = new Date(Date.now() - cleanupIdleWaitMs - 1000).toISOString();
+        const receipts = [];
+        for (let index = 0; index < 20; index++) {
+            const key = randomUUID();
+            receipts.push(await service.jobs.create(user.id, null, key, {requestKey: key, requestHash: key,
+                input: {}, status: 'gc_pending', result: {...(index ? {cleanupQueuedAt: queuedAt} : {}), cleanup: {candidates: [], retained: []}}, error: null}));
+        }
+        const foreground = await app.ms.asyncOperation.addUserOperationQueue(user.id, 'content-resave', null, {fixture: randomUUID()});
+        const active = await app.ms.asyncOperation.addAsyncOperation(user.id, {module: 'content-resave', name: 'batch-test-blocker'});
+        await app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(foreground.id, active.id);
+        const original = app.ms.storageSpace.collectRetiredSiteBlocks;
+        let calls = 0;
+        app.ms.storageSpace.collectRetiredSiteBlocks = async (_service, rows) => {
+            calls++;
+            assert.deepEqual(rows.map(row => row.id).sort((a, b) => a - b), receipts.map(row => row.id).sort((a, b) => a - b));
+            for (const row of rows) {
+                await row.update({status: 'complete', error: null});
+            }
+        };
+        try {
+            await service.processQueue();
+            assert.equal(calls, 0, 'idle accumulation window is insufficient while foreground work waits');
+            const scheduled = (await service.replacement(user.id, receipts[0].id)).result.cleanupQueuedAt;
+            assert.ok(scheduled, 'legacy pending receipts persist their initial scheduling time');
+            await service.processQueue();
+            assert.equal((await service.replacement(user.id, receipts[0].id)).result.cleanupQueuedAt, scheduled, 'polling never renews the batch wait');
+            await withStorageFence(app, 'shared', async () => {}, {wait: false});
+            const first = await service.replacement(user.id, receipts[0].id);
+            await first.update({result: {...first.result, cleanupQueuedAt: new Date(Date.now() - cleanupMaxWaitMs - 1000).toISOString()}});
+            const restarted = new SiteReplacements(app, service.models);
+            configureSiteReplacements(app, restarted);
+            await restarted.processQueue();
+            assert.equal(calls, 1, 'one GC pass handles all ready receipts despite continuous foreground backlog');
+            assert.equal((await restarted.status(user.id, first.id)).status, 'complete');
+        } finally {
+            app.ms.storageSpace.collectRetiredSiteBlocks = original;
+            await app.ms.asyncOperation.closeUserOperationQueue(foreground.id);
+            await app.ms.asyncOperation.finishAsyncOperation(user.id, active.id, null, '{}');
+            for (const receipt of receipts) {
+                const row = await service.replacement(user.id, receipt.id);
+                if (row.status !== 'complete') {
+                    await row.update({status: 'complete'});
+                }
+            }
+        }
+    });
 
     it('backs off failed cleanup, releases writers and resumes only after explicit retry', async () => {
         const service = app.ms.staticSiteGenerator.replacements;
@@ -356,7 +415,7 @@ describe('persisted image saving and local site retirement', function () {
         };
         try {
             for (let attempt = 1; attempt <= 3; attempt++) {
-                await service.processQueue();
+                await processCleanupNow(service);
                 let row = await service.replacement(user.id, receipt.id);
                 assert.equal(row.result.cleanupRetry.failures, attempt);
                 const finishedPeer = await service.status(user.id, peer.id);
@@ -364,7 +423,7 @@ describe('persisted image saving and local site retirement', function () {
                 assert.equal(finishedPeer.error, null);
                 assert.equal(row.status, attempt === 3 ? 'cleanup_failed' : 'gc_pending');
                 await withStorageFence(app, 'shared', async () => {}, {wait: false});
-                await service.processQueue();
+                await processCleanupNow(service);
                 assert.equal(calls, attempt, 'automatic retries respect persisted backoff');
                 if (attempt < 3) {
                     await row.update({result: {...row.result, cleanupRetry: {...row.result.cleanupRetry,
@@ -373,7 +432,7 @@ describe('persisted image saving and local site retirement', function () {
             }
             const resumed = await service.retryCleanup(user.id, receipt.id, null);
             assert.equal(resumed.status, 'gc_pending');
-            await service.processQueue();
+            await processCleanupNow(service);
             assert.equal(calls, 4);
             assert.equal((await service.status(user.id, receipt.id)).status, 'complete');
         } finally {
