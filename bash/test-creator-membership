@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+name="geesome-creator-membership-test-$$"
+cleanup() { docker rm -f "$name" >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+# Isolated test-only ledger; no production variables, wallets or network services.
+docker run --detach --name "$name" --publish 127.0.0.1::5432 \
+  --env POSTGRES_PASSWORD=geesome --env POSTGRES_USER=geesome \
+  --env POSTGRES_DB=geesome_membership_test postgres:14-alpine >/dev/null
+for attempt in {1..30}; do
+  if docker exec "$name" pg_isready -U geesome >/dev/null 2>&1; then break; fi
+  sleep 1
+done
+port=$(docker port "$name" 5432 | sed 's/.*://')
+export CREATOR_MEMBERSHIP_TEST_DATABASE_URL="postgres://geesome:geesome@127.0.0.1:${port}/geesome_membership_test"
+npm run test:creator-membership
+
+npm run test:creator-payments

@@ -521,3 +521,15 @@ These remain valid but are not ahead of the active priorities above:
 
 Each epic should receive its own deterministic TODO section before implementation.
 <!-- /todo-section -->
+
+<!-- todo-section: creator-membership-cutover -->
+## Creator membership migration and website cutover (#1425)
+
+Backend module foundations are recorded in [implemented.md](implemented.md).
+Remaining work follows the [audited migration plan](plans/creator-membership-migration.md):
+
+- Rehearse legacy UUID/native-post mappings, public preview/hidden metadata, invoices, paid periods, wallet fingerprints/cursors and recovery journals with old workers stopped.
+- Adapt the public/admin browser clients to new API contracts and the Google nonce challenge; verify real browser flows on both domains before proxy switching.
+- Switch site APIs under a single authoritative payment worker, then remove replaced billing/auth workers from microwave-girls.
+- Build the safe creator SSG theme and protected original delivery; current CID links remain public.
+- Add explicit existing-account Google linking if required; never auto-link by email.

@@ -48,6 +48,8 @@ can be used for the generated API page, this portal, and module docs.
 
 ## Focused References
 
+- [Creator membership migration: audited plan](./plans/creator-membership-migration.md)
+
 - [Debugging and logs](../DEBUG.md)
 - [Runtime performance diagnostics](./runtime-performance-diagnostics.md)
 - [Code style](./code-style.md)

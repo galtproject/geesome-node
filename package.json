@@ -78,7 +78,10 @@
     "docker-build": "bash/docker-build.sh",
     "docker-upgrade": "bash/docker-upgrade",
     "storage:move": "bash bash/move-docker-storage.sh",
-    "docker-storage:move": "bash bash/move-docker-storage.sh"
+    "docker-storage:move": "bash bash/move-docker-storage.sh",
+    "test:creator-payments": "node --import tsx --test test/payments/*.spec.ts",
+    "test:creator-membership": "node --import tsx ./node_modules/.bin/mocha --require ./test/setupQuietLogs.cjs test/creatorMembership*.test.ts --timeout 30000",
+    "test:creator-membership:docker": "bash bash/test-creator-membership"
   },
   "author": "",
   "license": "ISC",
@@ -154,7 +157,13 @@
     "vue": "3.5.13",
     "vue-feather-icons": "^5.1.0",
     "vue-router": "^4.4.5",
-    "xml": "^1.0.1"
+    "xml": "^1.0.1",
+    "@noble/curves": "1.9.7",
+    "@noble/hashes": "1.8.0",
+    "@scure/base": "1.2.6",
+    "@scure/bip32": "1.7.0",
+    "ethers-v6": "npm:ethers@6.15.0",
+    "google-auth-library": "10.5.0"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",

@@ -97,6 +97,19 @@ function notesFor(route: RouteRow, block: string): string[] {
   if (routeLower.includes('content') || routeLower.includes('file') || routeLower.includes('ipfs')) {
     notes.add('content/storage boundary');
   }
+  if (['googleAuthorization', 'payments', 'membership'].includes(route.moduleName)) {
+    if (route.auth === 'authorized') {
+      notes.add('bearer only; membership.owner checks group creator and UserGroupManagement; no browser cookie authorization');
+    } else {
+      notes.add('configured HTTPS Host allowlist; cookie accepted explicitly and bound to site; mutation requires exact Origin; no-store');
+      if (block.includes('reader(req, site, true)')) {
+        notes.add('requires live private reader session; no core upload permissions or API key issued');
+      }
+      if (route.moduleName === 'googleAuthorization' && routeLower.startsWith('/v1/login/google')) {
+        notes.add('verified Google token with one-use site/browser-bound nonce; private identity; no public profile');
+      }
+    }
+  }
   if (route.moduleName === 'archive') {
     notes.add(route.auth === 'public'
       ? 'completed archives are explicitly public by original CID'
