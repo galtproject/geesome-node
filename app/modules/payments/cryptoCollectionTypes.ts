@@ -1,6 +1,14 @@
 import type { CryptoAsset } from './cryptoAssets.js';
 import type { EvmNetwork } from './cryptoAutomationConfig.js';
+export interface PayoutDestination {
+	resourceId: string;
+	ownerId: number;
+	payout: string;
+	source: 'group' | 'owner';
+	version: number;
+}
 export interface CollectionInput {
+	payoutDestination?: PayoutDestination;
 	resourceId: string;
 	assetId: string;
 	index: number;

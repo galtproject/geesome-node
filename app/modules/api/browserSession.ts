@@ -93,7 +93,7 @@ export function creatorSiteEndpoint(handler) {
 		try {
 			return await handler(req, res);
 		} catch (error) {
-			if (error instanceof ApiProblemError) {
+			if (error instanceof ApiProblemError || (error instanceof Error && error.message === 'not_permitted')) {
 				return sendApiProblem(res, error, req.requestId);
 			}
 			console.error('creator_site_request_failed');

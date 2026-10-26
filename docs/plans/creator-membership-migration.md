@@ -14,6 +14,9 @@ Tracking: [#1425](https://github.com/galtproject/geesome-node/issues/1425).
 
 ## Requirements and scope
 
+Owner payout defaults and immutable destinations are specified in the
+[owner payout plan](owner-default-payout.md) (#1429). The node retains one seed.
+
 User requirements: move Google authentication, direct cryptocurrency payments and group-scoped paid access from microwave-girls into reusable GeeSome modules. Existing eraofwave.com Google origin/client configuration works and must remain usable. Buyers must have no upload/publication permissions. Preserve Wave/Meat separation, existing paid periods, invoice identity, receiving addresses and recovery journals. The eventual website is generated from Group/Post.
 
 Stage 1 delivers three opt-in backend modules, private reader identities linked to core users, site-bound browser sessions, a direct-payment engine and membership APIs, with executable local integration evidence. It does not deploy, switch DNS/proxies, import production funds/state, activate live workers or delete the still-running microwave-girls implementation. Those removal/cutover steps follow migration rehearsal and explicit deployment work. Existing password/Ethereum bearer login remains unchanged. No new payment provider or automatic subscription renewal.

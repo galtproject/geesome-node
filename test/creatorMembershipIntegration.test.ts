@@ -21,7 +21,6 @@ import registerMembership from '../app/modules/membership/api.js';
 import createApi from '../app/modules/api/index.js';
 import { configuredSite, siteProblem } from '../app/modules/api/browserSession.js';
 import { CorePermissionName } from '../app/modules/database/interface.js';
-import { ApiProblemError } from '../app/modules/api/problem.js';
 const databaseUrl = process.env.CREATOR_MEMBERSHIP_TEST_DATABASE_URL;
 const suite = databaseUrl ? describe : describe.skip;
 suite('creator modules with real PostgreSQL and HTTP', function () {
@@ -101,16 +100,18 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		const sites = [{ id: 'wave', origin: 'https://eraofwave.com', groupId: wave.id, ownerId: owner.id }, { id: 'meat', origin: 'https://eraofmeat.com', groupId: meat.id, ownerId: otherOwner.id }]
 			.map(site => ({ ...site, googleClientId: 'existing-google-client', postsEnabled: true, registrationEnabled: true }));
 		app = { config: { domain: 'localhost', apiConfig: {}, googleAuthorizationConfig: { enabled: true }, paymentsConfig: { worker: false }, membershipConfig: { enabled: true, sites } }, ms: { database: { sequelize: db, models } },
-			checkModules(names) { for (const name of names) {
-				assert(this.ms[name]);
-			} },
+			checkModules(names) {
+				for (const name of names) {
+					assert(this.ms[name]);
+				}
+			},
 			async checkUserCan(userId, permission) {
 				if (!await models.CorePermission.findOne({ where: { userId, name: permission, isActive: true } })) {
-					throw new ApiProblemError(403, 'not_permitted', 'Not permitted');
+					throw new Error('not_permitted');
 				}
 			},
 			runWithApiKey: (_key, callback) => callback(),
-			getUserByApiToken: async (token) => ({ user: token === 'test-owner' ? owner : token === 'test-other-owner' ? otherOwner : null, apiKey: { permissions: '[]' } }) };
+			getUserByApiToken: async (token) => ({ user: token === 'test-owner' ? owner : token === 'test-other-owner' ? otherOwner : token === 'test-reader' ? await models.User.findByPk(waveReader.userId) : null, apiKey: { permissions: '[]' } }) };
 		// Group adapters use real production models; no IPFS publication is involved.
 		app.ms.group = {
 			getLocalGroup: async (userId, id) => {
@@ -127,7 +128,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		google = createGoogleAuthorization(app, identityModels, { clock: () => now, google: {
 				verifyIdToken: ({ idToken, audience }) => verifier.verifySignedJwtWithCertsAsync(idToken, { 'local-test': cert }, audience, ['accounts.google.com', 'https://accounts.google.com'])
 			} });
-		payments = createPayments(app, paymentModels, { observer, env: {}, clock: () => now });
+		payments = createPayments(app, paymentModels, { observer, env: { DIRECT_CRYPTO_SEED_PHRASE: 'test test test test test test test test test test test junk' }, clock: () => now });
 		app.ms.googleAuthorization = google;
 		app.ms.payments = payments;
 		membership = createMembership(app, membershipModels, { clock: () => now });
@@ -263,6 +264,22 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert.equal((await membership.entitlement(waveReader.id, 'wave')).active, false);
 		assert.equal((await request('membership/feed', { cookie: waveCookie })).body.posts[0].locked, true);
 		assert.equal(await paymentModels.crypto_transactions.count(), 0);
+	});
+	it('allows only the authenticated creator to edit their own payout default', async () => {
+		assert.equal((await request('user/payments/payout', { cookie: waveCookie })).status, 401);
+		assert.equal((await request('user/payments/payout', {token: 'test-reader'})).status, 403);
+		assert.equal((await request('user/payments/payout', {token: 'test-reader', body: {payout: '0x' + 'a'.repeat(40), version: 0}})).status, 403);
+		assert.equal((await request('user/payments/payout', { token: 'test-owner' })).body.version, 0);
+		const payout = '0x' + 'a'.repeat(40);
+		const saved = await request('user/payments/payout', { token: 'test-owner', body: { payout, version: 0 } });
+		assert.equal(saved.status, 200, JSON.stringify(saved.body));
+		assert.equal((await request('user/payments/payout', { token: 'test-other-owner' })).body.payout, '');
+		assert.equal((await request(`user/payments/payout?userId=${otherOwner.id}`, { token: 'test-owner' })).body.payout, payout);
+		assert.equal((await request('user/payments/payout', { token: 'test-owner', body: { payout, version: 1, userId: otherOwner.id } })).status, 400);
+		const setting = await request('payments/admin/wave/settings', { token: 'test-owner' });
+		assert.equal(setting.body.automation.payout, payout);
+		assert.equal(setting.body.automation.payoutSource, 'owner');
+		assert.equal((await request('payments/admin/meat/treasury', { token: 'test-owner', body: { inherit: true, version: 0 } })).status, 403);
 	});
 	it('expires access and sessions, supports logout, and preserves calendar anchors', async () => {
 		const future = new Date(now.getTime() + 60000);

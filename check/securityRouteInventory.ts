@@ -99,7 +99,9 @@ function notesFor(route: RouteRow, block: string): string[] {
   }
   if (['googleAuthorization', 'payments', 'membership'].includes(route.moduleName)) {
     if (route.auth === 'authorized') {
-      notes.add('bearer only; membership.owner checks group creator and UserGroupManagement; no browser cookie authorization');
+      notes.add(routeLower === '/v1/user/payments/payout'
+        ? 'bearer only; self req.user.id; UserGroupManagement and active key permission required; no browser cookie authorization'
+        : 'bearer only; membership.owner checks group creator and UserGroupManagement; no browser cookie authorization');
     } else {
       notes.add('configured HTTPS Host allowlist; cookie accepted explicitly and bound to site; mutation requires exact Origin; no-store');
       if (block.includes('reader(req, site, true)')) {
