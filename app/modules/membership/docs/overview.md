@@ -40,6 +40,41 @@ postsEnabled flag on restart. New sites receive $4/month and $20/6-month tariffs
 existing invoice snapshots/custom tariffs are never repriced. Tariff edits use
 optimistic versions and are available only to the owner.
 
+## Docker server preparation
+
+The standard Compose service forwards the creator flags and existing
+`DIRECT_CRYPTO_*`/`TRONGRID_API_KEY` settings from its project `.env`. A merged PR
+in `dev` is not automatically a `master` release or a published image. Upgrade
+the intended clean deployment revision using `npm run docker-upgrade`; it pulls
+that checkout's branch and selects the exact image or builds locally, then
+restarts the service. Uncommitted tracked server edits block the upgrade.
+
+For a prepared installation with verified existing group/owner ids, create the
+public site JSON under the persisted data directory, normally
+`.docker-data/geesome-data/creator-sites.json`. The corresponding `.env` values
+are:
+
+```dotenv
+MEMBERSHIP_ENABLED=1
+GOOGLE_AUTHORIZATION_ENABLED=1
+MEMBERSHIP_SITES_FILE=/geesome-node/data/creator-sites.json
+PAYMENTS_WORKER=0
+PAYMENTS_COLLECTION_WORKER=0
+```
+
+The file path is inside the container. `GEESOME_DATA` can change the host side
+of the existing `/geesome-node/data` mount. Do not replace an existing custom
+`MODULES` list with only the three creator modules; append them after the existing
+dependencies in the documented order.
+
+Keep both money workers off, do not change eraofwave.com's proxy, and do not
+copy a seed into a fresh active ledger before migration rehearsal. Existing
+reader identities, paid periods, pending invoices and wallet/checkpoint/nonce
+journals must be imported/reconciled before cutover. The existing Google client
+ID belongs in the public JSON; a Google client secret is not needed for this
+ID-token flow. No Google Console change is needed while the authorized origin
+and client stay the same.
+
 ## API and projection
 
 Public/site-cookie routes: `/v1/membership/resource`, `/feed`, `/posts/:id`,
