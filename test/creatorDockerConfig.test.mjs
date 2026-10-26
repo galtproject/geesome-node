@@ -7,7 +7,7 @@ import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const names = [
-  'MODULES', 'MEMBERSHIP_ENABLED', 'GOOGLE_AUTHORIZATION_ENABLED', 'MEMBERSHIP_SITES_FILE',
+  'MODULES',
   'PAYMENTS_WORKER', 'PAYMENTS_COLLECTION_WORKER', 'DIRECT_CRYPTO_SEED_PHRASE',
   'DIRECT_CRYPTO_ONEINCH_API_KEY', 'DIRECT_CRYPTO_CONFIG', 'DIRECT_CRYPTO_ETHEREUM_RPC',
   'DIRECT_CRYPTO_ARBITRUM_RPC', 'DIRECT_CRYPTO_BASE_RPC', 'DIRECT_CRYPTO_TRON_RPC',
@@ -28,8 +28,7 @@ test('creator configuration reaches the container through .env and the persisten
   try {
     const values = Object.fromEntries(names.map(name => [name, `fixture-${name.toLowerCase()}`]));
     Object.assign(values, {MODULES: 'database,api,group,googleAuthorization,payments,membership',
-      MEMBERSHIP_ENABLED: '1', GOOGLE_AUTHORIZATION_ENABLED: '1', PAYMENTS_WORKER: '0', PAYMENTS_COLLECTION_WORKER: '0',
-      MEMBERSHIP_SITES_FILE: '/geesome-node/data/creator-sites.json',
+      PAYMENTS_WORKER: '0', PAYMENTS_COLLECTION_WORKER: '0',
       DIRECT_CRYPTO_CONFIG: '{"networks":["base"]}', DIRECT_CRYPTO_SEED_PHRASE: 'synthetic configuration fixture only'});
     const data = path.join(work, 'persistent-data');
     fs.writeFileSync(path.join(work, '.env'), Object.entries({...values, GEESOME_DATA: data}).map(([key, value]) => `${key}='${value}'`).join('\n') + '\n');
@@ -43,14 +42,14 @@ test('creator configuration reaches the container through .env and the persisten
     fs.rmSync(work, {recursive: true, force: true});
   }
 });
-test('creator modules and both money workers remain disabled with no .env', () => {
+test('both money workers remain disabled and no site is configured with no .env', () => {
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'geesome-creator-defaults-'));
   try {
     const web = compose(work);
-    for (const name of ['MEMBERSHIP_ENABLED', 'GOOGLE_AUTHORIZATION_ENABLED', 'PAYMENTS_WORKER', 'PAYMENTS_COLLECTION_WORKER']) {
+    for (const name of ['PAYMENTS_WORKER', 'PAYMENTS_COLLECTION_WORKER']) {
       assert.equal(web.environment[name], '0');
     }
-    for (const name of ['MODULES', 'MEMBERSHIP_SITES_FILE', 'DIRECT_CRYPTO_SEED_PHRASE', 'DIRECT_CRYPTO_ONEINCH_API_KEY']) {
+    for (const name of ['MODULES', 'DIRECT_CRYPTO_SEED_PHRASE', 'DIRECT_CRYPTO_ONEINCH_API_KEY']) {
       assert.equal(web.environment[name], '');
     }
   } finally {

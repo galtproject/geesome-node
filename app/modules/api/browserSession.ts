@@ -6,14 +6,10 @@ export function siteProblem(status, code): never {
 	throw new ApiProblemError(status, code, code, code);
 }
 
-export function configuredSite(app, req, mutation = false) {
+export async function configuredSite(app, req, mutation = false) {
 	const host = String(req.headers?.host || '').toLowerCase();
-	const sites = app.config.membershipConfig?.sites || [];
-	const site = sites.find(item => {
-		const url = new URL(item.origin);
-		return url.protocol === 'https:' && url.origin === item.origin && url.host === host;
-	});
-	if (!site || app.config.membershipConfig?.enabled !== true) {
+	const site = await app.ms.membership?.resolveSite(host);
+	if (!site) {
 		siteProblem(404, 'membership_site_not_found');
 	}
 	if ((req.headers.origin && req.headers.origin !== site.origin)

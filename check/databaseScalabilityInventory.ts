@@ -256,6 +256,13 @@ function modelRows(): ModelRow[] {
 
   return [
     {
+      area: 'Creator site configuration',
+      source: 'app/modules/membership/models.ts',
+      model: 'membership_resources / membership_site_settings',
+      indexes: ['resource id primary key', 'domain unique', 'groupId unique', 'site settings resourceId primary key'],
+      notes: ['browser resolution uses one indexed domain lookup and one settings primary-key lookup', 'no per-request unbounded site scan or process configuration cache'],
+    },
+    {
       area: 'Group posts',
       source: 'app/modules/group/models/post.ts',
       model: 'Post',

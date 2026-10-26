@@ -63,7 +63,7 @@ test('managed SQL: stable user indexes, invoice boundaries, fee samples, exact r
 	try {
 		const start = async () => createMembershipService({ sequelize: db, env, clock: () => now, cryptoObserver: observer, cryptoAdapter: adapter, resolveClient: async () => null });
 		s = await start();
-		await s.bootstrap();
+		await s.seedSites();
 		const M = s.models;
 		for (const id of ['wave', 'meat'])
 			await (await s.resource(id)).update({ postsEnabled: true });
@@ -217,7 +217,7 @@ async function reviewFixture(fn: (f: any) => Promise<void>) {
 		} return id.startsWith('eth') ? '1000' : '1'; }, scan: async (s: any, a: string) => events.filter(t => t.address === a && t.assetId === s.assetId && BigInt(t.blockHeight) > BigInt(s.startBlock)) };
 	try {
 		s = await createMembershipService({ sequelize: db, env, clock: () => now, cryptoObserver: observer, cryptoAdapter: adapter, resolveClient: async () => null });
-		await s.bootstrap();
+		await s.seedSites();
 		const M = s.models;
 		await (await s.resource('wave')).update({ postsEnabled: true });
 		await s.directCrypto.treasury.save('wave', { payout, version: 0 });
@@ -391,7 +391,7 @@ test('managed balance SQL: durable observations, concurrent scans, collections, 
 	try {
 		const start = () => createMembershipService({ sequelize: db, env, clock: () => now, cryptoObserver: observer, resolveClient: async () => null });
 		let s = await start();
-		await s.bootstrap();
+		await s.seedSites();
 		M = s.models;
 		for (const id of ['wave', 'meat']) {
 			await (await s.resource(id)).update({ postsEnabled: true });
