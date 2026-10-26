@@ -1,0 +1,26 @@
+{
+  "feeSampleIntervalMs": 3600000,
+  "feeHistoryMs": 604800000,
+  "transferThresholdCents": 10,
+  "serviceLowCents": 200,
+  "serviceRefillCents": 400,
+  "rpcRefreshMs": 86400000,
+  "rpcTimeoutMs": 12000,
+  "rpcFailureCooldownMs": 60000,
+  "rpcCacheFile": ".crypto-rpc-cache.json",
+  "chainlistUrl": "https://chainlist.org/rpcs.json",
+  "oneInchUrl": "https://api.1inch.com/swap/v6.1",
+  "oneInchRouter": "0x111111125421ca6dc452d289314280a0f8842a65",
+  "slippagePercent": 1,
+  "maxSwapFeeCents": 100,
+  "gasSafetyPercent": 125,
+  "networks": [
+    "ethereum",
+    "arbitrum",
+    "base"
+  ],
+  "rpcMaxAttempts": 3,
+  "workerIntervalMs": 5000,
+  "erc20BenchmarkGas": 65000,
+  "collectionRetryIntervalMs": 60000
+}

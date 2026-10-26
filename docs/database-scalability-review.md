@@ -485,3 +485,13 @@ Any new migration in a known migration-capable module at or after the May 2026 s
 - `npm run database:migration-integrity`
 
 This review now tracks the inventory, shipped index/query slices, and phase closeout. Future storage changes should be driven by restored-data measurements or feature-specific policy, while the next TODO work can move to ActivityPub/Fediverse, secure chat E2EE, and remaining product/API semantics.
+
+## Creator membership bounded reads (#1425)
+
+The opt-in membership feed delegates a maximum 51-row page (50 visible plus the
+continuation sentinel) to the existing group hydration pipeline. History APIs
+return at most 50 invoices/refunds. New tables index site/reader/expiry, worker
+status/due time and wallet/nonce identities. Period-chain evaluation retains the
+source ledger's per-reader/site chronological scan to preserve contiguous access
+semantics; it is not a group-wide post scan. New creator tables are model-synced
+and require no modification to deployed Group/Post schemas.

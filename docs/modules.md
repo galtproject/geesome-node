@@ -6,6 +6,10 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 
 ## Documented Modules
 
+- `googleAuthorization`: [private reader login and sessions](../app/modules/googleAuthorization/docs/overview.md)
+- `payments`: [direct cryptocurrency ledger and workers](../app/modules/payments/docs/overview.md)
+- `membership`: [creator sites and group access](../app/modules/membership/docs/overview.md)
+
 - `archive`: [overview](../app/modules/archive/docs/overview.md)
 - `accountStorage`: [overview](../app/modules/accountStorage/docs/overview.md)
 - `activityPub`: [overview](../app/modules/activityPub/docs/overview.md), [research](../app/modules/activityPub/docs/activitypub-research.md), [flows](../app/modules/activityPub/docs/activitypub-user-flows.md), [live interop](../app/modules/activityPub/docs/live-interoperability.md)
@@ -63,6 +67,9 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 | `ethereumAuthorization` | Verifies Ethereum signatures for auth-message login and registration flows that invoke the registration-validation hook. | [Overview](../app/modules/ethereumAuthorization/docs/overview.md) |
 | `fileCatalog` | Manages user/group folder trees and path-based content organization. | [Overview](../app/modules/fileCatalog/docs/overview.md) |
 | `foreignAccounts` | Stores user-linked external account claims, provider-address lookups, and manifest proof export. | [Overview](../app/modules/foreignAccounts/docs/overview.md) |
+| `googleAuthorization` | Verifies Google identities and issues private site-bound browser sessions. | [Overview](../app/modules/googleAuthorization/docs/overview.md) |
+| `payments` | Owns direct cryptocurrency invoices, finality, collection and recovery journals. | [Overview](../app/modules/payments/docs/overview.md) |
+| `membership` | Maps creator sites to private groups and owns tariffs, paid periods and safe feed projection. | [Overview](../app/modules/membership/docs/overview.md) |
 | `gateway` | Serves frontend assets and a DNSLink-based public content gateway for IPFS/IPNS-style GET/HEAD requests. | [Overview](../app/modules/gateway/docs/overview.md) |
 | `group` | Owns groups, memberships, posts, permissions, post contents, and group manifests. | [Overview](../app/modules/group/docs/overview.md) |
 | `groupCategory` | Manages category records, group/category pivots, category member/admin pivots, category-derived post feeds, and group-section placement. | [Overview](../app/modules/groupCategory/docs/overview.md) |

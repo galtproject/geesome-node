@@ -7,6 +7,9 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import type IGeesomeGoogleAuthorizationModule from './modules/googleAuthorization/interface.js';
+import type IGeesomePaymentsModule from './modules/payments/interface.js';
+import type IGeesomeMembershipModule from './modules/membership/interface.js';
 import IGeesomeEntityJsonManifestModule from "./modules/entityJsonManifest/interface.js";
 import IGeesomeAccountStorageModule from "./modules/accountStorage/interface.js";
 import IGeesomeAsyncOperationModule from "./modules/asyncOperation/interface.js";
@@ -50,6 +53,9 @@ export interface IGeesomeApp {
     content: IGeesomeContentModule,
     asyncOperation: IGeesomeAsyncOperationModule;
     archive: IGeesomeArchiveModule;
+    googleAuthorization?: IGeesomeGoogleAuthorizationModule;
+    payments?: IGeesomePaymentsModule;
+    membership?: IGeesomeMembershipModule;
     staticSiteGenerator?: any;
     asset: IGeesomeAssetModule;
     staticId: IGeesomeStaticIdModule;

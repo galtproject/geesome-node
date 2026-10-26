@@ -1,0 +1,170 @@
+import { configuredSite, creatorSiteEndpoint } from '../api/browserSession.js';
+export default function (app, module) {
+	/**
+	* @api {get} /v1/payments/crypto/methods List available direct payment methods
+	* @apiName Payments0
+	* @apiGroup Payments
+	* @apiHeader {String} Host Configured creator-site host.
+	* @apiSuccess {Object[]} methods Supported payment methods and availability.
+	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.
+	* @apiError (403) Forbidden Origin or owner/permission mismatch.
+	*/
+	app.ms.api.onGet('payments/crypto/methods', creatorSiteEndpoint(async (req, res) => {
+		const site = configuredSite(app, req, false);
+		res.send({ methods: await module.engine.methods(site.id) });
+	}));
+	/**
+	* @api {post} /v1/payments/crypto/invoices Create or resume a direct payment invoice
+	* @apiName Payments1
+	* @apiGroup Payments
+	* @apiHeader {String} Host Configured creator-site host.
+	* @apiHeader {String} Origin Exact configured HTTPS site origin.
+	* @apiHeader {String} Cookie Site-bound __Host-geesome_session.
+	* @apiBody {String} optionId Enabled tariff UUID.
+	* @apiBody {String} assetId Supported asset/network id.
+	* @apiBody {String} idempotencyKey Stable request key.
+	* @apiSuccess {String} id Invoice id.
+	* @apiSuccess {String} address Receiving address.
+	* @apiSuccess {String} amount Required atomic-safe display amount.
+	* @apiSuccess {String} status Current invoice status.
+	* @apiSuccess {String} expiresAt Quote expiry.
+	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.
+	* @apiError (403) Forbidden Origin or owner/permission mismatch.
+	*/
+	app.ms.api.onPost('payments/crypto/invoices', creatorSiteEndpoint(async (req, res) => {
+		const site = configuredSite(app, req, true);
+		const reader = await app.ms.googleAuthorization.reader(req, site, true);
+		res.send(await module.engine.invoice(site.id, reader.id, req.body));
+	}), { storageReadOnly: true });
+	/**
+	* @api {get} /v1/payments/crypto/invoices/:id Read own invoice status
+	* @apiName Payments2
+	* @apiGroup Payments
+	* @apiHeader {String} Host Configured creator-site host.
+	* @apiHeader {String} Cookie Site-bound __Host-geesome_session.
+	* @apiParam {String} id Invoice UUID.
+	* @apiSuccess {String} id Invoice id.
+	* @apiSuccess {String} status Current invoice status.
+	* @apiSuccess {String} amount Required display amount.
+	* @apiSuccess {String} received Confirmed display amount.
+	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.
+	* @apiError (403) Forbidden Origin or owner/permission mismatch.
+	*/
+	app.ms.api.onGet('payments/crypto/invoices/:id', creatorSiteEndpoint(async (req, res) => {
+		const site = configuredSite(app, req, false);
+		const reader = await app.ms.googleAuthorization.reader(req, site, true);
+		res.send(await module.engine.read(site.id, reader.id, req.params.id));
+	}));
+	/**
+	* @api {get} /v1/payments/admin/:resource/settings Read owner payment settings
+	* @apiName Payments3
+	* @apiGroup Payments
+	* @apiUse ApiKey
+	* @apiParam {String} resource Configured site id owned by the actor.
+	* @apiSuccess {Object} automation Managed treasury settings with public addresses only.
+	* @apiSuccess {Object[]} wallets Receiving wallet configurations.
+	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.
+	* @apiError (403) Forbidden Origin or owner/permission mismatch.
+	*/
+	app.ms.api.onAuthorizedGet('payments/admin/:resource/settings', creatorSiteEndpoint(async (req, res) => {
+		await app.ms.membership.owner(req.user.id, req.params.resource);
+		res.send(await module.engine.settings(req.params.resource));
+	}));
+	/**
+	* @api {post} /v1/payments/admin/:resource/wallet Configure a receiving-only legacy wallet
+	* @apiName Payments4
+	* @apiGroup Payments
+	* @apiUse ApiKey
+	* @apiParam {String} resource Configured site id owned by the actor.
+	* @apiBody {String} network Supported network.
+	* @apiBody {Number} version Current wallet version.
+	* @apiBody {Boolean} enabled Enable payment method.
+	* @apiBody {String} xpub Public account key or empty string. Never a private key.
+	* @apiBody {String[]} pool Public receiving addresses.
+	* @apiBody {String[]} assets Supported asset ids.
+	* @apiSuccess {Boolean} ok Settings saved.
+	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.
+	* @apiError (403) Forbidden Origin or owner/permission mismatch.
+	*/
+	app.ms.api.onAuthorizedPost('payments/admin/:resource/wallet', creatorSiteEndpoint(async (req, res) => {
+		await app.ms.membership.owner(req.user.id, req.params.resource);
+		res.send(await module.engine.save(req.params.resource, req.body));
+	}), { storageReadOnly: true });
+	/**
+	* @api {post} /v1/payments/admin/:resource/treasury Configure managed EVM payout
+	* @apiName Payments5
+	* @apiGroup Payments
+	* @apiUse ApiKey
+	* @apiParam {String} resource Configured site id owned by the actor.
+	* @apiBody {String} payout Public EVM payout address.
+	* @apiBody {Number} version Current settings version.
+	* @apiSuccess {Boolean} ok Settings saved.
+	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.
+	* @apiError (403) Forbidden Origin or owner/permission mismatch.
+	*/
+	app.ms.api.onAuthorizedPost('payments/admin/:resource/treasury', creatorSiteEndpoint(async (req, res) => {
+		await app.ms.membership.owner(req.user.id, req.params.resource);
+		res.send(await module.engine.treasury.save(req.params.resource, req.body));
+	}), { storageReadOnly: true });
+	/**
+	* @api {post} /v1/payments/admin/:resource/test Check network connectivity
+	* @apiName Payments6
+	* @apiGroup Payments
+	* @apiUse ApiKey
+	* @apiParam {String} resource Configured site id owned by the actor.
+	* @apiBody {String} network Network to check; does not send funds.
+	* @apiSuccess {Boolean} ok Network checked.
+	* @apiSuccess {String} checkedAt Check timestamp.
+	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.
+	* @apiError (403) Forbidden Origin or owner/permission mismatch.
+	*/
+	app.ms.api.onAuthorizedPost('payments/admin/:resource/test', creatorSiteEndpoint(async (req, res) => {
+		await app.ms.membership.owner(req.user.id, req.params.resource);
+		res.send(await module.engine.test(req.params.resource, req.body.network));
+	}), { storageReadOnly: true });
+	/**
+	* @api {get} /v1/payments/admin/:resource/reviews List payments requiring review
+	* @apiName Payments7
+	* @apiGroup Payments
+	* @apiUse ApiKey
+	* @apiParam {String} resource Configured site id owned by the actor.
+	* @apiSuccess {Object[]} invoices Invoices needing owner action.
+	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.
+	* @apiError (403) Forbidden Origin or owner/permission mismatch.
+	*/
+	app.ms.api.onAuthorizedGet('payments/admin/:resource/reviews', creatorSiteEndpoint(async (req, res) => {
+		await app.ms.membership.owner(req.user.id, req.params.resource);
+		res.send(await module.engine.reviews(req.params.resource));
+	}));
+	/**
+	* @api {post} /v1/payments/admin/:resource/invoices/:id/rescan Recheck saved invoice evidence
+	* @apiName Payments8
+	* @apiGroup Payments
+	* @apiUse ApiKey
+	* @apiParam {String} resource Configured site id owned by the actor.
+	* @apiParam {String} id Invoice UUID.
+	* @apiSuccess {String} id Invoice id.
+	* @apiSuccess {String} status Updated invoice status.
+	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.
+	* @apiError (403) Forbidden Origin or owner/permission mismatch.
+	*/
+	app.ms.api.onAuthorizedPost('payments/admin/:resource/invoices/:id/rescan', creatorSiteEndpoint(async (req, res) => {
+		await app.ms.membership.owner(req.user.id, req.params.resource);
+		res.send(await module.engine.rescan(req.params.resource, req.params.id));
+	}), { storageReadOnly: true });
+	/**
+	* @api {post} /v1/payments/admin/:resource/invoices/:id/approve Approve a verified late payment
+	* @apiName Payments9
+	* @apiGroup Payments
+	* @apiUse ApiKey
+	* @apiParam {String} resource Configured site id owned by the actor.
+	* @apiParam {String} id Invoice UUID.
+	* @apiSuccess {Boolean} ok Verified payment credited once.
+	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.
+	* @apiError (403) Forbidden Origin or owner/permission mismatch.
+	*/
+	app.ms.api.onAuthorizedPost('payments/admin/:resource/invoices/:id/approve', creatorSiteEndpoint(async (req, res) => {
+		await app.ms.membership.owner(req.user.id, req.params.resource);
+		res.send(await module.engine.review(req.params.resource, req.params.id));
+	}), { storageReadOnly: true });
+}
