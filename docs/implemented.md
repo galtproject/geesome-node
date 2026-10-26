@@ -12,6 +12,23 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Owner default payout (#1429)
+
+Private owner payout defaults apply to creator groups without an explicit
+address. Existing group overrides remain; an explicit versioned inherit action
+restores the default. Seed, reader wallets, content and membership rights remain
+unchanged. Self-only bearer APIs require core/key group-management permission;
+Google reader sessions do not authorize financial settings.
+
+New managed invoices freeze effective payout/source/version and collection jobs
+preserve that destination through edits/restart. Legacy jobs retain their explicit
+group fallback, and permanent payout reservations prevent future deposit-address
+reuse. The [plan/audit](plans/owner-default-payout.md) and
+[module overview](../app/modules/payments/docs/overview.md) record rollout and
+legacy reconciliation boundaries. New tables use model sync; production was not
+modified. Verification: creator/worker HTTP/SQL 13 cases and payment 51 cases,
+including two new real SQL scenarios, pass without live transfers. UI is pending.
+
 ## Creator Google login, payments and membership backend (#1425)
 
 Opt-in `googleAuthorization`, `payments` and `membership` modules provide private

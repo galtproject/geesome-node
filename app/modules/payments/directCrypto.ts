@@ -244,7 +244,8 @@ export function createDirectCrypto({ M, sequelize, serial, resource, grantPaidIn
 						await previous.update({ snapshot: { ...previous.snapshot, endBlock: startBlock, endAt: now.getTime() } }, { transaction: t });
 					}
 			}
-			const snapshot = { ...(managed ? { managedIndex, managedFingerprint: treasury.wallet!.fingerprint } : {}), assetId: asset!.id, currency: asset!.currency, network: asset!.network, contract: asset!.contract, decimals: asset!.decimals, amountAtomic, rateUsd: rate!, amountCents: option.amountCents, optionId: option.id, optionLabel: option.label, period: option.period, createdAt: now.getTime(), ...(startBlock ? { startBlock } : {}) };
+			const payoutDestination = managed ? await treasury.destination(id, t) : undefined;
+			const snapshot = { ...(managed ? { payoutDestination } : {}), ...(managed ? { managedIndex, managedFingerprint: treasury.wallet!.fingerprint } : {}), assetId: asset!.id, currency: asset!.currency, network: asset!.network, contract: asset!.contract, decimals: asset!.decimals, amountAtomic, rateUsd: rate!, amountCents: option.amountCents, optionId: option.id, optionLabel: option.label, period: option.period, createdAt: now.getTime(), ...(startBlock ? { startBlock } : {}) };
 			await M.invoices.create({ id: uuid, resourceId: id, readerId, requestKey: hash('direct:' + requestKey), optionSnapshot: option.toJSON(), providerId: 'direct:' + uuid, checkoutUrl: `https://${r.domain}/account/payments?cryptoInvoice=${uuid}`, status: 'pending' }, { transaction: t });
 			return M.crypto_invoices.create({ id: uuid, resourceId: id, readerId, invoiceId: uuid, requestKey, assetId: asset!.id, addressId: addressRow.id, snapshot, status: 'pending', expiresAt: new Date(now.getTime() + 30 * 60000), nextCheckAt: now, receivedAtomic: '0' }, { transaction: t });
 		});

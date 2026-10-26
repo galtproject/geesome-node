@@ -13,6 +13,49 @@ callback and `grantPaidInvoice()` from membership. Confirmed settlement and acce
 credit commit atomically. There is no public arbitrary settle/grant callback or
 endpoint. Google login never accepts a reader-selected user or site id.
 
+## Owner defaults and group overrides
+
+One operator seed and the existing shared reader derivation remain unchanged.
+Authors configure a public EVM payout address with their existing bearer login:
+
+- `GET /v1/user/payments/payout` returns `{payout, version}`, initially empty/zero.
+- `POST /v1/user/payments/payout` accepts `{payout, version}` for the authenticated
+  user only. Core group-management and active-key permissions are required.
+  Body-supplied user ids are rejected; reader cookies do not authorize this API.
+
+Groups without an explicit payout inherit their configured creator's default.
+Existing per-site `crypto_treasuries` addresses stay explicit overrides. The
+existing group treasury API can set an override with `{payout,version}` or reset
+it with `{inherit:true,version}` (omit payout). Reset retains a versioned row to
+prevent stale writes from restoring an old override. Settings expose effective
+`payout`, `payoutSource` (`group`, `owner`, or null), `groupPayout`, `ownerDefault`
+and the separate group `version`. The owner default's version is inside
+`ownerDefault.version`. A creator can use one address for multiple groups or
+choose a separate group override. No author seed is requested or stored.
+
+The new private `payments_owner_payouts` table is keyed by core user id.
+`payments_payout_addresses` permanently reserves current/historical destinations
+so a changed payout can never later be allocated as a buyer deposit address.
+Updates and allocation use the same PostgreSQL advisory lock. Service/deposit
+addresses and malformed addresses are rejected. The common operator seed must
+be configured and match the existing ledger before payout destinations are saved.
+These are new model-synced tables; existing financial tables are not altered.
+
+New managed invoices freeze effective destination, owner, source and settings
+version in `snapshot.payoutDestination`. A settings edit affects subsequent
+invoices. Queue admission copies that snapshot and collection planning/restart
+preserves it. Already planned jobs retain their stored payout. Legacy invoices
+and unplanned jobs without the snapshot continue using their explicit group
+payout; they never acquire an owner default retroactively. Clearing the legacy
+group override before reconciling those jobs leaves them pending with
+`crypto_payout_required`. The migration rehearsal must reserve historical queued
+payout destinations as well as importing the financial journals.
+
+Do not downgrade money workers to versions that ignore inheritance/frozen
+invoice destinations. Keep compatible workers and the authoritative ledger when
+rolling back the browser/UI. The creator settings screen is part of the pending
+client migration; this change provides backend settings APIs and contracts.
+
 The worker flags are independently disabled by default:
 
 - `PAYMENTS_WORKER=1`: bounded receipt/balance observation every five seconds.

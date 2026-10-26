@@ -1,9 +1,10 @@
+import { createPayoutSettings } from './payoutSettings.js';
 import { createCryptoTransactionJournal, safeError } from './cryptoTransactionJournal.js';
 import { nativeTransferValue, minimumSwapOutput } from './cryptoCollectionAmounts.js';
 import type { CryptoCollection, CollectionInState, CollectionContext, } from './cryptoCollectionTypes.js';
 import { addressIdentity } from './cryptoAddressIdentity.js';
 import { Op, cast, col, fn, json, where } from 'sequelize';
-import { lockCryptoAllocation, withCryptoCollectionLock } from './cryptoLocks.js';
+import { withCryptoCollectionLock } from './cryptoLocks.js';
 import { randomUUID } from 'node:crypto';
 import { cryptoAsset, type CryptoNetwork } from './cryptoAssets.js';
 import { validReceivingAddress } from './cryptoWallet.js';
@@ -46,8 +47,9 @@ export function createCryptoTreasury({ M, sequelize, resource, fail, clock, env,
 			fail(409, 'crypto_seed_changed');
 		}
 	}
+	const payouts = createPayoutSettings({ M, sequelize, resource, wallet, bind, fail });
 	async function settings(id: string) {
-		const row = await M.crypto_treasuries.findByPk(id);
+		const effective = await payouts.resolve(id);
 		const state = wallet ? await M.crypto_runtime.findByPk('wallet') : null;
 		const runtime = await M.crypto_runtime.findAll({
 			where: { id: { [Op.in]: config.networks.map((n) => 'service:' + n) } },
@@ -65,60 +67,25 @@ export function createCryptoTreasury({ M, sequelize, resource, fail, clock, env,
 		return {
 			configured: Boolean(wallet),
 			walletMatches: !state || state.data.fingerprint === wallet?.fingerprint,
-			payout: row?.payout || '',
-			version: row?.version || 0,
+			payout: effective.payout,
+			payoutSource: effective.payoutSource,
+			groupPayout: effective.groupPayout,
+			ownerDefault: effective.ownerDefault,
+			version: effective.version,
 			serviceAddress: wallet?.address(0) || null,
 			networks: config.networks,
 			service: runtime.map((r) => ({ network: r.id.slice(8), ...r.data })),
 			failures: failures.map((r) => r.toJSON()),
 		};
 	}
-	async function save(id: string, b: any) {
-		await resource(id);
-		if (!validReceivingAddress(b.payout, 'evm') ||
-			!Number.isSafeInteger(b.version) ||
-			b.version < 0) {
-			fail(400, 'crypto_payout_invalid');
-		}
-		if (!wallet) {
-			fail(409, 'crypto_seed_required');
-		}
-		if (b.payout.toLowerCase() === wallet.address(0)) {
-			fail(400, 'crypto_payout_is_service');
-		}
-		await sequelize.transaction(async (t) => {
-			await lockCryptoAllocation(sequelize, t);
-			await bind(t);
-			if (await M.crypto_addresses.findOne({
-				where: { address: b.payout.toLowerCase() },
-				transaction: t,
-			})) {
-				fail(400, 'crypto_payout_is_deposit');
-			}
-			const current = await M.crypto_treasuries.findByPk(id, {
-				transaction: t,
-				lock: t.LOCK.UPDATE,
-			});
-			if ((current?.version || 0) !== b.version) {
-				fail(409, 'crypto_settings_version_conflict');
-			}
-			const values = { payout: b.payout.toLowerCase(), version: b.version + 1 };
-			if (current) {
-				await current.update(values, { transaction: t });
-			}
-			else {
-				await M.crypto_treasuries.create({ id, ...values }, { transaction: t });
-			}
-		});
-		return { ok: true };
-	}
+	const save = payouts.saveGroup;
 	async function available(id: string, n: string) {
 		if (!wallet || !config.networks.some((network) => network === n)) {
 			return false;
 		}
 		const state = await M.crypto_runtime.findByPk('wallet');
 		return ((!state || state.data.fingerprint === wallet.fingerprint) &&
-			Boolean(await M.crypto_treasuries.findByPk(id)));
+			Boolean((await payouts.resolve(id)).payout));
 	}
 	async function address(readerId: string, network: string, t: any) {
 		await bind(t);
@@ -143,7 +110,7 @@ export function createCryptoTreasury({ M, sequelize, resource, fail, clock, env,
 			if (await M.crypto_addresses.findOne({ where: { identity }, transaction: t })) {
 				continue;
 			}
-			if (await M.crypto_treasuries.findOne({ where: { payout: value }, transaction: t })) {
+			if (await payouts.isReserved(value, t) || await M.crypto_treasuries.findOne({ where: { payout: value }, transaction: t })) {
 				continue;
 			}
 			row = await M.crypto_addresses.create({
@@ -251,8 +218,10 @@ export function createCryptoTreasury({ M, sequelize, resource, fail, clock, env,
 		if (balance < amount) {
 			throw Error('crypto_deposit_balance_changed');
 		}
-		const destination = await M.crypto_treasuries.findByPk(d.resourceId);
-		if (!destination) {
+		const destination = d.payoutDestination !== undefined
+			? d.payoutDestination : await M.crypto_treasuries.findByPk(d.resourceId);
+		if (!destination || !validReceivingAddress(destination.payout, 'evm')
+			|| (d.payoutDestination !== undefined && destination.resourceId !== d.resourceId)) {
 			throw Error('crypto_payout_required');
 		}
 		const serviceBalance = await evm.balance(n, service);
@@ -433,6 +402,7 @@ export function createCryptoTreasury({ M, sequelize, resource, fail, clock, env,
 						state: 'new',
 						data: {
 							resourceId: invoice.resourceId,
+							...(s.payoutDestination !== undefined ? { payoutDestination: s.payoutDestination } : {}),
 							assetId: s.assetId,
 							index: s.managedIndex,
 							fingerprint: s.managedFingerprint,
@@ -511,6 +481,6 @@ export function createCryptoTreasury({ M, sequelize, resource, fail, clock, env,
 			}
 		});
 	}
-	return { wallet, config, settings, save, available, address, run };
+	return { wallet, config, settings, save, available, address, run, ownerDefault: payouts.ownerDefault, saveOwnerDefault: payouts.saveOwnerDefault, destination: payouts.destination };
 }
 const min = (a: bigint, b: bigint) => (a < b ? a : b);
