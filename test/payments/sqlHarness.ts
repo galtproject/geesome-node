@@ -17,12 +17,18 @@ export async function createMembershipService({ sequelize, env, clock, cryptoObs
 		databases.set(sequelize, saved);
 	}
 	const sites = [{ id: 'wave', origin: 'https://eraofwave.com', groupId: 1, ownerId: 1 }, { id: 'meat', origin: 'https://eraofmeat.com', groupId: 2, ownerId: 2 }];
-	const app: any = { config: { paymentsConfig: {}, membershipConfig: { enabled: true, sites } }, ms: { database: { sequelize, models: { User: saved.User } }, group: {
+	const app: any = { checkUserCan: async () => {}, config: { paymentsConfig: {} }, ms: { database: { sequelize, models: { User: saved.User } }, group: {
 				getLocalGroup: async (ownerId, groupId) => ({ id: Number(groupId), creatorId: ownerId, isPublic: false, isEncrypted: false, title: 'Test creator' })
 			} } };
 	const payments = createPayments(app, saved.payments, { env, clock, observer: cryptoObserver, adapter: cryptoAdapter });
 	app.ms.payments = payments;
 	const service = createMembership(app, saved.membership, { clock });
 	payments.configureLedger({ models: saved.membership, resource: service.resource, serial: service.serial, grantPaidInvoice: service.grantPaidInvoice, fail: siteProblem, clock });
-	return { ...service, directCrypto: payments.engine, models: { ...saved.payments, ...saved.membership, readers: saved.readers } };
+	return { ...service, async seedSites() {
+		for (const site of sites) {
+			if (!await saved.membership.site_settings.findByPk(site.id)) {
+				await service.provisionSite(1, { ...site, googleClientId: '', enabled: false, postsEnabled: false, registrationEnabled: false, version: 0 });
+			}
+		}
+	}, directCrypto: payments.engine, models: { ...saved.payments, ...saved.membership, readers: saved.readers } };
 }

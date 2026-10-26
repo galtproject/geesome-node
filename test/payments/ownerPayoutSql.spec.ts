@@ -28,7 +28,7 @@ async function fixture(work) {
 	const start = () => createMembershipService({ sequelize: db, env, clock: () => now, cryptoObserver: observer, cryptoAdapter: adapter });
 	try {
 		const service = await start();
-		await service.bootstrap();
+		await service.seedSites();
 		const M = service.models;
 		for (const id of ['wave', 'meat']) {
 			await (await service.resource(id)).update({ postsEnabled: true });

@@ -99,11 +99,13 @@ function notesFor(route: RouteRow, block: string): string[] {
   }
   if (['googleAuthorization', 'payments', 'membership'].includes(route.moduleName)) {
     if (route.auth === 'authorized') {
-      notes.add(routeLower === '/v1/user/payments/payout'
+      notes.add(routeLower === '/v1/membership/sites'
+        ? 'bearer only; node operator AdminAll and active key permission; provisions immutable domain/group/owner binding; no cookie authorization'
+        : routeLower === '/v1/user/payments/payout'
         ? 'bearer only; self req.user.id; UserGroupManagement and active key permission required; no browser cookie authorization'
         : 'bearer only; membership.owner checks group creator and UserGroupManagement; no browser cookie authorization');
     } else {
-      notes.add('configured HTTPS Host allowlist; cookie accepted explicitly and bound to site; mutation requires exact Origin; no-store');
+      notes.add('membership SQL HTTPS Host allowlist; cookie accepted explicitly and bound to site; mutation requires exact Origin; no-store');
       if (block.includes('reader(req, site, true)')) {
         notes.add('requires live private reader session; no core upload permissions or API key issued');
       }

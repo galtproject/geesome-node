@@ -7,11 +7,12 @@ export default function (app, module) {
 	* @apiHeader {String} Host Configured creator-site host.
 	* @apiSuccess {String} nonce Pass to Google Identity Services initialize({nonce}).
 	* @apiSuccess {String} googleClientId Existing site's Google client id.
-	* @apiError (404) membership_site_not_found Unknown or disabled site.
+	* @apiError (404) membership_site_not_found Unconfigured site.
+	* @apiError (503) google_login_not_configured Site has no Google client ID.
 	* @apiError (429) login_rate_limited Too many attempts.
 	*/
 	app.ms.api.onGet('login/google/challenge', creatorSiteEndpoint(async (req, res) => {
-		const result = await module.challenge(req, configuredSite(app, req));
+		const result = await module.challenge(req, await configuredSite(app, req));
 		res.setHeader('Set-Cookie', result.cookie);
 		res.send({ nonce: result.nonce, googleClientId: result.googleClientId });
 	}));
@@ -27,7 +28,7 @@ export default function (app, module) {
 	* @apiError (403) origin_invalid Origin mismatch.
 	*/
 	app.ms.api.onPost('login/google', creatorSiteEndpoint(async (req, res) => {
-		const result = await module.login(req, configuredSite(app, req, true));
+		const result = await module.login(req, await configuredSite(app, req, true));
 		res.setHeader('Set-Cookie', [result.cookie, browserCookie('__Host-geesome_login', '', 0)]);
 		res.send({ reader: result.reader });
 	}), { storageReadOnly: true });
@@ -39,7 +40,7 @@ export default function (app, module) {
 	* @apiSuccess {Object} reader Private reader projection or null.
 	*/
 	app.ms.api.onGet('browser-session', creatorSiteEndpoint(async (req, res) => {
-		res.send({ reader: await module.reader(req, configuredSite(app, req)) });
+		res.send({ reader: await module.reader(req, await configuredSite(app, req)) });
 	}));
 	/**
 	* @api {post} /v1/browser-session/logout Revoke the current site session
@@ -50,7 +51,7 @@ export default function (app, module) {
 	* @apiSuccess {Boolean} ok Session revoked.
 	*/
 	app.ms.api.onPost('browser-session/logout', creatorSiteEndpoint(async (req, res) => {
-		const site = configuredSite(app, req, true);
+		const site = await configuredSite(app, req, true);
 		res.setHeader('Set-Cookie', await module.sessions.logout(req, site.id));
 		res.send({ ok: true });
 	}), { storageReadOnly: true });

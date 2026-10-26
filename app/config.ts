@@ -7,12 +7,10 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {readFileSync} from 'node:fs';
-
 //TODO: move communicator and fileCatalog to improve
 const modulePacks = {
   'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'staticId', 'asyncOperation', 'asset', 'privateGroup', 'group', 'chat', 'fileCatalog', 'entityJsonManifest', 'imageComposition', 'remoteGroup'],
-  'improve': ['groupCategory', 'invite', 'staticSiteGenerator', 'archive', 'rss', 'activityPub', 'autoActions', 'pin', 'foreignAccounts', 'ethereumAuthorization', 'storageSpace', 'gateway', ...(process.env.MEMBERSHIP_ENABLED === '1' ? ['googleAuthorization', 'payments', 'membership'] : [])],
+  'improve': ['groupCategory', 'invite', 'staticSiteGenerator', 'archive', 'rss', 'activityPub', 'autoActions', 'pin', 'foreignAccounts', 'ethereumAuthorization', 'storageSpace', 'gateway', 'googleAuthorization', 'payments', 'membership'],
   'socNet': ['socNetAccount', 'socNetImport', 'bluesky', 'telegramClient', 'twitterClient', 'tgContentBot']
 };
 
@@ -115,12 +113,10 @@ export default {
     reconciliationPerAccountLimit: process.env.PIN_RECONCILIATION_PER_ACCOUNT_LIMIT,
     reconciliationClaimTtlMs: process.env.PIN_RECONCILIATION_CLAIM_TTL_MS
   },
-  googleAuthorizationConfig: {enabled: process.env.GOOGLE_AUTHORIZATION_ENABLED === '1'},
   paymentsConfig: {
     worker: process.env.PAYMENTS_WORKER === '1',
     collectionWorker: process.env.PAYMENTS_COLLECTION_WORKER === '1'
   },
-  membershipConfig: {enabled: process.env.MEMBERSHIP_ENABLED === '1', sites: loadMembershipSites(process.env.MEMBERSHIP_SITES_FILE)},
   modules: process.env.MODULES ? process.env.MODULES.split(',') : modulePacks.main.concat(modulePacks.improve).concat(modulePacks.socNet)
 };
 
@@ -152,19 +148,4 @@ function getPublicUrlFromDomainEnv(domain): string {
 function normalizeApiBasePath(value): string {
   const path = `/${String(value || '').trim().replace(/^\/+|\/+$/g, '')}`;
   return path === '/' ? '/api/v1' : path;
-}
-
-function loadMembershipSites(filePath) {
-  if (!filePath) {
-    return [];
-  }
-  try {
-    const sites = JSON.parse(readFileSync(filePath, 'utf8'));
-    if (!Array.isArray(sites) || sites.length > 100) {
-      throw new Error('membership_sites_invalid');
-    }
-    return sites;
-  } catch {
-    throw new Error('membership_sites_invalid');
-  }
 }
