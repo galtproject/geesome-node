@@ -94,12 +94,13 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		owner = await models.User.create({ name: 'creator' });
 		otherOwner = await models.User.create({ name: 'other-creator' });
 		await models.CorePermission.create({ userId: owner.id, name: CorePermissionName.UserGroupManagement, isActive: true });
+		await models.CorePermission.create({ userId: owner.id, name: CorePermissionName.AdminAll, isActive: true });
 		await models.CorePermission.create({ userId: otherOwner.id, name: CorePermissionName.UserGroupManagement, isActive: true });
 		const wave = await models.Group.create({ name: 'wave', creatorId: owner.id, title: 'Era Of Wave', isPublic: false, isEncrypted: false, isOpen: false });
 		const meat = await models.Group.create({ name: 'meat', creatorId: otherOwner.id, title: 'Era Of Meat', isPublic: false, isEncrypted: false, isOpen: false });
 		const sites = [{ id: 'wave', origin: 'https://eraofwave.com', groupId: wave.id, ownerId: owner.id }, { id: 'meat', origin: 'https://eraofmeat.com', groupId: meat.id, ownerId: otherOwner.id }]
 			.map(site => ({ ...site, googleClientId: 'existing-google-client', postsEnabled: true, registrationEnabled: true }));
-		app = { config: { domain: 'localhost', apiConfig: {}, paymentsConfig: { worker: false }, membershipConfig: { sites } }, ms: { database: { sequelize: db, models } },
+		app = { config: { domain: 'localhost', apiConfig: {}, paymentsConfig: { worker: false } }, ms: { database: { sequelize: db, models } },
 			checkModules(names) {
 				for (const name of names) {
 					assert(this.ms[name]);
@@ -133,7 +134,9 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		app.ms.payments = payments;
 		membership = createMembership(app, membershipModels, { clock: () => now });
 		app.ms.membership = membership;
-		await membership.bootstrap();
+		for (const site of sites) {
+			await membership.provisionSite(owner.id, { ...site, enabled: true, version: 0 });
+		}
 		payments.configureLedger({ models: membership.models, resource: membership.resource, serial: membership.serial,
 			grantPaidInvoice: membership.grantPaidInvoice, clock: () => now, fail: siteProblem });
 		api = await createApi(app, { host: '127.0.0.1', port: 23000 + Math.floor(Math.random() * 10000), registerRoutes: (_app, module) => {
@@ -168,6 +171,65 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert.equal(await models.GroupMembers.count({ where: { userId: user.id } }), 0);
 		assert.equal((await request('test/upload', { cookie: waveCookie, body: {} })).status, 401);
 		assert.equal((await request('test/upload', { token: 'test-owner', body: {} })).status, 200);
+	});
+	it('stores site settings in SQL and applies owner changes without restart', async () => {
+		const route = 'membership/admin/wave/site';
+		const initial = await request(route, { token: 'test-owner' });
+		assert.equal(initial.status, 200);
+		assert.equal(initial.body.version, 1);
+		assert.equal((await request(route, { token: 'test-other-owner' })).status, 403);
+		assert.equal((await request(route, { cookie: waveCookie })).status, 401);
+		const settings = { version: 1, enabled: true, googleClientId: 'changed-client', registrationEnabled: false, postsEnabled: true };
+		assert.equal((await request(route, { token: 'test-other-owner', body: settings })).status, 403);
+		assert.equal((await request(route, { token: 'test-owner', body: { ...settings, origin: 'https://evil.test' } })).status, 400);
+		const [a, b] = await Promise.all([request(route, { token: 'test-owner', body: settings }), request(route, { token: 'test-owner', body: settings })]);
+		assert.deepEqual([a.status, b.status].sort(), [200, 409]);
+		assert.equal((await request('login/google/challenge')).body.googleClientId, 'changed-client');
+		let saved = await request(route, { token: 'test-owner', body: { ...settings, googleClientId: '', version: 2 } });
+		assert.equal(saved.status, 200);
+		assert.equal((await request('login/google/challenge')).status, 503);
+		saved = await request(route, { token: 'test-owner', body: { ...settings, googleClientId: 'existing-google-client', version: 3 } });
+		assert.equal(saved.status, 200);
+		const challenge = await request('login/google/challenge');
+		const denied = await request('login/google', { cookie: challenge.cookies[0].split(';')[0], body: { credential: jwt(challenge.body.nonce, { sub: 'new-registration-disabled-reader' }) } });
+		assert.equal(denied.status, 403);
+		assert.equal(await identityModels.Identity.count({ where: { subject: 'new-registration-disabled-reader' } }), 0);
+		assert.equal((await login()).body.reader.id, waveReader.id);
+		saved = await request(route, { token: 'test-owner', body: { ...settings, googleClientId: 'existing-google-client', enabled: false, version: 4 } });
+		assert.equal(saved.status, 200);
+		assert.equal((await request('membership/resource')).status, 404);
+		assert.equal((await request('browser-session', { cookie: waveCookie })).status, 404);
+		assert.equal((await request('login/google/challenge')).status, 404);
+		saved = await request(route, { token: 'test-owner', body: { ...settings, googleClientId: 'existing-google-client', registrationEnabled: true, version: 5 } });
+		assert.equal(saved.status, 200);
+		assert.equal((await request('membership/resource')).status, 200);
+		// The process and service objects have not been restarted or reconfigured.
+		assert.equal((await membership.resolveSite('eraofwave.com')).version, 6);
+	});
+	it('reserves domain bindings for node operators and imports existing resources without repricing', async () => {
+		const current = (await request('membership/admin/wave/site', { token: 'test-owner' })).body;
+		assert.equal((await request('membership/sites', { token: 'test-other-owner', body: current })).status, 403);
+		assert.equal((await request('membership/sites', { cookie: waveCookie, body: current })).status, 401);
+		assert.equal((await request('membership/sites', { token: 'test-owner', body: { ...current, origin: 'https://evil.test' } })).status, 409);
+		const group = await models.Group.create({ name: 'third', creatorId: owner.id, title: 'Third', isPublic: false, isEncrypted: false, isOpen: false });
+		const input = { ...current, id: 'third', groupId: String(group.id), version: 0 };
+		assert.equal((await request('membership/sites', { token: 'test-owner', body: input })).status, 409);
+		assert.equal((await request('membership/sites', { token: 'test-owner', body: { ...input, origin: 'https://third.test/path' } })).status, 400);
+		const created = await request('membership/sites', { token: 'test-owner', body: { ...input, origin: 'https://third.test' } });
+		assert.equal(created.status, 200);
+		assert.equal((await request('membership/resource', { site: 'third.test' })).status, 200);
+		// Simulate the pre-upgrade resources table: financial binding survives, new settings table is empty.
+		const option = await membershipModels.options.findOne({ where: { resourceId: 'third' } });
+		await option.update({ amountCents: 777 });
+		await membershipModels.site_settings.destroy({ where: { resourceId: 'third' } });
+		assert.equal((await request('membership/resource', { site: 'third.test' })).status, 404);
+		const imported = await request('membership/sites', { token: 'test-owner', body: { ...input, origin: 'https://third.test' } });
+		assert.equal(imported.status, 200);
+		assert.equal(imported.body.version, 1);
+		assert.equal((await option.reload()).amountCents, 777);
+		assert.equal(await membershipModels.options.count({ where: { resourceId: 'third' } }), 2);
+		const restored = createMembership(app, await defineMembership(db), { clock: () => now });
+		assert.equal((await restored.resolveSite('third.test')).id, 'third');
 	});
 	it('reuses one identity across sites while isolating sessions, origin and owner privileges', async () => {
 		const result = await login('meat');
@@ -302,8 +364,8 @@ describe('creator module input boundaries', () => {
 		const google = createGoogleAuthorization(app, {});
 		await assert.rejects(google.challenge({ headers: {} }, { id: 'wave' }), /google_login_not_configured/);
 	});
-	it('rejects unconfigured sites', () => {
-		const app = { config: { membershipConfig: { sites: [] } } };
-		assert.throws(() => configuredSite(app, { headers: { host: 'eraofwave.com' } }), /membership_site_not_found/);
+	it('rejects unconfigured sites', async () => {
+		const app = { ms: { membership: { resolveSite: async () => null } } };
+		await assert.rejects(configuredSite(app, { headers: { host: 'eraofwave.com' } }), /membership_site_not_found/);
 	});
 });

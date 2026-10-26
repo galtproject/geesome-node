@@ -34,6 +34,10 @@ Source snapshots will be recorded below. Source of truth is executable source ra
 - Proposed routes: `/v1/login/google`, `/v1/browser-session`, `/v1/browser-session/logout`; `/v1/membership/resource`, `/feed`, `/posts/:id`, `/account`, `/refunds`; `/v1/payments/crypto/methods`, `/invoices`, `/invoices/:id`; owner APIs use existing bearer authorization and resource/group ownership. Exact delivered routes are documented with the modules.
 - Default creator modules load after `group`/`api`/`database`; payments before membership; Google initialization has no membership dependency. Site configuration gates public endpoints; Google login requires a site client ID and registration remains per-site. Payment workers are opt-in. No signing/observer loops start merely because a seed exists.
 
+Site configuration now lives in membership SQL records; see
+[database settings delivery](membership-site-database.md) (#1436). Runtime file
+loading is removed; existing site entries require explicit operator import.
+
 ## Plan audit
 
 Audit performed before implementation against the local source:

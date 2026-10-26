@@ -3,10 +3,10 @@ import { CorePermissionName } from '../database/interface.js';
 import { siteProblem } from '../api/browserSession.js';
 import defineModels from './models.js';
 import registerApi from './api.js';
+import siteSettings from './siteSettings.js';
 export default async function (app) {
 	app.checkModules(['database', 'api', 'group', 'googleAuthorization', 'payments']);
 	const module = createMembership(app, await defineModels(app.ms.database.sequelize));
-	await module.bootstrap();
 	app.ms.payments.configureLedger({ models: module.models, resource: module.resource, serial: module.serial,
 		grantPaidInvoice: module.grantPaidInvoice, clock: module.clock, fail: siteProblem });
 	registerApi(app, module);
@@ -101,40 +101,6 @@ export function createMembership(app, models, dependencies: any = {}) {
 	}
 	const module = {
 		models, clock, resource, serial, entitlement, grantPaidInvoice, owner, publicResource,
-		async bootstrap() {
-			const configured = app.config.membershipConfig?.sites || [];
-			const ids = new Set(), origins = new Set(), groups = new Set();
-			for (const site of configured) {
-				let url;
-				try {
-					url = new URL(site.origin);
-				}
-				catch {
-					siteProblem(409, 'membership_site_invalid');
-				}
-				if (!/^[a-z][a-z0-9-]{0,29}$/.test(site.id) || site.origin !== url.origin || url.protocol !== 'https:'
-					|| !Number.isSafeInteger(site.ownerId) || site.ownerId <= 0 || !/^[1-9][0-9]*$/.test(String(site.groupId))
-					|| ids.has(site.id) || origins.has(site.origin) || groups.has(String(site.groupId))) {
-					siteProblem(409, 'membership_site_invalid');
-				}
-				ids.add(site.id);
-				origins.add(site.origin);
-				groups.add(String(site.groupId));
-				await group({ ownerId: site.ownerId, groupId: String(site.groupId) });
-				await sequelize.transaction(async (transaction) => {
-					const [row, created] = await M.resources.findOrCreate({ where: { id: site.id }, defaults: { id: site.id, domain: url.host,
-							ownerId: site.ownerId, groupId: String(site.groupId), postsEnabled: site.postsEnabled === true, data: publicBrand(site) }, transaction });
-					if (row.domain !== url.host || row.ownerId !== site.ownerId || row.groupId !== String(site.groupId)) {
-						siteProblem(409, 'membership_site_binding_changed');
-					}
-					await row.update({ postsEnabled: site.postsEnabled === true, data: publicBrand(site) }, { transaction });
-					if (created) {
-						await M.options.bulkCreate([{ period: 'month', amountCents: 400, label: '1 month' }, { period: 'halfyear', amountCents: 2000, label: '6 months' }]
-							.map(option => ({ ...option, id: randomUUID(), resourceId: site.id, currency: 'USD', enabled: true, version: 1 })), { transaction });
-					}
-				});
-			}
-		},
 		async feed(id, readerId, input: any = {}) {
 			const row = await resource(id);
 			await group(row);
@@ -204,8 +170,9 @@ export function createMembership(app, models, dependencies: any = {}) {
 			});
 		}
 	};
+	Object.assign(module, siteSettings(app, M, group, owner, publicBrand));
 	Object.assign(module, refundMethods(M, serial, entitlement, clock));
-	return module as typeof module & ReturnType<typeof refundMethods>;
+	return module as typeof module & ReturnType<typeof refundMethods> & ReturnType<typeof siteSettings>;
 }
 export function periodEnd(start: Date, period: string, anchorDay = start.getUTCDate()) {
 	if (!['month', 'halfyear', 'year'].includes(period)) {

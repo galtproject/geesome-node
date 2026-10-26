@@ -667,3 +667,17 @@ can remove the old MEMBERSHIP_ENABLED and GOOGLE_AUTHORIZATION_ENABLED entries.
 
 Verification: Docker Compose configuration, real PostgreSQL/HTTP creator tests,
 payment regressions, default configuration and worker lifecycle checks.
+
+
+## Membership site database (#1436)
+
+Creator site configuration now lives in membership SQL records and is resolved
+per request without a process restart. Operator-only provisioning preserves
+immutable resource/domain/group/owner identities. Group owners manage versioned
+Google Client ID, registration, preview/branding and site availability through
+bearer APIs. A new model-synced settings table leaves financial schemas intact.
+Runtime MEMBERSHIP_SITES_FILE loading is removed; existing JSON entries must be
+submitted explicitly with their original IDs before traffic is switched.
+
+See [delivery and upgrade audit](plans/membership-site-database.md) for access
+boundaries, import instructions and verification evidence.

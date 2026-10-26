@@ -7,7 +7,7 @@ import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const names = [
-  'MODULES', 'MEMBERSHIP_SITES_FILE',
+  'MODULES',
   'PAYMENTS_WORKER', 'PAYMENTS_COLLECTION_WORKER', 'DIRECT_CRYPTO_SEED_PHRASE',
   'DIRECT_CRYPTO_ONEINCH_API_KEY', 'DIRECT_CRYPTO_CONFIG', 'DIRECT_CRYPTO_ETHEREUM_RPC',
   'DIRECT_CRYPTO_ARBITRUM_RPC', 'DIRECT_CRYPTO_BASE_RPC', 'DIRECT_CRYPTO_TRON_RPC',
@@ -29,7 +29,6 @@ test('creator configuration reaches the container through .env and the persisten
     const values = Object.fromEntries(names.map(name => [name, `fixture-${name.toLowerCase()}`]));
     Object.assign(values, {MODULES: 'database,api,group,googleAuthorization,payments,membership',
       PAYMENTS_WORKER: '0', PAYMENTS_COLLECTION_WORKER: '0',
-      MEMBERSHIP_SITES_FILE: '/geesome-node/data/creator-sites.json',
       DIRECT_CRYPTO_CONFIG: '{"networks":["base"]}', DIRECT_CRYPTO_SEED_PHRASE: 'synthetic configuration fixture only'});
     const data = path.join(work, 'persistent-data');
     fs.writeFileSync(path.join(work, '.env'), Object.entries({...values, GEESOME_DATA: data}).map(([key, value]) => `${key}='${value}'`).join('\n') + '\n');
@@ -50,7 +49,7 @@ test('both money workers remain disabled and no site is configured with no .env'
     for (const name of ['PAYMENTS_WORKER', 'PAYMENTS_COLLECTION_WORKER']) {
       assert.equal(web.environment[name], '0');
     }
-    for (const name of ['MODULES', 'MEMBERSHIP_SITES_FILE', 'DIRECT_CRYPTO_SEED_PHRASE', 'DIRECT_CRYPTO_ONEINCH_API_KEY']) {
+    for (const name of ['MODULES', 'DIRECT_CRYPTO_SEED_PHRASE', 'DIRECT_CRYPTO_ONEINCH_API_KEY']) {
       assert.equal(web.environment[name], '');
     }
   } finally {

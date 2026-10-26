@@ -1,6 +1,63 @@
 import { configuredSite, creatorSiteEndpoint } from '../api/browserSession.js';
 export default function (app, module) {
 	/**
+	* @api {post} /v1/membership/sites Provision a creator domain binding
+	* @apiName MembershipProvisionSite
+	* @apiGroup Membership
+	* @apiUse ApiKey
+	* @apiBody {String} id Immutable site id; preserve it when importing existing resources.
+	* @apiBody {String} origin Canonical HTTPS origin already controlled/routed by the node operator.
+	* @apiBody {String} groupId Existing ordinary private unencrypted group id.
+	* @apiBody {Number} ownerId Existing group creator id.
+	* @apiBody {Number} version Zero for a new settings record, otherwise current version.
+	* @apiBody {String} googleClientId Google client ID or empty string to disable Google login.
+	* @apiBody {Boolean} enabled Enable browser access for this binding.
+	* @apiBody {Boolean} registrationEnabled Allow creation of private readers.
+	* @apiBody {Boolean} postsEnabled Enable public preview feed.
+	* @apiSuccess {Object} result Persisted site settings including incremented version.
+	* @apiError (403) not_permitted AdminAll and active API-key permission required.
+	* @apiError (409) membership_site_binding_changed Resource identity is immutable.
+	* @apiError (409) membership_site_binding_conflict Domain or group already bound.
+	*/
+	app.ms.api.onAuthorizedPost('membership/sites', creatorSiteEndpoint(async (req, res) => {
+		res.send(await module.provisionSite(req.user.id, req.body));
+	}), { storageReadOnly: true });
+	/**
+	* @api {get} /v1/membership/admin/:resource/site Read own site settings
+	* @apiName MembershipSiteSettings
+	* @apiGroup Membership
+	* @apiUse ApiKey
+	* @apiParam {String} resource Site id.
+	* @apiSuccess {Object} result Binding, branding, Google client ID, registration/enable flags and current version.
+	* @apiError (403) owner_required Group creator and UserGroupManagement required.
+	*/
+	app.ms.api.onAuthorizedGet('membership/admin/:resource/site', creatorSiteEndpoint(async (req, res) => {
+		res.send(await module.siteSettings(req.user.id, req.params.resource));
+	}));
+	/**
+	* @api {post} /v1/membership/admin/:resource/site Replace own mutable site settings
+	* @apiName MembershipSaveSiteSettings
+	* @apiGroup Membership
+	* @apiUse ApiKey
+	* @apiParam {String} resource Site id; domain/group/owner cannot be changed.
+	* @apiBody {Number} version Current settings version.
+	* @apiBody {String} googleClientId Google client ID or empty string to disable Google login.
+	* @apiBody {Boolean} enabled Allow browser access.
+	* @apiBody {Boolean} registrationEnabled Allow reader registration.
+	* @apiBody {Boolean} postsEnabled Allow public preview feed.
+	* @apiBody {String} [coverUrl] Cover URL.
+	* @apiBody {String} [avatarUrl] Avatar URL.
+	* @apiBody {Object[]} [links] Public links.
+	* @apiBody {String} [patreonUrl] Patreon URL.
+	* @apiBody {Object[]} [legalLinks] Public legal links.
+	* @apiSuccess {Object} result Settings with incremented version; applies without restart.
+	* @apiError (403) owner_required Group creator and UserGroupManagement required.
+	* @apiError (409) membership_site_version_conflict Stale settings version.
+	*/
+	app.ms.api.onAuthorizedPost('membership/admin/:resource/site', creatorSiteEndpoint(async (req, res) => {
+		res.send(await module.saveSiteSettings(req.user.id, req.params.resource, req.body));
+	}), { storageReadOnly: true });
+	/**
 	* @api {get} /v1/membership/resource Read creator site
 	* @apiName Membership0
 	* @apiGroup Membership
@@ -14,7 +71,7 @@ export default function (app, module) {
 	* @apiError (403) Forbidden Origin or owner/permission mismatch.
 	*/
 	app.ms.api.onGet('membership/resource', creatorSiteEndpoint(async (req, res) => {
-		const site = configuredSite(app, req, false);
+		const site = await configuredSite(app, req, false);
 		res.send(await module.publicResource(site.id));
 	}));
 	/**
@@ -32,7 +89,7 @@ export default function (app, module) {
 	* @apiError (403) Forbidden Origin or owner/permission mismatch.
 	*/
 	app.ms.api.onGet('membership/feed', creatorSiteEndpoint(async (req, res) => {
-		const site = configuredSite(app, req, false);
+		const site = await configuredSite(app, req, false);
 		const reader = await app.ms.googleAuthorization.reader(req, site, false);
 		res.send(await module.feed(site.id, reader?.id, req.query));
 	}));
@@ -52,7 +109,7 @@ export default function (app, module) {
 	* @apiError (403) Forbidden Origin or owner/permission mismatch.
 	*/
 	app.ms.api.onGet('membership/posts/:id', creatorSiteEndpoint(async (req, res) => {
-		const site = configuredSite(app, req, false);
+		const site = await configuredSite(app, req, false);
 		const reader = await app.ms.googleAuthorization.reader(req, site, false);
 		res.send(await module.post(site.id, req.params.id, reader?.id));
 	}));
@@ -72,7 +129,7 @@ export default function (app, module) {
 	* @apiError (403) Forbidden Origin or owner/permission mismatch.
 	*/
 	app.ms.api.onGet('membership/account', creatorSiteEndpoint(async (req, res) => {
-		const site = configuredSite(app, req, false);
+		const site = await configuredSite(app, req, false);
 		const reader = await app.ms.googleAuthorization.reader(req, site, false);
 		res.send(await module.account(site.id, reader, req.query?.offset));
 	}));
@@ -92,7 +149,7 @@ export default function (app, module) {
 	* @apiError (403) Forbidden Origin or owner/permission mismatch.
 	*/
 	app.ms.api.onPost('membership/refunds', creatorSiteEndpoint(async (req, res) => {
-		const site = configuredSite(app, req, true);
+		const site = await configuredSite(app, req, true);
 		const reader = await app.ms.googleAuthorization.reader(req, site, true);
 		res.send(await module.requestRefund(site.id, reader.id, req.body.invoiceId, req.body.idempotencyKey, req.body.reason));
 	}), { storageReadOnly: true });

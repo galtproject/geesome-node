@@ -7,8 +7,6 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
-import {readFileSync} from 'node:fs';
-
 //TODO: move communicator and fileCatalog to improve
 const modulePacks = {
   'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'staticId', 'asyncOperation', 'asset', 'privateGroup', 'group', 'chat', 'fileCatalog', 'entityJsonManifest', 'imageComposition', 'remoteGroup'],
@@ -119,7 +117,6 @@ export default {
     worker: process.env.PAYMENTS_WORKER === '1',
     collectionWorker: process.env.PAYMENTS_COLLECTION_WORKER === '1'
   },
-  membershipConfig: {sites: loadMembershipSites(process.env.MEMBERSHIP_SITES_FILE)},
   modules: process.env.MODULES ? process.env.MODULES.split(',') : modulePacks.main.concat(modulePacks.improve).concat(modulePacks.socNet)
 };
 
@@ -151,19 +148,4 @@ function getPublicUrlFromDomainEnv(domain): string {
 function normalizeApiBasePath(value): string {
   const path = `/${String(value || '').trim().replace(/^\/+|\/+$/g, '')}`;
   return path === '/' ? '/api/v1' : path;
-}
-
-function loadMembershipSites(filePath) {
-  if (!filePath) {
-    return [];
-  }
-  try {
-    const sites = JSON.parse(readFileSync(filePath, 'utf8'));
-    if (!Array.isArray(sites) || sites.length > 100) {
-      throw new Error('membership_sites_invalid');
-    }
-    return sites;
-  } catch {
-    throw new Error('membership_sites_invalid');
-  }
 }

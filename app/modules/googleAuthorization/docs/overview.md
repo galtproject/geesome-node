@@ -1,7 +1,9 @@
 # Google Authorization
 
 Private creator-reader login, included in the default module pack. Load `googleAuthorization` after `database`
-and `api`; creator-site configuration is shared with `membership`.
+and `api`; creator-site configuration is read from the membership database at request time.
+The loader has no startup dependency on membership; requests fail closed until
+its resolver is available.
 
 Google Identity Services uses the site's existing client ID and authorized origin.
 The browser first calls `GET /v1/login/google/challenge` with same-origin cookies,

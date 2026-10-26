@@ -29,7 +29,6 @@ services:
       - GEESOME_MAX_UPLOAD_BYTES
       # Creator sites require configuration. File paths are container paths.
       - MODULES=${MODULES:-}
-      - MEMBERSHIP_SITES_FILE=${MEMBERSHIP_SITES_FILE:-}
       - PAYMENTS_WORKER=${PAYMENTS_WORKER:-0}
       - PAYMENTS_COLLECTION_WORKER=${PAYMENTS_COLLECTION_WORKER:-0}
       - DIRECT_CRYPTO_SEED_PHRASE=${DIRECT_CRYPTO_SEED_PHRASE:-}

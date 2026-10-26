@@ -11,7 +11,7 @@ export default function (app, module) {
 	* @apiError (403) Forbidden Origin or owner/permission mismatch.
 	*/
 	app.ms.api.onGet('payments/crypto/methods', creatorSiteEndpoint(async (req, res) => {
-		const site = configuredSite(app, req, false);
+		const site = await configuredSite(app, req, false);
 		res.send({ methods: await module.engine.methods(site.id) });
 	}));
 	/**
@@ -33,7 +33,7 @@ export default function (app, module) {
 	* @apiError (403) Forbidden Origin or owner/permission mismatch.
 	*/
 	app.ms.api.onPost('payments/crypto/invoices', creatorSiteEndpoint(async (req, res) => {
-		const site = configuredSite(app, req, true);
+		const site = await configuredSite(app, req, true);
 		const reader = await app.ms.googleAuthorization.reader(req, site, true);
 		res.send(await module.engine.invoice(site.id, reader.id, req.body));
 	}), { storageReadOnly: true });
@@ -52,7 +52,7 @@ export default function (app, module) {
 	* @apiError (403) Forbidden Origin or owner/permission mismatch.
 	*/
 	app.ms.api.onGet('payments/crypto/invoices/:id', creatorSiteEndpoint(async (req, res) => {
-		const site = configuredSite(app, req, false);
+		const site = await configuredSite(app, req, false);
 		const reader = await app.ms.googleAuthorization.reader(req, site, true);
 		res.send(await module.engine.read(site.id, reader.id, req.params.id));
 	}));
