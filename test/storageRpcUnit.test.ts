@@ -43,3 +43,18 @@ describe('bounded storage RPC and cleanup recovery', () => {
         assert.equal(row.result.cleanupRetry.resumeStatus, 'gc_pending');
     });
 });
+
+
+describe('cleanup batch scheduling', () => {
+    it('accumulates idle receipts and defers behind foreground work only until the durable maximum', async () => {
+        const {cleanupBatchReady, cleanupIdleWaitMs, cleanupMaxWaitMs} = await import('../app/modules/staticSiteGenerator/cleanupBatch.js');
+        const start = Date.now();
+        const rows = Array.from({length: 20}, (_, id) => ({id, result: {cleanupQueuedAt: new Date(start).toISOString()}}));
+        assert.equal(cleanupBatchReady(rows, false, start), false);
+        assert.equal(cleanupBatchReady(rows, false, start + cleanupIdleWaitMs), true);
+        assert.equal(cleanupBatchReady(rows, true, start + cleanupIdleWaitMs), false);
+        assert.equal(cleanupBatchReady(structuredClone(rows), true, start + cleanupMaxWaitMs), true, 'restart uses persisted queue times');
+        assert.equal(cleanupBatchReady([], true, start + cleanupMaxWaitMs), false);
+        assert.equal(cleanupBatchReady([{result: {cleanupRetry: {force: true}}}], true, start), true);
+    });
+});
