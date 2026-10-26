@@ -16,6 +16,9 @@ import {AsyncLocalStorage} from "node:async_hooks";
 import {fenceStorageMethods, stopStorageFence} from './storageLifecycle.js';
 import commonHelper from "geesome-libs/src/common.js";
 import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
+import type IGeesomeGoogleAuthorizationModule from './modules/googleAuthorization/interface.js';
+import type IGeesomePaymentsModule from './modules/payments/interface.js';
+import type IGeesomeMembershipModule from './modules/membership/interface.js';
 import IGeesomeEntityJsonManifestModule from "./modules/entityJsonManifest/interface.js";
 import IGeesomeAsyncOperationModule from "./modules/asyncOperation/interface.js";
 import IGeesomeAccountStorageModule from "./modules/accountStorage/interface.js";
@@ -154,6 +157,9 @@ function getModule(config, appPass) {
       api: IGeesomeApiModule,
       asyncOperation: IGeesomeAsyncOperationModule,
       archive: IGeesomeArchiveModule,
+      googleAuthorization?: IGeesomeGoogleAuthorizationModule,
+      payments?: IGeesomePaymentsModule,
+      membership?: IGeesomeMembershipModule,
       staticSiteGenerator?: any,
       asset: IGeesomeAssetModule,
       staticId: IGeesomeStaticIdModule,

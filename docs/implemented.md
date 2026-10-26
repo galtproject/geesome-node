@@ -12,6 +12,44 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Owner default payout (#1429)
+
+Private owner payout defaults apply to creator groups without an explicit
+address. Existing group overrides remain; an explicit versioned inherit action
+restores the default. Seed, reader wallets, content and membership rights remain
+unchanged. Self-only bearer APIs require core/key group-management permission;
+Google reader sessions do not authorize financial settings.
+
+New managed invoices freeze effective payout/source/version and collection jobs
+preserve that destination through edits/restart. Legacy jobs retain their explicit
+group fallback, and permanent payout reservations prevent future deposit-address
+reuse. The [plan/audit](plans/owner-default-payout.md) and
+[module overview](../app/modules/payments/docs/overview.md) record rollout and
+legacy reconciliation boundaries. New tables use model sync; production was not
+modified. Verification: creator/worker HTTP/SQL 13 cases and payment 51 cases,
+including two new real SQL scenarios, pass without live transfers. UI is pending.
+
+## Creator Google login, payments and membership backend (#1425)
+
+Opt-in `googleAuthorization`, `payments` and `membership` modules provide private
+reader identities linked to core users, explicit site-bound cookie sessions,
+direct cryptocurrency invoices/observation/collection recovery and group-scoped
+access periods. Buyers receive no API key, core permissions, public profile or
+group member pivot. Existing password/Ethereum bearer auth and group ACLs are
+unchanged. Observer/collection workers require separate explicit flags.
+
+The audited [migration plan](plans/creator-membership-migration.md) records scope,
+constraints, workstreams and remaining client/import/cutover/SSG work. Current
+full-set CID links retain legacy link-gating semantics; protected original bytes
+are a separate phase. Production and microwave-girls billing are unchanged.
+
+Verification: isolated Docker PostgreSQL/HTTP flow and worker lifecycle **12
+passed**; crypto vectors and managed-ledger SQL recovery **49 passed**, zero
+skipped in the Docker wrapper; existing auth/API/private-group/bootstrap focused
+regression **20 passed**. API docs, security/scalability inventories and diff
+hygiene passed. Full product suite and browser flows were not run for this
+backend-only stage. Module-local overviews document exact configuration/APIs.
+
 ## Static-Site Media Folders (#1410)
 
 Newly generated galleries and group sites put originals in root `content/` and
