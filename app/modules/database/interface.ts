@@ -522,6 +522,7 @@ export enum CorePermissionName {
 
   AdminAll = 'admin:all',
   AdminRead = 'admin:read',
+  AdminMembershipSites = 'admin:membership:sites',
   AdminAddUser = 'admin:add_user',
   AdminSetPermissions = 'admin:set_permissions',
   AdminSetUserLimit = 'admin:set_user_limit',

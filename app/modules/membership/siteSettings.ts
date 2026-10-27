@@ -59,8 +59,8 @@ export default function siteSettings(app, M, group, owner, publicBrand) {
 			});
 		},
 		async provisionSite(userId, body) {
-			// Only the node operator may bind a host routed by the deployment's proxy.
-			await app.checkUserCan(userId, CorePermissionName.AdminAll);
+			// This administrative capability is explicitly delegated by the node operator.
+			await app.checkUserCan(userId, CorePermissionName.AdminMembershipSites);
 			validate(body);
 			let url;
 			try {
@@ -71,6 +71,12 @@ export default function siteSettings(app, M, group, owner, publicBrand) {
 			if (url.host.length > 200 || url.protocol !== 'https:' || url.origin !== body.origin || !/^[a-z][a-z0-9-]{0,29}$/.test(body.id)
 				|| !Number.isSafeInteger(body.ownerId) || body.ownerId <= 0 || !/^[1-9][0-9]*$/.test(String(body.groupId))) {
 				siteProblem(400, 'membership_site_invalid');
+			}
+			if (!await app.isAdminCan(userId, CorePermissionName.AdminAll)) {
+				await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
+				if (body.ownerId !== userId) {
+					siteProblem(403, 'owner_required');
+				}
 			}
 			await group({ ownerId: body.ownerId, groupId: String(body.groupId) });
 			return sequelize.transaction(async transaction => {
