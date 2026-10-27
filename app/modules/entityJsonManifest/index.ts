@@ -105,6 +105,7 @@ export function getModule(app: IGeesomeApp) {
           const attachmentView = content['postsContents']?.view || content.view;
           return {
             view: attachmentView,
+            isPrivate: content.postsContents?.isPrivate === true,
             storageId: content.manifestStorageId //this.getStorageRef(content.manifestStorageId)
           };
         });

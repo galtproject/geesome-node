@@ -1,7 +1,9 @@
+import MembershipControls from '../../components/MembershipControls/index.js';
 import ArchiveDownload from '../../components/ArchiveDownload/index.js';
 export default {
     components: {
         ArchiveDownload,
+        MembershipControls,
     },
     inject: ['store'],
     computed: {
@@ -20,7 +22,7 @@ export default {
         <div class="content-info">
           <div class="site-info">
             <div class="avatar-row">
-              <div class="avatar"><img :src="$site.avatarUrl"></div>
+              <div v-if="$site.avatarUrl" class="avatar"><img :src="$site.avatarUrl"></div>
               <div class="title">
                 <div class="main-title">{{$site.title}}</div>
                 <div class="sub-title">Posts: {{$site.postsCount}}</div>
@@ -31,12 +33,13 @@ export default {
 
           <div class="powered">Powered by <a href="https://github.com/galtproject/geesome-node" target="_blank">Geesome</a></div>
         </div>
-        <div class="content-data">
+        <main class="content-data" :data-site-entry="store.membership?.entryPath">
+          <membership-controls v-if="store.membership" />
           <div class="tabs">
             <a :href="$site.base" target="_self">Latest posts</a>
           </div>
           <slot name="page"/>
-        </div>
+        </main>
       </div>
       <!--    <Footer />-->
     `

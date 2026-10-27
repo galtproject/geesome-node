@@ -1,7 +1,8 @@
 import { DataTypes } from 'sequelize';
+import definePublicationModels from '../staticSiteGenerator/membershipPublicationModels.js';
 export default async function (sequelize) {
   const str = (size = 200) => ({ type: DataTypes.STRING(size), allowNull: false });
-  const models: any = {};
+  const models: any = await definePublicationModels(sequelize);
   const definitions = {
     site_settings: { resourceId: { ...str(30), primaryKey: true }, googleClientId: { ...str(), defaultValue: '' }, enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, registrationEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, version: { type: DataTypes.INTEGER, allowNull: false } },
     resources: { id: { ...str(30), primaryKey: true }, domain: { ...str(), unique: true }, ownerId: { type: DataTypes.INTEGER, allowNull: false }, groupId: { ...str(), unique: true }, postsEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false }, data: { type: DataTypes.JSONB, allowNull: false } },

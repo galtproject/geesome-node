@@ -23,7 +23,7 @@ export default function siteSettings(app, M, group, owner, publicBrand) {
 		if (body.version !== (current?.version || 0)) {
 			siteProblem(409, 'membership_site_version_conflict');
 		}
-		await row.update({ postsEnabled: body.postsEnabled, data: publicBrand(body) }, { transaction });
+		await row.update({ postsEnabled: body.postsEnabled, data: {...publicBrand(body), ...(row.data?.publication ? {publication: row.data.publication} : {})} }, { transaction });
 		const values = { googleClientId: body.googleClientId, enabled: body.enabled,
 			registrationEnabled: body.registrationEnabled, version: body.version + 1 };
 		const settings = current ? await current.update(values, { transaction })

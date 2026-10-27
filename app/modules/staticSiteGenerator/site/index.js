@@ -26,7 +26,7 @@ async function renderApp(storageData, rootContent, url, headers, lang) {
     // console.log('app', app);
     const {app} = await createApp(storageData, url);
     const slashSplit = url.split('/');
-    const relativeRoot = slashSplit.length > 2 ? slashSplit.slice(1).map(() => '../').join('') : './';
+    const relativeRoot = storageData.relativeRoot ?? (slashSplit.length > 2 ? slashSplit.slice(1).map(() => '../').join('') : './');
     // app.use(Notifications);
     // installFakeComponent(app, '$notify', 'Notifications');
 
@@ -38,10 +38,12 @@ async function renderApp(storageData, rootContent, url, headers, lang) {
     // VueSSR: replace index.html variable with result values
     const replacements = {
         relativeRoot, lang, content,
+        favicon: storageData.favicon === false ? '<link rel="icon" href="data:,"/>'
+            : `<link rel="shortcut icon" href="${escapeHtmlAttribute(relativeRoot)}favicon.ico"/>`,
         headers: `<title>${escapeHtml(title)}</title>\n` + headers.map(([tag, attr]) => getHeaderTagHtml(tag, attr)).join('\n'),
         clientData: JSON.stringify({...storageData, path: url}).replace(/</g, '\\u003c'),
     };
-    return rootContent.replace(/\{\{(relativeRoot|lang|headers|content|clientData)}}/g, (_token, key) => replacements[key]);
+    return rootContent.replace(/\{\{(relativeRoot|lang|headers|content|clientData|favicon)}}/g, (_token, key) => replacements[key]);
 }
 
 function getHeaderContent(headers, name) {

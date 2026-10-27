@@ -689,3 +689,23 @@ own-group site preparation without full node administration. Delegated callers
 also require group management; full operator credentials retain cross-owner
 provisioning. No automatic grants or schema changes. See
 [upgrade and verification](plans/membership-site-permission.md).
+
+
+## Membership website snapshots (#1441)
+
+Paired public/full directories derive from one private canonical group and use
+existing plaintext IPFS storage. A site-bound selector checks current resource
+entitlement before redirecting to the appropriate CID. Previously obtained CIDs
+and files remain readable after expiry and updates, as explicitly requested.
+The staticSiteGenerator layer owns batched snapshot building and durable jobs.
+Both variants use shared group/post SSR components, Sass and browser assets;
+account controls are an optional Layout component and variant data is allowlisted.
+Targeted source revisions, automatic retries with capped backoff, atomic publication
+switching and permanent CID holds preserve complete immutable revisions. A compact
+result contains two CIDs and a post/preview index; current publication state lives
+with the resource, without a separate publication_heads table. Per-post attachment visibility is stored on PostsContents; public snapshots omit
+private attachments, full snapshots include all, and gallery metadata/sets are
+not used. An additive group migration upgrades existing attachment rows.
+Owner admin controls live in
+microwave-girls; existing per-post publication and payment identities remain.
+See the [delivery plan](plans/membership-website-snapshots.md).

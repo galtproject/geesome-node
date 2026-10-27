@@ -1,4 +1,13 @@
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {createRequire} from 'node:module';
+import {getModule as createGroupModule} from '../app/modules/group/index.js';
+import {CID} from 'multiformats/cid';
+import {create as createKuboClient} from 'kubo-rpc-client';
+import JsIpfsServiceNode from 'geesome-libs/src/JsIpfsServiceNode.js';
+import {sha256} from 'multiformats/hashes/sha2';
+import {publicationDigest} from '../app/modules/staticSiteGenerator/membershipProjection.js';
+import registerPublicationApi from '../app/modules/membership/publicationApi.js';
 import createApp from '../app/index.js';
 import { request as httpRequest } from 'node:http';
 import { randomUUID, generateKeyPairSync, createSign } from 'node:crypto';
@@ -30,6 +39,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 	let api, base;
 	let now = new Date();
 	const transfers = new Map<string, any[]>();
+	const publicationContents = new Map<string, any[]>();
 	let outage = false;
 	const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 	const cert = publicKey.export({ type: 'spki', format: 'pem' }).toString();
@@ -53,21 +63,21 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		const signed = `${header}.${payload}`;
 		return `${signed}.${createSign('RSA-SHA256').update(signed).sign(key).toString('base64url')}`;
 	}
-	async function request(path, { site = 'wave', cookie = '', body, token, origin, headers = {} }: any = {}) {
+	async function request(path, { site = 'wave', cookie = '', body, raw, method, token, origin, headers = {} }: any = {}) {
 		const host = site === 'meat' ? 'eraofmeat.com' : site === 'wave' ? 'eraofwave.com' : site;
 		return new Promise<any>((resolve, reject) => {
-			const req = httpRequest(`${base}/v1/${path}`, { method: body === undefined ? 'GET' : 'POST', headers: {
+			const req = httpRequest(path.startsWith('/ipfs/') ? `${base}${path}` : `${base}/v1/${path}`, { method: method || (body === undefined && raw === undefined ? 'GET' : 'POST'), headers: {
 					Host: host, Cookie: cookie, ...(body === undefined ? {} : { 'Content-Type': 'application/json', Origin: origin || `https://${host}` }),
 					...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers
 				} }, response => {
 				let text = '';
 				response.setEncoding('utf8');
 				response.on('data', chunk => { text += chunk; });
-				response.on('end', () => resolve({ status: response.statusCode, body: text ? JSON.parse(text) : null,
+				response.on('end', () => resolve({ status: response.statusCode, body: text ? (String(response.headers['content-type']).includes('json') ? JSON.parse(text) : text) : null,
 					cookies: response.headers['set-cookie'] || [], headers: { get: key => response.headers[key.toLowerCase()] } }));
 			});
 			req.on('error', reject);
-			req.end(body === undefined ? undefined : JSON.stringify(body));
+			req.end(raw === undefined ? (body === undefined ? undefined : JSON.stringify(body)) : raw);
 		});
 	}
 	async function login(site = 'wave', overrides = {}) {
@@ -141,7 +151,28 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 				assert.equal(group.creatorId, userId);
 				return group;
 			},
-			getGroupPosts: async (groupId, filters, pagination) => ({ list: await models.Post.findAll({ where: { groupId, isDeleted: false, status: filters.status }, order: [['publishedAt', 'DESC'], ['id', 'DESC']], limit: pagination.limit, offset: pagination.offset }) }),
+			getGroupPosts: async (groupId, filters, pagination) => {
+				const list = await models.Post.findAll({ where: { groupId, isDeleted: false, status: filters.status }, order: [['publishedAt', 'DESC'], ['id', 'DESC']], limit: pagination.limit, offset: pagination.offset });
+				for (const post of list) {
+					post.contents = publicationContents.get(String(post.id)) || [];
+				}
+				return {list};
+			},
+			forEachHydratedGroupPostBatch: async (groupId, options, onBatch) => {
+				let offset = 0;
+				while (offset < options.maxRefs) {
+					const posts = await models.Post.findAll({where: {groupId, isDeleted: false, status: options.filters.status}, order: [['publishedAt', 'DESC'], ['id', 'DESC']], limit: options.batchLimit, offset});
+					for (const post of posts) {
+						post.contents = publicationContents.get(String(post.id)) || [];
+					}
+					await onBatch({groupPosts: posts, refCount: posts.length});
+					if (posts.length < options.batchLimit) {
+						break;
+					}
+					offset += posts.length;
+				}
+			},
+			prepareContentData: async content => ({text: await app.ms.storage.getFileDataText(content.storageId)}),
 			getPostPure: id => models.Post.findByPk(id)
 		};
 		identityModels = await defineIdentities(db);
@@ -153,7 +184,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		payments = createPayments(app, paymentModels, { observer, env: { DIRECT_CRYPTO_SEED_PHRASE: 'test test test test test test test test test test test junk' }, clock: () => now });
 		app.ms.googleAuthorization = google;
 		app.ms.payments = payments;
-		membership = createMembership(app, membershipModels, { clock: () => now });
+		membership = createMembership(app, membershipModels, { clock: () => now, publicationHeartbeatMs: 20 });
 		app.ms.membership = membership;
 		for (const site of sites) {
 			await membership.provisionSite(owner.id, { ...site, enabled: true, version: 0 });
@@ -165,6 +196,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 				registerGoogle(app, google);
 				registerPayments(app, payments);
 				registerMembership(app, membership);
+				registerPublicationApi(app, membership);
 				module.onAuthorizedPost('test/upload', async (_req, res) => res.send({ ok: true }), { storageReadOnly: true });
 			} });
 		base = `http://127.0.0.1:${api.port}`;
@@ -173,6 +205,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		await api?.stop();
 		await payments?.stop();
 		await authApp?.stop();
+		await membership?.stop();
 		await db?.close();
 	});
 	it('verifies a signed Google credential and creates only a private user with a site session', async () => {
@@ -347,13 +380,16 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		const post = await models.Post.create({ groupId: Number(row.groupId), userId: owner.id, status: 'published', publishedAt: now, localId: 1,
 			propertiesJson: JSON.stringify({ membership: { title: 'Paid set', description: 'Public teaser', previewCount: 1, free: false,
 					pageUrl: 'https://eraofwave.com/ipfs/bafyprivate/', previewMedia: [{ url: 'https://eraofwave.com/ipfs/bafypreview' }], secret: 'never-export' } }) });
+		publicationContents.set(String(post.id), [{id: 997, storageId: 'public-preview', mimeType: 'image/png', postsContents: {isPrivate: false}},
+			{id: 996, storageId: 'private-image', mimeType: 'image/png', postsContents: {isPrivate: true}}]);
 		const guest = await request('membership/feed');
 		assert.equal(guest.status, 200);
 		assert.equal(guest.body.posts[0].locked, true);
+		assert.deepEqual(guest.body.posts[0].previews, ['/ipfs/public-preview']);
 		assert.equal(guest.body.posts[0].pageUrl, undefined);
 		assert(!JSON.stringify(guest.body).includes('bafyprivate'));
 		assert(!JSON.stringify(guest.body).includes('never-export'));
-		assert.equal((await request('membership/feed', { cookie: waveCookie })).body.posts[0].pageUrl, 'https://eraofwave.com/ipfs/bafyprivate/');
+		assert.equal((await request('membership/feed', { cookie: waveCookie })).body.posts[0].pageUrl, `/api/v1/membership/site/posts/${post.id}/`);
 		assert.equal((await request(`membership/posts/${post.id}`, { site: 'meat' })).status, 404);
 		assert.equal((await request('membership/feed?limit=Infinity&offset=Infinity')).status, 200);
 	});
@@ -399,6 +435,373 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		now = new Date(now.getTime() + 31 * 86400000);
 		assert.equal((await request('browser-session', { cookie: meatCookie, site: 'meat' })).body.reader, null);
 	});
+
+	it('publishes immutable public/full IPFS snapshots and retains obtained snapshots after expiry and updates', async () => {
+		now = new Date();
+		const files = new Map(), directories = new Map(), snapshots = new Map();
+		let failAfter = Infinity;
+		const put = async data => {
+			if (--failAfter <= 0) {
+				throw new Error('fake_storage_outage');
+			}
+			const value = Buffer.from(data), id = CID.createV1(0x55, await sha256.digest(value)).toString();
+			files.set(id, value); return {id};
+		};
+		app.ms.storage = {
+			node: {files: {rm: async path => {
+				for (const key of directories.keys()) {
+					if (key === path || key.startsWith(path + '/')) {
+						directories.delete(key);
+					}
+				}
+			}}},
+			saveFileByData: put,
+			getFileStat: async source => {
+				const [root, ...leaf] = String(source).split('/');
+				return {type: snapshots.has(root) && !leaf.length ? 'directory' : 'file'};
+			},
+			makeDir: async path => {
+				if (!directories.has(path)) {
+					directories.set(path, new Map());
+				}
+			},
+			copyFileFromId: async (id, path) => {
+				const parts = path.split('/'), [root, ...leaf] = String(id).split('/');
+				const source = leaf.length ? snapshots.get(root)?.[leaf.join('/')] : root;
+				directories.get('/' + parts[1]).set(parts.slice(2).join('/'), source);
+			},
+			getDirectoryId: async path => { const entries = Object.fromEntries(directories.get(path)); const {id} = await put(JSON.stringify(entries)); snapshots.set(id, entries); return id; }
+		};
+		const readGateway = method => async (req, res) => {
+			const [root, ...parts] = req.route.replace('/ipfs/', '').split('/');
+			if (!await membership.isStorageIdAllowed(root)) {
+				return res.send({}, 423);
+			}
+			const file = parts.length ? snapshots.get(root)?.[parts.join('/')] : root;
+			const bytes = files.get(file);
+			if (!bytes) {
+				return res.send({}, 404);
+			}
+			res.setHeader('Content-Type', 'text/html; charset=utf-8');
+			res.setHeader('Cache-Control', 'public, max-age=3600');
+			res.stream.end(method === 'HEAD' ? undefined : bytes);
+		};
+		api.onUnversionGet('/ipfs/*', readGateway('GET'));
+		api.onUnversionHead('/ipfs/*', readGateway('HEAD'));
+		const group = await models.Group.create({name: 'snapshots', creatorId: owner.id, title: 'Snapshots', isPublic: false, isEncrypted: false, isOpen: false});
+		await membership.provisionSite(owner.id, {id: 'snapshots', origin: 'https://snapshots.test', groupId: String(group.id), ownerId: owner.id,
+			googleClientId: 'existing-google-client', enabled: true, registrationEnabled: true, postsEnabled: true, version: 0});
+		const previewCid = (await put('PUBLIC-PREVIEW-BYTES')).id, fullCid = (await put('FULL-MEDIA-BYTES')).id;
+		const previewRoot = (await put('NESTED-PREVIEW-DIRECTORY')).id;
+		snapshots.set(previewRoot, {'preview.png': previewCid, 'paid.png': fullCid});
+		const metadata = {title: 'Snapshot post', teaser: 'PUBLIC-TEASER', fullText: 'FIRST-PAID-TEXT', free: false, previewMedia: [{url: `https://snapshots.test/ipfs/${previewRoot}/preview.png`}], previewCount: 1};
+		const post = await models.Post.create({name: 'snapshots-post', groupId: group.id, userId: owner.id, status: 'published', publishedAt: now,
+			propertiesJson: JSON.stringify({membership: metadata})});
+		publicationContents.set(String(post.id), [{id: 999, storageId: fullCid, mimeType: 'image/png', name: 'Full picture', postsContents: {isPrivate: true}}, {id: 998, storageId: previewCid, mimeType: 'image/png', name: 'Public picture', postsContents: {isPrivate: false}}]);
+		const get = (path, options: any = {}) => request(path, {site: 'snapshots.test', ...options});
+		const enqueue = key => request('membership/admin/snapshots/publications', {token: 'test-owner', body: {requestKey: key}});
+		const accepted = await enqueue('snapshot-one');
+		assert.equal(accepted.status, 200);
+		assert.equal((await enqueue('snapshot-one')).body.id, accepted.body.id);
+		assert.equal((await request('membership/admin/snapshots/publications', {token: 'test-other-owner', body: {requestKey: 'foreign'}})).status, 403);
+		await membership.runPublications();
+		assert.equal((await request('membership/admin/snapshots/publication', {token: 'test-owner'})).body.status, 'ready');
+		const beforeUnrelated = (await membershipModels.resources.findByPk('snapshots')).data.publication;
+		const unrelated = await models.Post.create({name: 'unrelated', groupId: 1, userId: owner.id, status: 'published', publishedAt: now});
+		await models.Post.update({name: 'unrelated-renamed'}, {where: {id: unrelated.id}});
+		await models.Post.destroy({where: {id: unrelated.id}});
+		assert.deepEqual((await membershipModels.resources.findByPk('snapshots')).data.publication, beforeUnrelated, 'unrelated bulk edits and deletes never invalidate this site');
+		await models.Post.update({name: 'snapshots-post-renamed'}, {where: {id: post.id}});
+		assert.equal((await membershipModels.resources.findByPk('snapshots')).data.publication.sourceVersion, beforeUnrelated.sourceVersion + 1, 'targeted bulk edits invalidate the owning resource');
+		await membership.runPublications();
+		await models.Group.update({title: 'Renamed snapshot site'}, {where: {id: group.id}});
+		await membership.runPublications();
+		const renamedSelection = await get('membership/site/');
+		assert((await request(new URL(renamedSelection.headers.get('location')).pathname)).body.includes('Renamed snapshot site'), 'group title changes rebuild static HTML');
+		const renamedResource = await membershipModels.resources.findByPk('snapshots');
+		const settings = await membership.siteSettings(owner.id, 'snapshots');
+		await membership.saveSiteSettings(owner.id, 'snapshots', {version: settings.version, enabled: settings.enabled, registrationEnabled: settings.registrationEnabled, googleClientId: settings.googleClientId, postsEnabled: settings.postsEnabled, coverUrl: 'https://snapshots.test/cover.png'});
+		assert.deepEqual((await membershipModels.resources.findByPk('snapshots')).data.publication, renamedResource.data.publication, 'saving site branding preserves current publication and revision');
+		const client = await get('membership/site/client.js');
+		assert.equal(client.status, 200);
+		assert.equal(client.headers.get('content-type'), 'application/javascript; charset=utf-8');
+		assert.equal(client.headers.get('x-content-type-options'), 'nosniff');
+		assert.equal(client.body, readFileSync(new URL('../app/modules/staticSiteGenerator/site/public/membership.js', import.meta.url), 'utf8'));
+		const publicSelection = await get('membership/site/');
+		assert.equal(publicSelection.status, 302);
+		assert.equal(publicSelection.headers.get('cache-control'), 'private, no-store');
+		const publicLocation = publicSelection.headers.get('location');
+		const read = async url => get(new URL(url).pathname);
+		assert((await read(publicLocation)).body.includes('PUBLIC-TEASER'));
+		assert(!(await read(publicLocation)).body.includes('FIRST-PAID-TEXT'));
+		const publicRoot = new URL(publicLocation).pathname.split('/')[2];
+		const publicFiles = snapshots.get(publicRoot);
+		assert(Object.values(publicFiles).includes(previewCid));
+		assert(!Object.values(publicFiles).includes(previewRoot), 'preview publication copies the exact selected leaf, not its paid parent directory');
+		assert(!Object.values(publicFiles).includes(fullCid));
+		const publicFeed = await get('membership/feed');
+		assert(!JSON.stringify(publicFeed.body).includes(previewRoot), 'public API also conceals a selected preview parent CID');
+		assert(publicFeed.body.posts[0].previews[0].startsWith(`/ipfs/${publicRoot}/media/`));
+
+
+		const loginResult = await login('snapshots.test', {sub: 'snapshot-buyer'}), cookie = loginResult.cookie, readerId = loginResult.body.reader.id;
+		assert.equal((await get('membership/site/', {cookie})).headers.get('location'), publicLocation);
+		await membershipModels.periods.create({id: randomUUID(), resourceId: 'snapshots', readerId, invoiceId: randomUUID(), anchorDay: 1,
+			startsAt: new Date(now.getTime() - 1000), endsAt: new Date(now.getTime() + 60000), revoked: false});
+		const stranger = await login('snapshots.test', {sub: 'different-site-buyer'});
+		await membershipModels.periods.create({id: randomUUID(), resourceId: 'wave', readerId: stranger.body.reader.id, invoiceId: randomUUID(), anchorDay: 1,
+			startsAt: new Date(now.getTime() - 1000), endsAt: new Date(now.getTime() + 60000), revoked: false});
+		assert.equal((await get('membership/site/', {cookie: stranger.cookie})).headers.get('location'), publicLocation, 'payment for another resource is insufficient');
+		const paidLocation = (await get('membership/site/', {cookie})).headers.get('location');
+		assert.notEqual(paidLocation, publicLocation); assert((await read(paidLocation)).body.includes('FIRST-PAID-TEXT'));
+		assert.equal((await get('membership/site/', {cookie, method: 'HEAD'})).headers.get('location'), paidLocation);
+		assert.equal((await get('membership/site/', {cookie: meatCookie})).headers.get('location'), publicLocation);
+		assert.equal((await get('membership/site/', {headers: {Origin: 'https://foreign.test'}})).status, 403);
+		assert.equal((await get('membership/site/', {cookie: '__Host-geesome_session=forged'})).headers.get('location'), publicLocation);
+		const oldPost = (await get(`membership/site/posts/${post.id}/`, {cookie})).headers.get('location');
+		assert((await read(oldPost)).body.includes('FIRST-PAID-TEXT'));
+		assert((await read(oldPost)).body.includes(`../media/${publicationDigest(fullCid)}.png`));
+		assert.equal((await read(new URL(`../media/${publicationDigest(fullCid)}.png`, oldPost).href)).body, 'FULL-MEDIA-BYTES');
+		assert(!(await read(publicLocation)).body.includes(fullCid));
+
+
+		assert(!(await read(publicLocation)).body.includes(new URL(paidLocation).pathname.split('/')[2]), 'public HTML contains no full root CID');
+		await post.update({propertiesJson: JSON.stringify({membership: {...metadata, fullText: 'SECOND-PAID-TEXT'}})});
+		await membership.runPublications();
+		const newerPaid = (await get('membership/site/', {cookie})).headers.get('location');
+		assert.notEqual(newerPaid, paidLocation); assert((await read(newerPaid)).body.includes('SECOND-PAID-TEXT'));
+		assert((await read(paidLocation)).body.includes('FIRST-PAID-TEXT'), 'old snapshot does not change with canonical post');
+		now = new Date(now.getTime() + 120000);
+		const expiredSelection = await get('membership/site/', {cookie, headers: {Range: 'bytes=0-1', 'If-None-Match': '*'}});
+		assert.equal(expiredSelection.status, 302); assert.notEqual(expiredSelection.headers.get('location'), newerPaid);
+		assert((await read(paidLocation)).body.includes('FIRST-PAID-TEXT'), 'known paid CID remains readable after expiry');
+		assert((await read(newerPaid)).body.includes('SECOND-PAID-TEXT'), 'known newer CID is also retained');
+		await membershipModels.periods.update({endsAt: new Date(now.getTime() + 60000)}, {where: {resourceId: 'snapshots', readerId}});
+		assert.equal((await get('membership/site/', {cookie})).headers.get('location'), newerPaid);
+		await membershipModels.periods.update({revoked: true}, {where: {resourceId: 'snapshots', readerId}});
+		assert.notEqual((await get('membership/site/', {cookie})).headers.get('location'), newerPaid, 'refund/revocation stops new full selection');
+		assert.equal((await read(oldPost)).status, 200, 'obtained old post and files remain readable');
+		assert.equal((await read(new URL(`../media/${publicationDigest(fullCid)}.png`, oldPost).href)).body, 'FULL-MEDIA-BYTES');
+
+		const oldHead = (await membershipModels.resources.findByPk('snapshots')).data.publication.publicationId;
+		const readyDirectories = [...directories.keys()];
+		failAfter = 2;
+		await enqueue('fault-half-build'); await membership.runPublications();
+		assert.equal((await membershipModels.resources.findByPk('snapshots')).data.publication.publicationId, oldHead, 'partial pair cannot replace current revision');
+		assert.deepEqual([...directories.keys()], readyDirectories, 'failed attempt removes only its own staging directories');
+		for (let attempt = 0; attempt < 3; attempt++) {
+			now = new Date(now.getTime() + 360000);
+			await membership.runPublications();
+		}
+		const retrying = await membershipModels.publications.findOne({where: {resourceId: 'snapshots', requestKey: 'fault-half-build'}});
+		assert(retrying.attempts >= 4);
+		assert.equal(retrying.status, 'queued', 'temporary outages do not permanently fail a source revision after three attempts');
+
+		failAfter = Infinity;
+		now = new Date(now.getTime() + 360000);
+		await membership.runPublications();
+		assert.equal((await retrying.reload()).status, 'ready', 'storage recovery resumes the existing durable job without another source edit');
+		await post.update({propertiesJson: JSON.stringify({membership: {...metadata, hidden: true}})});
+		await membership.runPublications();
+		assert(!(await read((await get('membership/site/')).headers.get('location'))).body.includes('Snapshot post'));
+		assert.equal((await get(`membership/site/posts/${post.id}/`)).status, 404);
+		assert.equal((await read(paidLocation)).status, 200, 'hiding/deleting source does not revoke obtained CID');
+		await membershipModels.site_settings.update({enabled: false}, {where: {resourceId: 'snapshots'}});
+		assert.equal((await get('membership/site/')).status, 404);
+		assert.equal((await read(paidLocation)).status, 200, 'site disable stops selection, retains immutable old files');
+		const rotating = [];
+		for (let index = 0; index < 6; index++) {
+			const id = `rotate${index}`;
+			const newGroup = await models.Group.create({name: id, creatorId: owner.id, title: id, isPublic: false, isEncrypted: false, isOpen: false});
+			await membership.provisionSite(owner.id, {id, origin: `https://${id}.test`, groupId: String(newGroup.id), ownerId: owner.id,
+				googleClientId: '', enabled: true, registrationEnabled: false, postsEnabled: true, version: 0});
+			const placeholder = await membershipModels.publications.create({id: randomUUID(), resourceId: id, requestKey: 'placeholder', status: 'ready', sourceVersion: 0, manifest: {pages: [], posts: []}});
+			await membershipModels.resources.update({data: {publication: {publicationId: placeholder.id, sourceVersion: 0}}}, {where: {id}});
+			await membership.invalidateGroup(newGroup.id);
+			rotating.push(id);
+		}
+		for (let index = 0; index < 8; index++) {
+			await membership.runPublications();
+		}
+		for (const id of rotating) {
+			const head = await membershipModels.resources.findByPk(id), job = await membershipModels.publications.findByPk(head.data.publication.publicationId);
+			assert.equal(job.sourceVersion, 1, 'targeted invalidation queues every changed resource without head scanning');
+		}
+		const recovered = await membershipModels.publications.create({id: randomUUID(), resourceId: 'rotate0', requestKey: 'recover-lease', status: 'building',
+			leaseToken: randomUUID(), leaseUntil: new Date(now.getTime() - 1)});
+		const orphan = `/membership-${recovered.id}-${recovered.leaseToken}-public`;
+		await app.ms.storage.makeDir(orphan);
+		await recovered.update({stagingPaths: [orphan]});
+		await membership.runPublications();
+		assert(!directories.has(orphan), 'reclaimed crash removes the previous attempt staging directory');
+		assert.equal((await recovered.reload()).status, 'ready', 'an expired build lease is recoverable after restart');
+		const saveNormally = app.ms.storage.saveFileByData;
+		let releaseWrite, writeStarted;
+		const blocked = new Promise(resolve => { writeStarted = resolve; });
+		app.ms.storage.saveFileByData = async data => {
+			if (releaseWrite === undefined) {
+				await new Promise(resolve => { releaseWrite = resolve; writeStarted(); });
+			}
+			return saveNormally(data);
+		};
+		const slow = await membership.enqueuePublication(owner.id, 'rotate0', {requestKey: 'slow-storage'});
+		const previousSlowHead = (await membershipModels.resources.findByPk('rotate0')).data.publication.publicationId;
+		const work = membership.runPublications();
+		try {
+			await blocked;
+			now = new Date(now.getTime() + 90000);
+			await new Promise(resolve => setTimeout(resolve, 60));
+			now = new Date(now.getTime() + 60000);
+			const leased = await membershipModels.publications.findByPk(slow.id);
+			assert(new Date(leased.leaseUntil) > now, 'heartbeat keeps a healthy slow storage build from being reclaimed');
+			const changedGroup = await membershipModels.resources.findByPk('rotate0');
+			await models.Group.update({title: 'Changed during render'}, {where: {id: changedGroup.groupId}});
+		} finally {
+			releaseWrite?.();
+			await work;
+			app.ms.storage.saveFileByData = saveNormally;
+		}
+		assert.equal((await membershipModels.publications.findByPk(slow.id)).status, 'queued', 'a source change during build rejects the incomplete revision');
+		assert.equal((await membershipModels.resources.findByPk('rotate0')).data.publication.publicationId, previousSlowHead);
+		await membership.runPublications();
+		const changed = await membershipModels.resources.findByPk('rotate0');
+		const rebuilt = await membershipModels.publications.findByPk(changed.data.publication.publicationId);
+		assert.equal(rebuilt.sourceVersion, changed.data.publication.sourceVersion);
+		assert(files.get(snapshots.get(rebuilt.manifest.public)['index.html']).toString().includes('Changed during render'));
+
+		await membershipModels.publications.update({status: 'failed'}, {where: {status: 'queued'}});
+		const serialNormally = membership.serial;
+		let commitFinished;
+		membership.serial = async (id, work) => {
+			let reachedCommit;
+			const beforeCommit = new Promise(resolve => { reachedCommit = resolve; });
+			commitFinished = serialNormally(id, async (row, transaction) => {
+				const result = await work(row, transaction);
+				reachedCommit();
+				await new Promise(resolve => setTimeout(resolve, 60));
+				return result;
+			});
+			await beforeCommit;
+			throw new Error('commit_response_lost_while_transaction_in_flight');
+		};
+		try {
+			const ambiguous = await membership.enqueuePublication(owner.id, 'rotate0', {requestKey: 'ambiguous-commit'});
+			await membership.runPublications();
+			await commitFinished;
+			const committed = await membershipModels.publications.findByPk(ambiguous.id);
+			assert.equal(committed.status, 'ready');
+			assert.equal(committed.stagingPaths.length, 2);
+			for (const directory of committed.stagingPaths) {
+				assert(directories.has(directory), 'cleanup waits for an in-flight commit and retains ready directories');
+			}
+		} finally {
+			membership.serial = serialNormally;
+		}
+
+
+	});
+
+	it('builds self-contained immutable snapshot directories on real Kubo without publishing preview siblings', async function () {
+		if (!process.env.CREATOR_MEMBERSHIP_TEST_IPFS_URL) {
+			this.skip();
+		}
+		const previous = app.ms.storage;
+		const storage = new JsIpfsServiceNode(createKuboClient({url: process.env.CREATOR_MEMBERSHIP_TEST_IPFS_URL}), 'kubo-rpc');
+		app.ms.storage = storage;
+		try {
+			const preview = await storage.saveFileByData('PREVIEW-BYTES', {waitForPin: true});
+			const paid = await storage.saveFileByData('PAID-BYTES', {waitForPin: true});
+			const publicText = await storage.saveFileByData('PUBLIC ATTACHMENT TEXT');
+			const privateText = await storage.saveFileByData('PRIVATE ATTACHMENT TEXT');
+			const archive = await storage.saveFileByData('PUBLIC ARCHIVE BYTES');
+			const directory = `/source-${randomUUID()}`;
+			await storage.makeDir(directory);
+			await storage.copyFileFromId(preview.id, directory + '/preview.png');
+			await storage.copyFileFromId(paid.id, directory + '/paid.png');
+			const originalRoot = await storage.getDirectoryId(directory);
+			const group = await models.Group.create({name: 'real-storage', creatorId: owner.id, title: 'Real storage', isPublic: false, isEncrypted: false, isOpen: false});
+			await membership.provisionSite(owner.id, {id: 'real-storage', origin: 'https://real-storage.test', groupId: String(group.id), ownerId: owner.id,
+				googleClientId: '', enabled: true, registrationEnabled: false, postsEnabled: true, version: 0});
+			const metadata = {title: 'Retained gallery', teaser: 'Preview', fullText: 'Old full text', free: false,
+				pageUrl: `https://real-storage.test/ipfs/${originalRoot}/`, previewMedia: [{url: `https://real-storage.test/ipfs/${originalRoot}/preview.png`}], previewCount: 1};
+			const post = await models.Post.create({name: 'real-gallery', groupId: group.id, userId: owner.id, status: 'published', publishedAt: now, propertiesJson: JSON.stringify({membership: metadata})});
+			publicationContents.set(String(post.id), [{id: 2000, storageId: String(preview.id), mimeType: 'image/png', postsContents: {isPrivate: false}}, {id: 2001, storageId: String(paid.id), mimeType: 'image/png', postsContents: {isPrivate: true}}, {id: 2002, storageId: String(publicText.id), mimeType: 'text/plain', postsContents: {isPrivate: false}}, {id: 2003, storageId: String(privateText.id), mimeType: 'text/plain', postsContents: {isPrivate: true}}, {id: 2004, storageId: String(archive.id), mimeType: 'application/zip', name: 'Download archive', postsContents: {isPrivate: false}}]);
+			await membership.enqueuePublication(owner.id, 'real-storage', {requestKey: 'real-kubo'});
+			await membership.runPublications();
+			const status = await membership.publicationStatus(owner.id, 'real-storage');
+			assert.equal(status.status, 'ready', JSON.stringify(status));
+			const job = await membershipModels.publications.findByPk(status.revision);
+			const publicPath = `${job.manifest.public}/index.html`;
+			const fullPath = `${job.manifest.full}/index.html`;
+			const publicRoot = publicPath.split('/')[0], fullRoot = fullPath.split('/')[0];
+			const publicHtml = await storage.getFileDataText(publicPath);
+			assert(!publicHtml.includes(originalRoot));
+			assert(!publicHtml.includes('Old full text'));
+			const previewFiles = [];
+			for await (const item of storage.node.ls(`/ipfs/${publicRoot}/media`)) {
+				previewFiles.push(item.cid.toString());
+			}
+			assert.deepEqual(new Set(previewFiles), new Set([String(preview.id), String(publicText.id), String(archive.id)]));
+			assert(publicHtml.includes('PUBLIC ATTACHMENT TEXT'));
+			assert(!publicHtml.includes('PRIVATE ATTACHMENT TEXT'));
+			assert((await storage.getFileDataText(`${fullRoot}/posts/${post.id}.html`)).includes('PRIVATE ATTACHMENT TEXT'));
+			assert.equal(job.manifest.posts[String(post.id)].length, 1, 'feed thumbnails include image attachments only');
+			const directories = [];
+			for await (const entry of storage.node.ls(`/ipfs/${fullRoot}`)) {
+				directories.push(entry.name);
+			}
+			assert(!directories.includes('sets'), 'all exports derive from attachments without a legacy gallery directory');
+			assert.equal(await storage.getFileDataText(`${fullRoot}/media/${publicationDigest(String(paid.id))}.png`), 'PAID-BYTES');
+			assert.equal(await storage.getFileDataText(`${publicRoot}/media/${publicationDigest(String(archive.id))}.zip`), 'PUBLIC ARCHIVE BYTES');
+			assert((await storage.getFileDataText(fullPath)).includes('Old full text'));
+			await post.update({propertiesJson: JSON.stringify({membership: {...metadata, fullText: 'New full text'}})});
+			for (let attempt = 0; attempt < 10; attempt++) {
+				await membership.runPublications();
+				const active = await membershipModels.resources.findByPk('real-storage');
+				if (active.data.publication.publicationId !== status.revision) {
+					break;
+				}
+			}
+			const current = await membership.publicationStatus(owner.id, 'real-storage');
+			const newJob = await membershipModels.publications.findByPk(current.revision);
+			assert.notEqual(newJob.manifest.full, job.manifest.full, JSON.stringify(current));
+			assert((await storage.getFileDataText(fullPath)).includes('Old full text'));
+			assert.equal(await storage.getFileDataText(`${fullRoot}/media/${publicationDigest(String(paid.id))}.png`), 'PAID-BYTES');
+			assert.equal(await storage.getFileDataText(`${publicRoot}/media/${publicationDigest(String(archive.id))}.zip`), 'PUBLIC ARCHIVE BYTES');
+			assert.equal(await membership.isStorageIdAllowed(fullRoot), true);
+		} finally {
+			app.ms.storage = previous;
+		}
+	});
+
+
+	it('persists per-post attachment visibility, preserves it across edits, and upgrades legacy rows conservatively', async () => {
+		const groupModule = createGroupModule(app, models);
+		const publicGroup = await models.Group.create({name: 'visibility-public', creatorId: owner.id, isPublic: true});
+		const privateGroup = await models.Group.create({name: 'visibility-private', creatorId: owner.id, isPublic: false});
+		const first = await models.Post.create({groupId: publicGroup.id, userId: owner.id, status: 'published'});
+		const second = await models.Post.create({groupId: privateGroup.id, userId: owner.id, status: 'published'});
+		const shared = await models.Content.create({userId: owner.id, mimeType: 'image/png', storageId: 'shared-visibility-content'});
+		const extra = await models.Content.create({userId: owner.id, mimeType: 'image/png', storageId: 'extra-visibility-content'});
+		await groupModule.setPostContents(first.id, [{id: shared.id, isPrivate: false}]);
+		await groupModule.setPostContents(second.id, [{id: shared.id, isPrivate: true}, {id: extra.id}]);
+		assert.equal((await models.PostsContents.findOne({where: {postId: first.id, contentId: shared.id}})).isPrivate, false);
+		assert.equal((await models.PostsContents.findOne({where: {postId: second.id, contentId: shared.id}})).isPrivate, true);
+		assert.equal((await models.PostsContents.findOne({where: {postId: second.id, contentId: extra.id}})).isPrivate, true, 'unmarked attachments in a private group default private');
+		await groupModule.setPostContents(second.id, [{id: extra.id}, {id: shared.id, isPrivate: false}]);
+		await groupModule.setPostContents(second.id, [{id: extra.id}, {id: shared.id}]);
+		assert.equal((await models.PostsContents.findOne({where: {postId: second.id, contentId: shared.id}})).isPrivate, false, 'ordinary edits preserve the saved attachment policy');
+		assert.throws(() => groupModule.resolveContentForPostData({isPrivate: 'false'} as any, shared, 'owner' as any), (error: any) => error.status === 400 && error.code === 'attachment_visibility_invalid');
+		await db.query('ALTER TABLE "postsContents" DROP COLUMN "isPrivate"');
+		const migration = createRequire(import.meta.url)('../app/modules/group/migrations/20261027000000-add-post-attachment-visibility.cjs');
+		await migration.up(db.getQueryInterface());
+		assert.equal((await models.PostsContents.findOne({where: {postId: first.id}})).isPrivate, false);
+		assert.equal((await models.PostsContents.findOne({where: {postId: second.id}})).isPrivate, true);
+		await models.PostsContents.update({isPrivate: false}, {where: {postId: second.id}});
+		await migration.up(db.getQueryInterface());
+		assert.equal((await models.PostsContents.findOne({where: {postId: second.id}})).isPrivate, false, 'a repeated migration never resets explicit public choices');
+	});
+
 });
 describe('creator module input boundaries', () => {
 	it('rejects Google login when the configured site has no client ID', async () => {
@@ -410,4 +813,5 @@ describe('creator module input boundaries', () => {
 		const app = { ms: { membership: { resolveSite: async () => null } } };
 		await assert.rejects(configuredSite(app, { headers: { host: 'eraofwave.com' } }), /membership_site_not_found/);
 	});
+
 });

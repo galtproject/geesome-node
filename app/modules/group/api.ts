@@ -208,7 +208,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
 
     /**
      * @api {post} /v1/user/group/create-post Create Group post
-     * @apiDescription Create post by content references and/or canonical rich-text body data.
+     * @apiDescription Create post by content references and/or canonical rich-text body data. Each contents item accepts isPrivate for public export visibility; this is per-post attachment metadata, not a file permission.
      * @apiName UserGroupCreatePost
      * @apiGroup UserGroup
      *
@@ -241,6 +241,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      * @apiUse ValidationErrors
      *
      * @apiParam {String} postId Post id.
+     * @apiDescription Attachment isPrivate is preserved when omitted on an existing attachment. New attachments in a non-public group default private.
      * @apiInterface (./interface.ts) {IPostUpdateInput} apiBody
      * @apiInterface (./interface.ts) {IPostApiResponse} apiSuccess
      */

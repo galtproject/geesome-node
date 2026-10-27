@@ -8,12 +8,29 @@
  */
 
 import _ from 'lodash';
+import mime from 'mime';
+import commonHelper from 'geesome-libs/src/common.js';
 import { join } from 'path';
 import {load as cheerioLoad} from 'cheerio';
 import {readdirSync, rmdirSync, unlinkSync, statSync} from 'fs';
 import {sanitizeHtml} from '../../htmlSafety.js';
 import {isRichTextDocument, richTextToSafeHtml} from '../../richText.js';
 const {trim} = _;
+
+// Preserve a compatible stored suffix (for example jpg rather than jpeg),
+// while a known MIME type takes precedence over a conflicting filename.
+export function getContentExtension(content: {extension?: string; mimeType?: string; name?: string}) {
+    const mimeType = String(content.mimeType || '').split(';')[0].trim().toLowerCase();
+    const knownExtension = mimeType === 'application/octet-stream' ? null : mime.extension(mimeType);
+    const candidates = [content.extension, commonHelper.getExtensionFromName(content.name)];
+    for (const value of candidates) {
+        const extension = String(value || '').replace(/^\./, '').toLowerCase();
+        if (/^[a-z0-9]{1,16}$/.test(extension) && (!knownExtension || mime.lookup(`file.${extension}`) === mimeType)) {
+            return extension;
+        }
+    }
+    return knownExtension || 'bin';
+}
 
 const isDir = path => {
     try {
@@ -248,6 +265,7 @@ function sanitizeStaticSiteContent(content) {
 // }
 
 export default {
+    getContentExtension,
     rmDir,
     getTitleAndDescription,
     getPostTitleAndDescription,

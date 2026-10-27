@@ -17,7 +17,7 @@ export default {
       return new Date(this.post.date).toISOString().slice(0, 19).replace('T', ' ');
     },
     postPath() {
-      return getRelativeRoot(this.$route.path) + 'post/' + this.post.id + '/';
+      return this.post.path || getRelativeRoot(this.$route.path) + 'post/' + this.post.id + '/';
     },
     contentRoot() {
       return getRelativeRoot(this.$route.path) + 'content/';
@@ -26,7 +26,7 @@ export default {
   methods: {
     contentUrl(content) {
       const extension = content.extension ? `.${content.extension}` : '';
-      return this.contentRoot + content.storageId + extension;
+      return content.url || this.contentRoot + content.storageId + extension;
     },
   },
   template: `
@@ -42,9 +42,12 @@ export default {
       </div>
   
       <a :href="postPath" class="post-date">{{ postDate }}</a>
-      <p v-if="post.itemTitle" class="post-intro title" v-html="post.itemTitle"></p>
-      <p v-if="post.itemDescription" class="post-intro description" v-html="post.itemDescription"></p>
+      <p v-if="post.title" class="post-intro title">{{post.title}}</p>
+      <p v-else-if="post.itemTitle" class="post-intro title" v-html="post.itemTitle"></p>
+      <p v-if="post.description !== undefined" class="post-intro description">{{post.description}}</p>
+      <p v-else-if="post.itemDescription" class="post-intro description" v-html="post.itemDescription"></p>
   
+      <p v-if="post.accessMessage">{{post.accessMessage}}</p>
       <div v-if="postImages.length || postVideos.length">
         <!-- eslint-disable vue/no-v-html -->
         <div v-if="postImages.length">
@@ -52,7 +55,7 @@ export default {
         </div>
         <div v-else-if="postVideos.length">
           <video controls>
-            <source :src="contentUrl(postVideos[0])" type="video/mp4">
+            <source :src="contentUrl(postVideos[0])" :type="postVideos[0].mimeType || 'video/mp4'">
             Your browser does not support the video tag.
           </video>
         </div>

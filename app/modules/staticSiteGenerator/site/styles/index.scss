@@ -252,3 +252,5 @@ th, td {
 .archive-icon-spin { animation: archive-icon-rotate 1s linear infinite; }
 @keyframes archive-icon-rotate { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .archive-icon-spin { animation: none; } }
+
+@import "membership";

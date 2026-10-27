@@ -247,7 +247,9 @@ export interface IContent {
   staticStorageId?: string;
   manifestStorageId?: string;
   manifestStaticStorageId?: string;
-  postsContents?: {position?, view?};
+  postsContents?: {position?, view?, isPrivate?: boolean};
+  /** Visibility of this attachment in a public post projection, not file ownership. */
+  isPrivate?: boolean;
 
   encryptedManifestStorageId?: string;
   propertiesJson?: string;
