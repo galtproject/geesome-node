@@ -99,3 +99,12 @@ A and B can be developed independently after freezing the resource/session contr
 - Source checkout advanced concurrently to `449b610b`; reviewed its membership diff: only publication-render recovery changed, outside this extracted crypto/auth/refund contract. The crypto source/configs retain the recorded `ec7841f1` provenance.
 - No production data/config/seed, live Google account, RPC or transfer was used. Existing microwave-girls logic remains the production owner until stream E is accepted.
 - Follow-up #1427: standard Docker Compose now explicitly forwards module/site/Google flags and the existing direct-crypto server settings. The public site JSON uses the existing persisted data mount; its environment path is the container path. Real Compose configuration tests cover project `.env` propagation and disabled defaults. No deployment or money-worker activation is performed by this follow-up.
+
+## Website snapshot continuation (#1441)
+
+The accepted next architecture retains one canonical private group and publishes
+paired public/full immutable IPFS snapshots. Subscription controls discovery of
+the latest full snapshot; previously obtained CIDs and files remain accessible
+after expiry. No extra file store or encryption is required. This supersedes the
+earlier proposed protected-byte delivery design. See the
+[implementation plan](membership-website-snapshots.md).

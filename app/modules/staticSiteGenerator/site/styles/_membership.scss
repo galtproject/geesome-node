@@ -1,0 +1,7 @@
+.membership-controls {
+  margin-bottom: 1rem;
+  button, select { font: inherit; max-width: 100%; }
+  #membership-panel { overflow-wrap: anywhere; }
+  label { display: block; margin: .5rem 0; }
+}
+.plain-text-content, .post-description { white-space: pre-wrap; overflow-wrap: anywhere; }

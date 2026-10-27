@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 name="geesome-creator-membership-test-$$"
-cleanup() { docker rm -f "$name" >/dev/null 2>&1 || true; }
+ipfs_name="$name-ipfs"
+cleanup() { docker rm -f "$name" "$ipfs_name" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
-# Isolated test-only ledger; no production variables, wallets or network services.
+# Disposable ledger and isolated test-profile IPFS; no production variables or live payment services.
 docker run --detach --name "$name" --publish 127.0.0.1::5432 \
   --env POSTGRES_PASSWORD=geesome --env POSTGRES_USER=geesome \
   --env POSTGRES_DB=geesome_membership_test postgres:14-alpine >/dev/null
@@ -13,6 +14,13 @@ for attempt in {1..30}; do
 done
 port=$(docker port "$name" 5432 | sed 's/.*://')
 export CREATOR_MEMBERSHIP_TEST_DATABASE_URL="postgres://geesome:geesome@127.0.0.1:${port}/geesome_membership_test"
+docker run --detach --name "$ipfs_name" --publish 127.0.0.1::5001   --env IPFS_PROFILE=test ipfs/kubo:v0.42.0 >/dev/null
+for attempt in {1..30}; do
+  if docker exec "$ipfs_name" ipfs id >/dev/null 2>&1; then break; fi
+  sleep 1
+done
+ipfs_port=$(docker port "$ipfs_name" 5001 | sed 's/.*://')
+export CREATOR_MEMBERSHIP_TEST_IPFS_URL="http://127.0.0.1:${ipfs_port}"
 npm run test:creator-membership
 
 npm run test:creator-payments

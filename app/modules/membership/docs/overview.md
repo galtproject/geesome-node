@@ -113,12 +113,14 @@ Console change is needed while the authorized origin/client stay the same.
 Public/site-cookie routes: `/v1/membership/resource`, `/feed`, `/posts/:id`,
 `/account`, POST `/refunds`. Feed and post detail return allowlisted title,
 description, selected preview URLs, visibility and dates. `Post.propertiesJson`'s
-`membership` object supplies title/description/free/previewCount/previewMedia/
-pageUrl/hidden. Posts lacking membership metadata are not exported. Migration
-must materialize the old preview selection and hidden status into these fields;
-there is intentionally no fallback to full attachments. Site preview/Page URLs
-must be HTTPS `/ipfs/` links on that site's own host. Readers see a full legacy
-Page link only while the post is free or entitlement is active.
+`membership` object supplies title/description/free/previewCount/hidden and optional
+introductory text. The canonical content source is post.contents. Each attachment
+has postsContents.isPrivate; public exports include only explicit false values,
+while full exports include the whole list. membership.pageUrl and previewMedia
+are not export sources. Returned pageUrl is derived from the current post selector. Preview and pageUrl
+values are root-relative paths on the creator-site origin (`/ipfs/...` and
+`/api/v1/membership/site/posts/:id/`), without a hardcoded domain.
+Posts lacking membership metadata are not exported.
 
 A group feed fetches a bounded page through existing group hydration; raw private
 post/content metadata never leaves the module. Group creator/visibility checks
@@ -163,3 +165,57 @@ all payment snapshots/address cursors/journals, and native post ids first. Impor
 only with old workers stopped and preserve the authoritative ledger for rollback.
 Existing sessions will require re-login unless an explicit session migration is
 implemented. See the [audited plan](../../../../docs/plans/creator-membership-migration.md).
+
+
+## Immutable website snapshots (#1441)
+
+One private canonical group produces a public teaser/preview directory and a full
+content directory in existing IPFS storage. No separate filesystem store, keys or
+encryption is introduced. A subscriber keeps a snapshot's CID and files after
+expiry; current access governs discovery of the latest full snapshot only.
+
+Owner POST `/v1/membership/admin/:resource/publications` takes a stable requestKey.
+GET `/v1/membership/admin/:resource/publication` returns queued/building/ready/failed
+status and the site entry path. Ready snapshots activate automatic source-version
+rebuilds. Both directories build before the transaction switches the current head;
+errors retain the last complete pair. Lease recovery and retries with capped
+backoff resume interrupted jobs, including after extended storage outages.
+Post/attachment and group-title changes enqueue only the affected resources.
+
+The staticSiteGenerator layer owns snapshot generation and durable publication;
+both variants use the ordinary site SSR templates, shared styles and browser
+bundle. An optional Layout component provides account/subscription controls;
+a variant-only data adapter prevents private data entering public hydration state.
+Attachment copies use their canonical storageId directly. File extensions are
+resolved by the shared static-site helper using stored extension/name and the MIME
+registry, with known MIME taking precedence over conflicting suffixes. Unknown
+formats without a safe suffix fall back to bin.
+The publisher uses the existing batched group hydrator. The result stores two root CIDs,
+page count and a post-to-preview-filename index. Membership owns resource binding,
+subscription checks and variant selection. Current publication ID and desired
+revision live in resources.data.publication under the resource row lock; site
+settings updates preserve this internal value. There is no separate heads table.
+Publication CID holds contain only storageId and preserve old dependencies.
+
+The domain path `/api/v1/membership/site/` (proxy to node `/v1/membership/site/`)
+selects public/full by site-bound session and current resource entitlement, with
+private,no-store selector responses. `/posts/:post/` selects the current post view.
+It returns a 302 to the immutable CID. Group-reader rights are unchanged. Plain
+CID GET/HEAD/Range is intentionally public, including after source edits, hiding,
+deletion, site disable, expiry or refund. Public/full root and child references are
+registered with storage retention so normal cleanup does not remove old snapshots.
+
+`membership.teaser` and `fullText` optionally separate public/full text; existing
+`description` is the fallback for both. Only explicitly public attachments enter public
+snapshots. The microwave preparation action maps existing hidden/preview
+policies to canonical metadata and per-attachment flags before the first render. Directory-relative links freeze old post/media
+versions. Account controls use the existing Google nonce/session and payments APIs.
+
+Deploy node first, then microwave; no new env flags are needed. Run group migration
+20261027000000-add-post-attachment-visibility before using the new code against an
+existing database. It marks existing private-group attachments private and leaves
+public-group attachments public. New publication tables use model sync. The creator domain must proxy `/api/v1/*` to node
+`/v1/*` preserving the original Host and Origin. Existing `/ipfs/*` traffic must
+reach the same storage gateway. Initial activation does not move public root/DNS,
+readers, invoices, payment workers or existing frontend hosting. See
+[plan, tests and rollout](../../../../docs/plans/membership-website-snapshots.md).

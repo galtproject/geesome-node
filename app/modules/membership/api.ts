@@ -101,10 +101,10 @@ export default function (app, module) {
 	* @apiHeader {String} Cookie Site-bound __Host-geesome_session.
 	* @apiParam {Number} id GeeSome post database id.
 	* @apiSuccess {String} id Native post id.
-	* @apiSuccess {String[]} previews Explicit public previews.
+	* @apiSuccess {String[]} previews Explicit public preview paths relative to the creator-site origin.
 	* @apiSuccess {Boolean} free Whether this post is free.
 	* @apiSuccess {Boolean} locked Whether membership is required.
-	* @apiSuccess {String} [pageUrl] Full set URL for free posts or active readers.
+	* @apiSuccess {String} [pageUrl] Post selector path relative to the creator-site origin, for free posts or active readers.
 	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.
 	* @apiError (403) Forbidden Origin or owner/permission mismatch.
 	*/

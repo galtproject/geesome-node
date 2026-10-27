@@ -146,6 +146,7 @@ export default async function (sequelize: Sequelize, models) {
   } as any);
 
   models.PostsContents = sequelize.define('postsContents', {
+    isPrivate: {type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false},
     position: {type: DataTypes.INTEGER},
     view: {type: DataTypes.STRING(200)},
   } as any, {

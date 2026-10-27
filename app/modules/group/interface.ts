@@ -331,6 +331,7 @@ export enum PostContentAttachmentReason {
 }
 
 export interface IResolvedPostContent {
+	isPrivate?: boolean;
 	id: number;
 	view?: any;
 	size?: number;
