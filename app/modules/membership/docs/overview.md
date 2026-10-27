@@ -163,3 +163,39 @@ all payment snapshots/address cursors/journals, and native post ids first. Impor
 only with old workers stopped and preserve the authoritative ledger for rollback.
 Existing sessions will require re-login unless an explicit session migration is
 implemented. See the [audited plan](../../../../docs/plans/creator-membership-migration.md).
+
+
+## Immutable website snapshots (#1441)
+
+One private canonical group produces a public teaser/preview directory and a full
+content directory in existing IPFS storage. No separate filesystem store, keys or
+encryption is introduced. A subscriber keeps a snapshot's CID and files after
+expiry; current access governs discovery of the latest full snapshot only.
+
+Owner POST `/v1/membership/admin/:resource/publications` takes a stable requestKey.
+GET `/v1/membership/admin/:resource/publication` returns queued/building/ready/failed
+status and the site entry path. Ready snapshots activate automatic source-version
+rebuilds. Both directories build before the transaction switches the current head;
+errors retain the last complete pair. Lease recovery and bounded retries resume
+interrupted jobs. Native post/attachment changes invalidate the source revision.
+
+The domain path `/api/v1/membership/site/` (proxy to node `/v1/membership/site/`)
+selects public/full by site-bound session and current resource entitlement, with
+private,no-store selector responses. `/posts/:post/` selects the current post view.
+It returns a 302 to the immutable CID. Group-reader rights are unchanged. Plain
+CID GET/HEAD/Range is intentionally public, including after source edits, hiding,
+deletion, site disable, expiry or refund. Public/full root and child references are
+registered with storage retention so normal cleanup does not remove old snapshots.
+
+`membership.teaser` and `fullText` optionally separate public/full text; existing
+`description` is the fallback for both. Only explicit previewMedia enter public
+snapshots. The microwave activation action materializes existing hidden/preview
+policies before the first render. Directory-relative links freeze old post/media
+versions. Account controls use the existing Google nonce/session and payments APIs.
+
+Deploy node first, then microwave; no new env flags or schema migration are needed
+for the new model-sync tables. The creator domain must proxy `/api/v1/*` to node
+`/v1/*` preserving the original Host and Origin. Existing `/ipfs/*` traffic must
+reach the same storage gateway. Initial activation does not move public root/DNS,
+readers, invoices, payment workers or existing frontend hosting. See
+[plan, tests and rollout](../../../../docs/plans/membership-website-snapshots.md).

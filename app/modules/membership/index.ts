@@ -4,12 +4,16 @@ import { siteProblem } from '../api/browserSession.js';
 import defineModels from './models.js';
 import registerApi from './api.js';
 import siteSettings from './siteSettings.js';
+import {createPublicationDelivery} from './publication.js';
+import registerPublicationApi from './publicationApi.js';
 export default async function (app) {
 	app.checkModules(['database', 'api', 'group', 'googleAuthorization', 'payments']);
 	const module = createMembership(app, await defineModels(app.ms.database.sequelize));
 	app.ms.payments.configureLedger({ models: module.models, resource: module.resource, serial: module.serial,
 		grantPaidInvoice: module.grantPaidInvoice, clock: module.clock, fail: siteProblem });
 	registerApi(app, module);
+	registerPublicationApi(app, module);
+	module.startPublications();
 	app.ms.payments.startWorkers();
 	return module;
 }
@@ -83,7 +87,7 @@ export function createMembership(app, models, dependencies: any = {}) {
 			options: await M.options.findAll({ where: { resourceId: id, enabled: true }, order: [['amountCents', 'ASC']] }),
 			cryptoMethods: await app.ms.payments.engine.methods(id) };
 	}
-	async function project(row, post, active) {
+	async function project(row, post, active, publication) {
 		if (!post || String(post.groupId) !== row.groupId || post.isDeleted || post.status !== 'published') {
 			siteProblem(404, 'post_not_found');
 		}
@@ -93,11 +97,12 @@ export function createMembership(app, models, dependencies: any = {}) {
 		}
 		const previewCount = Math.max(1, Math.min(10, Number(metadata.previewCount) || 1));
 		// Public preview selection is explicit; never fall back to full attachments.
-		const previews = (Array.isArray(metadata.previewMedia) ? metadata.previewMedia : []).slice(0, previewCount)
+		const protectedPath = publication ? `/api/v1/membership/site/posts/${post.id}/` : null;
+		const previews = publication ? publication.posts.find(item => item.id === String(post.id))?.previews || [] : (Array.isArray(metadata.previewMedia) ? metadata.previewMedia : []).slice(0, previewCount)
 			.map(item => safePageUrl(item.url, row.domain)).filter(Boolean);
-		return { id: String(post.id), title: String(metadata.title || '').slice(0, 500), description: String(metadata.description || '').slice(0, 10000),
+		return { id: String(post.id), title: String(metadata.title || '').slice(0, 500), description: String(metadata.free === true || active ? metadata.fullText ?? metadata.description ?? '' : metadata.teaser ?? metadata.description ?? '').slice(0, 10000),
 			previews, previewCount, free: metadata.free === true, locked: metadata.free !== true && !active,
-			publishedAt: post.publishedAt, ...(metadata.free === true || active ? { pageUrl: safePageUrl(metadata.pageUrl, row.domain) } : {}) };
+			publishedAt: post.publishedAt, ...(metadata.free === true || active ? { pageUrl: protectedPath ? `https://${row.domain}${protectedPath}` : safePageUrl(metadata.pageUrl, row.domain) } : {}) };
 	}
 	const module = {
 		models, clock, resource, serial, entitlement, grantPaidInvoice, owner, publicResource,
@@ -112,7 +117,8 @@ export function createMembership(app, models, dependencies: any = {}) {
 			const response = await app.ms.group.getGroupPosts(row.groupId, { status: 'published' }, { limit: limit + 1, offset, sortBy: 'publishedAt', sortDir: 'desc' });
 			const active = (await entitlement(readerId, id)).active;
 			const posts = response.posts || response.list || [];
-			return { posts: (await Promise.all(posts.slice(0, limit).map(post => project(row, post, active)))).filter(Boolean), hasMore: posts.length > limit,
+			const publication = await module.publicationView(id);
+			return { posts: (await Promise.all(posts.slice(0, limit).map(post => project(row, post, active, publication)))).filter(Boolean), hasMore: posts.length > limit,
 				nextOffset: posts.length > limit ? offset + limit : null };
 		},
 		async post(id, postId, readerId) {
@@ -121,7 +127,7 @@ export function createMembership(app, models, dependencies: any = {}) {
 			if (!row.postsEnabled || !/^[1-9][0-9]*$/.test(String(postId))) {
 				siteProblem(404, 'post_not_found');
 			}
-			const result = await project(row, await app.ms.group.getPostPure(postId), (await entitlement(readerId, id)).active);
+			const result = await project(row, await app.ms.group.getPostPure(postId), (await entitlement(readerId, id)).active, await module.publicationView(id));
 			if (!result) {
 				siteProblem(404, 'post_not_found');
 			}
@@ -171,8 +177,9 @@ export function createMembership(app, models, dependencies: any = {}) {
 		}
 	};
 	Object.assign(module, siteSettings(app, M, group, owner, publicBrand));
+	Object.assign(module, createPublicationDelivery(app, M, module, dependencies));
 	Object.assign(module, refundMethods(M, serial, entitlement, clock));
-	return module as typeof module & ReturnType<typeof refundMethods> & ReturnType<typeof siteSettings>;
+	return module as typeof module & ReturnType<typeof createPublicationDelivery> & ReturnType<typeof refundMethods> & ReturnType<typeof siteSettings>;
 }
 export function periodEnd(start: Date, period: string, anchorDay = start.getUTCDate()) {
 	if (!['month', 'halfyear', 'year'].includes(period)) {

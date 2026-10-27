@@ -689,3 +689,15 @@ own-group site preparation without full node administration. Delegated callers
 also require group management; full operator credentials retain cross-owner
 provisioning. No automatic grants or schema changes. See
 [upgrade and verification](plans/membership-site-permission.md).
+
+
+## Membership website snapshots (#1441)
+
+Paired public/full directories derive from one private canonical group and use
+existing plaintext IPFS storage. A site-bound selector checks current resource
+entitlement before redirecting to the appropriate CID. Previously obtained CIDs
+and files remain readable after expiry and updates, as explicitly requested.
+Durable jobs, source-version rebuilds, atomic head switching and registered storage
+references preserve complete immutable revisions. Owner admin controls live in
+microwave-girls; existing per-post publication and payment identities remain.
+See the [delivery plan](plans/membership-website-snapshots.md).

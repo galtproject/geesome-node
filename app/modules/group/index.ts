@@ -2254,6 +2254,7 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		async setPostContents(postId, contents, options: any = {}) {
+
 			// Targeted diff against PostsContents instead of the full DELETE+INSERT cycle that
 			// Sequelize's auto-managed setContents would do. Closes the P2 finding "setPostContents
 			// deletes and re-inserts the entire join on each edit". Position is part of the key so
@@ -2293,9 +2294,16 @@ function getModule(app: IGeesomeApp, models) {
 			if (toInsert.length > 0) {
 				await models.PostsContents.bulkCreate(toInsert.map(d => ({postId, contentId: d.contentId, position: d.position, view: d.view})), {transaction});
 			}
-			return Promise.all(toUpdate.map(u => {
+			const updated = await Promise.all(toUpdate.map(u => {
 				return models.PostsContents.update({view: u.view}, {where: {postId, contentId: u.contentId}, transaction});
 			}));
+			if (app.ms.membership?.invalidateGroup) {
+				const post = await models.Post.findByPk(postId, {transaction: options.transaction});
+				if (post) {
+					await app.ms.membership.invalidateGroup(post.groupId, options.transaction);
+				}
+			}
+			return updated;
 		}
 
 		async getPostSizeSum(id) {
