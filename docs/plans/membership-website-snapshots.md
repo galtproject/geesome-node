@@ -191,3 +191,32 @@ Verification: 24 creator SQL/HTTP/Kubo/client checks plus 51 payment checks;
 migration integrity audit (277 pass, zero fail, 10 skip). Legacy row upgrade,
 repeat migration, different policies for shared Content, policy-preserving edits,
 text/archive exports and absence of sets are covered explicitly.
+
+## Shared site templates (complete)
+
+Replace renderMembershipPage and its inline document/CSS with the existing site
+SSR renderer, Layout/BaseList/Post components, styles and browser bundle. Both
+variants use the same components; an allowlisted adapter supplies only the selected
+attachments and text. Account controls are a separate optional Layout component.
+Keep snapshot URLs, relative media/post/page paths and public-data isolation in
+serialized hydration state. Cover normal SSG regression, public/full SSR, actual
+browser hydration/navigation/account initialization and immutable storage output.
+
+
+The standalone membershipSite.ts document renderer is removed. A typed data
+adapter selects allowed text/attachments and feeds site.prepareRender, which uses
+fresh Vue SSR apps, shared Layout/BaseList/Post/Pagination components, shared Sass
+and the ordinary browser bundle. Plain text and file links work in the shared
+post component; existing native HTML/rich-text rendering stays unchanged. Flat
+snapshot HTML paths retain explicit immutable post/page/media links and asset
+roots. Account controls are an optional Layout component with a normal browser
+asset; the action stays disabled until its script is ready.
+
+Validation: 24 SQL/HTTP/Kubo/client checks and 51 payment regressions; 48 core,
+manifest, input and shared SSG regressions. Browser coverage verifies hydration,
+page/post navigation, public/full isolation, mocked Google sign-in, unpaid account,
+mocked payment confirmation, full text/download and logout at 1280x900 and 390x844.
+All six mapped screenshots were inspected with no broken images, overflow or
+hydration errors. Repeat with npm run test:ssg-membership-browser (uses the same
+local microwave-girls Playwright image as the archive browser workflow). API docs
+and route/scalability inventories are regenerated/checked. No production changes.

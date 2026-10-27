@@ -1,5 +1,7 @@
 import {siteProblem} from '../api/browserSession.js';
-import {renderMembershipPage, membershipBase} from './membershipSite.js';
+import {membershipRenderData, membershipBase} from './membershipRenderData.js';
+import siteRenderer from './site/index.js';
+import {buildBrowserClient} from './site/browserBundle.js';
 import {snapshotCid, publicationDigest, membershipMetadata} from './membershipProjection.js';
 
 export async function buildMembershipSnapshots(app, row, title, {renew, beginDirectory}) {
@@ -25,6 +27,7 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 		await app.ms.storage.makeDir(directory);
 		await app.ms.storage.makeDir(`${directory}/posts`);
 		await app.ms.storage.makeDir(`${directory}/media`);
+		await app.ms.storage.makeDir(`${directory}/public`);
 		const copied = new Set<string>(), previewNames = new Map<string, string>();
 		await renew();
 		const localMedia = async (media, prefix) => {
@@ -55,19 +58,27 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 			const cid = url.split('/ipfs/')[1];
 			await app.ms.storage.copyFileFromId(cid, `${directory}/${path}`);
 		};
+		const renderData = membershipRenderData({title}, [], full, false, 1, pageCount);
+		const {css, renderPage} = await siteRenderer.prepareRender(renderData);
+		await savePage(css, 'style.css');
+		await savePage(await buildBrowserClient(), 'public/client.js');
+		const render = async (site, posts, single = false, page = 1) => {
+			Object.assign(renderData, membershipRenderData(site, posts, full, single, page, pageCount));
+			return renderPage(single ? `/post/${posts[0].id}` : page === 1 ? '/' : `/page/${page}`, [['meta', {name: 'og:title', content: title}]]);
+		};
 		for (const post of snapshot) {
-			const site = {title, homeUrl: '../index.html', entryPath: `${membershipBase}/posts/${post.id}/`};
-			await savePage(renderMembershipPage(site, [{...post, media: await localMedia(full ? post.full : post.previews, '../')}], full, true), `posts/${post.id}.html`);
+			const site = {title, postsCount: snapshot.length, homeUrl: '../index.html', entryPath: `${membershipBase}/posts/${post.id}/`};
+			await savePage(await render(site, [{...post, media: await localMedia(full ? post.full : post.previews, '../')}], true), `posts/${post.id}.html`);
 		}
 		for (let offset = 0; offset < Math.max(1, snapshot.length); offset += 20) {
 			const pageIndex = Math.floor(offset / 20);
-			const site = {title, homeUrl: 'index.html', entryPath: `${membershipBase}/`,
+			const site = {title, postsCount: snapshot.length, homeUrl: 'index.html', entryPath: `${membershipBase}/`,
 				pageUrls: Array.from({length: pageCount}, (_, index) => index === 0 ? 'index.html' : `page-${index + 1}.html`)};
 			const cards = [];
 			for (const post of snapshot.slice(offset, offset + 20)) {
 				cards.push({...post, media: await localMedia(post.previews, ''), postUrl: `posts/${post.id}.html`});
 			}
-			await savePage(renderMembershipPage(site, cards, full, false, pageIndex + 1, pageCount), site.pageUrls[pageIndex]);
+			await savePage(await render(site, cards, false, pageIndex + 1), site.pageUrls[pageIndex]);
 		}
 		const root = snapshotCid(await app.ms.storage.getDirectoryId(directory));
 		artifacts.add(root);
@@ -119,6 +130,6 @@ async function snapshotPost(app, row, post) {
 			previews.push(item);
 		}
 	}
-	return {id: String(post.id), title: String(m.title || '').slice(0, 500), teaser: String(m.teaser ?? m.description ?? '').slice(0, 10000),
+	return {id: String(post.id), date: new Date(post.publishedAt || 0).getTime(), title: String(m.title || '').slice(0, 500), teaser: String(m.teaser ?? m.description ?? '').slice(0, 10000),
 		fullText: String(m.fullText ?? m.description ?? '').slice(0, 100000), free: m.free === true, full: media, previews};
 }

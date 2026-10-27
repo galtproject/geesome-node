@@ -1,5 +1,5 @@
 import {siteProblem} from '../api/browserSession.js';
-import {membershipBase} from '../staticSiteGenerator/membershipSite.js';
+import {membershipBase} from '../staticSiteGenerator/membershipRenderData.js';
 import {snapshotCid} from '../staticSiteGenerator/membershipProjection.js';
 import {createMembershipPublisher, publicationState} from '../staticSiteGenerator/membershipPublisher.js';
 import {registerPublicationSources} from './publicationSources.js';

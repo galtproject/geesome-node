@@ -2,11 +2,19 @@ import {getRelativeRoot} from "../../helpers.js";
 
 export default {
     name: 'pagination',
+    inject: ['store'],
     props: ['onlyRegular', 'prevNext', 'pagesCount', 'currentHref', 'displayPages', 'displayPagesBefore', 'displayPagesAfter', 'showEdges', 'reverse'],
     created() {
     },
     watch: {},
-    methods: {},
+    methods: {
+        pageHref(number) {
+            if (this.store?.pageUrls) {
+                return this.store.pageUrls[number - 1];
+            }
+            return number === this.pagesCount ? this.baseHref : this.basePageHref + number + '/';
+        },
+    },
     computed: {
         baseHref() {
             return getRelativeRoot(this.$route.path);
@@ -15,7 +23,7 @@ export default {
             return this.baseHref + 'page/';
         },
         curPage() {
-            return parseInt(this.$route.params.page || this.pagesCount);
+            return this.store?.currentPage || parseInt(this.$route.params.page || this.pagesCount);
         },
         _displayPagesBefore() {
             return this.displayPagesBefore || Math.round(this.displayPages / 2);
@@ -125,7 +133,7 @@ export default {
     template: `
       <div class="pagination">
           <span v-for="page in pagesButtons">
-          <a :href="page.number === pagesCount ? baseHref : basePageHref + page.number + '/'" :class="{'current': page.number === curPage}">
+          <a :href="pageHref(page.number)" :class="{'current': page.number === curPage}">
             <span v-if="page.type === 'dots'">...</span>
             <span v-if="page.type === 'regular'">{{ page.number }}</span>
             <span v-if="page.type === 'prev'">Prev</span>

@@ -698,6 +698,8 @@ existing plaintext IPFS storage. A site-bound selector checks current resource
 entitlement before redirecting to the appropriate CID. Previously obtained CIDs
 and files remain readable after expiry and updates, as explicitly requested.
 The staticSiteGenerator layer owns batched snapshot building and durable jobs.
+Both variants use shared group/post SSR components, Sass and browser assets;
+account controls are an optional Layout component and variant data is allowlisted.
 Targeted source revisions, automatic retries with capped backoff, atomic publication
 switching and permanent CID holds preserve complete immutable revisions. A compact
 result contains two CIDs and a post/preview index; current publication state lives

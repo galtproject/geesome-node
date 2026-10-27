@@ -17,7 +17,7 @@ export default {
 
   computed: {
     curPage() {
-      return parseInt(this.$route.params.page || this.pagesCount);
+      return this.store.currentPage || parseInt(this.$route.params.page || this.pagesCount);
     },
     postsPerPage() {
       return this.store.postsPerPage;
@@ -48,6 +48,7 @@ export default {
       <layout>
         <template #page>
           <div id="base-list-layout">
+            <p v-if="!postsList.length">No published posts.</p>
             <div :class="['ui-posts']" itemscope itemtype="http://schema.org/Blog">
               <post-list-item v-for="post in postsList" :post="post"></post-list-item>
             </div>

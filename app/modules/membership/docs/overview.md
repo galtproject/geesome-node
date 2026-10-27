@@ -181,7 +181,10 @@ backoff resume interrupted jobs, including after extended storage outages.
 Post/attachment and group-title changes enqueue only the affected resources.
 
 The staticSiteGenerator layer owns snapshot generation and durable publication;
-it uses the existing batched group hydrator. The result stores two root CIDs,
+both variants use the ordinary site SSR templates, shared styles and browser
+bundle. An optional Layout component provides account/subscription controls;
+a variant-only data adapter prevents private data entering public hydration state.
+The publisher uses the existing batched group hydrator. The result stores two root CIDs,
 page count and a post-to-preview-filename index. Membership owns resource binding,
 subscription checks and variant selection. Current publication ID and desired
 revision live in resources.data.publication under the resource row lock; site

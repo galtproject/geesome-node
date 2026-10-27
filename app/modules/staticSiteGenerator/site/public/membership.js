@@ -127,5 +127,6 @@
 		button('Close', () => { panel.hidden = true; stopPolling(); });
 	}
 	document.querySelector('#membership-open').onclick = () => open().catch(error => say(error.message));
+	document.querySelector('#membership-open').disabled = false;
 	window.addEventListener('pagehide', stopPolling);
 })();

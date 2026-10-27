@@ -26,7 +26,7 @@ export default {
     methods: {
         contentUrl(content) {
             const extension = content.extension ? `.${content.extension}` : '';
-            return this.contentRoot + content.storageId + extension;
+            return content.url || this.contentRoot + content.storageId + extension;
         },
     },
     template: `
@@ -39,6 +39,9 @@ export default {
               itemtype="https://schema.org/BlogPosting"
           >
             <header>
+              <h1 v-if="post.title">{{post.title}}</h1>
+              <p v-if="post.description" class="post-description">{{post.description}}</p>
+              <p v-if="post.accessMessage">{{post.accessMessage}}</p>
               <!--            <h1 class="post-title" itemprop="name headline">-->
               <!--              {{ $frontmatter.title }}-->
               <!--            </h1>-->
@@ -51,12 +54,14 @@ export default {
             </header>
             <div class="post-page-content">
               <div v-for="c in post.contents">
-                <p v-if="c.type === 'text' && c.view === 'contents'" v-html="c.text"></p>
+                <p v-if="c.type === 'text' && c.isPlainText" class="plain-text-content">{{c.text}}</p>
+                <p v-else-if="c.type === 'text' && c.view === 'contents'" v-html="c.text"></p>
                 <img v-if="c.type === 'image'" :src="contentUrl(c)">
                 <video v-if="c.type === 'video'" controls>
-                  <source :src="contentUrl(c)" type="video/mp4">
+                  <source :src="contentUrl(c)" :type="c.mimeType || 'video/mp4'">
                   Your browser does not support the video tag.
                 </video>
+                <a v-if="c.type === 'file'" :href="contentUrl(c)">{{c.name || 'Download file'}}</a>
               </div>
             </div>
           </article>
