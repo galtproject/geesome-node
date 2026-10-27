@@ -225,7 +225,7 @@ export function createPublicationDelivery(app, M, membership, dependencies: any 
 					manifest.pages[page][variant] = `https://${row.domain}/ipfs/${root}/${page === 0 ? 'index.html' : `page-${page + 1}.html`}`;
 				}
 			}
-	
+
 			if (publicationDigest((await currentPosts(row)).map(fingerprint)) !== manifest.sourceHash) {
 				siteProblem(409, 'publication_source_changed');
 			}
