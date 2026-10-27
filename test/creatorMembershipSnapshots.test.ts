@@ -1,3 +1,4 @@
+import {membershipRequest} from '../app/modules/staticSiteGenerator/site/public/creator/api.js';
 import assert from 'node:assert/strict';
 import {membershipRenderData} from '../app/modules/staticSiteGenerator/membershipRenderData.js';
 import siteRenderer from '../app/modules/staticSiteGenerator/site/index.js';
@@ -19,21 +20,38 @@ describe('membership snapshots using shared site templates', function () {
 		assert(html.includes('&lt;script&gt;bad()'));
 		assert(html.includes('src="media/preview"'));
 		const data = JSON.parse(html.match(/<script id="site-data"[^>]*>([\s\S]*?)<\/script>/)[1]);
-		assert.equal(data.currentPosts[0].contents[0].url, 'media/preview');
-		assert(!Object.hasOwn(data.currentPosts[0], 'fullText'));
-		assert(!Object.hasOwn(data.currentPosts[0], 'secret'));
-		assert(html.includes('id="base-list-layout"'));
+		assert.equal(data.creator.posts[0].previews[0].url, 'media/preview');
+		assert(!Object.hasOwn(data.creator.posts[0], 'fullText'));
+		assert(!Object.hasOwn(data.creator.posts[0], 'secret'));
+		assert(!Object.hasOwn(data.creator.posts[0], 'fullText'));
+		assert(!JSON.stringify(data.creator).includes('PRIVATE'));
+		assert(html.includes('class="membership-site theme-wave'));
+		assert(html.includes('data-testid="subscribe-post"'));
 	});
 	it('keeps directory-relative post and page links so a known snapshot never asks for newer content', async () => {
 		const html = await renderSnapshot({title: 'Creator', homeUrl: 'index.html', pageUrls: ['index.html', 'page-2.html']},
 			[{id: '1', title: 'Post', teaser: 'Public', fullText: 'Full', free: false, media: [], postUrl: 'posts/1.html'}], true, false, 1, 2);
-		assert(html.includes('href="posts/1.html"'));
-		assert(html.includes('href="page-2.html"'));
+		assert(html.includes('href="./posts/1.html"'));
+		assert(html.includes('Load more'));
+		assert(html.includes('&quot;nextPage&quot;') || html.includes('"nextPage":"page-2.html"'));
 		assert(html.includes('Full'));
 		const single = await renderSnapshot({title: 'Creator', homeUrl: '../index.html'}, [{id: '1', title: 'Post', fullText: 'Full', media: []}], true, true);
 		assert(single.includes('href="../style.css"'));
 		assert(single.includes('src="../public/client.js"'));
-		assert(single.includes('id="vuepress-theme-blog__post-layout"'));
+		assert(single.includes('data-testid="post-1"'));
+	});
+	it('renders uploaded icon CIDs as root-relative images on index and nested post pages', async () => {
+		const cid = 'bafy' + 'a'.repeat(55);
+		const site = {title: 'Icons', brand: {links: [
+			{label: 'X', url: 'https://x.com/creator', iconUrl: `/ipfs/${cid}`},
+			{label: 'Invalid icon', url: 'https://example.com', iconUrl: 'https://external.test/track.png'}
+		]}};
+		for (const single of [false, true]) {
+			const html = await renderSnapshot(site, [{id: '1', title: 'Post', media: []}], false, single);
+			assert(html.includes(`src="/ipfs/${cid}"`));
+			assert(!html.includes('external.test'));
+			assert(!html.includes('public/icons/'));
+		}
 	});
 	it('renders ordinary text and file attachments with escaped text and links', async () => {
 		const html = await renderSnapshot({title: 'Files'}, [{title: 'Post', teaser: '', fullText: '', free: false,
@@ -46,6 +64,20 @@ describe('membership snapshots using shared site templates', function () {
 });
 
 describe('snapshot account client', () => {
+	it('maps the preserved interface to site-bound GeeSome APIs without losing invoice keys', async () => {
+		const fetch = globalThis.fetch, requests: any[] = [];
+		globalThis.fetch = (async (path, options) => { requests.push({path, options}); return {ok:true,json:async()=>({})}; }) as any;
+		try {
+			await membershipRequest('/auth/challenge');
+			await membershipRequest('/auth/google?resource=wave', {resource:'wave',credential:'signed-token'});
+			await membershipRequest('/crypto/invoices', {resource:'wave',optionId:'plan',assetId:'asset',idempotencyKey:'stable-key'});
+			assert.deepEqual(requests.map(item=>item.path), ['/api/v1/login/google/challenge','/api/v1/login/google','/api/v1/payments/crypto/invoices']);
+			assert.deepEqual(JSON.parse(requests[1].options.body), {credential:'signed-token'});
+			assert.equal(JSON.parse(requests[2].options.body).idempotencyKey, 'stable-key');
+			assert(requests.every(item=>item.options.credentials==='same-origin'&&item.options.cache==='no-store'));
+		} finally { globalThis.fetch=fetch; }
+	});
+
 	it('renews a terminal quote key but preserves the key after an ambiguous invoice response', async () => {
 		const children: any[] = [], status: any = {}, keys: string[] = [];
 		let counter = 0, requests = 0;

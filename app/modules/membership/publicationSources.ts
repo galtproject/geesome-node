@@ -29,7 +29,7 @@ export function registerPublicationSources(app, M, publisher) {
 	}
 	for (const [model, key] of [[app.ms.database.models.Post, 'groupId'], [app.ms.database.models.Group, 'id']]) {
 		hook(model, 'afterSave', async (row, options) => {
-			if (key === 'id' && !row.changed('title')) {
+			if (key === 'id' && !row.changed('title') && !row.changed('description')) {
 				return;
 			}
 			await invalidateGroups([row[key], row.previous(key)], options.transaction);
@@ -37,7 +37,7 @@ export function registerPublicationSources(app, M, publisher) {
 		hook(model, 'afterDestroy', (row, options) => invalidateGroups([row[key]], options.transaction));
 		for (const operation of ['Update', 'Destroy']) {
 			hook(model, `beforeBulk${operation}`, async options => {
-				if (key === 'id' && operation === 'Update' && options.attributes?.title === undefined) {
+				if (key === 'id' && operation === 'Update' && options.attributes?.title === undefined && options.attributes?.description === undefined) {
 					options.membershipSourceGroups = [];
 					return;
 				}
@@ -49,6 +49,14 @@ export function registerPublicationSources(app, M, publisher) {
 			});
 			hook(model, `afterBulk${operation}`, options => invalidateGroups(options.membershipSourceGroups || [], options.transaction));
 		}
+	}
+	for (const event of ['afterSave', 'afterDestroy']) {
+		hook(M.options, event, async (option, options) => {
+			const row = await M.resources.findByPk(option.resourceId, {transaction: options.transaction});
+			if (row) {
+				await invalidateGroups([row.groupId], options.transaction);
+			}
+		});
 	}
 	return {
 		invalidateGroup: (id, transaction?) => invalidateGroups([id], transaction),

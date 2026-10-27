@@ -1,9 +1,9 @@
-import MembershipControls from '../../components/MembershipControls/index.js';
+import CreatorSite from '../../creator/Site.js';
 import ArchiveDownload from '../../components/ArchiveDownload/index.js';
 export default {
     components: {
         ArchiveDownload,
-        MembershipControls,
+        CreatorSite,
     },
     inject: ['store'],
     computed: {
@@ -17,6 +17,8 @@ export default {
     mounted() {
     },
     template: `
+      <creator-site v-if="store.membership" />
+      <template v-else>
       <div v-if="store.options.archive === true" class="archive-toolbar"><archive-download /></div>
       <div :class="['content-wrapper', view]">
         <div class="content-info">
@@ -34,13 +36,12 @@ export default {
           <div class="powered">Powered by <a href="https://github.com/galtproject/geesome-node" target="_blank">Geesome</a></div>
         </div>
         <main class="content-data" :data-site-entry="store.membership?.entryPath">
-          <membership-controls v-if="store.membership" />
           <div class="tabs">
             <a :href="$site.base" target="_self">Latest posts</a>
           </div>
           <slot name="page"/>
         </main>
       </div>
-      <!--    <Footer />-->
+      </template>
     `
 }

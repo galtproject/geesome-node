@@ -180,11 +180,13 @@ status and the site entry path. Ready snapshots activate automatic source-versio
 rebuilds. Both directories build before the transaction switches the current head;
 errors retain the last complete pair. Lease recovery and retries with capped
 backoff resume interrupted jobs, including after extended storage outages.
-Post/attachment and group-title changes enqueue only the affected resources.
+Post/attachment, group profile, branding and tariff changes enqueue only the affected resources.
 
 The staticSiteGenerator layer owns snapshot generation and durable publication;
-both variants use the ordinary site SSR templates, shared styles and browser
-bundle. An optional Layout component provides account/subscription controls;
+both variants use the shared site SSR pipeline and browser bundle with a creator
+theme preserving the existing public interface, gallery, account/refund and crypto
+checkout. Native sites keep their existing templates/styles. The theme has an
+immutable account.html page and a site-bound API adapter;
 a variant-only data adapter prevents private data entering public hydration state.
 Attachment copies use their canonical storageId directly. File extensions are
 resolved by the shared static-site helper using stored extension/name and the MIME

@@ -175,7 +175,7 @@ export function createMembership(app, models, dependencies: any = {}) {
 			});
 		}
 	};
-	Object.assign(module, siteSettings(app, M, group, owner, publicBrand));
+	Object.assign(module, siteSettings(app, M, group, owner, publicBrand, (id, transaction) => module.invalidateGroup(id, transaction)));
 	Object.assign(module, createPublicationDelivery(app, M, module, dependencies));
 	Object.assign(module, refundMethods(M, serial, entitlement, clock));
 	return module as typeof module & ReturnType<typeof createPublicationDelivery> & ReturnType<typeof refundMethods> & ReturnType<typeof siteSettings>;

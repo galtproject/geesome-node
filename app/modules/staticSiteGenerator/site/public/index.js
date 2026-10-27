@@ -3,7 +3,7 @@ import { createSSRApp } from 'vue';
 import createRouter from './router.js';
 import asyncModal from "./components/AsyncModal/index.js";
 
-export async function createApp(store, serverRoute = null) {
+export async function createApp(store, serverRoute = null, creatorApp = null) {
     const app = createSSRApp({
         template: `
             <div>
@@ -15,6 +15,9 @@ export async function createApp(store, serverRoute = null) {
             this.$root.$modal = this.$refs.modal;
         },
     }).use(asyncModal);
+    if (creatorApp) {
+        app.component('CreatorApp', creatorApp);
+    }
     app.config.compilerOptions.comments = false;
 
     const isServer = typeof window === 'undefined';
