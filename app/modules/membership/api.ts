@@ -6,16 +6,16 @@ export default function (app, module) {
 	* @apiGroup Membership
 	* @apiUse ApiKey
 	* @apiBody {String} id Immutable site id; preserve it when importing existing resources.
-	* @apiBody {String} origin Canonical HTTPS origin already controlled/routed by the node operator.
+	* @apiBody {String} origin Canonical HTTPS origin approved for this operator-delegated integration.
 	* @apiBody {String} groupId Existing ordinary private unencrypted group id.
-	* @apiBody {Number} ownerId Existing group creator id.
+	* @apiBody {Number} ownerId Group creator id; must equal the actor unless their active credential grants AdminAll.
 	* @apiBody {Number} version Zero for a new settings record, otherwise current version.
 	* @apiBody {String} googleClientId Google client ID or empty string to disable Google login.
 	* @apiBody {Boolean} enabled Enable browser access for this binding.
 	* @apiBody {Boolean} registrationEnabled Allow creation of private readers.
 	* @apiBody {Boolean} postsEnabled Enable public preview feed.
 	* @apiSuccess {Object} result Persisted site settings including incremented version.
-	* @apiError (403) not_permitted AdminAll and active API-key permission required.
+	* @apiError (403) not_permitted AdminMembershipSites on account and active key required; delegated credentials also require UserGroupManagement and own group.
 	* @apiError (409) membership_site_binding_changed Resource identity is immutable.
 	* @apiError (409) membership_site_binding_conflict Domain or group already bound.
 	*/
