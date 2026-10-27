@@ -137,3 +137,11 @@ switching: the generic asyncOperation queue does not yet provide equivalent
 coordination. No additional queue framework or generic job JSON wrapper is added.
 Only two unreleased tables remain for publication: durable jobs/results and
 permanent CID holds. Existing deployed membership tables require no schema change.
+
+
+The account client is an ordinary browser asset at
+app/modules/staticSiteGenerator/site/public/membership.js. The API reads it once
+at module load and keeps the existing /v1/membership/site/client.js URL. It is
+included by the normal runtime source copy; no extra build step or dependency is
+required. Client behavior tests execute the asset itself; SQL/HTTP verification
+also checks the endpoint bytes and JavaScript/nosniff headers.

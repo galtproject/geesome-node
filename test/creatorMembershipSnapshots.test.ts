@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import {renderMembershipPage} from '../app/modules/staticSiteGenerator/membershipSite.js';
 import {snapshotUrl} from '../app/modules/staticSiteGenerator/membershipProjection.js';
 import {runInNewContext} from 'node:vm';
-import {membershipClient} from '../app/modules/staticSiteGenerator/membershipClient.js';
+import {readFileSync} from 'node:fs';
+const membershipClient = readFileSync(new URL('../app/modules/staticSiteGenerator/site/public/membership.js', import.meta.url), 'utf8');
 describe('membership immutable snapshot renderer', () => {
 	it('exports only public text and explicit preview files without private links or embedded source objects', () => {
 		const post = {id: '1', title: '<script>bad()</script>', teaser: 'PUBLIC', fullText: 'PRIVATE', free: false,

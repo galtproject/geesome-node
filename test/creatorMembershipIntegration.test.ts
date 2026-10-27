@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {CID} from 'multiformats/cid';
 import {create as createKuboClient} from 'kubo-rpc-client';
 import JsIpfsServiceNode from 'geesome-libs/src/JsIpfsServiceNode.js';
@@ -509,6 +510,11 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		const settings = await membership.siteSettings(owner.id, 'snapshots');
 		await membership.saveSiteSettings(owner.id, 'snapshots', {version: settings.version, enabled: settings.enabled, registrationEnabled: settings.registrationEnabled, googleClientId: settings.googleClientId, postsEnabled: settings.postsEnabled, coverUrl: 'https://snapshots.test/cover.png'});
 		assert.deepEqual((await membershipModels.resources.findByPk('snapshots')).data.publication, renamedResource.data.publication, 'saving site branding preserves current publication and revision');
+		const client = await get('membership/site/client.js');
+		assert.equal(client.status, 200);
+		assert.equal(client.headers.get('content-type'), 'application/javascript; charset=utf-8');
+		assert.equal(client.headers.get('x-content-type-options'), 'nosniff');
+		assert.equal(client.body, readFileSync(new URL('../app/modules/staticSiteGenerator/site/public/membership.js', import.meta.url), 'utf8'));
 		const publicSelection = await get('membership/site/');
 		assert.equal(publicSelection.status, 302);
 		assert.equal(publicSelection.headers.get('cache-control'), 'private, no-store');

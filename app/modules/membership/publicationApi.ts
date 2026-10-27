@@ -1,5 +1,7 @@
-import {membershipClient} from '../staticSiteGenerator/membershipClient.js';
+import {readFileSync} from 'node:fs';
 import {configuredSite, creatorSiteEndpoint} from '../api/browserSession.js';
+const membershipClient = readFileSync(new URL('../staticSiteGenerator/site/public/membership.js', import.meta.url), 'utf8');
+
 export default function registerPublicationApi(app, module) {
 	/**
 	 * @api {post} /v1/membership/admin/:resource/publications Build public and full snapshots
