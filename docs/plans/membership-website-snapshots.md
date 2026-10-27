@@ -220,3 +220,105 @@ All six mapped screenshots were inspected with no broken images, overflow or
 hydration errors. Repeat with npm run test:ssg-membership-browser (uses the same
 local microwave-girls Playwright image as the archive browser workflow). API docs
 and route/scalability inventories are regenerated/checked. No production changes.
+
+## Preserve creator-site design
+
+The shared-renderer implementation did not preserve the existing creator-site
+appearance. Complete the visual migration before homepage cutover:
+
+1. Add the existing Era Of Wave layout as a reusable creator theme on the shared
+   group/post SSR pipeline: cover, avatar, links, accent, cards, gallery, responsive
+   layout and legal footer. Use resource settings for Wave, Meat and future sites.
+2. Style Google/account/subscription controls within that theme, using GeeSome's
+   existing session and payment APIs. Keep public/full projections isolated.
+3. Carry allowlisted branding into both immutable snapshots, retain IPFS branding
+   assets and rebuild when branding or subscription options change. Preserve native
+   non-membership templates.
+4. Verify actual SSR/hydration, guest/unpaid/paid/logout, gallery, pagination,
+   downloads, missing branding and a second creator at desktop/narrow widths.
+5. Deploy and rebuild via the owner action; review Open website and actual existing
+   subscriber access before switching production homepage routing. Only then retire
+   the old reader frontend. This code task does not change production routes or
+   migrate financial records; the existing fallback remains until cutover is verified.
+
+Implementation of the creator theme is complete. It ports the existing public App,
+gallery, account/refund screens, CryptoCheckout and original stylesheet rather than
+reimplementing their appearance. The shared SSR pipeline selects this theme only
+for membership snapshots; native sites retain their existing rendering. A small
+transport adapter maps the preserved interface to GeeSome APIs, including Google
+nonces, site cookies, invoice recovery and immutable relative navigation. Each pair
+also contains account.html. Public hydration contains only allowlisted selected
+content and branding, without duplicating full post projections.
+
+Verification includes 24 original/new UI pairs (50 described captures) at 1280x900
+and 390x844: home, public post, gallery, sign-in, plans, QR payment, account and refund,
+plus Meat and missing branding. Visible controls must match, page dimensions must
+match and screenshots are compared without masks. Raster rounding is limited to
+fewer than 0.01% pixels and 5/255 per channel; parity.json records exact differences.
+Screens are visually reviewed as well. Payment confirmation, pending quote reuse,
+full text/download, logout and immutable Load more navigation are exercised.
+Real PostgreSQL/HTTP/Kubo checks cover branding/description/tariff rebuilds and the
+public/full security contract. No production routing or financial records changed.
+
+Rollout remains an operator step: deploy this node change, rebuild the resource,
+review Open website and verify actual existing subscriber access. Keep /assets
+branding paths served until those configured images are migrated to IPFS. Switch
+the production homepage only after those checks; keep the previous reader frontend
+available for rollback until cutover is verified. The unrelated owner-dialog/import
+failures from the older microwave-girls browser run are not claimed fixed here.
+
+Final local gates for this phase: 25 creator SQL/HTTP/Kubo/client checks, 51 payment
+checks and 13 shared/native renderer/adapter checks passed. The comparison browser
+flow produced 50 captures and 24 original/new pairs; visible control inventories
+match, with no upload controls, broken images, overflow or hydration errors. No
+screen areas are masked. Share resolves an actual immutable post URL, and returning
+to checkout reuses the pending invoice instead of creating a second quote.
+
+### Uploaded social icons (review follow-up)
+
+The publishing application uploads known social icons through the existing content
+API before enqueueing the snapshot. Link branding stores `iconUrl: /ipfs/CID`;
+GeeSome renders those root-relative images and retains the CIDs as publication
+artifacts. Unknown services keep their original letter fallback. Existing icon
+references are reused on preparation. No filesystem PNG copies or icon registry
+remain in the generator. The PR history is rewritten to remove the introduced
+binary assets, rather than retaining them in an earlier commit of this branch.
+
+Verification: upload/reuse/error contracts, renderer URL filtering and nested-page
+links, publication artifact retention, and the original/new browser comparison.
+
+Follow-up verification passed: 101 companion membership tests; 26 node membership
+SQL/HTTP/Kubo/client tests; 51 payment tests; six focused snapshot renderer/client
+tests; 50 browser captures with the same original/new parity thresholds; API docs
+and security/scalability inventories. Companion commit: 904b1fa4.
+
+### Vue component structure follow-up
+
+Accepted scope: replace creator render-function screens with SFC templates and
+Composition API controllers, keeping the existing DOM, styling, reader permissions,
+session selection and invoice idempotency behavior. Work order: shared SFC compiler
+for server/browser; typed UI/API boundary; session/modal and checkout composables;
+post/account/gallery/plans/payment components; existing renderer, SQL/payment and
+unmasked original/new browser checks. No backend route or financial schema changes.
+Completion requires both SSR and hydration to use the compiled components and all
+existing visible controls and comparison thresholds to pass before pushing #1445.
+
+Delivered Vue structure: eleven SFCs replace app.ts/CryptoCheckout.ts/media.ts,
+with separate session, modal and quote composables and a typed account boundary.
+Server/browser share the SFC compiler; the server caches an in-memory component
+bundle and shares Vue with the renderer. Each render gets independent setup state.
+Compiler/TypeScript are explicit production dependencies, vue-tsc a development
+check. No new route, migration or change to the original stylesheet.
+
+Verification: strict vue-tsc passes; 21 snapshot/native renderer/client checks and
+three real-composable lifecycle/idempotency checks pass; 26 SQL/HTTP/Kubo/client
+checks and 51 payment checks pass. All 50 described browser captures pass the
+unchanged 24-pair pixel/control/dimension comparison. Main page, narrow account,
+payment details and gallery captures were opened for visual review. One browser
+run exceeded the narrow gallery raster tolerance (65 pixels, maximum 2/255 channel
+difference); the subsequent run passed without changing masks or tolerances.
+
+Additional native-gallery browser check fails on HTTP arrival ordering for two
+parallel original-image requests. The identical assertion also fails on the
+pre-refactor HEAD in a disposable source checkout. No loader code or test threshold
+was changed as part of this task. Treat that existing check as a separate follow-up.

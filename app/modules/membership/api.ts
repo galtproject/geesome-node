@@ -47,7 +47,7 @@ export default function (app, module) {
 	* @apiBody {Boolean} postsEnabled Allow public preview feed.
 	* @apiBody {String} [coverUrl] Cover URL.
 	* @apiBody {String} [avatarUrl] Avatar URL.
-	* @apiBody {Object[]} [links] Public links.
+	* @apiBody {Object[]} [links] Public links with label, url and optional iconUrl (/ipfs/CID of an uploaded image).
 	* @apiBody {String} [patreonUrl] Patreon URL.
 	* @apiBody {Object[]} [legalLinks] Public legal links.
 	* @apiSuccess {Object} result Settings with incremented version; applies without restart.

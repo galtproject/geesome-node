@@ -1,7 +1,8 @@
+import CreatorApp from './creator/App.vue';
 import { createApp } from './index.js';
 const clientData = JSON.parse(document.querySelector('script#site-data[type="application/json"]').textContent);
 
-createApp(clientData).then(({app}) => {
+createApp(clientData, null, clientData.membership ? CreatorApp : null).then(({app}) => {
     app.mount('#app');
 });
 

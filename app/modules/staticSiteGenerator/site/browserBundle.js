@@ -1,3 +1,4 @@
+import {vueComponents} from './vueCompiler.js';
 import {build} from 'esbuild';
 import {fileURLToPath} from 'node:url';
 import {createRequire} from 'node:module';
@@ -10,9 +11,10 @@ export function buildBrowserClient() {
         pending = build({
             entryPoints: [fileURLToPath(new URL('./public/client.js', import.meta.url))],
             bundle: true,
+            plugins: [vueComponents()],
             format: 'iife',
             platform: 'browser',
-            target: 'es2019',
+            target: 'es2020',
             minify: true,
             write: false,
             alias: {vue: require.resolve('vue/dist/vue.esm-bundler.js')},

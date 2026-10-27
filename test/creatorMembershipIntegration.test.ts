@@ -488,9 +488,11 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		};
 		api.onUnversionGet('/ipfs/*', readGateway('GET'));
 		api.onUnversionHead('/ipfs/*', readGateway('HEAD'));
+		const iconCid = (await put('PUBLISHED-ICON-BYTES')).id;
 		const group = await models.Group.create({name: 'snapshots', creatorId: owner.id, title: 'Snapshots', isPublic: false, isEncrypted: false, isOpen: false});
 		await membership.provisionSite(owner.id, {id: 'snapshots', origin: 'https://snapshots.test', groupId: String(group.id), ownerId: owner.id,
-			googleClientId: 'existing-google-client', enabled: true, registrationEnabled: true, postsEnabled: true, version: 0});
+			googleClientId: 'existing-google-client', enabled: true, registrationEnabled: true, postsEnabled: true, version: 0,
+			links: [{label: 'X', url: 'https://x.com/creator', iconUrl: `/ipfs/${iconCid}`} ]});
 		const previewCid = (await put('PUBLIC-PREVIEW-BYTES')).id, fullCid = (await put('FULL-MEDIA-BYTES')).id;
 		const previewRoot = (await put('NESTED-PREVIEW-DIRECTORY')).id;
 		snapshots.set(previewRoot, {'preview.png': previewCid, 'paid.png': fullCid});
@@ -506,6 +508,11 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert.equal((await request('membership/admin/snapshots/publications', {token: 'test-other-owner', body: {requestKey: 'foreign'}})).status, 403);
 		await membership.runPublications();
 		assert.equal((await request('membership/admin/snapshots/publication', {token: 'test-owner'})).body.status, 'ready');
+		assert(await membership.isStorageIdAllowed(iconCid), 'published icons are retained as snapshot artifacts');
+		const iconSelection = await get('membership/site/');
+		const iconHtml = (await request(new URL(iconSelection.headers.get('location')).pathname)).body;
+		assert(iconHtml.includes(`src="/ipfs/${iconCid}"`));
+		assert.equal((await request(`/ipfs/${iconCid}`)).body, 'PUBLISHED-ICON-BYTES');
 		const beforeUnrelated = (await membershipModels.resources.findByPk('snapshots')).data.publication;
 		const unrelated = await models.Post.create({name: 'unrelated', groupId: 1, userId: owner.id, status: 'published', publishedAt: now});
 		await models.Post.update({name: 'unrelated-renamed'}, {where: {id: unrelated.id}});
@@ -516,12 +523,23 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		await membership.runPublications();
 		await models.Group.update({title: 'Renamed snapshot site'}, {where: {id: group.id}});
 		await membership.runPublications();
+		await models.Group.update({description:'Creator profile description'}, {where:{id:group.id}});
+		await membership.runPublications();
 		const renamedSelection = await get('membership/site/');
 		assert((await request(new URL(renamedSelection.headers.get('location')).pathname)).body.includes('Renamed snapshot site'), 'group title changes rebuild static HTML');
+		assert((await request(new URL(renamedSelection.headers.get('location')).pathname)).body.includes('Creator profile description'));
 		const renamedResource = await membershipModels.resources.findByPk('snapshots');
 		const settings = await membership.siteSettings(owner.id, 'snapshots');
 		await membership.saveSiteSettings(owner.id, 'snapshots', {version: settings.version, enabled: settings.enabled, registrationEnabled: settings.registrationEnabled, googleClientId: settings.googleClientId, postsEnabled: settings.postsEnabled, coverUrl: 'https://snapshots.test/cover.png'});
-		assert.deepEqual((await membershipModels.resources.findByPk('snapshots')).data.publication, renamedResource.data.publication, 'saving site branding preserves current publication and revision');
+		const brandedState = (await membershipModels.resources.findByPk('snapshots')).data.publication;
+		assert.equal(brandedState.publicationId, renamedResource.data.publication.publicationId, 'branding keeps the current pair available');
+		assert.equal(brandedState.sourceVersion, renamedResource.data.publication.sourceVersion + 1, 'branding requests a new source revision');
+		await membership.runPublications();
+		const month = await membershipModels.options.findOne({where:{resourceId:'snapshots',period:'month'}});
+		const beforeTariff = (await membership.resource('snapshots')).data.publication;
+		await membership.saveOption('snapshots',{id:month.id,version:month.version,label:month.label,period:month.period,amountCents:500,enabled:true});
+		assert.equal((await membership.resource('snapshots')).data.publication.sourceVersion,beforeTariff.sourceVersion+1);
+		await membership.runPublications();
 		const client = await get('membership/site/client.js');
 		assert.equal(client.status, 200);
 		assert.equal(client.headers.get('content-type'), 'application/javascript; charset=utf-8');
