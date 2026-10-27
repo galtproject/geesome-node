@@ -1,35 +1,99 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { build } from 'esbuild';
+import { App as ReferenceApp, createInitialState } from '../../microwave-girls/frontend/public/app.ts';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import renderer from '../app/modules/staticSiteGenerator/site/index.js';
-import {buildBrowserClient} from '../app/modules/staticSiteGenerator/site/browserBundle.js';
-import {membershipRenderData} from '../app/modules/staticSiteGenerator/membershipRenderData.ts';
-
+import { buildBrowserClient } from '../app/modules/staticSiteGenerator/site/browserBundle.js';
+import { membershipRenderData } from '../app/modules/staticSiteGenerator/membershipRenderData.ts';
 const root = path.resolve(process.env.MEMBERSHIP_BROWSER_EVIDENCE || 'test/.geesome-test-output/membership-browser');
+const frontendRequire = createRequire(new URL('../../microwave-girls/frontend/package.json', import.meta.url));
+const { createSSRApp } = frontendRequire('vue');
+const { renderToString } = frontendRequire('@vue/server-renderer');
 const bundle = await buildBrowserClient();
+const iconCid = name => 'bafy' + 'a'.repeat(40) + name;
+const withIcons = links => links.map(link => ({...link, iconUrl: '/ipfs/' + iconCid(link.label === 'X' ? 'twitter' : link.label.toLowerCase())}));
+await fs.mkdir(path.join(root, 'ipfs'), {recursive: true});
+for (const name of ['twitter', 'discord', 'telegram']) {
+    await fs.copyFile(`../microwave-girls/public/assets/${name}.png`, path.join(root, 'ipfs', iconCid(name)));
+}
 const image = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="240"><rect width="600" height="240" fill="#c3d8ea"/><text x="30" y="125" font-size="32">Public attachment</text></svg>';
 for (const full of [false, true]) {
     const directory = path.join(root, full ? 'full' : 'public');
-    await fs.mkdir(path.join(directory, 'posts'), {recursive: true});
-    await fs.mkdir(path.join(directory, 'media'), {recursive: true});
-    await fs.mkdir(path.join(directory, 'public'), {recursive: true});
+    await fs.mkdir(path.join(directory, 'posts'), { recursive: true });
+    await fs.mkdir(path.join(directory, 'media'), { recursive: true });
+    await fs.mkdir(path.join(directory, 'public'), { recursive: true });
+    await fs.copyFile('../microwave-girls/public/assets/microwave-banner.png', path.join(directory, 'media/cover.png'));
+    await fs.copyFile('../microwave-girls/public/assets/avatar.jpg', path.join(directory, 'media/avatar.jpg'));
     await fs.writeFile(path.join(directory, 'media', 'preview.svg'), image);
-    if (full) await fs.writeFile(path.join(directory, 'media', 'private.txt'), 'Private download');
+    if (full) {
+        await fs.writeFile(path.join(directory, 'media', 'private.txt'), 'Private download');
+    }
     await fs.writeFile(path.join(directory, 'public', 'client.js'), bundle);
-    const post = {id: 1, date: Date.UTC(2026, 9, 27), title: 'Shared post template', teaser: 'Public introduction', fullText: 'Subscriber introduction', free: false,
-        postUrl: 'posts/1.html', media: [{url: 'media/preview.svg', mime: 'image/svg+xml', name: 'Public attachment'}]};
+    const post = { id: 1, date: Date.UTC(2026, 9, 27), title: 'Shared post template', teaser: 'Public introduction', fullText: 'Subscriber introduction', free: false,
+        postUrl: 'posts/1.html', media: [{ url: 'media/preview.svg', mime: 'image/svg+xml', name: 'Public attachment' }, { url: 'media/preview.svg', mime: 'image/svg+xml', name: 'Second public attachment' }] };
     const render = async (single, page = 1) => {
-        const local = {...post, media: post.media.map(item => ({...item, url: (single ? '../' : '') + item.url}))};
-        if (full && single) local.media.push({url: '../media/private.txt', mime: 'text/plain', text: 'PRIVATE BODY', name: 'Private text'},
-            {url: '../media/private.txt', mime: 'application/octet-stream', name: 'Private download'});
-        const data = membershipRenderData({title: 'Shared group template', homeUrl: single ? '../index.html' : 'index.html', postsCount: 21,
-            entryPath: single ? '/api/v1/membership/site/posts/1' : '/api/v1/membership/site', pageUrls: ['index.html', 'page-2.html']}, [local], full, single, page, 2);
+        const local = { ...post, media: post.media.map(item => ({ ...item, url: (single ? '../' : '') + item.url })) };
+        if (full && single) {
+            local.media.push({ url: '../media/private.txt', mime: 'text/plain', text: 'PRIVATE BODY', name: 'Private text' }, { url: '../media/private.txt', mime: 'application/octet-stream', name: 'Private download' });
+        }
+        const data = membershipRenderData({ title: 'Era Of Wave', resourceId: 'wave', options: [{ id: 'monthly', label: '1 month', amountCents: 400, currency: 'USD', period: 'month' }, { id: 'six', label: '6 months', amountCents: 2000, currency: 'USD', period: 'halfyear' }], brand: { coverUrl: `/${full ? 'full' : 'public'}/media/cover.png`, avatarUrl: `/${full ? 'full' : 'public'}/media/avatar.jpg`, patreonUrl: 'https://patreon.com/eraofwave', links: withIcons([{ label: 'X', url: 'https://x.com/eraofwave' }, { label: 'Discord', url: 'https://discord.gg/example' }, { label: 'Telegram', url: 'https://t.me/example' }]), legalLinks: [{ label: 'Privacy', url: 'https://example.com/privacy' }] }, homeUrl: single ? '../index.html' : 'index.html', postsCount: 21,
+            entryPath: single ? '/api/v1/membership/site/posts/1' : '/api/v1/membership/site', pageUrls: ['index.html', 'page-2.html'] }, [local], full, single, page, 2);
         const prepared = await renderer.prepareRender(data);
         await fs.writeFile(path.join(directory, 'style.css'), prepared.css);
-        return prepared.renderPage(single ? '/post/1' : page === 1 ? '/' : '/page/2', [['meta', {name: 'og:title', content: 'Shared group template'}]]);
+        return prepared.renderPage(single ? '/post/1' : page === 1 ? '/' : '/page/2', [['meta', { name: 'og:title', content: 'Shared group template' }]]);
     };
-    await fs.writeFile(path.join(directory, 'index.html'), await render(false));
+    const indexHtml = await render(false);
+    await fs.writeFile(path.join(directory, 'index.html'), indexHtml);
+    const account = JSON.parse(indexHtml.match(/<script id="site-data"[^>]*>([\s\S]*?)<\/script>/)[1]);
+    account.creator.path = '/account/subscription';
+    account.creator.nextOffset = null;
+    account.creator.posts = [];
+    account.currentPosts = [];
+    const accountRender = await renderer.prepareRender(account);
+    await fs.writeFile(path.join(directory, 'account.html'), await accountRender.renderPage('/', []));
     await fs.writeFile(path.join(directory, 'page-2.html'), await render(false, 2));
     await fs.writeFile(path.join(directory, 'posts', '1.html'), await render(true));
 }
 await fs.copyFile('app/modules/staticSiteGenerator/site/public/membership.js', path.join(root, 'membership.js'));
 console.log(root);
+const reference = path.join(root, 'reference');
+await fs.mkdir(reference, { recursive: true });
+const referenceState = createInitialState({ resource: { id: 'wave', title: 'Era Of Wave', postsEnabled: true, googleClientId: 'test-client', publicBasePath: '/reference',
+        coverUrl: '/public/media/cover.png', avatarUrl: '/public/media/avatar.jpg', patreonUrl: 'https://patreon.com/eraofwave',
+        links: [{ label: 'X', url: 'https://x.com/eraofwave' }, { label: 'Discord', url: 'https://discord.gg/example' }, { label: 'Telegram', url: 'https://t.me/example' }], legalLinks: [{ label: 'Privacy', url: 'https://example.com/privacy' }],
+        options: [{ id: 'monthly', label: '1 month', amountCents: 400, currency: 'USD', period: 'month' }, { id: 'six', label: '6 months', amountCents: 2000, currency: 'USD', period: 'halfyear' }] },
+    posts: [{ id: 1, title: 'Shared post template', description: 'Public introduction', publishedAt: new Date(Date.UTC(2026, 9, 27)).toISOString(), previews: [{ url: '/public/media/preview.svg', alt: 'Public attachment' }, { url: '/public/media/preview.svg', alt: 'Second public attachment' }], locked: true }], nextOffset: 20, path: '/' });
+const referenceHtml = await renderToString(createSSRApp(ReferenceApp, { initialState: referenceState }));
+const referenceBundle = await build({ stdin: { contents: `import {createSSRApp} from 'vue';import {App} from ${JSON.stringify(path.resolve('../microwave-girls/frontend/public/app.ts'))};createSSRApp(App,{initialState:JSON.parse(document.querySelector('#reference-state').textContent)}).mount('#reference-app');`, resolveDir: process.cwd() }, bundle: true, write: false, format: 'iife', platform: 'browser', target: 'es2020', alias: { vue: frontendRequire.resolve('vue/dist/vue.esm-bundler.js') }, define: { 'process.env.NODE_ENV': '"production"', __VUE_OPTIONS_API__: 'true', __VUE_PROD_DEVTOOLS__: 'false', __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: 'false' } });
+await fs.writeFile(path.join(reference, 'client.js'), referenceBundle.outputFiles[0].text);
+await fs.copyFile('../microwave-girls/frontend/public/style.css', path.join(reference, 'style.css'));
+await fs.writeFile(path.join(reference, 'index.html'), `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><link rel="stylesheet" href="style.css"></head><body><div id="reference-app">${referenceHtml}</div><script id="reference-state" type="application/json">${JSON.stringify(referenceState).replace(/</g, '\\u003c')}</script><script src="client.js"></script></body></html>`);
+await fs.mkdir(path.join(root, 'assets'), {recursive: true});
+for (const name of ['twitter', 'discord', 'telegram']) {
+    await fs.copyFile(`../microwave-girls/public/assets/${name}.png`, path.join(root, 'assets', name + '.png'));
+}
+await fs.writeFile(path.join(root, 'reference-state.json'), JSON.stringify(referenceState));
+for (const [file, statePath] of [['post.html', '/posts/1'], ['account.html', '/account/subscription']]) {
+    const html = await renderToString(createSSRApp(ReferenceApp, { initialState: { ...referenceState, path: statePath, nextOffset: null } }));
+    await fs.writeFile(path.join(reference, file), `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><link rel="stylesheet" href="style.css"></head><body><div id="reference-app">${html}</div><script id="reference-state" type="application/json">${JSON.stringify({ ...referenceState, path: statePath, nextOffset: null }).replace(/</g, '\\u003c')}</script><script src="client.js"></script></body></html>`);
+}
+for (const [id, title, brand] of [['meat', 'Era Of Meat', referenceState.resource], ['newsite', 'New creator', {}]]) {
+    const state = { ...referenceState, resource: { ...referenceState.resource, id, title, ...Object.fromEntries(['coverUrl', 'avatarUrl', 'links', 'patreonUrl', 'legalLinks'].map(key => [key, brand[key]])) } };
+    const old = await renderToString(createSSRApp(ReferenceApp, { initialState: state }));
+    const refDir = path.join(root, id + '-reference');
+    await fs.mkdir(refDir, { recursive: true });
+    await fs.copyFile(path.join(reference, 'client.js'), path.join(refDir, 'client.js'));
+    await fs.copyFile(path.join(reference, 'style.css'), path.join(refDir, 'style.css'));
+    await fs.writeFile(path.join(refDir, 'index.html'), `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><link rel="stylesheet" href="style.css"></head><body><div id="reference-app">${old}</div><script id="reference-state" type="application/json">${JSON.stringify(state).replace(/</g, '\\u003c')}</script><script src="client.js"></script></body></html>`);
+    const directory = path.join(root, id + '-public');
+    await fs.mkdir(directory, { recursive: true });
+    await fs.cp(path.join(root, 'public/public'), path.join(directory, 'public'), { recursive: true });
+    const data = membershipRenderData({ title, resourceId: id, brand: {...brand, links: withIcons(brand.links || [])}, options: referenceState.resource.options, homeUrl: 'index.html', pageUrls: ['index.html', 'page-2.html'] }, [{ id: 1, date: Date.UTC(2026, 9, 27), title: 'Shared post template', teaser: 'Public introduction', free: false, postUrl: 'posts/1.html', media: [{ url: '/public/media/preview.svg', mime: 'image/svg+xml', name: 'Public attachment' }, { url: '/public/media/preview.svg', mime: 'image/svg+xml', name: 'Second public attachment' }] }], false, false, 1, 2);
+    const prepared = await renderer.prepareRender(data);
+    await fs.writeFile(path.join(directory, 'style.css'), prepared.css);
+    await fs.writeFile(path.join(directory, 'index.html'), await prepared.renderPage('/', []));
+}
+
+assert((await fs.readFile('app/modules/staticSiteGenerator/site/public/creator/style.css','utf8')).startsWith(await fs.readFile('../microwave-girls/frontend/public/style.css','utf8')),'Creator theme preserves the original stylesheet');

@@ -1,3 +1,4 @@
+import {creatorLinks, safeCreatorUrl} from './site/public/creator/links.js';
 import {getContentExtension} from './helpers.js';
 import {siteProblem} from '../api/browserSession.js';
 import {membershipRenderData, membershipBase} from './membershipRenderData.js';
@@ -7,8 +8,17 @@ import {snapshotCid, publicationDigest, membershipMetadata} from './membershipPr
 
 const mediaName = item => `${publicationDigest(item.storageId)}.${item.extension}`;
 
-export async function buildMembershipSnapshots(app, row, title, {renew, beginDirectory}) {
+export async function buildMembershipSnapshots(app, row, title, {renew, beginDirectory, options, description}) {
 	const snapshot = await readSnapshotPosts(app, row), artifacts = new Set<string>();
+	const brand = {...row.data};
+	for (const value of [brand.coverUrl, brand.avatarUrl, ...creatorLinks(brand.links).map(link => link.iconUrl)]) {
+		const url = safeCreatorUrl(value);
+		const source = url && new URL(url, `https://${row.domain}`).pathname.match(/^\/ipfs\/([A-Za-z0-9]+)(?:\/|$)/)?.[1];
+		if (source) {
+			artifacts.add(snapshotCid(source));
+		}
+	}
+	const branding = {brand, options, description, resourceId: row.id};
 	const saveHtml = async html => {
 		await renew();
 		const {id} = await app.ms.storage.saveFileByData(html);
@@ -55,7 +65,7 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 			const cid = await saveHtml(html);
 			await app.ms.storage.copyFileFromId(cid, `${directory}/${path}`);
 		};
-		const renderData = membershipRenderData({title}, [], full, false, 1, pageCount);
+		const renderData = membershipRenderData({title, ...branding}, [], full, false, 1, pageCount);
 		const {css, renderPage} = await siteRenderer.prepareRender(renderData);
 		await savePage(css, 'style.css');
 		await savePage(await buildBrowserClient(), 'public/client.js');
@@ -64,12 +74,12 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 			return renderPage(single ? `/post/${posts[0].id}` : page === 1 ? '/' : `/page/${page}`, [['meta', {name: 'og:title', content: title}]]);
 		};
 		for (const post of snapshot) {
-			const site = {title, postsCount: snapshot.length, homeUrl: '../index.html', entryPath: `${membershipBase}/posts/${post.id}/`};
+			const site = {title, ...branding, postsCount: snapshot.length, homeUrl: '../index.html', entryPath: `${membershipBase}/posts/${post.id}/`};
 			await savePage(await render(site, [{...post, media: await localMedia(full ? post.full : post.previews, '../')}], true), `posts/${post.id}.html`);
 		}
 		for (let offset = 0; offset < Math.max(1, snapshot.length); offset += 20) {
 			const pageIndex = Math.floor(offset / 20);
-			const site = {title, postsCount: snapshot.length, homeUrl: 'index.html', entryPath: `${membershipBase}/`,
+			const site = {title, ...branding, postsCount: snapshot.length, homeUrl: 'index.html', entryPath: `${membershipBase}/`,
 				pageUrls: Array.from({length: pageCount}, (_, index) => index === 0 ? 'index.html' : `page-${index + 1}.html`)};
 			const cards = [];
 			for (const post of snapshot.slice(offset, offset + 20)) {
@@ -77,6 +87,10 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 			}
 			await savePage(await render(site, cards, false, pageIndex + 1), site.pageUrls[pageIndex]);
 		}
+		const accountData = membershipRenderData({title, ...branding, homeUrl: 'index.html', entryPath: `${membershipBase}/`}, [], full);
+		accountData.creator.path = '/account/subscription';
+		Object.assign(renderData, accountData);
+		await savePage(await renderPage('/', [['meta', {name: 'og:title', content: title}]]), 'account.html');
 		const root = snapshotCid(await app.ms.storage.getDirectoryId(directory));
 		artifacts.add(root);
 		manifest[variant] = root;

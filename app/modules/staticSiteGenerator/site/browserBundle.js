@@ -12,7 +12,7 @@ export function buildBrowserClient() {
             bundle: true,
             format: 'iife',
             platform: 'browser',
-            target: 'es2019',
+            target: 'es2020',
             minify: true,
             write: false,
             alias: {vue: require.resolve('vue/dist/vue.esm-bundler.js')},

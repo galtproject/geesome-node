@@ -143,6 +143,7 @@
     "passport-local": "^1.0.0",
     "pg": "^8.11.3",
     "protons-runtime": "5.5.0",
+    "qrcode-generator": "1.4.4",
     "sass": "^1.43.4",
     "sass-loader": "^12.3.0",
     "sequelize": "6.37.8",

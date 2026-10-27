@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { CorePermissionName } from '../database/interface.js';
 import { siteProblem } from '../api/browserSession.js';
 
-export default function siteSettings(app, M, group, owner, publicBrand) {
+export default function siteSettings(app, M, group, owner, publicBrand, invalidateGroup) {
 	const sequelize = app.ms.database.sequelize;
 	function validate(body) {
 		if (!body || !Number.isSafeInteger(body.version) || body.version < 0
@@ -23,11 +23,15 @@ export default function siteSettings(app, M, group, owner, publicBrand) {
 		if (body.version !== (current?.version || 0)) {
 			siteProblem(409, 'membership_site_version_conflict');
 		}
+		const brandingChanged = JSON.stringify(publicBrand(row.data)) !== JSON.stringify(publicBrand(body));
 		await row.update({ postsEnabled: body.postsEnabled, data: {...publicBrand(body), ...(row.data?.publication ? {publication: row.data.publication} : {})} }, { transaction });
 		const values = { googleClientId: body.googleClientId, enabled: body.enabled,
 			registrationEnabled: body.registrationEnabled, version: body.version + 1 };
 		const settings = current ? await current.update(values, { transaction })
 			: await M.site_settings.create({ resourceId: row.id, ...values }, { transaction });
+		if (brandingChanged) {
+			await invalidateGroup(row.groupId, transaction);
+		}
 		return view(row, settings);
 	}
 	return {

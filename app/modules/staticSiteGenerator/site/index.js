@@ -10,7 +10,7 @@ export default {
     async prepareRender(storageData) {
         // const storageData = {path: url.split('?')[0], urlQuery, ...additionalData};
         loadAssets(storageData);
-        const {css} = await compileStyles();
+        const {css} = await compileStyles(Boolean(storageData.membership));
         const rootContent = getFileContent('index.html');
         return {
             css,
@@ -37,13 +37,13 @@ async function renderApp(storageData, rootContent, url, headers, lang) {
 
     // VueSSR: replace index.html variable with result values
     const replacements = {
-        relativeRoot, lang, content,
+        relativeRoot, lang, content, bodyClass: storageData.membership ? 'creator-page' : '',
         favicon: storageData.favicon === false ? '<link rel="icon" href="data:,"/>'
             : `<link rel="shortcut icon" href="${escapeHtmlAttribute(relativeRoot)}favicon.ico"/>`,
         headers: `<title>${escapeHtml(title)}</title>\n` + headers.map(([tag, attr]) => getHeaderTagHtml(tag, attr)).join('\n'),
         clientData: JSON.stringify({...storageData, path: url}).replace(/</g, '\\u003c'),
     };
-    return rootContent.replace(/\{\{(relativeRoot|lang|headers|content|clientData|favicon)}}/g, (_token, key) => replacements[key]);
+    return rootContent.replace(/\{\{(relativeRoot|lang|headers|content|clientData|favicon|bodyClass)}}/g, (_token, key) => replacements[key]);
 }
 
 function getHeaderContent(headers, name) {
@@ -71,7 +71,10 @@ function escapeHtmlAttribute(value) {
         .replace(/'/g, '&#39;');
 }
 
-function compileStyles() {
+function compileStyles(creator = false) {
+    if (creator) {
+        return {css: getFileContent('public/creator/style.css')};
+    }
     return sass.compileAsync(getFilePath('styles/index.scss'));
 }
 

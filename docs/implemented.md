@@ -709,3 +709,12 @@ not used. An additive group migration upgrades existing attachment rows.
 Owner admin controls live in
 microwave-girls; existing per-post publication and payment identities remain.
 See the [delivery plan](plans/membership-website-snapshots.md).
+
+
+Creator snapshot design (#1444) now preserves the existing Era Of Wave/Meat public interface,
+gallery, Google/account/refund and crypto-checkout screens through a reusable theme
+on the shared SSR pipeline. Original/new paired browser screenshots and visible
+control inventories verify parity at desktop/narrow widths. Branding, group profile
+and tariff changes enqueue rebuilt snapshots; public data remains allowlisted and
+received CIDs stay immutable. Production homepage cutover remains pending operator
+verification; see docs/plans/membership-website-snapshots.md.
