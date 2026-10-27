@@ -697,7 +697,10 @@ Paired public/full directories derive from one private canonical group and use
 existing plaintext IPFS storage. A site-bound selector checks current resource
 entitlement before redirecting to the appropriate CID. Previously obtained CIDs
 and files remain readable after expiry and updates, as explicitly requested.
-Durable jobs, source-version rebuilds, atomic head switching and registered storage
-references preserve complete immutable revisions. Owner admin controls live in
+The staticSiteGenerator layer owns batched snapshot building and durable jobs.
+Targeted source revisions, automatic retries with capped backoff, atomic publication
+switching and permanent CID holds preserve complete immutable revisions. A compact
+result contains two CIDs and a post/preview index; current publication state lives
+with the resource, without a separate publication_heads table. Owner admin controls live in
 microwave-girls; existing per-post publication and payment identities remain.
 See the [delivery plan](plans/membership-website-snapshots.md).

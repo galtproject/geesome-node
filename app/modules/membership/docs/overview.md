@@ -176,8 +176,17 @@ Owner POST `/v1/membership/admin/:resource/publications` takes a stable requestK
 GET `/v1/membership/admin/:resource/publication` returns queued/building/ready/failed
 status and the site entry path. Ready snapshots activate automatic source-version
 rebuilds. Both directories build before the transaction switches the current head;
-errors retain the last complete pair. Lease recovery and bounded retries resume
-interrupted jobs. Native post/attachment changes invalidate the source revision.
+errors retain the last complete pair. Lease recovery and retries with capped
+backoff resume interrupted jobs, including after extended storage outages.
+Post/attachment and group-title changes enqueue only the affected resources.
+
+The staticSiteGenerator layer owns snapshot generation and durable publication;
+it uses the existing batched group hydrator. The result stores two root CIDs,
+page count and a post-to-preview-filename index. Membership owns resource binding,
+subscription checks and variant selection. Current publication ID and desired
+revision live in resources.data.publication under the resource row lock; site
+settings updates preserve this internal value. There is no separate heads table.
+Publication CID holds contain only storageId and preserve old dependencies.
 
 The domain path `/api/v1/membership/site/` (proxy to node `/v1/membership/site/`)
 selects public/full by site-bound session and current resource entitlement, with

@@ -98,7 +98,7 @@ export function createMembership(app, models, dependencies: any = {}) {
 		const previewCount = Math.max(1, Math.min(10, Number(metadata.previewCount) || 1));
 		// Public preview selection is explicit; never fall back to full attachments.
 		const protectedPath = publication ? `/api/v1/membership/site/posts/${post.id}/` : null;
-		const previews = publication ? publication.posts.find(item => item.id === String(post.id))?.previews || [] : (Array.isArray(metadata.previewMedia) ? metadata.previewMedia : []).slice(0, previewCount)
+		const previews = publication ? (publication.posts[String(post.id)] || []).map(name => `https://${row.domain}/ipfs/${publication.public}/media/${name}`) : (Array.isArray(metadata.previewMedia) ? metadata.previewMedia : []).slice(0, previewCount)
 			.map(item => safePageUrl(item.url, row.domain)).filter(Boolean);
 		return { id: String(post.id), title: String(metadata.title || '').slice(0, 500), description: String(metadata.free === true || active ? metadata.fullText ?? metadata.description ?? '' : metadata.teaser ?? metadata.description ?? '').slice(0, 10000),
 			previews, previewCount, free: metadata.free === true, locked: metadata.free !== true && !active,

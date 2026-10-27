@@ -7,6 +7,7 @@
 - [Publication and delivery](#publication-and-delivery)
 - [Rollout](#rollout)
 - [Verification and progress](#verification-and-progress)
+- [Simplification following implementation review](#simplification-following-implementation-review)
 
 ## Accepted contract
 
@@ -80,7 +81,7 @@ immutable paired directories through the existing storage interface.
 Implementation complete, 2026-10-27:
 
 - Durable jobs publish both variants before switching the head, with source-version
-  fencing, renewable leases, bounded fair polling and indexed queue/status reads.
+  fencing, renewable leases, group-targeted durable enqueue and indexed queue/status reads.
   Persisted staging paths let retries clean interrupted attempts; ready directories
   remain untouched, including when a database commit response is ambiguous.
 - Each preview is copied as the exact selected file, including previews nested
@@ -103,3 +104,36 @@ Operator handoff: merge the node PR into dev, update Geesome using its normal
 release/deployment workflow, deploy microwave-girls dev, then use Prepare website
 snapshots for the existing resource. Verify queued → ready and the generated site
 via the configured site domain before changing its public homepage routing.
+
+
+## Simplification following implementation review
+
+Completed follow-up, 2026-10-27:
+
+1. Replace global invalidation/polling with group-targeted durable enqueue; include
+   group title updates and retry transient failures after storage recovers.
+2. Store only public/full root CIDs, page count and a post/preview filename index.
+3. Move snapshot building, batched post iteration and durable publication worker
+   into staticSiteGenerator; membership keeps binding, authorization and selection.
+4. Remove the unreleased publication_heads table. Keep the current publication ID
+   and desired revision as a small internal resources.data.publication value under
+   the existing resource row lock; preserve it when saving public branding. This
+   avoids adding columns to the already deployed resource table.
+5. Keep durable jobs/leases and old artifact holds. Remove unused artifact owner
+   fields. Leave deployed site_settings/options/periods unchanged.
+
+Verification extends the existing SQL/HTTP suite with unrelated bulk edits/deletes,
+targeted bulk changes, group rename, branding saves preserving publication state,
+four storage failures followed by recovery without another edit, and source changes
+during a leased build. Existing real Kubo, retained-CID and ambiguous-commit cases
+remain. The 23 creator, 51 payment and 31 core regression checks are the handoff
+checks; 4 additional static-site helper tests also pass. API docs and
+route/scalability inventories are regenerated and checked. The companion admin
+code and external API contracts are unchanged; its browser suites were not rerun
+for this internal node refactor.
+
+The dedicated small publication worker retains lease fencing and atomic pair
+switching: the generic asyncOperation queue does not yet provide equivalent
+coordination. No additional queue framework or generic job JSON wrapper is added.
+Only two unreleased tables remain for publication: durable jobs/results and
+permanent CID holds. Existing deployed membership tables require no schema change.

@@ -3,7 +3,7 @@ import {CID} from 'multiformats/cid';
 import {create as createKuboClient} from 'kubo-rpc-client';
 import JsIpfsServiceNode from 'geesome-libs/src/JsIpfsServiceNode.js';
 import {sha256} from 'multiformats/hashes/sha2';
-import {publicationDigest} from '../app/modules/membership/publication.js';
+import {publicationDigest} from '../app/modules/staticSiteGenerator/membershipProjection.js';
 import registerPublicationApi from '../app/modules/membership/publicationApi.js';
 import createApp from '../app/index.js';
 import { request as httpRequest } from 'node:http';
@@ -36,6 +36,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 	let api, base;
 	let now = new Date();
 	const transfers = new Map<string, any[]>();
+	const publicationContents = new Map<string, any[]>();
 	let outage = false;
 	const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 	const cert = publicKey.export({ type: 'spki', format: 'pem' }).toString();
@@ -148,6 +149,20 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 				return group;
 			},
 			getGroupPosts: async (groupId, filters, pagination) => ({ list: await models.Post.findAll({ where: { groupId, isDeleted: false, status: filters.status }, order: [['publishedAt', 'DESC'], ['id', 'DESC']], limit: pagination.limit, offset: pagination.offset }) }),
+			forEachHydratedGroupPostBatch: async (groupId, options, onBatch) => {
+				let offset = 0;
+				while (offset < options.maxRefs) {
+					const posts = await models.Post.findAll({where: {groupId, isDeleted: false, status: options.filters.status}, order: [['publishedAt', 'DESC'], ['id', 'DESC']], limit: options.batchLimit, offset});
+					for (const post of posts) {
+						post.contents = publicationContents.get(String(post.id)) || [];
+					}
+					await onBatch({groupPosts: posts, refCount: posts.length});
+					if (posts.length < options.batchLimit) {
+						break;
+					}
+					offset += posts.length;
+				}
+			},
 			getPostPure: id => models.Post.findByPk(id)
 		};
 		identityModels = await defineIdentities(db);
@@ -469,14 +484,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		const metadata = {title: 'Snapshot post', teaser: 'PUBLIC-TEASER', fullText: 'FIRST-PAID-TEXT', free: false, previewMedia: [{url: `https://snapshots.test/ipfs/${previewRoot}/preview.png`}], previewCount: 1};
 		const post = await models.Post.create({name: 'snapshots-post', groupId: group.id, userId: owner.id, status: 'published', publishedAt: now,
 			propertiesJson: JSON.stringify({membership: metadata})});
-		const getOriginalPost = app.ms.group.getPostPure;
-		app.ms.group.getPostPure = async id => {
-			const value = await getOriginalPost(id);
-			if (String(id) === String(post.id)) {
-				value.contents = [{id: 999, storageId: fullCid, mimeType: 'image/png', name: 'Full picture'}];
-			}
-			return value;
-		};
+		publicationContents.set(String(post.id), [{id: 999, storageId: fullCid, mimeType: 'image/png', name: 'Full picture'}]);
 		const get = (path, options: any = {}) => request(path, {site: 'snapshots.test', ...options});
 		const enqueue = key => request('membership/admin/snapshots/publications', {token: 'test-owner', body: {requestKey: key}});
 		const accepted = await enqueue('snapshot-one');
@@ -485,6 +493,22 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert.equal((await request('membership/admin/snapshots/publications', {token: 'test-other-owner', body: {requestKey: 'foreign'}})).status, 403);
 		await membership.runPublications();
 		assert.equal((await request('membership/admin/snapshots/publication', {token: 'test-owner'})).body.status, 'ready');
+		const beforeUnrelated = (await membershipModels.resources.findByPk('snapshots')).data.publication;
+		const unrelated = await models.Post.create({name: 'unrelated', groupId: 1, userId: owner.id, status: 'published', publishedAt: now});
+		await models.Post.update({name: 'unrelated-renamed'}, {where: {id: unrelated.id}});
+		await models.Post.destroy({where: {id: unrelated.id}});
+		assert.deepEqual((await membershipModels.resources.findByPk('snapshots')).data.publication, beforeUnrelated, 'unrelated bulk edits and deletes never invalidate this site');
+		await models.Post.update({name: 'snapshots-post-renamed'}, {where: {id: post.id}});
+		assert.equal((await membershipModels.resources.findByPk('snapshots')).data.publication.sourceVersion, beforeUnrelated.sourceVersion + 1, 'targeted bulk edits invalidate the owning resource');
+		await membership.runPublications();
+		await models.Group.update({title: 'Renamed snapshot site'}, {where: {id: group.id}});
+		await membership.runPublications();
+		const renamedSelection = await get('membership/site/');
+		assert((await request(new URL(renamedSelection.headers.get('location')).pathname)).body.includes('Renamed snapshot site'), 'group title changes rebuild static HTML');
+		const renamedResource = await membershipModels.resources.findByPk('snapshots');
+		const settings = await membership.siteSettings(owner.id, 'snapshots');
+		await membership.saveSiteSettings(owner.id, 'snapshots', {version: settings.version, enabled: settings.enabled, registrationEnabled: settings.registrationEnabled, googleClientId: settings.googleClientId, postsEnabled: settings.postsEnabled, coverUrl: 'https://snapshots.test/cover.png'});
+		assert.deepEqual((await membershipModels.resources.findByPk('snapshots')).data.publication, renamedResource.data.publication, 'saving site branding preserves current publication and revision');
 		const publicSelection = await get('membership/site/');
 		assert.equal(publicSelection.status, 302);
 		assert.equal(publicSelection.headers.get('cache-control'), 'private, no-store');
@@ -541,13 +565,24 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert.equal((await read(oldPost)).status, 200, 'obtained old post and files remain readable');
 		assert.equal((await read(new URL(`../media/${publicationDigest(fullCid)}.png`, oldPost).href)).body, 'FULL-MEDIA-BYTES');
 
-		const oldHead = (await membershipModels.publication_heads.findByPk('snapshots')).publicationId;
+		const oldHead = (await membershipModels.resources.findByPk('snapshots')).data.publication.publicationId;
 		const readyDirectories = [...directories.keys()];
 		failAfter = 2;
 		await enqueue('fault-half-build'); await membership.runPublications();
-		assert.equal((await membershipModels.publication_heads.findByPk('snapshots')).publicationId, oldHead, 'partial pair cannot replace current revision');
+		assert.equal((await membershipModels.resources.findByPk('snapshots')).data.publication.publicationId, oldHead, 'partial pair cannot replace current revision');
 		assert.deepEqual([...directories.keys()], readyDirectories, 'failed attempt removes only its own staging directories');
+		for (let attempt = 0; attempt < 3; attempt++) {
+			now = new Date(now.getTime() + 360000);
+			await membership.runPublications();
+		}
+		const retrying = await membershipModels.publications.findOne({where: {resourceId: 'snapshots', requestKey: 'fault-half-build'}});
+		assert(retrying.attempts >= 4);
+		assert.equal(retrying.status, 'queued', 'temporary outages do not permanently fail a source revision after three attempts');
+
 		failAfter = Infinity;
+		now = new Date(now.getTime() + 360000);
+		await membership.runPublications();
+		assert.equal((await retrying.reload()).status, 'ready', 'storage recovery resumes the existing durable job without another source edit');
 		await post.update({propertiesJson: JSON.stringify({membership: {...metadata, hidden: true}})});
 		await membership.runPublications();
 		assert(!(await read((await get('membership/site/')).headers.get('location'))).body.includes('Snapshot post'));
@@ -563,15 +598,16 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			await membership.provisionSite(owner.id, {id, origin: `https://${id}.test`, groupId: String(newGroup.id), ownerId: owner.id,
 				googleClientId: '', enabled: true, registrationEnabled: false, postsEnabled: true, version: 0});
 			const placeholder = await membershipModels.publications.create({id: randomUUID(), resourceId: id, requestKey: 'placeholder', status: 'ready', sourceVersion: 0, manifest: {pages: [], posts: []}});
-			await membershipModels.publication_heads.create({resourceId: id, publicationId: placeholder.id, sourceVersion: 1, enabled: true});
+			await membershipModels.resources.update({data: {publication: {publicationId: placeholder.id, sourceVersion: 0}}}, {where: {id}});
+			await membership.invalidateGroup(newGroup.id);
 			rotating.push(id);
 		}
 		for (let index = 0; index < 8; index++) {
 			await membership.runPublications();
 		}
 		for (const id of rotating) {
-			const head = await membershipModels.publication_heads.findByPk(id), job = await membershipModels.publications.findByPk(head.publicationId);
-			assert.equal(job.sourceVersion, 1, 'automatic polling rotates beyond the oldest five resources');
+			const head = await membershipModels.resources.findByPk(id), job = await membershipModels.publications.findByPk(head.data.publication.publicationId);
+			assert.equal(job.sourceVersion, 1, 'targeted invalidation queues every changed resource without head scanning');
 		}
 		const recovered = await membershipModels.publications.create({id: randomUUID(), resourceId: 'rotate0', requestKey: 'recover-lease', status: 'building',
 			leaseToken: randomUUID(), leaseUntil: new Date(now.getTime() - 1)});
@@ -591,20 +627,30 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			return saveNormally(data);
 		};
 		const slow = await membership.enqueuePublication(owner.id, 'rotate0', {requestKey: 'slow-storage'});
+		const previousSlowHead = (await membershipModels.resources.findByPk('rotate0')).data.publication.publicationId;
 		const work = membership.runPublications();
 		try {
-		await blocked;
-		now = new Date(now.getTime() + 90000);
-		await new Promise(resolve => setTimeout(resolve, 60));
-		now = new Date(now.getTime() + 60000);
-		const leased = await membershipModels.publications.findByPk(slow.id);
-		assert(new Date(leased.leaseUntil) > now, 'heartbeat keeps a healthy slow storage build from being reclaimed');
+			await blocked;
+			now = new Date(now.getTime() + 90000);
+			await new Promise(resolve => setTimeout(resolve, 60));
+			now = new Date(now.getTime() + 60000);
+			const leased = await membershipModels.publications.findByPk(slow.id);
+			assert(new Date(leased.leaseUntil) > now, 'heartbeat keeps a healthy slow storage build from being reclaimed');
+			const changedGroup = await membershipModels.resources.findByPk('rotate0');
+			await models.Group.update({title: 'Changed during render'}, {where: {id: changedGroup.groupId}});
 		} finally {
 			releaseWrite?.();
 			await work;
 			app.ms.storage.saveFileByData = saveNormally;
 		}
-		assert.equal((await membershipModels.publications.findByPk(slow.id)).status, 'ready');
+		assert.equal((await membershipModels.publications.findByPk(slow.id)).status, 'queued', 'a source change during build rejects the incomplete revision');
+		assert.equal((await membershipModels.resources.findByPk('rotate0')).data.publication.publicationId, previousSlowHead);
+		await membership.runPublications();
+		const changed = await membershipModels.resources.findByPk('rotate0');
+		const rebuilt = await membershipModels.publications.findByPk(changed.data.publication.publicationId);
+		assert.equal(rebuilt.sourceVersion, changed.data.publication.sourceVersion);
+		assert(files.get(snapshots.get(rebuilt.manifest.public)['index.html']).toString().includes('Changed during render'));
+
 		await membershipModels.publications.update({status: 'failed'}, {where: {status: 'queued'}});
 		const serialNormally = membership.serial;
 		let commitFinished;
@@ -663,8 +709,8 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			const status = await membership.publicationStatus(owner.id, 'real-storage');
 			assert.equal(status.status, 'ready', JSON.stringify(status));
 			const job = await membershipModels.publications.findByPk(status.revision);
-			const publicPath = new URL(job.manifest.pages[0].public).pathname.replace('/ipfs/', '');
-			const fullPath = new URL(job.manifest.pages[0].full).pathname.replace('/ipfs/', '');
+			const publicPath = `${job.manifest.public}/index.html`;
+			const fullPath = `${job.manifest.full}/index.html`;
 			const publicRoot = publicPath.split('/')[0], fullRoot = fullPath.split('/')[0];
 			const publicHtml = await storage.getFileDataText(publicPath);
 			assert(!publicHtml.includes(originalRoot));
@@ -679,14 +725,14 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			await post.update({propertiesJson: JSON.stringify({membership: {...metadata, fullText: 'New full text'}})});
 			for (let attempt = 0; attempt < 10; attempt++) {
 				await membership.runPublications();
-				const active = await membershipModels.publication_heads.findByPk('real-storage');
-				if (active.publicationId !== status.revision) {
+				const active = await membershipModels.resources.findByPk('real-storage');
+				if (active.data.publication.publicationId !== status.revision) {
 					break;
 				}
 			}
 			const current = await membership.publicationStatus(owner.id, 'real-storage');
 			const newJob = await membershipModels.publications.findByPk(current.revision);
-			assert.notEqual(newJob.manifest.pages[0].full, job.manifest.pages[0].full, JSON.stringify(current));
+			assert.notEqual(newJob.manifest.full, job.manifest.full, JSON.stringify(current));
 			assert((await storage.getFileDataText(fullPath)).includes('Old full text'));
 			assert.equal(await storage.getFileDataText(`${fullRoot}/sets/${post.id}/paid.png`), 'PAID-BYTES');
 			assert.equal(await membership.isStorageIdAllowed(fullRoot), true);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {renderMembershipPage} from '../app/modules/staticSiteGenerator/membershipSite.js';
-import {snapshotUrl} from '../app/modules/membership/publication.js';
+import {snapshotUrl} from '../app/modules/staticSiteGenerator/membershipProjection.js';
 import {runInNewContext} from 'node:vm';
 import {membershipClient} from '../app/modules/staticSiteGenerator/membershipClient.js';
 describe('membership immutable snapshot renderer', () => {
