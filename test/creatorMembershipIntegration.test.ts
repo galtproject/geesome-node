@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {createRequire} from 'node:module';
+import {getModule as createGroupModule} from '../app/modules/group/index.js';
 import {CID} from 'multiformats/cid';
 import {create as createKuboClient} from 'kubo-rpc-client';
 import JsIpfsServiceNode from 'geesome-libs/src/JsIpfsServiceNode.js';
@@ -164,6 +166,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 					offset += posts.length;
 				}
 			},
+			prepareContentData: async content => ({text: await app.ms.storage.getFileDataText(content.storageId)}),
 			getPostPure: id => models.Post.findByPk(id)
 		};
 		identityModels = await defineIdentities(db);
@@ -377,7 +380,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert.equal(guest.body.posts[0].pageUrl, undefined);
 		assert(!JSON.stringify(guest.body).includes('bafyprivate'));
 		assert(!JSON.stringify(guest.body).includes('never-export'));
-		assert.equal((await request('membership/feed', { cookie: waveCookie })).body.posts[0].pageUrl, 'https://eraofwave.com/ipfs/bafyprivate/');
+		assert.equal((await request('membership/feed', { cookie: waveCookie })).body.posts[0].pageUrl, `https://eraofwave.com/api/v1/membership/site/posts/${post.id}/`);
 		assert.equal((await request(`membership/posts/${post.id}`, { site: 'meat' })).status, 404);
 		assert.equal((await request('membership/feed?limit=Infinity&offset=Infinity')).status, 200);
 	});
@@ -485,7 +488,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		const metadata = {title: 'Snapshot post', teaser: 'PUBLIC-TEASER', fullText: 'FIRST-PAID-TEXT', free: false, previewMedia: [{url: `https://snapshots.test/ipfs/${previewRoot}/preview.png`}], previewCount: 1};
 		const post = await models.Post.create({name: 'snapshots-post', groupId: group.id, userId: owner.id, status: 'published', publishedAt: now,
 			propertiesJson: JSON.stringify({membership: metadata})});
-		publicationContents.set(String(post.id), [{id: 999, storageId: fullCid, mimeType: 'image/png', name: 'Full picture'}]);
+		publicationContents.set(String(post.id), [{id: 999, storageId: fullCid, mimeType: 'image/png', name: 'Full picture', postsContents: {isPrivate: true}}, {id: 998, storageId: previewCid, mimeType: 'image/png', name: 'Public picture', postsContents: {isPrivate: false}}]);
 		const get = (path, options: any = {}) => request(path, {site: 'snapshots.test', ...options});
 		const enqueue = key => request('membership/admin/snapshots/publications', {token: 'test-owner', body: {requestKey: key}});
 		const accepted = await enqueue('snapshot-one');
@@ -699,6 +702,9 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		try {
 			const preview = await storage.saveFileByData('PREVIEW-BYTES', {waitForPin: true});
 			const paid = await storage.saveFileByData('PAID-BYTES', {waitForPin: true});
+			const publicText = await storage.saveFileByData('PUBLIC ATTACHMENT TEXT');
+			const privateText = await storage.saveFileByData('PRIVATE ATTACHMENT TEXT');
+			const archive = await storage.saveFileByData('PUBLIC ARCHIVE BYTES');
 			const directory = `/source-${randomUUID()}`;
 			await storage.makeDir(directory);
 			await storage.copyFileFromId(preview.id, directory + '/preview.png');
@@ -710,6 +716,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			const metadata = {title: 'Retained gallery', teaser: 'Preview', fullText: 'Old full text', free: false,
 				pageUrl: `https://real-storage.test/ipfs/${originalRoot}/`, previewMedia: [{url: `https://real-storage.test/ipfs/${originalRoot}/preview.png`}], previewCount: 1};
 			const post = await models.Post.create({name: 'real-gallery', groupId: group.id, userId: owner.id, status: 'published', publishedAt: now, propertiesJson: JSON.stringify({membership: metadata})});
+			publicationContents.set(String(post.id), [{id: 2000, storageId: String(preview.id), mimeType: 'image/png', postsContents: {isPrivate: false}}, {id: 2001, storageId: String(paid.id), mimeType: 'image/png', postsContents: {isPrivate: true}}, {id: 2002, storageId: String(publicText.id), mimeType: 'text/plain', postsContents: {isPrivate: false}}, {id: 2003, storageId: String(privateText.id), mimeType: 'text/plain', postsContents: {isPrivate: true}}, {id: 2004, storageId: String(archive.id), mimeType: 'application/zip', name: 'Download archive', postsContents: {isPrivate: false}}]);
 			await membership.enqueuePublication(owner.id, 'real-storage', {requestKey: 'real-kubo'});
 			await membership.runPublications();
 			const status = await membership.publicationStatus(owner.id, 'real-storage');
@@ -725,8 +732,17 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			for await (const item of storage.node.ls(`/ipfs/${publicRoot}/media`)) {
 				previewFiles.push(item.cid.toString());
 			}
-			assert.deepEqual(previewFiles, [String(preview.id)]);
-			assert.equal(await storage.getFileDataText(`${fullRoot}/sets/${post.id}/paid.png`), 'PAID-BYTES');
+			assert.deepEqual(new Set(previewFiles), new Set([String(preview.id), String(publicText.id), String(archive.id)]));
+			assert(publicHtml.includes('PUBLIC ATTACHMENT TEXT'));
+			assert(!publicHtml.includes('PRIVATE ATTACHMENT TEXT'));
+			assert((await storage.getFileDataText(`${fullRoot}/posts/${post.id}.html`)).includes('PRIVATE ATTACHMENT TEXT'));
+			assert.equal(job.manifest.posts[String(post.id)].length, 1, 'feed thumbnails include image attachments only');
+			const directories = [];
+			for await (const entry of storage.node.ls(`/ipfs/${fullRoot}`)) {
+				directories.push(entry.name);
+			}
+			assert(!directories.includes('sets'), 'all exports derive from attachments without a legacy gallery directory');
+			assert.equal(await storage.getFileDataText(`${fullRoot}/media/${publicationDigest(String(paid.id))}.png`), 'PAID-BYTES');
 			assert((await storage.getFileDataText(fullPath)).includes('Old full text'));
 			await post.update({propertiesJson: JSON.stringify({membership: {...metadata, fullText: 'New full text'}})});
 			for (let attempt = 0; attempt < 10; attempt++) {
@@ -740,11 +756,39 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			const newJob = await membershipModels.publications.findByPk(current.revision);
 			assert.notEqual(newJob.manifest.full, job.manifest.full, JSON.stringify(current));
 			assert((await storage.getFileDataText(fullPath)).includes('Old full text'));
-			assert.equal(await storage.getFileDataText(`${fullRoot}/sets/${post.id}/paid.png`), 'PAID-BYTES');
+			assert.equal(await storage.getFileDataText(`${fullRoot}/media/${publicationDigest(String(paid.id))}.png`), 'PAID-BYTES');
 			assert.equal(await membership.isStorageIdAllowed(fullRoot), true);
 		} finally {
 			app.ms.storage = previous;
 		}
+	});
+
+
+	it('persists per-post attachment visibility, preserves it across edits, and upgrades legacy rows conservatively', async () => {
+		const groupModule = createGroupModule(app, models);
+		const publicGroup = await models.Group.create({name: 'visibility-public', creatorId: owner.id, isPublic: true});
+		const privateGroup = await models.Group.create({name: 'visibility-private', creatorId: owner.id, isPublic: false});
+		const first = await models.Post.create({groupId: publicGroup.id, userId: owner.id, status: 'published'});
+		const second = await models.Post.create({groupId: privateGroup.id, userId: owner.id, status: 'published'});
+		const shared = await models.Content.create({userId: owner.id, mimeType: 'image/png', storageId: 'shared-visibility-content'});
+		const extra = await models.Content.create({userId: owner.id, mimeType: 'image/png', storageId: 'extra-visibility-content'});
+		await groupModule.setPostContents(first.id, [{id: shared.id, isPrivate: false}]);
+		await groupModule.setPostContents(second.id, [{id: shared.id, isPrivate: true}, {id: extra.id}]);
+		assert.equal((await models.PostsContents.findOne({where: {postId: first.id, contentId: shared.id}})).isPrivate, false);
+		assert.equal((await models.PostsContents.findOne({where: {postId: second.id, contentId: shared.id}})).isPrivate, true);
+		assert.equal((await models.PostsContents.findOne({where: {postId: second.id, contentId: extra.id}})).isPrivate, true, 'unmarked attachments in a private group default private');
+		await groupModule.setPostContents(second.id, [{id: extra.id}, {id: shared.id, isPrivate: false}]);
+		await groupModule.setPostContents(second.id, [{id: extra.id}, {id: shared.id}]);
+		assert.equal((await models.PostsContents.findOne({where: {postId: second.id, contentId: shared.id}})).isPrivate, false, 'ordinary edits preserve the saved attachment policy');
+		assert.throws(() => groupModule.resolveContentForPostData({isPrivate: 'false'} as any, shared, 'owner' as any), (error: any) => error.status === 400 && error.code === 'attachment_visibility_invalid');
+		await db.query('ALTER TABLE "postsContents" DROP COLUMN "isPrivate"');
+		const migration = createRequire(import.meta.url)('../app/modules/group/migrations/20261027000000-add-post-attachment-visibility.cjs');
+		await migration.up(db.getQueryInterface());
+		assert.equal((await models.PostsContents.findOne({where: {postId: first.id}})).isPrivate, false);
+		assert.equal((await models.PostsContents.findOne({where: {postId: second.id}})).isPrivate, true);
+		await models.PostsContents.update({isPrivate: false}, {where: {postId: second.id}});
+		await migration.up(db.getQueryInterface());
+		assert.equal((await models.PostsContents.findOne({where: {postId: second.id}})).isPrivate, false, 'a repeated migration never resets explicit public choices');
 	});
 
 });

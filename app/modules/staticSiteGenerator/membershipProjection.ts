@@ -9,11 +9,3 @@ export function membershipMetadata(post) {
 		return null;
 	}
 }
-export function snapshotUrl(value, domain) {
-	try {
-		const url = new URL(value);
-		return url.origin === `https://${domain}` && !url.username && !url.password && /^\/ipfs\/[A-Za-z0-9]+(?:\/|$)/.test(url.pathname) ? url.href : null;
-	} catch {
-		return null;
-	}
-}

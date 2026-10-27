@@ -1,6 +1,6 @@
 import {siteProblem} from '../api/browserSession.js';
 import {renderMembershipPage, membershipBase} from './membershipSite.js';
-import {snapshotCid, publicationDigest, snapshotUrl, membershipMetadata} from './membershipProjection.js';
+import {snapshotCid, publicationDigest, membershipMetadata} from './membershipProjection.js';
 
 export async function buildMembershipSnapshots(app, row, title, {renew, beginDirectory}) {
 	const snapshot = await readSnapshotPosts(app, row), artifacts = new Set<string>();
@@ -12,7 +12,7 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 		return `https://${row.domain}/ipfs/${cid}`;
 	};
 	for (const entry of snapshot) {
-		for (const url of [...entry.full, ...entry.previews].map(media => media.url).concat(entry.pageUrl ? [entry.pageUrl] : [])) {
+		for (const url of [...entry.full].map(media => media.url)) {
 			artifacts.add(snapshotCid(new URL(url).pathname.split('/ipfs/')[1].split('/')[0]));
 		}
 	}
@@ -25,23 +25,22 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 		await app.ms.storage.makeDir(directory);
 		await app.ms.storage.makeDir(`${directory}/posts`);
 		await app.ms.storage.makeDir(`${directory}/media`);
-		await app.ms.storage.makeDir(`${directory}/sets`);
 		const copied = new Set<string>(), previewNames = new Map<string, string>();
 		await renew();
 		const localMedia = async (media, prefix) => {
 			const result = [];
 			for (const item of media) {
 				const parsed = new URL(item.url), source = parsed.pathname.split('/ipfs/')[1];
-				// Copy exactly the selected leaf, never its parent directory: a
-				// preview can be one image inside an otherwise paid set.
+				// The source is exactly this attachment CID; never infer a parent
+				// directory from a separately stored preview/gallery URL.
 				const extension = /\.(png|jpe?g|webp|gif|avif|mp4|webm)$/i.exec(parsed.pathname)?.[1].toLowerCase()
 					|| ({'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif', 'video/mp4': 'mp4', 'video/webm': 'webm'}[item.mime] || 'bin');
 				const name = `${publicationDigest(source)}.${extension}`;
 				if (!copied.has(name)) {
 					await renew();
 					const stat = await app.ms.storage.getFileStat(source, {attempts: 0, attemptTimeout: 0, withLocal: true, size: true, timeout: 30000});
-					if (stat?.type !== 'file') {
-						siteProblem(409, 'publication_media_file_required');
+					if (!['file', 'directory'].includes(stat?.type)) {
+						siteProblem(409, 'publication_content_required');
 					}
 					await app.ms.storage.copyFileFromId(source, `${directory}/media/${name}`);
 					copied.add(name);
@@ -51,15 +50,6 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 			}
 			return result;
 		};
-		const pageLinks = new Map<string, string>();
-		for (const post of snapshot) {
-			if ((full || post.free) && post.pageUrl) {
-				const parsed = new URL(post.pageUrl), parts = parsed.pathname.split('/ipfs/')[1].split('/');
-				const cid = parts.shift();
-				await app.ms.storage.copyFileFromId(cid, `${directory}/sets/${post.id}`);
-				pageLinks.set(post.id, `sets/${post.id}${parts.length ? '/' + parts.join('/') : ''}${parsed.search}${parsed.hash}`);
-			}
-		}
 		const savePage = async (html, path) => {
 			const url = await saveHtml(html);
 			const cid = url.split('/ipfs/')[1];
@@ -67,7 +57,7 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 		};
 		for (const post of snapshot) {
 			const site = {title, homeUrl: '../index.html', entryPath: `${membershipBase}/posts/${post.id}/`};
-			await savePage(renderMembershipPage(site, [{...post, pageUrl: pageLinks.has(post.id) ? '../' + pageLinks.get(post.id) : null, media: await localMedia(full || post.free ? post.full : post.previews, '../')}], full, true), `posts/${post.id}.html`);
+			await savePage(renderMembershipPage(site, [{...post, media: await localMedia(full ? post.full : post.previews, '../')}], full, true), `posts/${post.id}.html`);
 		}
 		for (let offset = 0; offset < Math.max(1, snapshot.length); offset += 20) {
 			const pageIndex = Math.floor(offset / 20);
@@ -75,7 +65,7 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 				pageUrls: Array.from({length: pageCount}, (_, index) => index === 0 ? 'index.html' : `page-${index + 1}.html`)};
 			const cards = [];
 			for (const post of snapshot.slice(offset, offset + 20)) {
-				cards.push({...post, pageUrl: pageLinks.get(post.id) || null, media: await localMedia(post.previews, ''), postUrl: `posts/${post.id}.html`});
+				cards.push({...post, media: await localMedia(post.previews, ''), postUrl: `posts/${post.id}.html`});
 			}
 			await savePage(renderMembershipPage(site, cards, full, false, pageIndex + 1, pageCount), site.pageUrls[pageIndex]);
 		}
@@ -84,7 +74,7 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 		manifest[variant] = root;
 		if (!full) {
 			for (const post of snapshot) {
-				manifest.posts[post.id] = post.previews.map(media => previewNames.get(media.url));
+				manifest.posts[post.id] = post.previews.filter(media => media.mime.startsWith('image/')).map(media => previewNames.get(media.url));
 			}
 		}
 
@@ -103,7 +93,7 @@ async function readSnapshotPosts(app, row) {
 		for (const post of groupPosts) {
 			const metadata = membershipMetadata(post);
 			if (metadata && !metadata.hidden && !post.isDeleted && post.status === 'published') {
-				snapshot.push(snapshotPost(row, post));
+				snapshot.push(await snapshotPost(app, row, post));
 			}
 		}
 	});
@@ -113,20 +103,22 @@ async function readSnapshotPosts(app, row) {
 	return snapshot;
 }
 
-function snapshotPost(row, post) {
+async function snapshotPost(app, row, post) {
 	const m = membershipMetadata(post), previews = [], media = [];
-	for (const item of (Array.isArray(m.previewMedia) ? m.previewMedia : []).slice(0, Math.max(1, Math.min(10, Number(m.previewCount) || 1)))) {
-		const url = snapshotUrl(item.url, row.domain);
-		if (url) {
-			previews.push({url, mime: 'image/webp', name: 'Preview'});
-		}
-	}
 	for (const content of post.contents || []) {
-		if (/^[A-Za-z0-9]{20,200}$/.test(content.storageId || '') && /^(image|video)\//.test(content.mimeType || '')) {
-			media.push({url: `https://${row.domain}/ipfs/${content.storageId}`, mime: content.mimeType, name: String(content.name || '').slice(0, 200)});
+		if (!/^[A-Za-z0-9]{20,200}$/.test(content.storageId || '')) {
+			continue;
+		}
+		const item: any = {url: `https://${row.domain}/ipfs/${content.storageId}`, mime: String(content.mimeType || 'application/octet-stream'), name: String(content.name || '').slice(0, 200)};
+		if (item.mime.startsWith('text/') || item.mime.includes('rich-text')) {
+			const projected = await app.ms.group.prepareContentData(content);
+			item.text = projected.text;
+		}
+		media.push(item);
+		if (content.postsContents?.isPrivate === false) {
+			previews.push(item);
 		}
 	}
 	return {id: String(post.id), title: String(m.title || '').slice(0, 500), teaser: String(m.teaser ?? m.description ?? '').slice(0, 10000),
-		fullText: String(m.fullText ?? m.description ?? '').slice(0, 100000), free: m.free === true,
-		pageUrl: snapshotUrl(m.pageUrl, row.domain), full: media, previews};
+		fullText: String(m.fullText ?? m.description ?? '').slice(0, 100000), free: m.free === true, full: media, previews};
 }

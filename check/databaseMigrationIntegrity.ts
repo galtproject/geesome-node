@@ -183,6 +183,7 @@ const coveredMigrations: CoveredMigration[] = [
     file: '20260731000000-add-agent-api-metadata.cjs',
     verifies: ['storage-object SHA-256 metadata', 'API-key integration metadata', 'async-operation request correlation'],
   },
+  {module: 'group', file: '20261027000000-add-post-attachment-visibility.cjs', verifies: ['post-content per-attachment visibility column']},
   {
     module: 'group',
     file: '20260506000000-add-post-timeline-indexes.cjs',
@@ -236,6 +237,7 @@ const coveredMigrations: CoveredMigration[] = [
 ];
 
 const expectedColumns: ExpectedColumn[] = [
+  {table: 'postsContents', columns: ['isPrivate'], type: 'boolean'},
   {table: 'posts', columns: ['size'], type: 'bigint'},
   {table: 'groups', columns: ['size'], type: 'bigint'},
   {table: 'userContentActions', columns: ['size'], type: 'bigint'},

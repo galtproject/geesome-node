@@ -113,12 +113,12 @@ Console change is needed while the authorized origin/client stay the same.
 Public/site-cookie routes: `/v1/membership/resource`, `/feed`, `/posts/:id`,
 `/account`, POST `/refunds`. Feed and post detail return allowlisted title,
 description, selected preview URLs, visibility and dates. `Post.propertiesJson`'s
-`membership` object supplies title/description/free/previewCount/previewMedia/
-pageUrl/hidden. Posts lacking membership metadata are not exported. Migration
-must materialize the old preview selection and hidden status into these fields;
-there is intentionally no fallback to full attachments. Site preview/Page URLs
-must be HTTPS `/ipfs/` links on that site's own host. Readers see a full legacy
-Page link only while the post is free or entitlement is active.
+`membership` object supplies title/description/free/previewCount/hidden and optional
+introductory text. The canonical content source is post.contents. Each attachment
+has postsContents.isPrivate; public exports include only explicit false values,
+while full exports include the whole list. membership.pageUrl and previewMedia
+are not export sources. Returned pageUrl is derived from the current post selector.
+Posts lacking membership metadata are not exported.
 
 A group feed fetches a bounded page through existing group hydration; raw private
 post/content metadata never leaves the module. Group creator/visibility checks
@@ -197,13 +197,15 @@ deletion, site disable, expiry or refund. Public/full root and child references 
 registered with storage retention so normal cleanup does not remove old snapshots.
 
 `membership.teaser` and `fullText` optionally separate public/full text; existing
-`description` is the fallback for both. Only explicit previewMedia enter public
-snapshots. The microwave activation action materializes existing hidden/preview
-policies before the first render. Directory-relative links freeze old post/media
+`description` is the fallback for both. Only explicitly public attachments enter public
+snapshots. The microwave preparation action maps existing hidden/preview
+policies to canonical metadata and per-attachment flags before the first render. Directory-relative links freeze old post/media
 versions. Account controls use the existing Google nonce/session and payments APIs.
 
-Deploy node first, then microwave; no new env flags or schema migration are needed
-for the new model-sync tables. The creator domain must proxy `/api/v1/*` to node
+Deploy node first, then microwave; no new env flags are needed. Run group migration
+20261027000000-add-post-attachment-visibility before using the new code against an
+existing database. It marks existing private-group attachments private and leaves
+public-group attachments public. New publication tables use model sync. The creator domain must proxy `/api/v1/*` to node
 `/v1/*` preserving the original Host and Origin. Existing `/ipfs/*` traffic must
 reach the same storage gateway. Initial activation does not move public root/DNS,
 readers, invoices, payment workers or existing frontend hosting. See

@@ -1,4 +1,5 @@
 import _ from 'lodash';
+import {ApiProblemError} from '../api/problem.js';
 import debug from 'debug';
 import {Op, Transaction} from "sequelize";
 import pIteration from 'p-iteration';
@@ -221,7 +222,7 @@ export default async (app: IGeesomeApp) => {
 	return module;
 }
 
-function getModule(app: IGeesomeApp, models) {
+export function getModule(app: IGeesomeApp, models) {
 	const {communicator} = app.ms;
 	let derivedStateQueueProcessPromise: Promise<any> | null = null;
 	let derivedStateQueueWorker: IBackgroundWorker | null = null;
@@ -1072,7 +1073,12 @@ function getModule(app: IGeesomeApp, models) {
 		}
 
 		resolveContentForPostData(content: IContent, dbContent: IContent, permissionReason: PostContentAttachmentReason): IResolvedPostContent {
+			const isPrivate = content.isPrivate ?? content.postsContents?.isPrivate;
+			if (isPrivate !== undefined && typeof isPrivate !== 'boolean') {
+				throw new ApiProblemError(400, 'attachment_visibility_invalid', 'Attachment visibility must be a boolean');
+			}
 			return {
+				isPrivate,
 				id: dbContent.id,
 				view: content.view || dbContent.view,
 				size: dbContent.size,
@@ -1366,6 +1372,7 @@ function getModule(app: IGeesomeApp, models) {
 				storageId: c.storageId,
 				previewStorageId: c.mediumPreviewStorageId,
 				view: attachmentView,
+				isPrivate: c.postsContents?.isPrivate === true,
 				manifestId: c.manifestStorageId,
 				extension: c.extension,
 				previewExtension: c.previewExtension,
@@ -2261,16 +2268,24 @@ function getModule(app: IGeesomeApp, models) {
 			// reorder still produces delete+insert pairs (functionally equivalent to today), but
 			// edits that change only one attachment now touch one row.
 			const {transaction} = options;
-			const desired: Array<{contentId: number; position: number; view: any}> = [];
+			const post = await models.Post.findByPk(postId, {transaction});
+			const group = post ? await models.Group.findByPk(post.groupId, {transaction}) : null;
+			const existing = await models.PostsContents.findAll({where: {postId}, transaction});
+			const existingByContent = new Map(existing.map(row => [row.contentId, row]));
+			const desired: Array<{contentId: number; position: number; view: any; isPrivate: boolean}> = [];
 			await pIteration.forEach(contents, async (content: IContent, position) => {
 				const contentObj: any = await models.Content.findOne({where: {id: content.id, isDeleted: {[Op.ne]: true}}, transaction});
 				if (!contentObj) {
 					return;
 				}
-				desired.push({contentId: contentObj.id, position, view: content.view});
+				const previous: any = existingByContent.get(contentObj.id);
+				const isPrivate = content.isPrivate ?? previous?.isPrivate ?? (group?.isPublic === false);
+				if (typeof isPrivate !== 'boolean') {
+					throw new ApiProblemError(400, 'attachment_visibility_invalid', 'Attachment visibility must be a boolean');
+				}
+				desired.push({contentId: contentObj.id, position, view: content.view, isPrivate});
 			});
 
-			const existing = await models.PostsContents.findAll({where: {postId}, transaction});
 			const keyOf = (r: any) => `${r.contentId}@${r.position}`;
 			const existingByKey = new Map<string, any>();
 			for (const row of existing) {
@@ -2280,11 +2295,11 @@ function getModule(app: IGeesomeApp, models) {
 
 			const toDelete = existing.filter(r => !desiredKeys.has(keyOf(r)));
 			const toInsert = desired.filter(d => !existingByKey.has(keyOf(d)));
-			const toUpdate: Array<{contentId: any; view: any}> = [];
+			const toUpdate: Array<{contentId: any; view: any; isPrivate: boolean}> = [];
 			for (const d of desired) {
 				const existingRow = existingByKey.get(keyOf(d));
-				if (existingRow && existingRow.view !== d.view) {
-					toUpdate.push({contentId: existingRow.contentId, view: d.view});
+				if (existingRow && (existingRow.view !== d.view || existingRow.isPrivate !== d.isPrivate)) {
+					toUpdate.push({contentId: existingRow.contentId, view: d.view, isPrivate: d.isPrivate});
 				}
 			}
 
@@ -2292,10 +2307,10 @@ function getModule(app: IGeesomeApp, models) {
 				await models.PostsContents.destroy({where: {postId, contentId: {[Op.in]: toDelete.map(r => r.contentId)}}, transaction});
 			}
 			if (toInsert.length > 0) {
-				await models.PostsContents.bulkCreate(toInsert.map(d => ({postId, contentId: d.contentId, position: d.position, view: d.view})), {transaction});
+				await models.PostsContents.bulkCreate(toInsert.map(d => ({postId, contentId: d.contentId, position: d.position, view: d.view, isPrivate: d.isPrivate})), {transaction});
 			}
 			const updated = await Promise.all(toUpdate.map(u => {
-				return models.PostsContents.update({view: u.view}, {where: {postId, contentId: u.contentId}, transaction});
+				return models.PostsContents.update({view: u.view, isPrivate: u.isPrivate}, {where: {postId, contentId: u.contentId}, transaction});
 			}));
 			if (app.ms.membership?.invalidateGroup) {
 				const post = await models.Post.findByPk(postId, {transaction: options.transaction});

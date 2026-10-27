@@ -701,6 +701,9 @@ The staticSiteGenerator layer owns batched snapshot building and durable jobs.
 Targeted source revisions, automatic retries with capped backoff, atomic publication
 switching and permanent CID holds preserve complete immutable revisions. A compact
 result contains two CIDs and a post/preview index; current publication state lives
-with the resource, without a separate publication_heads table. Owner admin controls live in
+with the resource, without a separate publication_heads table. Per-post attachment visibility is stored on PostsContents; public snapshots omit
+private attachments, full snapshots include all, and gallery metadata/sets are
+not used. An additive group migration upgrades existing attachment rows.
+Owner admin controls live in
 microwave-girls; existing per-post publication and payment identities remain.
 See the [delivery plan](plans/membership-website-snapshots.md).

@@ -96,13 +96,12 @@ export function createMembership(app, models, dependencies: any = {}) {
 			return null;
 		}
 		const previewCount = Math.max(1, Math.min(10, Number(metadata.previewCount) || 1));
-		// Public preview selection is explicit; never fall back to full attachments.
-		const protectedPath = publication ? `/api/v1/membership/site/posts/${post.id}/` : null;
-		const previews = publication ? (publication.posts[String(post.id)] || []).map(name => `https://${row.domain}/ipfs/${publication.public}/media/${name}`) : (Array.isArray(metadata.previewMedia) ? metadata.previewMedia : []).slice(0, previewCount)
-			.map(item => safePageUrl(item.url, row.domain)).filter(Boolean);
+		// Only explicitly public attachments enter the public projection.
+		const previews = publication ? (publication.posts[String(post.id)] || []).map(name => `https://${row.domain}/ipfs/${publication.public}/media/${name}`)
+			: (post.contents || []).filter(content => content.postsContents?.isPrivate === false && String(content.mimeType || '').startsWith('image/')).map(content => `https://${row.domain}/ipfs/${content.storageId}`);
 		return { id: String(post.id), title: String(metadata.title || '').slice(0, 500), description: String(metadata.free === true || active ? metadata.fullText ?? metadata.description ?? '' : metadata.teaser ?? metadata.description ?? '').slice(0, 10000),
 			previews, previewCount, free: metadata.free === true, locked: metadata.free !== true && !active,
-			publishedAt: post.publishedAt, ...(metadata.free === true || active ? { pageUrl: protectedPath ? `https://${row.domain}${protectedPath}` : safePageUrl(metadata.pageUrl, row.domain) } : {}) };
+			publishedAt: post.publishedAt, ...(metadata.free === true || active ? { pageUrl: `https://${row.domain}/api/v1/membership/site/posts/${post.id}/` } : {}) };
 	}
 	const module = {
 		models, clock, resource, serial, entitlement, grantPaidInvoice, owner, publicResource,
@@ -190,15 +189,6 @@ export function periodEnd(start: Date, period: string, anchorDay = start.getUTCD
 	date.setUTCMonth(date.getUTCMonth() + (period === 'year' ? 12 : period === 'halfyear' ? 6 : 1));
 	date.setUTCDate(Math.min(anchorDay, new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate()));
 	return date;
-}
-function safePageUrl(value, domain) {
-	try {
-		const url = new URL(value);
-		return url.origin === `https://${domain}` && !url.username && !url.password && /^\/ipfs\/[A-Za-z0-9]+(?:\/|$)/.test(url.pathname) ? url.href : null;
-	}
-	catch {
-		return null;
-	}
 }
 function publicBrand(value = {}) {
 	return Object.fromEntries(['coverUrl', 'avatarUrl', 'links', 'patreonUrl', 'legalLinks'].filter(key => value[key] !== undefined).map(key => [key, value[key]]));

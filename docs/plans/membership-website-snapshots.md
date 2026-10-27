@@ -40,7 +40,7 @@ Preserve current resource/group/payment identifiers and canonical attachments.
 ## Publication and delivery
 
 Public snapshots contain only explicit previews, teaser and subscription CTA.
-Full snapshots contain full text/media and stable full-set links. No full metadata
+Full snapshots contain full text and every canonical attachment. No full metadata
 is serialized into public HTML/client data. Both variants share the same canonical
 source revision. Directory-local post/page links and immutable media CIDs keep
 old snapshots usable without membership API access to their files.
@@ -145,3 +145,49 @@ at module load and keeps the existing /v1/membership/site/client.js URL. It is
 included by the normal runtime source copy; no extra build step or dependency is
 required. Client behavior tests execute the asset itself; SQL/HTTP verification
 also checks the endpoint bytes and JavaScript/nosniff headers.
+
+
+## Unified attachment visibility (complete)
+
+The post attachment list is the source of truth for exported content. Add an
+isPrivate boolean to PostsContents, independently of Content ownership/isPublic.
+Public snapshots omit private attachments; full snapshots include both. Remove
+membership.pageUrl and the copied sets directory. Metadata remains for title,
+public/full introductory text and hide policy, not external gallery addressing.
+
+Sequence: node join schema/migration/input/manifest/projection first, then the
+microwave producer/editor/initial preparation to write attachment visibility.
+Existing private-group attachments migrate conservatively to private. Public-group
+attachments preserve public visibility. Existing paid snapshot CIDs remain valid.
+Legacy selected image IDs become explicit public attachments; cropped preview
+content stays a separate attachment. No global file permissions are changed.
+
+Verify shared content with different post visibility, persistence/updates/reorder,
+legacy upgrade, no private CID in public output, full export with all attachments,
+removal of pageUrl/sets dependencies and producer preparation/replacement behavior.
+
+
+Delivery: PostsContents.isPrivate is persisted through create/update/reorder,
+serialized in manifests, and used by snapshots and the membership feed. Missing
+visibility on a new private-group attachment defaults private; an omitted value on
+an existing attachment preserves its saved policy. Generic file/directory links
+and escaped text are exported alongside images/videos. Only public image
+attachments supply feed thumbnails. No external gallery address is needed.
+
+The microwave producer marks initial selected images public and the remainder
+private; free posts mark all attachments public. The editor saves visibility,
+retaining cropped previews as ordinary separate attachments. Existing legacy
+selection metadata is read only during conversion and then removed, together with
+membership.pageUrl. Local per-post Page/archive jobs remain compatible until
+site cutover; their gallery URL is not a canonical export source.
+
+Upgrade order: run the Geesome group migration, deploy the node, then deploy
+microwave-girls and prepare/rebuild snapshots for each resource once. Preparation
+runs the visibility conversion even for resources that previously prepared a
+snapshot. Existing paid snapshot CIDs and billing identifiers are unaffected.
+
+Verification: 24 creator SQL/HTTP/Kubo/client checks plus 51 payment checks;
+44 core/input/manifest regressions; isolated full model sync + migration chain +
+migration integrity audit (277 pass, zero fail, 10 skip). Legacy row upgrade,
+repeat migration, different policies for shared Content, policy-preserving edits,
+text/archive exports and absence of sets are covered explicitly.

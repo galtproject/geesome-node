@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import {renderMembershipPage} from '../app/modules/staticSiteGenerator/membershipSite.js';
-import {snapshotUrl} from '../app/modules/staticSiteGenerator/membershipProjection.js';
 import {runInNewContext} from 'node:vm';
 import {readFileSync} from 'node:fs';
 const membershipClient = readFileSync(new URL('../app/modules/staticSiteGenerator/site/public/membership.js', import.meta.url), 'utf8');
@@ -25,11 +24,12 @@ describe('membership immutable snapshot renderer', () => {
 		assert(html.includes('href="page-2.html"'));
 		assert(html.includes('Full'));
 	});
-	it('allows only same-site HTTPS IPFS links for canonical exported URLs', () => {
-		assert.equal(snapshotUrl('https://site.test/ipfs/bafyexample/', 'site.test'), 'https://site.test/ipfs/bafyexample/');
-		for (const url of ['javascript:bad()', 'https://foreign.test/ipfs/bafyexample/', 'https://name:password@site.test/ipfs/bafyexample/', 'https://site.test/api/private']) {
-			assert.equal(snapshotUrl(url, 'site.test'), null);
-		}
+	it('renders ordinary text and file attachments with escaped text and links', () => {
+		const html = renderMembershipPage({title: 'Files'}, [{title: 'Post', teaser: '', fullText: '', free: false,
+			media: [{text: '<script>unsafe</script>', mime: 'text/plain'}, {mime: 'application/zip', name: 'Archive', url: 'media/archive.zip?name="test"'}]}], true);
+		assert(html.includes('&lt;script&gt;unsafe&lt;/script&gt;'));
+		assert(!html.includes('<script>unsafe'));
+		assert(html.includes('href="media/archive.zip?name=&quot;test&quot;"'));
 	});
 });
 
