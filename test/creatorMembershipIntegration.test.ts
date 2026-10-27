@@ -151,7 +151,13 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 				assert.equal(group.creatorId, userId);
 				return group;
 			},
-			getGroupPosts: async (groupId, filters, pagination) => ({ list: await models.Post.findAll({ where: { groupId, isDeleted: false, status: filters.status }, order: [['publishedAt', 'DESC'], ['id', 'DESC']], limit: pagination.limit, offset: pagination.offset }) }),
+			getGroupPosts: async (groupId, filters, pagination) => {
+				const list = await models.Post.findAll({ where: { groupId, isDeleted: false, status: filters.status }, order: [['publishedAt', 'DESC'], ['id', 'DESC']], limit: pagination.limit, offset: pagination.offset });
+				for (const post of list) {
+					post.contents = publicationContents.get(String(post.id)) || [];
+				}
+				return {list};
+			},
 			forEachHydratedGroupPostBatch: async (groupId, options, onBatch) => {
 				let offset = 0;
 				while (offset < options.maxRefs) {
@@ -374,13 +380,16 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		const post = await models.Post.create({ groupId: Number(row.groupId), userId: owner.id, status: 'published', publishedAt: now, localId: 1,
 			propertiesJson: JSON.stringify({ membership: { title: 'Paid set', description: 'Public teaser', previewCount: 1, free: false,
 					pageUrl: 'https://eraofwave.com/ipfs/bafyprivate/', previewMedia: [{ url: 'https://eraofwave.com/ipfs/bafypreview' }], secret: 'never-export' } }) });
+		publicationContents.set(String(post.id), [{id: 997, storageId: 'public-preview', mimeType: 'image/png', postsContents: {isPrivate: false}},
+			{id: 996, storageId: 'private-image', mimeType: 'image/png', postsContents: {isPrivate: true}}]);
 		const guest = await request('membership/feed');
 		assert.equal(guest.status, 200);
 		assert.equal(guest.body.posts[0].locked, true);
+		assert.deepEqual(guest.body.posts[0].previews, ['/ipfs/public-preview']);
 		assert.equal(guest.body.posts[0].pageUrl, undefined);
 		assert(!JSON.stringify(guest.body).includes('bafyprivate'));
 		assert(!JSON.stringify(guest.body).includes('never-export'));
-		assert.equal((await request('membership/feed', { cookie: waveCookie })).body.posts[0].pageUrl, `https://eraofwave.com/api/v1/membership/site/posts/${post.id}/`);
+		assert.equal((await request('membership/feed', { cookie: waveCookie })).body.posts[0].pageUrl, `/api/v1/membership/site/posts/${post.id}/`);
 		assert.equal((await request(`membership/posts/${post.id}`, { site: 'meat' })).status, 404);
 		assert.equal((await request('membership/feed?limit=Infinity&offset=Infinity')).status, 200);
 	});
@@ -532,7 +541,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert(!Object.values(publicFiles).includes(fullCid));
 		const publicFeed = await get('membership/feed');
 		assert(!JSON.stringify(publicFeed.body).includes(previewRoot), 'public API also conceals a selected preview parent CID');
-		assert(publicFeed.body.posts[0].previews[0].includes(publicRoot));
+		assert(publicFeed.body.posts[0].previews[0].startsWith(`/ipfs/${publicRoot}/media/`));
 
 
 		const loginResult = await login('snapshots.test', {sub: 'snapshot-buyer'}), cookie = loginResult.cookie, readerId = loginResult.body.reader.id;

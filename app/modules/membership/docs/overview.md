@@ -117,7 +117,9 @@ description, selected preview URLs, visibility and dates. `Post.propertiesJson`'
 introductory text. The canonical content source is post.contents. Each attachment
 has postsContents.isPrivate; public exports include only explicit false values,
 while full exports include the whole list. membership.pageUrl and previewMedia
-are not export sources. Returned pageUrl is derived from the current post selector.
+are not export sources. Returned pageUrl is derived from the current post selector. Preview and pageUrl
+values are root-relative paths on the creator-site origin (`/ipfs/...` and
+`/api/v1/membership/site/posts/:id/`), without a hardcoded domain.
 Posts lacking membership metadata are not exported.
 
 A group feed fetches a bounded page through existing group hydration; raw private

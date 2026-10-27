@@ -97,11 +97,11 @@ export function createMembership(app, models, dependencies: any = {}) {
 		}
 		const previewCount = Math.max(1, Math.min(10, Number(metadata.previewCount) || 1));
 		// Only explicitly public attachments enter the public projection.
-		const previews = publication ? (publication.posts[String(post.id)] || []).map(name => `https://${row.domain}/ipfs/${publication.public}/media/${name}`)
-			: (post.contents || []).filter(content => content.postsContents?.isPrivate === false && String(content.mimeType || '').startsWith('image/')).map(content => `https://${row.domain}/ipfs/${content.storageId}`);
+		const previews = publication ? (publication.posts[String(post.id)] || []).map(name => `/ipfs/${publication.public}/media/${name}`)
+			: (post.contents || []).filter(content => content.postsContents?.isPrivate === false && String(content.mimeType || '').startsWith('image/')).map(content => `/ipfs/${content.storageId}`);
 		return { id: String(post.id), title: String(metadata.title || '').slice(0, 500), description: String(metadata.free === true || active ? metadata.fullText ?? metadata.description ?? '' : metadata.teaser ?? metadata.description ?? '').slice(0, 10000),
 			previews, previewCount, free: metadata.free === true, locked: metadata.free !== true && !active,
-			publishedAt: post.publishedAt, ...(metadata.free === true || active ? { pageUrl: `https://${row.domain}/api/v1/membership/site/posts/${post.id}/` } : {}) };
+			publishedAt: post.publishedAt, ...(metadata.free === true || active ? { pageUrl: `/api/v1/membership/site/posts/${post.id}/` } : {}) };
 	}
 	const module = {
 		models, clock, resource, serial, entitlement, grantPaidInvoice, owner, publicResource,
