@@ -5,6 +5,19 @@ import ssgHelpers from '../app/modules/staticSiteGenerator/helpers.js';
 const {getPostTitleAndDescription, getTitleAndDescription, sanitizeStaticSiteContents, sanitizeStaticSiteHtml} = ssgHelpers;
 
 describe('staticSiteGenerator helpers', () => {
+    it('derives safe attachment extensions from stored metadata and the MIME registry', () => {
+        const extension = ssgHelpers.getContentExtension;
+        assert.equal(extension({mimeType: 'application/zip', name: 'Archive'}), 'zip');
+        assert.equal(extension({mimeType: 'application/pdf', name: 'Report.png'}), 'pdf');
+        assert.equal(extension({mimeType: ' IMAGE/JPEG ; charset=binary', extension: '.JPG'}), 'jpg');
+        assert.equal(extension({mimeType: 'video/quicktime'}), 'qt');
+        assert.equal(extension({mimeType: 'audio/mpeg'}), 'mpga');
+        assert.equal(extension({mimeType: 'application/octet-stream', name: 'archive.tar.gz'}), 'gz');
+        assert.equal(extension({mimeType: 'application/x-custom', extension: 'custom'}), 'custom');
+        assert.equal(extension({extension: '../../escape', name: 'unsafe.<script>'}), 'bin');
+        assert.equal(extension({}), 'bin');
+    });
+
 	it('sanitizes unsafe post html while preserving safe formatting and links', () => {
 		const html = [
 			'<p onclick="alert(1)">Hello <strong>safe</strong></p>',

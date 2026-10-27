@@ -752,6 +752,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			}
 			assert(!directories.includes('sets'), 'all exports derive from attachments without a legacy gallery directory');
 			assert.equal(await storage.getFileDataText(`${fullRoot}/media/${publicationDigest(String(paid.id))}.png`), 'PAID-BYTES');
+			assert.equal(await storage.getFileDataText(`${publicRoot}/media/${publicationDigest(String(archive.id))}.zip`), 'PUBLIC ARCHIVE BYTES');
 			assert((await storage.getFileDataText(fullPath)).includes('Old full text'));
 			await post.update({propertiesJson: JSON.stringify({membership: {...metadata, fullText: 'New full text'}})});
 			for (let attempt = 0; attempt < 10; attempt++) {
@@ -766,6 +767,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			assert.notEqual(newJob.manifest.full, job.manifest.full, JSON.stringify(current));
 			assert((await storage.getFileDataText(fullPath)).includes('Old full text'));
 			assert.equal(await storage.getFileDataText(`${fullRoot}/media/${publicationDigest(String(paid.id))}.png`), 'PAID-BYTES');
+			assert.equal(await storage.getFileDataText(`${publicRoot}/media/${publicationDigest(String(archive.id))}.zip`), 'PUBLIC ARCHIVE BYTES');
 			assert.equal(await membership.isStorageIdAllowed(fullRoot), true);
 		} finally {
 			app.ms.storage = previous;

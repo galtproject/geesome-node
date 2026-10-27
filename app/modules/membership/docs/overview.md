@@ -186,6 +186,10 @@ The staticSiteGenerator layer owns snapshot generation and durable publication;
 both variants use the ordinary site SSR templates, shared styles and browser
 bundle. An optional Layout component provides account/subscription controls;
 a variant-only data adapter prevents private data entering public hydration state.
+Attachment copies use their canonical storageId directly. File extensions are
+resolved by the shared static-site helper using stored extension/name and the MIME
+registry, with known MIME taking precedence over conflicting suffixes. Unknown
+formats without a safe suffix fall back to bin.
 The publisher uses the existing batched group hydrator. The result stores two root CIDs,
 page count and a post-to-preview-filename index. Membership owns resource binding,
 subscription checks and variant selection. Current publication ID and desired
