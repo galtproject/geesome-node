@@ -38,3 +38,26 @@ as each link's `iconUrl: /ipfs/CID`. The renderer accepts only that root-relativ
 IPFS form and contains no bundled social-image binaries or host-to-icon registry.
 MicrowaveGirls uploads its existing source icons before snapshot preparation, then
 reuses the saved CIDs. Published icon CIDs are retained with snapshot artifacts.
+
+## Vue structure
+
+`App.vue` composes post, account, socials, gallery, dialog, plans and checkout SFCs.
+Each uses `<script setup lang="ts">` and a declarative template. Session/access
+orchestration lives in `useMembershipSession`, dialog focus/keyboard/scroll cleanup
+in `useMembershipModal`, and quote recovery/polling/idempotency in
+`useCryptoCheckout`. Account data is normalized once before entering UI state.
+The snapshot client never fetches a mutable feed; pagination and access selection
+navigate the immutable snapshot or the existing site entry endpoint.
+
+`vueCompiler.js` is shared by the in-memory server bundle (`creatorRenderer.js`)
+and the browser bundle. Both compile the same render functions. SSR shares the
+existing Vue runtime; each render creates its own component state. Compilation
+promises are reused and reset on errors; no build output is committed or written
+to the deployed source tree. The compiler matches Vue 3.5.13; TypeScript resolves
+imported prop types. Native group-site templates keep their existing renderer.
+
+Run `npm run test:ssg-creator-types` for strict TypeScript/template checks.
+`test/creatorMembershipVue.test.ts` mounts the real payment composable to verify
+pending-invoice recovery, key reuse after a lost response, asset-change keys,
+poll cleanup and ignored late responses. The browser comparison remains the
+source of truth for layout, controls, SSR/hydration and reader workflows.

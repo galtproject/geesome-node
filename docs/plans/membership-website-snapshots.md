@@ -291,3 +291,34 @@ Follow-up verification passed: 101 companion membership tests; 26 node membershi
 SQL/HTTP/Kubo/client tests; 51 payment tests; six focused snapshot renderer/client
 tests; 50 browser captures with the same original/new parity thresholds; API docs
 and security/scalability inventories. Companion commit: 904b1fa4.
+
+### Vue component structure follow-up
+
+Accepted scope: replace creator render-function screens with SFC templates and
+Composition API controllers, keeping the existing DOM, styling, reader permissions,
+session selection and invoice idempotency behavior. Work order: shared SFC compiler
+for server/browser; typed UI/API boundary; session/modal and checkout composables;
+post/account/gallery/plans/payment components; existing renderer, SQL/payment and
+unmasked original/new browser checks. No backend route or financial schema changes.
+Completion requires both SSR and hydration to use the compiled components and all
+existing visible controls and comparison thresholds to pass before pushing #1445.
+
+Delivered Vue structure: eleven SFCs replace app.ts/CryptoCheckout.ts/media.ts,
+with separate session, modal and quote composables and a typed account boundary.
+Server/browser share the SFC compiler; the server caches an in-memory component
+bundle and shares Vue with the renderer. Each render gets independent setup state.
+Compiler/TypeScript are explicit production dependencies, vue-tsc a development
+check. No new route, migration or change to the original stylesheet.
+
+Verification: strict vue-tsc passes; 21 snapshot/native renderer/client checks and
+three real-composable lifecycle/idempotency checks pass; 26 SQL/HTTP/Kubo/client
+checks and 51 payment checks pass. All 50 described browser captures pass the
+unchanged 24-pair pixel/control/dimension comparison. Main page, narrow account,
+payment details and gallery captures were opened for visual review. One browser
+run exceeded the narrow gallery raster tolerance (65 pixels, maximum 2/255 channel
+difference); the subsequent run passed without changing masks or tolerances.
+
+Additional native-gallery browser check fails on HTTP arrival ordering for two
+parallel original-image requests. The identical assertion also fails on the
+pre-refactor HEAD in a disposable source checkout. No loader code or test threshold
+was changed as part of this task. Treat that existing check as a separate follow-up.

@@ -718,3 +718,10 @@ control inventories verify parity at desktop/narrow widths. Branding, group prof
 and tariff changes enqueue rebuilt snapshots; public data remains allowlisted and
 received CIDs stay immutable. Production homepage cutover remains pending operator
 verification; see docs/plans/membership-website-snapshots.md.
+
+Creator theme Vue structure (#1444): the copied render-function screens are now
+Vue SFCs with typed props/events and templates. Session, dialog and crypto invoice
+controllers are separated from markup; legacy mutable-feed code is removed from
+the snapshot client. A shared in-memory SFC compiler builds server/browser
+components without generated files, and strict vue-tsc checks cover templates.
+The original reader remains the visual reference; financial APIs are unchanged.

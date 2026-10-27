@@ -1,3 +1,4 @@
+import {loadCreatorApp} from './creatorRenderer.js';
 import * as sass from 'sass';
 import { createApp } from './public/index.js';
 import { renderToString } from 'vue/server-renderer';
@@ -24,7 +25,7 @@ export default {
 
 async function renderApp(storageData, rootContent, url, headers, lang) {
     // console.log('app', app);
-    const {app} = await createApp(storageData, url);
+    const {app} = await createApp(storageData, url, storageData.membership ? await loadCreatorApp() : null);
     const slashSplit = url.split('/');
     const relativeRoot = storageData.relativeRoot ?? (slashSplit.length > 2 ? slashSplit.slice(1).map(() => '../').join('') : './');
     // app.use(Notifications);

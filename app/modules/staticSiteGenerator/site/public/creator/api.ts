@@ -53,5 +53,5 @@ export function safeSiteUrl(value: unknown): string | null {
         return null;
     }
 }
-export function money(amount: number, currency = 'USD') { return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount / 100); }
-export const accessPeriodLabel = (period: string) => period === 'halfyear' ? '6 months' : period === 'month' ? '1 month' : period === 'year' ? '1 year' : period;
+export function money(amount: number = 0, currency = 'USD') { return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount / 100); }
+export const accessPeriodLabel = (period: string = '') => period === 'halfyear' ? '6 months' : period === 'month' ? '1 month' : period === 'year' ? '1 year' : period;

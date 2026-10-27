@@ -1,5 +1,4 @@
-import {App} from './app.ts';
 export default {
-    components: {App}, inject: ['store'],
-    template: `<App :initial-state="store.creator" />`
+    inject: ['store'],
+    template: `<CreatorApp :initial-state="store.creator" />`
 };
