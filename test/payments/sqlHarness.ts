@@ -17,7 +17,7 @@ export async function createMembershipService({ sequelize, env, clock, cryptoObs
 		databases.set(sequelize, saved);
 	}
 	const sites = [{ id: 'wave', origin: 'https://eraofwave.com', groupId: 1, ownerId: 1 }, { id: 'meat', origin: 'https://eraofmeat.com', groupId: 2, ownerId: 2 }];
-	const app: any = { checkUserCan: async () => {}, config: { paymentsConfig: {} }, ms: { database: { sequelize, models: { User: saved.User } }, group: {
+	const app: any = { checkUserCan: async () => {}, isAdminCan: async () => true, config: { paymentsConfig: {} }, ms: { database: { sequelize, models: { User: saved.User } }, group: {
 				getLocalGroup: async (ownerId, groupId) => ({ id: Number(groupId), creatorId: ownerId, isPublic: false, isEncrypted: false, title: 'Test creator' })
 			} } };
 	const payments = createPayments(app, saved.payments, { env, clock, observer: cryptoObserver, adapter: cryptoAdapter });

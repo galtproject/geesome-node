@@ -22,7 +22,7 @@ and existing cookie rules. No client-supplied site selector is trusted.
 
 1. Storage/resolution: membership models/siteSettings and async browser resolver.
    Output: indexed host + primary-key lookups; no process config cache.
-2. API/authorization: operator AdminAll provisioning, owner/UserGroupManagement
+2. API/authorization: explicitly delegated membership-site provisioning, owner/UserGroupManagement
    mutable settings; optimistic updates and immutable bindings. Depends on 1.
 3. Verification/docs: SQL/HTTP, permission/host/nonce/live updates/import tests,
    module docs and inventories. Depends on 1–2. Read-only audit can run alongside
@@ -59,3 +59,7 @@ and existing cookie rules. No client-supplied site selector is trusted.
 - API docs generation, security route inventory, database scalability inventory
   and diff checks passed. No production deployment, live RPC or transfers.
 - Full product suite and creator UI were not run/implemented in this stage.
+
+Provisioning delegation now uses `admin:membership:sites`; see
+[membership-site permission](membership-site-permission.md) for the account/key
+grant and own-group boundary replacing the original AdminAll-only requirement.

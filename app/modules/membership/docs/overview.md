@@ -26,10 +26,19 @@ sessions; it does not delete them, and re-enabling resumes unexpired sessions.
 ### Provision an existing group
 
 The node operator first confirms that the deployment routes the HTTPS domain
-under their control, preserving Host. Only a bearer credential with `AdminAll`
-and matching API-key permissions may call `POST /v1/membership/sites`. This is
-operator approval of a proxy binding, not an automated DNS ownership check.
-Group ownership alone does not permit arbitrary domain claims.
+under their control, preserving Host. `POST /v1/membership/sites` requires
+`admin:membership:sites` on both the account and the active API key. Delegated
+callers also need `user:group:all` (or `user:all`) and may bind only their own
+ordinary private groups. An account and key with full `admin:all` retain the
+operator's cross-owner provisioning capability. Group ownership or `user:all`
+alone does not authorize domains. This is explicit operator delegation of proxy
+bindings, not an automated DNS ownership check.
+
+After upgrading, the administrator grants the core permission through
+`POST /v1/admin/permissions/core/add_permission` with the intended `userId` and
+`permissionName: "admin:membership:sites"`, then adds that permission to the
+integration key, preserving its other permissions. No existing account or key is
+elevated automatically. See [upgrade and verification](../../../../docs/plans/membership-site-permission.md).
 
 Example body (replace the group/owner IDs and existing Google Client ID):
 

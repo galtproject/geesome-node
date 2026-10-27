@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import createApp from '../app/index.js';
 import { request as httpRequest } from 'node:http';
 import { randomUUID, generateKeyPairSync, createSign } from 'node:crypto';
 import { Sequelize } from 'sequelize';
@@ -25,7 +26,7 @@ const databaseUrl = process.env.CREATOR_MEMBERSHIP_TEST_DATABASE_URL;
 const suite = databaseUrl ? describe : describe.skip;
 suite('creator modules with real PostgreSQL and HTTP', function () {
 	this.timeout(30000);
-	let db, app, identityModels, membershipModels, paymentModels, models, google, membership, payments, owner, otherOwner;
+	let db, app, authApp, delegated, identityModels, membershipModels, paymentModels, models, google, membership, payments, owner, otherOwner;
 	let api, base;
 	let now = new Date();
 	const transfers = new Map<string, any[]>();
@@ -100,19 +101,39 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		const meat = await models.Group.create({ name: 'meat', creatorId: otherOwner.id, title: 'Era Of Meat', isPublic: false, isEncrypted: false, isOpen: false });
 		const sites = [{ id: 'wave', origin: 'https://eraofwave.com', groupId: wave.id, ownerId: owner.id }, { id: 'meat', origin: 'https://eraofmeat.com', groupId: meat.id, ownerId: otherOwner.id }]
 			.map(site => ({ ...site, googleClientId: 'existing-google-client', postsEnabled: true, registrationEnabled: true }));
+		delegated = await models.User.create({ name: 'delegated-site-owner' });
+		for (const name of [CorePermissionName.AdminMembershipSites, CorePermissionName.UserGroupManagement]) {
+			await models.CorePermission.create({ userId: delegated.id, name, isActive: true });
+		}
+		// Run production permission methods and AsyncLocalStorage key scoping;
+		// bootstrap module stubs keep this fixture independent of IPFS/network startup.
+		authApp = await createApp({ skipFrontendStorage: true, storageConfig: { jsNode: { pass: 'test', salt: 'test' } } }, { loadModule: async () => ({}) });
+		authApp.ms.database = { isHaveCorePermission: async (userId, name) => Boolean(await models.CorePermission.findOne({ where: { userId, name, isActive: true } })) } as any;
 		app = { config: { domain: 'localhost', apiConfig: {}, paymentsConfig: { worker: false } }, ms: { database: { sequelize: db, models } },
 			checkModules(names) {
 				for (const name of names) {
 					assert(this.ms[name]);
 				}
 			},
-			async checkUserCan(userId, permission) {
-				if (!await models.CorePermission.findOne({ where: { userId, name: permission, isActive: true } })) {
-					throw new Error('not_permitted');
+			checkUserCan: authApp.checkUserCan.bind(authApp),
+			isAdminCan: authApp.isAdminCan.bind(authApp),
+			runWithApiKey: authApp.runWithApiKey.bind(authApp),
+			getUserByApiToken: async token => {
+				const user = token.startsWith('test-owner') ? owner : token.startsWith('test-delegated') ? delegated
+					: ['test-other-owner', 'test-ungranted'].includes(token) ? otherOwner : token === 'test-reader' ? await models.User.findByPk(waveReader.userId) : null;
+				let permissions = [CorePermissionName.UserAll];
+				if (token === 'test-ungranted') {
+					permissions = [CorePermissionName.AdminMembershipSites, CorePermissionName.UserGroupManagement];
+				} else if (token === 'test-owner') {
+					permissions.push(CorePermissionName.AdminAll);
+				} else if (token === 'test-delegated' || token === 'test-owner-delegated') {
+					permissions = [CorePermissionName.AdminMembershipSites, CorePermissionName.UserGroupManagement];
+				} else if (token === 'test-delegated-no-group') {
+					permissions = [CorePermissionName.AdminMembershipSites];
 				}
-			},
-			runWithApiKey: (_key, callback) => callback(),
-			getUserByApiToken: async (token) => ({ user: token === 'test-owner' ? owner : token === 'test-other-owner' ? otherOwner : token === 'test-reader' ? await models.User.findByPk(waveReader.userId) : null, apiKey: { permissions: '[]' } }) };
+				return { user, apiKey: { userId: user?.id, isDisabled: false, permissions: JSON.stringify(permissions) } };
+			} };
+
 		// Group adapters use real production models; no IPFS publication is involved.
 		app.ms.group = {
 			getLocalGroup: async (userId, id) => {
@@ -151,6 +172,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 	after(async () => {
 		await api?.stop();
 		await payments?.stop();
+		await authApp?.stop();
 		await db?.close();
 	});
 	it('verifies a signed Google credential and creates only a private user with a site session', async () => {
@@ -205,6 +227,26 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert.equal((await request('membership/resource')).status, 200);
 		// The process and service objects have not been restarted or reconfigured.
 		assert.equal((await membership.resolveSite('eraofwave.com')).version, 6);
+	});
+	it('delegates provisioning to account and key scopes without granting full administration or foreign groups', async () => {
+		const group = await models.Group.create({ name: 'delegated', creatorId: delegated.id, title: 'Delegated', isPublic: false, isEncrypted: false, isOpen: false });
+		const input = { id: 'delegated', origin: 'https://delegated.test', groupId: String(group.id), ownerId: delegated.id,
+			googleClientId: 'delegated-client', postsEnabled: false, registrationEnabled: true, enabled: true, version: 0 };
+		for (const token of ['test-owner-user-only', 'test-delegated-user-only', 'test-delegated-no-group', 'test-ungranted', 'test-other-owner']) {
+			assert.equal((await request('membership/sites', { token, body: input })).status, 403, token);
+		}
+		assert.equal(await membershipModels.resources.count({ where: { id: 'delegated' } }), 0);
+		assert.equal((await request('membership/sites', { token: 'test-delegated', body: { ...input, ownerId: owner.id } })).status, 403);
+		// Even an admin account is restricted by a delegated integration key.
+		assert.equal((await request('membership/sites', { token: 'test-owner-delegated', body: input })).status, 403);
+		const result = await request('membership/sites', { token: 'test-delegated', body: input });
+		assert.equal(result.status, 200);
+		assert.equal(result.body.ownerId, delegated.id);
+		assert.equal((await request('membership/admin/delegated/site', { token: 'test-delegated' })).status, 200);
+		assert.equal((await request('membership/admin/delegated/site', { token: 'test-other-owner' })).status, 403);
+		assert.equal(await authApp.isAdminCan(delegated.id, CorePermissionName.AdminAll), false);
+		assert.equal(await authApp.isAdminCan(delegated.id, CorePermissionName.AdminSetPermissions), false);
+		assert.equal((await request('membership/sites', { token: 'test-delegated', body: { ...input, origin: 'https://different.test', version: 1 } })).status, 409);
 	});
 	it('reserves domain bindings for node operators and imports existing resources without repricing', async () => {
 		const current = (await request('membership/admin/wave/site', { token: 'test-owner' })).body;

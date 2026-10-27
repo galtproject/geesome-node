@@ -672,7 +672,7 @@ payment regressions, default configuration and worker lifecycle checks.
 ## Membership site database (#1436)
 
 Creator site configuration now lives in membership SQL records and is resolved
-per request without a process restart. Operator-only provisioning preserves
+per request without a process restart. Explicitly authorized provisioning preserves
 immutable resource/domain/group/owner identities. Group owners manage versioned
 Google Client ID, registration, preview/branding and site availability through
 bearer APIs. A new model-synced settings table leaves financial schemas intact.
@@ -681,3 +681,11 @@ submitted explicitly with their original IDs before traffic is switched.
 
 See [delivery and upgrade audit](plans/membership-site-database.md) for access
 boundaries, import instructions and verification evidence.
+
+## Membership site delegation (#1438)
+
+A dedicated `admin:membership:sites` account and API-key permission permits
+own-group site preparation without full node administration. Delegated callers
+also require group management; full operator credentials retain cross-owner
+provisioning. No automatic grants or schema changes. See
+[upgrade and verification](plans/membership-site-permission.md).

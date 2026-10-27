@@ -100,7 +100,7 @@ function notesFor(route: RouteRow, block: string): string[] {
   if (['googleAuthorization', 'payments', 'membership'].includes(route.moduleName)) {
     if (route.auth === 'authorized') {
       notes.add(routeLower === '/v1/membership/sites'
-        ? 'bearer only; node operator AdminAll and active key permission; provisions immutable domain/group/owner binding; no cookie authorization'
+        ? 'bearer only; AdminMembershipSites on account and active key; delegated own-group + UserGroupManagement; full AdminAll operator compatibility; immutable domain/group/owner binding; no cookie authorization'
         : routeLower === '/v1/user/payments/payout'
         ? 'bearer only; self req.user.id; UserGroupManagement and active key permission required; no browser cookie authorization'
         : 'bearer only; membership.owner checks group creator and UserGroupManagement; no browser cookie authorization');
