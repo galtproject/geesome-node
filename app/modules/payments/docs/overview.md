@@ -15,7 +15,7 @@ endpoint. Google login never accepts a reader-selected user or site id.
 
 ## Owner defaults and group overrides
 
-One operator seed and the existing shared reader derivation remain unchanged.
+One operator seed supplies a global HD index space. Each reader/resource pair has a permanent receiving address; the same pair reuses it across supported EVM networks.
 Authors configure a public EVM payout address with their existing bearer login:
 
 - `GET /v1/user/payments/payout` returns `{payout, version}`, initially empty/zero.
@@ -76,7 +76,7 @@ there are obsolete; direct crypto is the only current provider).
 
 The invoice is a time-limited quote, not automatic renewal. Stablecoins use the
 frozen USD tariff; other amounts use integer atomic-unit rounding. Partial/late
-payments and network outages retain state. Managed readers reuse their allocated
+payments and network outages retain state. Managed reader/resource pairs reuse their allocated
 address across EVM networks; block windows and checkpoints prevent double credit.
 Transactions are journaled before broadcast and ambiguous responses reconcile
 rather than signing replacements with fresh identities.
@@ -97,3 +97,33 @@ coverage; it also runs wallet/observer/adapter regression vectors without live
 Google/RPC calls or transfers. Migration/cutover is pending; do not point this
 engine at the old ledger or run two signers. See the
 [migration plan](../../../../docs/plans/creator-membership-migration.md).
+
+
+## Permanent addresses per resource (#1453)
+
+HD assignments are unique by `(walletFingerprint, readerId, resourceId)`; wallet
+indexes remain globally unique across resources. Index zero is reserved for gas.
+New-resource invoices allocate another index, while renewals and other EVM
+networks reuse the existing resource assignment. Pending invoice exclusion is
+scoped to reader/resource/asset, allowing Wave and Meat invoices concurrently.
+The global ten-pending-invoices-per-reader cap remains unchanged. Invoice
+boundaries, receipt ownership and settlement remain address/asset-specific.
+
+Upgrade existing installations with database migration
+`20261028000000-scope-payment-addresses-to-resources.cjs` before running this code.
+Stop old API/money workers before migrating; do not run old/new allocators at
+the same time. Back up the database and operator seed independently first.
+The migration infers the resource from all historical crypto invoices for an
+assignment. It preserves an unambiguous existing address, and leaves shared,
+unused or conflicting assignments with NULL resource as reserved legacy rows.
+Those rows still advance the global index; new invoices never select them.
+No invoices, keys, checkpoints, paid periods or signing journals are rewritten.
+The nullable column is for these legacy reservations only; new assignments
+always carry a resource id.
+
+Rollback refuses once a reader has multiple assignments, because the old unique
+constraint and allocator cannot safely represent them. Preserve the current
+ledger and fix forward. This migration operates on GeeSome's payments tables;
+it does not import the separate MicrowaveGirls ledger or its Google identities.
+A permanent deposit address still requires a fresh invoice before each payment;
+an unsolicited transfer does not automatically choose a tariff or renew access.

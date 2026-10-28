@@ -19,7 +19,7 @@ export default async function (sequelize) {
     refunds: [{ fields: ['resourceId', 'createdAt'] }],
     crypto_wallets: [{ fields: ['resourceId', 'network'], unique: true }],
     crypto_invoices: [{ fields: ['status', 'nextCheckAt'] }],
-    crypto_hd_accounts: [{ fields: ['walletFingerprint', 'readerId'], unique: true }, { fields: ['walletFingerprint', 'index'], unique: true }],
+    crypto_hd_accounts: [{ name: 'payments_hd_accounts_resource_unique', fields: ['walletFingerprint', 'readerId', 'resourceId'], unique: true }, { fields: ['walletFingerprint', 'index'], unique: true }],
     crypto_transactions: [{ fields: ['network', 'sender', 'nonce'], unique: true }],
     crypto_collections: [{ fields: ['state', 'createdAt'] }]
   };
