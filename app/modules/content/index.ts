@@ -1,3 +1,4 @@
+import {ImagePreviewDriver, imagePreviewEdge} from '../drivers/preview/image.js';
 import fs from "fs";
 import {watermarkIdentity, watermarkProperties} from '../drivers/convert/imageWatermarkHelpers.js';
 import {imageFormat, optimizationRequest} from '../drivers/convert/imageOptimize.js';
@@ -552,26 +553,36 @@ function getModule(app: IGeesomeApp) {
 
 			try {
 				if (previewDriver.isInputSupported(DriverInput.Stream)) {
-					const {storageFile: mediumFile, type, extension: resultExtension} = await this.getContentPreviewStorageFile(storageFile, previewDriver, {
-						extension,
-						size: OutputSize.Medium
-					});
+					// Width-only variants used to encode the same small image three
+					// times. Reuse each effective bounding size within this set.
+					let sourceEdge = 0;
+					if (previewDriverName === 'image' && previewDriver instanceof ImagePreviewDriver) {
+						const input = storageFile.tempPath ? fs.createReadStream(storageFile.tempPath) : await this.getFileStream(storageFile.id);
+						try {
+							sourceEdge = await previewDriver.getSourceEdge(input);
+						} finally {
+							input.destroy();
+						}
+					}
+					const renditions = new Map();
+					const renderPreview = async (size: OutputSize) => {
+						const key = sourceEdge ? Math.min(sourceEdge, imagePreviewEdge(size)) : size;
+						if (!renditions.has(key)) {
+							renditions.set(key, await this.getContentPreviewStorageFile(storageFile, previewDriver, {extension, size}));
+						}
+						return renditions.get(key);
+					};
+					const {storageFile: mediumFile, type, extension: resultExtension} = await renderPreview(OutputSize.Medium);
 
 					let smallFile;
 					if (previewDriver.isOutputSizeSupported(OutputSize.Small)) {
-						smallFile = await this.getContentPreviewStorageFile(storageFile, previewDriver, {
-							extension,
-							size: OutputSize.Small
-						});
+						smallFile = await renderPreview(OutputSize.Small);
 						smallFile = smallFile.storageFile;
 					}
 
 					let largeFile;
 					if (previewDriver.isOutputSizeSupported(OutputSize.Large)) {
-						largeFile = await this.getContentPreviewStorageFile(storageFile, previewDriver, {
-							extension,
-							size: OutputSize.Large
-						});
+						largeFile = await renderPreview(OutputSize.Large);
 						largeFile = largeFile.storageFile;
 					}
 

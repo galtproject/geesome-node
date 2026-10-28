@@ -36,6 +36,31 @@ describe('persisted image saving and local site retirement', function () {
     });
     after(async () => { await app?.stop(); });
 
+    it('uploads raw site icons without previews and reuses the existing content on retry', async () => {
+        const bytes = await sharp({create: {width: 24, height: 24, channels: 4, background: {r: 91, g: 20, b: 163, alpha: 0.4}}}).png().toBuffer();
+        const render = app.ms.drivers.preview.image.processByStream;
+        app.ms.drivers.preview.image.processByStream = async () => {throw Error('raw icons must not create previews');};
+        try {
+            const form = new FormData();
+            form.append('driver', JSON.stringify({raw: true}));
+            form.append('file', new Blob([bytes], {type: 'image/png'}), 'site-icon.png');
+            const token = await app.generateUserApiKey(user.id, {});
+            const response = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-file`,
+                {method: 'POST', headers: {Authorization: `Bearer ${token}`}, body: form});
+            assert.equal(response.status, 200);
+            const uploaded = await response.json();
+            assert.equal(uploaded.mimeType, 'image/png');
+            assert.equal(uploaded.mediumPreviewStorageId, null);
+            const saved = Buffer.from((await app.ms.storage.getFileData(uploaded.storageId)).slice());
+            assert.deepEqual(saved, bytes);
+            const retry = await app.ms.content.saveData(user.id, bytes, 'site-icon.png', {driver: JSON.stringify({raw: true}), waitForPin: true});
+            assert.equal(retry.id, uploaded.id);
+            assert.equal(retry.mediumPreviewStorageId, null);
+        } finally {
+            app.ms.drivers.preview.image.processByStream = render;
+        }
+    });
+
     it('rebuild repairs already optimized unmarked images, preserves one watermark and renders marked mappings', async () => {
         const driver = watermarkDriver({name: 'imageWatermark', module: 'convert', params: {
             text: 'eraofwave.com', color: '#874ee6', background: 'black', font: 'monospace', spacing: 50, sizeRatio: 1 / 50}});
@@ -58,7 +83,7 @@ describe('persisted image saving and local site retirement', function () {
             const data = Buffer.from((await app.ms.storage.getFileData(cid)).slice());
             const metadata = await sharp(data).metadata();
             assert.equal(metadata.format, 'webp');
-            assert.equal(metadata.height, Math.round(metadata.width * 1664 / 1200));
+            assert.deepEqual([metadata.width, metadata.height], cid === marked.storageId ? [1200, 1664] : [738, 1024]);
             if (cid === marked.storageId) {
                 assert.ok(JSON.parse(marked.propertiesJson).imageWatermark?.identity);
             } else {

@@ -725,3 +725,13 @@ controllers are separated from markup; legacy mutable-feed code is removed from
 the snapshot client. A shared in-memory SFC compiler builds server/browser
 components without generated files, and strict vue-tsc checks cover templates.
 The original reader remains the visual reference; financial APIs are unchanged.
+
+## Bounded static-image previews (#1447)
+
+Ordinary image previews use WebP quality 85/effort 3, bounded long-side sizes,
+per-set reuse of equal effective dimensions, and a shared bounded work queue with
+input/encoding deadlines and byte/pixel caps. Existing stored renditions and
+immutable sites keep their CIDs. Full publication encoders are unchanged.
+MicrowaveGirls uploads social icons as raw original content without previews.
+See [policy and evidence](plans/image-preview-policy.md) for verification and the
+separately reproduced existing aborted-upload stress-test failure.
