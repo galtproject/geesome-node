@@ -105,7 +105,9 @@ function notesFor(route: RouteRow, block: string): string[] {
         ? 'bearer only; self req.user.id; UserGroupManagement and active key permission required; no browser cookie authorization'
         : 'bearer only; membership.owner checks group creator and UserGroupManagement; no browser cookie authorization');
     } else {
-      notes.add('membership SQL HTTPS Host allowlist; cookie accepted explicitly and bound to site; mutation requires exact Origin; no-store');
+      notes.add(routeLower.startsWith('/v1/membership/site/view')
+        ? 'membership HTTPS Host allowlist; site-bound cookie selects public/full; safe external GET/HEAD document navigation allowed; cross-site API fetches rejected; private no-store, Vary Cookie/Host; full/account noindex'
+        : 'membership SQL HTTPS Host allowlist; cookie accepted explicitly and bound to site; mutation requires exact Origin; no-store');
       if (block.includes('reader(req, site, true)')) {
         notes.add('requires live private reader session; no core upload permissions or API key issued');
       }

@@ -56,7 +56,7 @@ function getHeaderContent(headers, name) {
 }
 
 function getHeaderTagHtml(tag, attr) {
-    return `<${tag} name="${escapeHtmlAttribute(attr['name'])}" content="${escapeHtmlAttribute(attr['content'])}"/>`;
+    return `<${tag} ${Object.entries(attr).map(([name, value]) => `${name}="${escapeHtmlAttribute(value)}"`).join(' ')}/>`;
 }
 
 function escapeHtml(value) {

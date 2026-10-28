@@ -6,4 +6,4 @@ node --import tsx test/membershipSnapshotBrowserFixture.mjs
 docker run --rm --entrypoint node \
   -v "$PWD/test/membershipSnapshotBrowser.mjs:/work/membershipSnapshotBrowser.mjs:ro" \
   -v "$MEMBERSHIP_BROWSER_EVIDENCE:/evidence" \
-  microwave-girls-e2e-playwright:latest /work/membershipSnapshotBrowser.mjs
+  microwave-girls-e2e-playwright:latest /work/membershipSnapshotBrowser.mjs "$@"

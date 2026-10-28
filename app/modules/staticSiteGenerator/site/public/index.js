@@ -22,7 +22,7 @@ export async function createApp(store, serverRoute = null, creatorApp = null) {
 
     const isServer = typeof window === 'undefined';
     const initialRoute = getInitialRoute(isServer, store, serverRoute);
-    const router = createRouter(isServer ? null : store.defaultRoute);
+    const router = createRouter(isServer ? null : store.defaultRoute, Boolean(store.membership));
     await router.push(initialRoute);
     // await router.isReady();
     app.use(router);
@@ -31,6 +31,9 @@ export async function createApp(store, serverRoute = null, creatorApp = null) {
 }
 
 function getInitialRoute(isServer, store, serverRoute) {
+    if (!isServer && store.membership) {
+        return getStoreRoute(store);
+    }
     if (!isServer) {
         return window.location.hash.slice(1) || (store.defaultRoute ? '/' : getStoreRoute(store));
     }
