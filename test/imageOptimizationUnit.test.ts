@@ -4,9 +4,7 @@ import sharp from 'sharp';
 import {contentIds} from '../app/modules/content/publicationInput.js';
 import {ImagePreviewDriver} from '../app/modules/drivers/preview/image.js';
 import {ImageOptimizeDriver, encodePublicationImage, optimizationRequest} from '../app/modules/drivers/convert/imageOptimize.js';
-import {createApp} from '../app/modules/staticSiteGenerator/site/public/index.js';
-import {renderToString} from 'vue/server-renderer';
-import {load} from 'cheerio';
+import Gallery from '../app/modules/staticSiteGenerator/site/public/pages/ContentList/index.js';
 
 async function bytes(stream) {
     const chunks = [];
@@ -44,8 +42,8 @@ describe('image optimization saving policy', function () {
         const previewMeta = await sharp(previewBytes).metadata();
         assert.equal(preview.type, 'image/webp');
         assert.equal(preview.extension, 'webp');
-        assert.equal(previewMeta.width, 1024);
-        assert.equal(previewMeta.height, 1463);
+        assert.equal(previewMeta.width, 717);
+        assert.equal(previewMeta.height, 1024);
         assert.ok(previewBytes.length < png.length);
         assert.deepEqual(png, source, 'source bytes remain unchanged');
     });
@@ -79,11 +77,42 @@ describe('image optimization saving policy', function () {
         }
     });
 
-    it('renders the real preview extension while originals keep their own extension', async () => {
-        const {app} = await createApp({options: {}, contents: [{id: 1, type: 'image', name: 'mixed formats',
-            storageId: 'original', previewStorageId: 'preview', extension: 'png', previewExtension: 'webp'}], path: '/content-list'}, '/content-list');
-        const $ = load(await renderToString(app));
-        assert.ok($('.content-item').attr('style').includes('./preview/1_preview.webp'));
-        assert.equal($('.content-item img').attr('src'), './content/1_original.png');
+    it('loads WebP previews for visible cards while the viewer retains the original extension', async () => {
+        const previous = {Image: globalThis.Image, window: globalThis.window, IntersectionObserver: globalThis.IntersectionObserver};
+        const requested: string[] = [];
+        let opened;
+        const vm: any = {contents: [{type: 'image', storageId: 'original', previewStorageId: 'preview', extension: 'png', previewExtension: 'webp'}],
+            previewRoot: './preview/', contentRoot: './content/', previewSources: {},
+            $refs: {gallery: {querySelectorAll: () => [{dataset: {galleryIndex: '0'}}]}},
+            $root: {$modal: {open: value => {opened = value;}}}};
+        vm.originalUrl = (content, index) => Gallery.methods.originalUrl.call(vm, content, index);
+        try {
+            globalThis.Image = class {
+                onload; onerror;
+                set src(value) {requested.push(value); queueMicrotask(() => this.onload?.());}
+                removeAttribute() {}
+            } as any;
+            globalThis.IntersectionObserver = class {
+                constructor(private callback) {}
+                observe(target) {this.callback([{target, isIntersecting: true}]);}
+                disconnect() {}
+            } as any;
+            globalThis.window = {IntersectionObserver: globalThis.IntersectionObserver} as any;
+            Gallery.mounted.call(vm);
+            await new Promise(resolve => setImmediate(resolve));
+            assert.equal(vm.previewSources[0], './preview/1_preview.webp');
+            assert.deepEqual(requested, ['./preview/1_preview.webp', './content/1_original.png']);
+            Gallery.methods.openMedia.call(vm, 0);
+            assert.deepEqual(opened.props.imageList, ['./content/1_original.png']);
+        } finally {
+            vm.stopLoading?.();
+            for (const [key, value] of Object.entries(previous)) {
+                if (value === undefined) {
+                    delete globalThis[key];
+                } else {
+                    globalThis[key] = value;
+                }
+            }
+        }
     });
 });
