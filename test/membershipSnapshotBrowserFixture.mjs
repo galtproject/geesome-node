@@ -35,6 +35,10 @@ for (const full of [false, true]) {
         postUrl: 'posts/1.html', media: [{ url: 'media/preview.svg', mime: 'image/svg+xml', name: 'Public attachment' }, { url: 'media/preview.svg', mime: 'image/svg+xml', name: 'Second public attachment' }] };
     const render = async (single, page = 1) => {
         const local = { ...post, media: post.media.map(item => ({ ...item, url: (single ? '../' : '') + item.url })) };
+        if (full) {
+            local.media.push({mime:'text/uri-list',name:'Read manual',url:'/ipfs/bafkreihai2kno6iph4yweurfqc7owuunxc5p43kntfv2dqctkukbfntlhy/manual.pdf#page=2'});
+            local.media.push({view:'link', name:'View full set', mime:'text/uri-list', text:'/ipfs/bafkreihai2kno6iph4yweurfqc7owuunxc5p43kntfv2dqctkukbfntlhy/#/', url:'/ipfs/bafkreihai2kno6iph4yweurfqc7owuunxc5p43kntfv2dqctkukbfntlhy/#/'});
+        }
         if (full && single) {
             local.media.push({ url: '../media/private.txt', mime: 'text/plain', text: 'PRIVATE BODY', name: 'Private text' }, { url: '../media/private.txt', mime: 'application/octet-stream', name: 'Private download' });
         }

@@ -40,6 +40,35 @@ describe('membership snapshots using shared site templates', function () {
 		assert(single.includes('src="../public/client.js"'));
 		assert(single.includes('data-testid="post-1"'));
 	});
+	it('renders gallery link Content as the existing full-set action on index and post pages', async () => {
+		const url = '/ipfs/bafkreihai2kno6iph4yweurfqc7owuunxc5p43kntfv2dqctkukbfntlhy/#/';
+		for (const single of [false, true]) {
+			const html = await renderSnapshot({title: 'Gallery'}, [{id: '1', title: 'Post', free: false,
+				media: [{mime: 'text/uri-list', view:'link', name:'View full set', url}], postUrl: 'posts/1.html'}], true, single);
+			assert(html.includes(`href="${url}"`));
+			assert(html.includes('data-testid="content-link"'));
+			assert(!html.includes('class="attachment-link"'), 'the URI is not rendered as a download or raw text');
+		}
+	});
+	it('renders multiple named IPFS links as ordinary content on index and post pages', async () => {
+		for (const single of [false, true]) {
+			const html = await renderSnapshot({title:'Resources'}, [{id:'2', title:'Resources', media:[
+				{mime:'text/uri-list',name:'Read manual',url:'/ipfs/bafkreihai2kno6iph4yweurfqc7owuunxc5p43kntfv2dqctkukbfntlhy/manual.pdf#page=2'},
+				{mime:'text/uri-list',name:'Download source',view:'link',url:'/ipfs/bafkreihai2kno6iph4yweurfqc7owuunxc5p43kntfv2dqctkukbfntlhy/source.zip'}]}], true, single);
+			assert(html.includes('Read manual'));
+			assert(html.includes('Download source'));
+			assert(html.includes('manual.pdf#page=2'));
+			assert(!html.includes('View full set'));
+			assert(!html.includes('data-testid="subscribe-post"'));
+		}
+	});
+	it('keeps subscription controls when a paid public preview also contains public links', async () => {
+		const html = await renderSnapshot({title:'Preview'}, [{id:'3',title:'Paid post',free:false,media:[
+			{mime:'text/uri-list',name:'Public instructions',url:'/ipfs/bafkreihai2kno6iph4yweurfqc7owuunxc5p43kntfv2dqctkukbfntlhy/readme.txt'}]}], false);
+		assert(html.includes('Public instructions'));
+		assert(html.includes('data-testid="subscribe-post"'));
+		assert(html.includes('Membership unlocks full-set links'));
+	});
 	it('renders uploaded icon CIDs as root-relative images on index and nested post pages', async () => {
 		const cid = 'bafy' + 'a'.repeat(55);
 		const site = {title: 'Icons', brand: {links: [
@@ -131,3 +160,29 @@ async function renderSnapshot(site, posts, full, single = false, page = 1, pageC
 	const {renderPage} = await siteRenderer.prepareRender(data);
 	return renderPage(single ? `/post/${posts[0].id}` : '/', [['meta', {name: 'og:title', content: site.title}]]);
 }
+
+describe('generic IPFS URI list Content', () => {
+	it('parses genuine CIDs, paths, fragments, comments and CRLF lists without gallery assumptions', async () => {
+		const {ipfsLink, ipfsUriList} = await import('../app/modules/staticSiteGenerator/publicationLinks.js');
+		const cid = 'bafkreihai2kno6iph4yweurfqc7owuunxc5p43kntfv2dqctkukbfntlhy';
+		const target = `ipfs://${cid}/documents/file%20name.pdf?download=1#page=3`;
+		assert.deepEqual(ipfsLink(target), {cid, path:'/documents/file%20name.pdf',uri:target,url:`/ipfs/${cid}/documents/file%20name.pdf?download=1#page=3`});
+		assert.equal(ipfsLink(`ipfs://${cid}`)?.url, `/ipfs/${cid}`);
+		assert.equal(ipfsLink(`/ipfs/${cid}/#/`)?.uri, `ipfs://${cid}/#/`, 'old stored link remains readable');
+		assert.equal(ipfsUriList(`# A comment\r\n${target}\r\nipfs://${cid}/archive.zip\r\n`).length, 2);
+		for (const value of ['javascript:alert(1)', '//evil.test/ipfs/cid/#/', 'https://evil.test/gallery', 'ipfs://invalid-cid', `ipfs://${cid}/../secret`, `ipfs://${cid}/%2e%2e/secret`, `ipfs://${cid}/%2fsecret`, `ipfs://${cid}/bad%ZZ`]) {
+			assert.equal(ipfsLink(value), null);
+		}
+		await assert.rejects(async () => ipfsUriList('x'.repeat(16385)), /publication_link_invalid/);
+	});
+	it('reads multiple link attachments with limits on actual bytes, not just declared size', async () => {
+		const {postIpfsLinks} = await import('../app/modules/staticSiteGenerator/publicationLinks.js');
+		const {Readable} = await import('node:stream');
+		const content = {mimeType:'text/uri-list',storageId:'link',size:100};
+		const storage = {getFileStream:async () => Readable.from([`ipfs://bafkreihai2kno6iph4yweurfqc7owuunxc5p43kntfv2dqctkukbfntlhy/manual.pdf\r\n`])};
+		assert.equal((await postIpfsLinks(storage,{contents:[content,{...content,mimeType:'Text/URI-List; charset=UTF-8'}]})).length, 2);
+		assert.deepEqual(await postIpfsLinks(storage,{contents:[]}), []);
+		await assert.rejects(() => postIpfsLinks(storage,{contents:[{...content,size:16385}]}),/publication_link_invalid/);
+		await assert.rejects(() => postIpfsLinks({getFileStream:async () => Readable.from(['x'.repeat(16385)])},{contents:[content]}),/publication_link_invalid/);
+	});
+});

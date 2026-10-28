@@ -1,3 +1,4 @@
+import {postIpfsLinks} from './publicationLinks.js';
 import {digest, sameCid} from '../../storageIdentity.js';
 import {pageCid, readSiteData} from './siteData.js';
 import {problem} from '../content/publicationInput.js';
@@ -21,7 +22,11 @@ export async function finalizeReplacement(service, userId, id, body, apiKeyId = 
     const metadata = service.membership(post);
     const ids = row.result.images.map(item => item.content.id);
     const attachments = [...post.contents].sort((a, b) => Number(a.postsContents?.position || 0) - Number(b.postsContents?.position || 0));
-    if (!sameCid(pageCid(metadata.pageUrl), cid) || JSON.stringify(attachments.map(c => c.id)) !== JSON.stringify(ids)
+    const links = await postIpfsLinks(service.app.ms.storage, post);
+    const linked = links.some(link => ['', '/'].includes(link.path) && sameCid(link.cid, cid));
+    const legacy = !linked && metadata.pageUrl && sameCid(pageCid(metadata.pageUrl), cid);
+    const imageIds = attachments.filter(content => content.mimeType?.startsWith('image/')).map(content => content.id);
+    if ((!linked && !legacy) || (!linked && JSON.stringify(imageIds) !== JSON.stringify(ids))
         || (row.input.previous && (post.id !== row.input.previous.postId || metadata.sourceKey !== row.input.previous.sourceKey))) {
         problem('image_replacement_publication_changed');
     }
@@ -60,7 +65,9 @@ export async function assertCurrentPublication(service, row) {
     const post = await service.publication(row.userId, final.postId);
     const metadata = service.membership(post);
     const ids = [...post.contents].sort((a, b) => Number(a.postsContents?.position || 0) - Number(b.postsContents?.position || 0)).map(c => c.id);
-    if (!sameCid(pageCid(metadata.pageUrl), final.storageId) || digest({metadata, contentIds: ids}) !== final.postHash) {
+    const links = await postIpfsLinks(service.app.ms.storage, post);
+    const linked = links.some(link => ['', '/'].includes(link.path) && sameCid(link.cid, final.storageId));
+    if (!(linked || metadata.pageUrl && sameCid(pageCid(metadata.pageUrl), final.storageId)) || digest({metadata, contentIds: ids}) !== final.postHash) {
         problem('image_replacement_publication_changed');
     }
     if (!await service.app.ms.archive.getArchive(final.storageId)) {
