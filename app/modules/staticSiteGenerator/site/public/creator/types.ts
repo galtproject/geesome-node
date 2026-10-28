@@ -5,7 +5,7 @@ export interface MembershipOption {
 }
 export interface CreatorLink {label: string; url: string; iconUrl?: string}
 export interface PreviewMedia {url: string; alt?: string}
-export interface Attachment {url?: string; mime: string; name?: string; text?: string}
+export interface Attachment {url?: string; mime: string; name?: string; text?: string; view?: string}
 export interface CreatorPost {
     id: string | number; title: string; description?: string; publishedAt?: string;
     previews: PreviewMedia[]; attachments?: Attachment[]; free?: boolean; locked?: boolean;

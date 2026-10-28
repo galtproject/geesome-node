@@ -63,7 +63,7 @@ describe('persisted image saving and local site retirement', function () {
 
     it('saves gallery URI Content through the raw JSON API and projects its text', async () => {
         const gallery = await app.ms.storage.saveFileByData('gallery fixture');
-        const target = `/ipfs/${gallery.id}/#/`;
+        const target = `ipfs://${gallery.id}/manual.pdf#page=3\r\n`;
         const token = await app.generateUserApiKey(user.id, {});
         const response = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-data`, {
             method: 'POST', headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
@@ -245,7 +245,7 @@ describe('persisted image saving and local site retirement', function () {
         assert.ok(oldArchive);
         const sourceKey = randomUUID();
         const compact = mode === 'keep';
-        const oldLink = compact ? await app.ms.content.saveData(user.id, `/ipfs/${old.storageId}/#/`, 'gallery.uri', {mimeType:'text/uri-list', driver:{raw:true}}) : null;
+        const oldLink = compact ? await app.ms.content.saveData(user.id, `# Links\r\nipfs://${old.storageId}/manual.pdf#page=2\r\nipfs://${old.storageId}/#/\r\n`, 'gallery.uri', {mimeType:'text/uri-list', driver:{raw:true}}) : null;
         const post = await app.ms.group.createPost(user.id, {groupId: group.id, status: 'published', name: `post-${sourceKey}`,
             contents: [{id: source.id, view: 'attachment', isPrivate:false}, ...(compact ? [{id:oldLink.id,view:'attachment',isPrivate:true}] : [])], propertiesJson: JSON.stringify({membership: {sourceKey,
                 ...(!compact ? {pageUrl: `https://eraofwave.com/ipfs/${old.storageId}/#/`} : {}), title: 'Original', free: false}})});
@@ -299,7 +299,7 @@ describe('persisted image saving and local site retirement', function () {
         assert.equal(files.some(name => name.endsWith('.png')), false, 'new archive contains no source PNG');
         const mapping = [[String(source.id), String(output.content.id), source.manifestStorageId, output.content.manifestStorageId]];
         const consumer = {kind: 'microwave-girls', receiptId: randomUUID(), mappingsHash: digest(mapping)};
-        const nextLink = compact ? await app.ms.content.saveData(user.id, `/ipfs/${replacement.storageId}/#/`, 'gallery.uri', {mimeType:'text/uri-list', driver:{raw:true}}) : null;
+        const nextLink = compact ? await app.ms.content.saveData(user.id, `ipfs://${replacement.storageId}/manual.pdf\r\nipfs://${replacement.storageId}/#/\r\n`, 'gallery.uri', {mimeType:'text/uri-list', driver:{raw:true}}) : null;
         await app.ms.group.updatePost(user.id, post.id, {contents: [{id: output.content.id, view: 'attachment'}, ...(compact ? [{id:nextLink.id,view:'attachment',isPrivate:true}] : [])],
             propertiesJson: JSON.stringify({membership: {sourceKey, ...(!compact ? {pageUrl: `https://eraofwave.com/ipfs/${replacement.storageId}/#/`} : {}),
                 title: 'Original', free: false, imageReplacement: {id: receipt.id, receiptId: consumer.receiptId, mappingsHash: consumer.mappingsHash}}})});

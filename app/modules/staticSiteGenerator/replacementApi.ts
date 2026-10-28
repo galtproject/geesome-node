@@ -55,9 +55,9 @@ export default function (app, service) {
      * @apiUse ApiKey
      * @apiParam {String} id Owned operation-queue ID.
      * @apiBody {String} storageId Exact replacement site CID.
-     * @apiBody {Number} postId Owned upstream Post using the saved mapping and new page URL.
+     * @apiBody {Number} postId Owned upstream Post referencing the replacement root through text/uri-list Content, or the legacy membership page URL. Other IPFS link attachments are allowed.
      * @apiBody {Object} consumer Durable microwave-girls alias acknowledgment: kind, receiptId and mappingsHash; also bound in the Post metadata.
-     * @apiDescription Verifies saved renderer receipt, ordered files, archive readiness, Post attachment mapping and consumer acknowledgment. The deletion flag is frozen at admission. Cleanup accumulates for one minute when idle or up to fifteen minutes behind foreground saves/renders/archives, then runs in a shared batch. Scheduling survives restarts and explicit cleanup retries bypass accumulation. Completion of GC is reported separately from publication success. Replays must match the original finalization.
+     * @apiDescription Verifies saved renderer receipt, ordered files, archive readiness, Post site-root reference, legacy image mapping when applicable, and consumer acknowledgment. The deletion flag is frozen at admission. Cleanup accumulates for one minute when idle or up to fifteen minutes behind foreground saves/renders/archives, then runs in a shared batch. Scheduling survives restarts and explicit cleanup retries bypass accumulation. Completion of GC is reported separately from publication success. Replays must match the original finalization.
      * @apiSuccess {String} status complete or retiring.
      * @apiError image_replacement_archive_not_ready Replacement archive is not complete.
      * @apiError image_replacement_publication_changed Post no longer matches the frozen replacement.

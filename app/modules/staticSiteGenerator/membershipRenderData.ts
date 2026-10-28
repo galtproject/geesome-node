@@ -1,8 +1,7 @@
-import {galleryLink} from './publicationLinks.js';
 import {safeCreatorUrl, creatorLinks} from './site/public/creator/links.js';
 export const membershipBase = '/api/v1/membership/site';
 
-type SnapshotMedia = {url?: string; mime: string; name?: string; text?: string};
+type SnapshotMedia = {url?: string; mime: string; name?: string; text?: string; view?: string};
 type SnapshotPost = {
 	id?: string | number; date?: number; title?: string; teaser?: string; fullText?: string;
 	free?: boolean; postUrl?: string; media: SnapshotMedia[];
@@ -22,8 +21,8 @@ export function membershipRenderData(site: SnapshotSite, posts: SnapshotPost[], 
 		posts: posts.map(post => ({id: post.id, title: post.title, description: full || post.free ? post.fullText : post.teaser,
 			publishedAt: post.date ? new Date(post.date).toISOString() : null, free: post.free === true, locked: !full && !post.free,
 			previews: post.media.filter(media => media.mime.startsWith('image/')).map(media => ({url: media.url, alt: media.name})),
-			attachments: post.media.filter(media => !media.mime.startsWith('image/') && media.mime !== 'text/uri-list').map(media => ({url: media.url, mime: media.mime, name: media.name, ...(media.text !== undefined ? {text: media.text} : {})})),
-			postPath: post.postUrl ? './' + post.postUrl : '#post-full-content', ...((full || post.free) ? {pageUrl: galleryLink(post.media.find(media => media.mime === 'text/uri-list')?.text)?.url || (post.postUrl ? './' + post.postUrl : '#post-full-content')} : {})})),
+			attachments: post.media.filter(media => !media.mime.startsWith('image/')).map(media => ({url: media.url, mime: media.mime, name: media.name, view: media.view, ...(media.text !== undefined ? {text: media.text} : {})})),
+			postPath: post.postUrl ? './' + post.postUrl : '#post-full-content', ...((full || post.free) && !post.media.some(media => media.mime === 'text/uri-list') ? {pageUrl: post.postUrl ? './' + post.postUrl : '#post-full-content'} : {})})),
 		path: single ? `/posts/${posts[0]?.id}` : '/', nextOffset: nextPage ? page * 20 : null,
 		snapshot: {full, entryPath: site.entryPath || membershipBase + '/', homePath: site.homeUrl || membershipBase + '/',
 			accountPath: single ? '../account.html' : 'account.html', nextPage}
