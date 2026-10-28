@@ -9,9 +9,10 @@ export interface CheckoutProps {
     resume: CryptoInvoice | null;
 }
 export function useCryptoCheckout(props: CheckoutProps, paid: () => void) {
-    const initial = props.methods.find(m => m.id === 'usdc-base' && m.available) || props.methods.find(m => m.available) || props.methods[0];
+    const availableMethods = computed(() => props.methods.filter(m => m.available));
+    const initial = availableMethods.value.find(m => m.id === 'usdt-ethereum') || availableMethods.value[0];
     const invoice = ref<CryptoInvoice | null>(props.resume);
-    const currency = ref(props.resume?.currency || initial?.currency || 'ETH');
+    const currency = ref(props.resume?.currency || initial?.currency || '');
     const asset = ref(props.resume?.assetId || initial?.id || '');
     const busy = ref(false), previousQr = ref(''), creating = ref(false), error = ref(''), notice = ref('');
     const detailsElement = ref<HTMLElement | null>(null), reservedHeight = ref(0);
@@ -22,8 +23,8 @@ export function useCryptoCheckout(props: CheckoutProps, paid: () => void) {
         }
     }
     let key = newRequestKey(), timer: ReturnType<typeof setInterval> | null = null, alive = true, revision = 0, checking = false;
-    const networks = computed(() => props.methods.filter(m => m.currency === currency.value));
-    const currencies = computed(() => [...new Set(props.methods.map(m => m.currency))]);
+    const networks = computed(() => availableMethods.value.filter(m => m.currency === currency.value));
+    const currencies = computed(() => [...new Set(availableMethods.value.map(m => m.currency))]);
     const remaining = computed(() => invoice.value ? remainingAmount(invoice.value.amount, invoice.value.received) : '');
     const chosen = computed(() => props.methods.find(m => m.id === asset.value));
     const networkLabel = computed(() => props.methods.find(m => m.id === (invoice.value?.assetId || asset.value))?.networkLabel || invoice.value?.network || '');
@@ -44,16 +45,18 @@ export function useCryptoCheckout(props: CheckoutProps, paid: () => void) {
         timer = null;
     }
     function selectCurrency(value: string) {
-        if (value === currency.value) {
+        const method = availableMethods.value.find(m => m.currency === value && m.id === 'usdt-ethereum')
+            || availableMethods.value.find(m => m.currency === value);
+        if (!method || value === currency.value) {
             return;
         }
         reset();
         currency.value = value;
-        asset.value = props.methods.find(m => m.currency === value && m.available)?.id || props.methods.find(m => m.currency === value)?.id || '';
+        asset.value = method.id;
         void create();
     }
     function selectAsset(value: string) {
-        if (value === asset.value) {
+        if (value === asset.value || !networks.value.some(m => m.id === value)) {
             return;
         }
         reset();
@@ -114,7 +117,7 @@ export function useCryptoCheckout(props: CheckoutProps, paid: () => void) {
         error.value = '';
         try {
             // Reuse unfinished invoices when returning to checkout or switching back to a network.
-            // Managed wallets reject a second unfinished invoice for the same reader and asset.
+            // Managed wallets reject a second unfinished invoice for the same reader, resource and asset.
             const account: {
                 invoices?: MembershipInvoice[];
             } = await membershipRequest(`/account?resource=${encodeURIComponent(props.resource)}`);
