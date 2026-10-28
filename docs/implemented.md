@@ -735,3 +735,11 @@ immutable sites keep their CIDs. Full publication encoders are unchanged.
 MicrowaveGirls uploads social icons as raw original content without previews.
 See [policy and evidence](plans/image-preview-policy.md) for verification and the
 separately reproduced existing aborted-upload stress-test failure.
+
+### Membership posts reuse published IPFS content (2026-10-28)
+
+Creator snapshots support general text/uri-list Content: genuine CIDs, optional paths/query/fragments, comments, multiple URIs and multiple link attachments. New links use ipfs:// URIs with CRLF lines; existing /ipfs/ links remain readable. The per-post join-row privacy selects public/full output. Named links and view=link actions render without selecting any URI as a gallery; public links do not hide subscription controls for locked posts. Target roots are retained without traversing or copying their contents. Replacement validation selects its expected site root among links, with legacy metadata compatibility.
+
+MicrowaveGirls supplies the 'View full set' caption and view=link for its existing galleries. Its idempotent Prepare upgrade preserves crops, unrelated links and the group, verifies gallery availability and removes only excess image associations. Existing gallery files are not deleted. See docs/plans/membership-gallery-links.md and MicrowaveGirls #733.
+
+Verification includes real PostgreSQL/Kubo snapshot privacy, bounded URI reads, raw JSON Content saving, compact-post replacement, strict creator Vue types and desktop/narrow browser flows. The browser suite checks named document links, original gallery navigation after payment, and private targets absent after logout. No production deployment or new snapshot build was triggered by this implementation.

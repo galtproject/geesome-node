@@ -61,6 +61,20 @@ describe('persisted image saving and local site retirement', function () {
         }
     });
 
+    it('saves gallery URI Content through the raw JSON API and projects its text', async () => {
+        const gallery = await app.ms.storage.saveFileByData('gallery fixture');
+        const target = `ipfs://${gallery.id}/manual.pdf#page=3\r\n`;
+        const token = await app.generateUserApiKey(user.id, {});
+        const response = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-data`, {
+            method: 'POST', headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+            body: JSON.stringify({content: target, fileName: 'gallery.uri', mimeType: 'text/uri-list', driver: {raw: true}, async: false})});
+        assert.equal(response.status, 200);
+        const link = await response.json();
+        assert.equal(link.mimeType, 'text/uri-list');
+        assert.equal((await app.ms.group.prepareContentData(link)).text, target);
+        assert.equal(link.mediumPreviewStorageId, null);
+    });
+
     it('rebuild repairs already optimized unmarked images, preserves one watermark and renders marked mappings', async () => {
         const driver = watermarkDriver({name: 'imageWatermark', module: 'convert', params: {
             text: 'eraofwave.com', color: '#874ee6', background: 'black', font: 'monospace', spacing: 50, sizeRatio: 1 / 50}});
@@ -230,9 +244,11 @@ describe('persisted image saving and local site retirement', function () {
         const oldArchive = await app.ms.archive.getArchive(old.storageId);
         assert.ok(oldArchive);
         const sourceKey = randomUUID();
+        const compact = mode === 'keep';
+        const oldLink = compact ? await app.ms.content.saveData(user.id, `# Links\r\nipfs://${old.storageId}/manual.pdf#page=2\r\nipfs://${old.storageId}/#/\r\n`, 'gallery.uri', {mimeType:'text/uri-list', driver:{raw:true}}) : null;
         const post = await app.ms.group.createPost(user.id, {groupId: group.id, status: 'published', name: `post-${sourceKey}`,
-            contents: [{id: source.id, view: 'attachment'}], propertiesJson: JSON.stringify({membership: {sourceKey,
-                pageUrl: `https://eraofwave.com/ipfs/${old.storageId}/#/`, title: 'Original', free: false}})});
+            contents: [{id: source.id, view: 'attachment', isPrivate:false}, ...(compact ? [{id:oldLink.id,view:'attachment',isPrivate:true}] : [])], propertiesJson: JSON.stringify({membership: {sourceKey,
+                ...(!compact ? {pageUrl: `https://eraofwave.com/ipfs/${old.storageId}/#/`} : {}), title: 'Original', free: false}})});
         const service = app.ms.staticSiteGenerator.replacements;
         const receipt = await service.requestReplacement(user.id, {requestKey: randomUUID(), driver: imageDriver(), contentIds: [source.id],
             previousSiteStorageId: old.storageId, postId: post.id, deleteReplacedFiles: mode !== 'keep'});
@@ -283,8 +299,9 @@ describe('persisted image saving and local site retirement', function () {
         assert.equal(files.some(name => name.endsWith('.png')), false, 'new archive contains no source PNG');
         const mapping = [[String(source.id), String(output.content.id), source.manifestStorageId, output.content.manifestStorageId]];
         const consumer = {kind: 'microwave-girls', receiptId: randomUUID(), mappingsHash: digest(mapping)};
-        await app.ms.group.updatePost(user.id, post.id, {contents: [{id: output.content.id, view: 'attachment'}],
-            propertiesJson: JSON.stringify({membership: {sourceKey, pageUrl: `https://eraofwave.com/ipfs/${replacement.storageId}/#/`,
+        const nextLink = compact ? await app.ms.content.saveData(user.id, `ipfs://${replacement.storageId}/manual.pdf\r\nipfs://${replacement.storageId}/#/\r\n`, 'gallery.uri', {mimeType:'text/uri-list', driver:{raw:true}}) : null;
+        await app.ms.group.updatePost(user.id, post.id, {contents: [{id: output.content.id, view: 'attachment'}, ...(compact ? [{id:nextLink.id,view:'attachment',isPrivate:true}] : [])],
+            propertiesJson: JSON.stringify({membership: {sourceKey, ...(!compact ? {pageUrl: `https://eraofwave.com/ipfs/${replacement.storageId}/#/`} : {}),
                 title: 'Original', free: false, imageReplacement: {id: receipt.id, receiptId: consumer.receiptId, mappingsHash: consumer.mappingsHash}}})});
         await service.finalize(user.id, receipt.id, {postId: post.id, storageId: replacement.storageId, consumer});
         await processCleanupNow(service);
