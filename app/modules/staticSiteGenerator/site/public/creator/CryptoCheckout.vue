@@ -33,13 +33,14 @@ function changeNetwork(event: Event) {
         </div>
         <div class="crypto-payment">
             <h3>Pay with cryptocurrency</h3>
-            <div class="crypto-currencies" role="group" aria-label="Currency"><button v-for="value in currencies" :key="value" type="button" :aria-pressed="currency === value" :disabled="creating" :data-testid="`crypto-currency-${value}`" @click="selectCurrency(value)">{{ value }}</button></div>
-            <label class="crypto-network">Network<select :value="asset" :disabled="creating" data-testid="crypto-network" @change="changeNetwork"><option v-for="method in networks" :key="method.id" :value="method.id">{{ `${method.networkLabel}${method.available ? '' : ' — unavailable'}` }}</option></select></label>
+            <div v-if="currencies.length" class="crypto-currencies" role="group" aria-label="Currency"><button v-for="value in currencies" :key="value" type="button" :aria-pressed="currency === value" :disabled="creating" :data-testid="`crypto-currency-${value}`" @click="selectCurrency(value)">{{ value }}</button></div>
+            <p v-if="invoice && !chosen?.available" class="crypto-network">Network<strong data-testid="crypto-invoice-network">{{ networkLabel }}</strong></p>
+            <label v-else-if="networks.length" class="crypto-network">Network<select :value="asset" :disabled="creating" data-testid="crypto-network" @change="changeNetwork"><option v-for="method in networks" :key="method.id" :value="method.id">{{ method.networkLabel }}</option></select></label>
             <div ref="detailsElement" class="crypto-payment-details" :style="reservedHeight ? {minHeight: `${reservedHeight}px`} : undefined" :aria-busy="creating">
                 <template v-if="!invoice">
                     <PaymentLoading v-if="creating" :currency="currency" :network="networkLabel" :previous-qr="previousQr" />
                     <div v-else class="crypto-qr-placeholder">
-                        <p role="status" :data-testid="chosen?.available ? 'crypto-retry' : 'crypto-unavailable'">{{ chosen?.available ? 'Your payment details could not be loaded.' : 'This network is currently unavailable. Choose another currency or network.' }}</p>
+                        <p role="status" :data-testid="chosen?.available ? 'crypto-retry' : 'crypto-unavailable'">{{ chosen?.available ? 'Your payment details could not be loaded.' : currencies.length ? 'This network is currently unavailable. Choose another currency or network.' : 'Payments are currently unavailable. Please try again later.' }}</p>
                         <button v-if="chosen?.available" type="button" class="primary" :disabled="creating" data-testid="crypto-create" @click="create">Retry loading payment details</button>
                     </div>
                 </template>

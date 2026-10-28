@@ -12,6 +12,26 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Available checkout methods and USDT Ethereum default (#1459)
+
+New generated-site checkout prefers available USDT on Ethereum, falling back to
+the first available method if needed. Currency tabs and network options contain
+only enabled/available methods; unavailable selections cannot start a quote.
+Existing invoices retain their asset, QR and network even if no longer offered
+for new purchases. If none are available, checkout shows a clear empty state.
+
+This changes generated client assets: deploy the node version and rebuild the
+website snapshots to update their UI; existing immutable CIDs keep the previous
+client. No payment ledger, schema, tariff or live payment settings change.
+
+Verification: strict Vue types, 37 creator HTTP/SQL/controller cases and 56
+payment regressions passed. Generated-site Playwright passed with 54 mapped
+captures; desktop/narrow default and resumed-invoice screenshots were visually
+reviewed. Existing reference parity is unchanged; the new method-selection
+states have separate assertions/captures because they intentionally differ.
+The parity rerun resolved an unrelated gallery raster-rounding flake; thresholds
+were not changed. Production was not modified.
+
 ## Working payment RPC preference (#1456)
 
 Automatic EVM calls now try up to ten eligible nodes. A per-network memory-only
