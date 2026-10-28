@@ -101,3 +101,36 @@ for (const [id, title, brand] of [['meat', 'Era Of Meat', referenceState.resourc
 }
 
 assert((await fs.readFile('app/modules/staticSiteGenerator/site/public/creator/style.css','utf8')).startsWith(await fs.readFile('../microwave-girls/frontend/public/style.css','utf8')),'Creator theme preserves the original stylesheet');
+
+// Materialize an actual version-2 publication rather than a hand-built pagination fixture.
+{
+    const {buildMembershipSnapshots} = await import('../app/modules/staticSiteGenerator/membershipPublication.ts');
+    const {CID} = await import('multiformats/cid');
+    const {sha256} = await import('multiformats/hashes/sha2');
+    const files = new Map(), directories = new Map();
+    const put = async data => {
+        const value = Buffer.from(data), id = CID.createV1(0x55,await sha256.digest(value)).toString();
+        files.set(id,value);return {id};
+    };
+    const preview = (await put(image)).id;
+    const groupPosts = Array.from({length:51},(_,i)=>({id:i+1,publishedAt:new Date(Date.UTC(2026,0,1)+i*86400000),status:'published',
+        propertiesJson:JSON.stringify({membership:{title:`Archive post ${i+1}`,teaser:`PUBLIC ${i+1}`,fullText:`PRIVATE ${i+1}`,free:false}}),
+        contents:[{storageId:preview,mimeType:'image/svg+xml',postsContents:{isPrivate:false}}]}));
+    const app = {ms:{group:{forEachHydratedGroupPostBatch:async(_group,_options,fn)=>fn({groupPosts,refCount:groupPosts.length})},storage:{
+        saveFileByData:put,makeDir:async path=>{if(!directories.has(path))directories.set(path,new Map());},
+        getFileStat:async()=>({type:'file'}),
+        copyFileFromId:async(cid,target)=>{const parts=target.split('/');directories.get('/'+parts[1]).set(parts.slice(2).join('/'),cid);},
+        getDirectoryId:async path=>(await put(JSON.stringify([...directories.get(path)]))).id
+    }}};
+    await buildMembershipSnapshots(app,{id:'wave',groupId:'1',domain:'creator.test',data:{coverUrl:'/public/media/cover.png',avatarUrl:'/public/media/avatar.jpg'}},'Archive creator',{
+        options:[],description:'',renew:async()=>{},beginDirectory:async variant=>'/pagination-'+variant
+    });
+    for(const variant of ['public','full']) {
+        const target = path.join(root,variant==='public'?'paged':'paged-full');
+        await fs.rm(target,{recursive:true,force:true});
+        for(const [name,cid] of directories.get('/pagination-'+variant)) {
+            await fs.mkdir(path.dirname(path.join(target,name)),{recursive:true});
+            await fs.writeFile(path.join(target,name),files.get(cid));
+        }
+    }
+}

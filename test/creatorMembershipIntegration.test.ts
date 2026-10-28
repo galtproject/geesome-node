@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {Readable} from 'node:stream';
 import {readFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import {getModule as createGroupModule} from '../app/modules/group/index.js';
@@ -455,6 +456,10 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 					}
 				}
 			}}},
+			getFileStream: async path => {
+				const [root, ...parts] = path.split('/');
+				return Readable.from([files.get(snapshots.get(root)?.[parts.join('/')])]);
+			},
 			saveFileByData: put,
 			getFileStat: async source => {
 				const [root, ...leaf] = String(source).split('/');
@@ -466,6 +471,9 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 				}
 			},
 			copyFileFromId: async (id, path) => {
+				if (Number.isFinite(failAfter) && --failAfter <= 0) {
+					throw new Error('fake_storage_outage');
+				}
 				const parts = path.split('/'), [root, ...leaf] = String(id).split('/');
 				const source = leaf.length ? snapshots.get(root)?.[leaf.join('/')] : root;
 				directories.get('/' + parts[1]).set(parts.slice(2).join('/'), source);
@@ -477,7 +485,8 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			if (!await membership.isStorageIdAllowed(root)) {
 				return res.send({}, 423);
 			}
-			const file = parts.length ? snapshots.get(root)?.[parts.join('/')] : root;
+			const key = parts.join('/');
+			const file = snapshots.has(root) ? snapshots.get(root)?.[!key || key.endsWith('/') ? key + 'index.html' : key] : root;
 			const bytes = files.get(file);
 			if (!bytes) {
 				return res.send({}, 404);
@@ -551,12 +560,39 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		const publicLocation = publicSelection.headers.get('location');
 		const read = async url => get(new URL(url).pathname);
 		assert((await read(publicLocation)).body.includes('PUBLIC-TEASER'));
+		assert.equal((await get('membership/site/view?x=1')).headers.get('location'), 'view/?x=1');
+		const stable = await get('membership/site/view/');
+		assert.equal(stable.status, 200);
+		assert.equal(stable.headers.get('location'), undefined);
+		assert(stable.body.includes('PUBLIC-TEASER'));
+		assert(stable.body.includes('rel="canonical" href="https://snapshots.test/"'));
+		assert(!stable.body.includes('FIRST-PAID-TEXT'));
+		assert.equal(stable.headers.get('cache-control'), 'private, no-store');
+		assert.equal((await get('membership/site/view/', {method: 'HEAD'})).body, null);
+		assert.equal((await get('membership/site/page/0/')).status, 404);
+		assert.equal((await get('membership/site/view/page/0/')).status, 404);
+		assert.equal((await get('membership/site/view/', {headers: {'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'navigate','Sec-Fetch-Dest':'document'}})).status, 200);
+		assert.equal((await get('membership/site/view/', {headers: {'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'cors'}})).status, 403);
+		assert.equal((await get('membership/site/view/media/' + 'f'.repeat(64) + '.png')).status, 404);
+		assert.equal((await get('membership/site/view/style.css?v=1')).headers.get('content-type'), 'text/css; charset=utf-8');
+		assert.equal((await get('membership/site/view/public/client.js?v=1')).headers.get('content-type'), 'application/javascript; charset=utf-8');
+		assert((await get('membership/site/view/account/?x=1')).body.includes('Checking your account'));
+
 		assert(!(await read(publicLocation)).body.includes('FIRST-PAID-TEXT'));
 		const publicRoot = new URL(publicLocation).pathname.split('/')[2];
 		const publicFiles = snapshots.get(publicRoot);
 		assert(Object.values(publicFiles).includes(previewCid));
 		assert(!Object.values(publicFiles).includes(previewRoot), 'preview publication copies the exact selected leaf, not its paid parent directory');
 		assert(!Object.values(publicFiles).includes(fullCid));
+		const boundResource = await membershipModels.resources.findByPk('snapshots');
+		const savedBinding = JSON.parse(JSON.stringify(boundResource.data));
+		const headManifest = await membership.publicationView('snapshots');
+		const legacyJob = await membershipModels.publications.create({id:randomUUID(),resourceId:'snapshots',requestKey:'legacy-path-check',status:'ready',manifest:{public:headManifest.public,full:headManifest.full,pageCount:2,posts:headManifest.posts}});
+		await boundResource.update({data:{...savedBinding,publication:{...savedBinding.publication,publicationId:legacyJob.id}}});
+		assert((await get('membership/site/')).headers.get('location').endsWith('/index.html'));
+		assert((await get('membership/site/?page=2')).headers.get('location').endsWith('/page-2.html'));
+		assert((await get(`membership/site/posts/${post.id}/`)).headers.get('location').endsWith(`/posts/${post.id}.html`));
+		await boundResource.update({data:savedBinding});
 		const publicFeed = await get('membership/feed');
 		assert(!JSON.stringify(publicFeed.body).includes(previewRoot), 'public API also conceals a selected preview parent CID');
 		assert(publicFeed.body.posts[0].previews[0].startsWith(`/ipfs/${publicRoot}/media/`));
@@ -571,6 +607,10 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			startsAt: new Date(now.getTime() - 1000), endsAt: new Date(now.getTime() + 60000), revoked: false});
 		assert.equal((await get('membership/site/', {cookie: stranger.cookie})).headers.get('location'), publicLocation, 'payment for another resource is insufficient');
 		const paidLocation = (await get('membership/site/', {cookie})).headers.get('location');
+		const fullStable = await get('membership/site/view/', {cookie});
+		assert(fullStable.body.includes('FIRST-PAID-TEXT'));
+		assert.equal(fullStable.headers.get('x-robots-tag'), 'noindex, nofollow');
+
 		assert.notEqual(paidLocation, publicLocation); assert((await read(paidLocation)).body.includes('FIRST-PAID-TEXT'));
 		assert.equal((await get('membership/site/', {cookie, method: 'HEAD'})).headers.get('location'), paidLocation);
 		assert.equal((await get('membership/site/', {cookie: meatCookie})).headers.get('location'), publicLocation);
@@ -578,8 +618,8 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert.equal((await get('membership/site/', {cookie: '__Host-geesome_session=forged'})).headers.get('location'), publicLocation);
 		const oldPost = (await get(`membership/site/posts/${post.id}/`, {cookie})).headers.get('location');
 		assert((await read(oldPost)).body.includes('FIRST-PAID-TEXT'));
-		assert((await read(oldPost)).body.includes(`../media/${publicationDigest(fullCid)}.png`));
-		assert.equal((await read(new URL(`../media/${publicationDigest(fullCid)}.png`, oldPost).href)).body, 'FULL-MEDIA-BYTES');
+		assert((await read(oldPost)).body.includes(`../../media/${publicationDigest(fullCid)}.png`));
+		assert.equal((await read(new URL(`../../media/${publicationDigest(fullCid)}.png`, oldPost).href)).body, 'FULL-MEDIA-BYTES');
 		assert(!(await read(publicLocation)).body.includes(fullCid));
 
 
@@ -599,7 +639,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		await membershipModels.periods.update({revoked: true}, {where: {resourceId: 'snapshots', readerId}});
 		assert.notEqual((await get('membership/site/', {cookie})).headers.get('location'), newerPaid, 'refund/revocation stops new full selection');
 		assert.equal((await read(oldPost)).status, 200, 'obtained old post and files remain readable');
-		assert.equal((await read(new URL(`../media/${publicationDigest(fullCid)}.png`, oldPost).href)).body, 'FULL-MEDIA-BYTES');
+		assert.equal((await read(new URL(`../../media/${publicationDigest(fullCid)}.png`, oldPost).href)).body, 'FULL-MEDIA-BYTES');
 
 		const oldHead = (await membershipModels.resources.findByPk('snapshots')).data.publication.publicationId;
 		const readyDirectories = [...directories.keys()];
@@ -653,14 +693,14 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		await membership.runPublications();
 		assert(!directories.has(orphan), 'reclaimed crash removes the previous attempt staging directory');
 		assert.equal((await recovered.reload()).status, 'ready', 'an expired build lease is recoverable after restart');
-		const saveNormally = app.ms.storage.saveFileByData;
+		const copyNormally = app.ms.storage.copyFileFromId;
 		let releaseWrite, writeStarted;
 		const blocked = new Promise(resolve => { writeStarted = resolve; });
-		app.ms.storage.saveFileByData = async data => {
+		app.ms.storage.copyFileFromId = async (id, path) => {
 			if (releaseWrite === undefined) {
 				await new Promise(resolve => { releaseWrite = resolve; writeStarted(); });
 			}
-			return saveNormally(data);
+			return copyNormally(id, path);
 		};
 		const slow = await membership.enqueuePublication(owner.id, 'rotate0', {requestKey: 'slow-storage'});
 		const previousSlowHead = (await membershipModels.resources.findByPk('rotate0')).data.publication.publicationId;
@@ -677,7 +717,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		} finally {
 			releaseWrite?.();
 			await work;
-			app.ms.storage.saveFileByData = saveNormally;
+			app.ms.storage.copyFileFromId = copyNormally;
 		}
 		assert.equal((await membershipModels.publications.findByPk(slow.id)).status, 'queued', 'a source change during build rejects the incomplete revision');
 		assert.equal((await membershipModels.resources.findByPk('rotate0')).data.publication.publicationId, previousSlowHead);
@@ -758,7 +798,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			assert(!publicHtml.includes(originalRoot));
 			assert(!publicHtml.includes(String(galleryUri.id)));
 			assert((await storage.getFileDataText(fullPath)).includes(`href="/ipfs/${originalRoot}/#/"`));
-			assert((await storage.getFileDataText(`${fullRoot}/posts/${post.id}.html`)).includes(`href="/ipfs/${originalRoot}/#/"`));
+			assert((await storage.getFileDataText(`${fullRoot}/posts/${post.id}/index.html`)).includes(`href="/ipfs/${originalRoot}/#/"`));
 			assert(await membershipModels.publication_artifacts.findByPk(originalRoot));
 			assert((await storage.getFileDataText(fullPath)).includes(`/ipfs/${originalRoot}/manual.pdf#page=2`));
 			assert((await storage.getFileDataText(fullPath)).includes(`/ipfs/${originalRoot}/source.zip`));
@@ -773,7 +813,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			assert.deepEqual(new Set(previewFiles), new Set([String(preview.id), String(publicText.id), String(archive.id)]));
 			assert(publicHtml.includes('PUBLIC ATTACHMENT TEXT'));
 			assert(!publicHtml.includes('PRIVATE ATTACHMENT TEXT'));
-			assert((await storage.getFileDataText(`${fullRoot}/posts/${post.id}.html`)).includes('PRIVATE ATTACHMENT TEXT'));
+			assert((await storage.getFileDataText(`${fullRoot}/posts/${post.id}/index.html`)).includes('PRIVATE ATTACHMENT TEXT'));
 			assert.equal(job.manifest.posts[String(post.id)].length, 1, 'feed thumbnails include image attachments only');
 			const directories = [];
 			for await (const entry of storage.node.ls(`/ipfs/${fullRoot}`)) {

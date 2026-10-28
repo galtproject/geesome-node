@@ -27,6 +27,8 @@ export function useMembershipSession(initialState: PublicState) {
         const post = posts.value.find(item => path === `/posts/${item.id}`);
         return post?.postPath || snapshot.homePath;
     };
+    const selectionPath = () => initialState.snapshot.canonicalPath && !location.pathname.startsWith('/ipfs/')
+        ? location.pathname : initialState.snapshot.entryPath;
     const query = () => `resource=${encodeURIComponent(resourceId.value)}`;
     const active = computed(() => Boolean(account.value?.active));
     const expired = computed(() => Boolean(account.value?.expired || (!active.value && (account.value?.invoices || []).some(payment => ['paid', 'confirmed', 'refunded'].includes(payment.status)))));
@@ -91,7 +93,7 @@ export function useMembershipSession(initialState: PublicState) {
         try {
             await checkAccount();
             if (active.value && !initialState.snapshot.full) {
-                location.assign(initialState.snapshot.entryPath);
+                location.assign(selectionPath());
                 return;
             }
         }
@@ -115,7 +117,7 @@ export function useMembershipSession(initialState: PublicState) {
             return;
         }
         if (active.value) {
-            location.assign(initialState.snapshot.entryPath);
+            location.assign(selectionPath());
             return;
         }
         const intent = loginIntent.value;
@@ -175,7 +177,7 @@ export function useMembershipSession(initialState: PublicState) {
             await membershipRequest(`/auth/logout?${query()}`, {});
             account.value = null;
             clearPremium();
-            location.assign(initialState.snapshot.entryPath);
+            location.assign(selectionPath());
         });
     }
     async function more() {

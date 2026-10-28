@@ -45,7 +45,7 @@ export function createPublicationDelivery(app, M, membership, dependencies: any 
 		async getStorageResponseHeaders(storageId) {
 			return await this.isStorageIdAllowed(storageId) ? {'X-Robots-Tag': 'noindex, nofollow', 'Cache-Control': 'public, max-age=31536000, immutable'} : {};
 		},
-		async currentSnapshot(siteId, readerId, postId?, page = 1) {
+		async currentSnapshot(siteId, readerId, postId?, page = 1, account = false) {
 			const row = await membership.resource(siteId);
 			await membership.owner(row.ownerId, row.id);
 			if (!row.postsEnabled) {
@@ -56,19 +56,21 @@ export function createPublicationDelivery(app, M, membership, dependencies: any 
 				siteProblem(404, 'publication_not_ready');
 			}
 			let path;
-			if (postId !== undefined) {
+			if (account) {
+				path = manifest.version === 2 ? 'account/index.html' : 'account.html';
+			} else if (postId !== undefined) {
 				if (!/^[1-9][0-9]*$/.test(String(postId)) || !Object.hasOwn(manifest.posts, String(postId))) {
 					siteProblem(404, 'post_not_found');
 				}
-				path = `posts/${postId}.html`;
+				path = manifest.version === 2 ? `posts/${postId}/index.html` : `posts/${postId}.html`;
 			} else {
 				if (!Number.isSafeInteger(page) || page < 1 || page > manifest.pageCount) {
 					siteProblem(404, 'page_not_found');
 				}
-				path = page === 1 ? 'index.html' : `page-${page}.html`;
+				path = manifest.version === 2 ? manifest.pagePaths[page - 1] : page === 1 ? 'index.html' : `page-${page}.html`;
 			}
 			const full = (await membership.entitlement(readerId, siteId)).active;
-			return `https://${row.domain}/ipfs/${manifest[full ? 'full' : 'public']}/${path}`;
+			return `https://${row.domain}/ipfs/${manifest[full ? 'full' : 'public']}/${manifest.version === 2 ? path.replace(/index\.html$/, '') : path}`;
 		}
 	};
 }

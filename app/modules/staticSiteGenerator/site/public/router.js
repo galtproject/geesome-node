@@ -16,8 +16,8 @@ let routes = [
     { path: '/content-list', name: 'content-list', component: () => import('./pages/ContentList/index.js'), props: true },
 ];
 
-export default function (defaultRoute = null) {
-    const history = isServer ? createMemoryHistory() : createWebHashHistory();
+export default function (defaultRoute = null, staticCreator = false) {
+    const history = isServer || staticCreator ? createMemoryHistory() : createWebHashHistory();
     if (defaultRoute) {
         routes = routes.filter((r) => r.name === defaultRoute);
         routes[0].path = '';

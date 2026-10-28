@@ -4,11 +4,12 @@ import http from 'node:http';
 import assert from 'node:assert/strict';
 import { chromium } from '/work/node_modules/playwright/index.mjs';
 const root = '/evidence', captures = [], comparisons = [];
+const paginationOnly = process.argv.includes('--pagination');
 const reference = JSON.parse(await fs.readFile(root + '/reference-state.json', 'utf8'));
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.txt': 'text/plain', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp' };
 const server = http.createServer(async (req, res) => {
     const relative = new URL(req.url, 'http://localhost').pathname;
-    const target = path.resolve(root, '.' + relative);
+    const target = path.resolve(root, '.' + relative + (relative.endsWith('/') ? 'index.html' : ''));
     if (!target.startsWith(root + '/')) {
         res.writeHead(403).end();
         return;
@@ -35,7 +36,7 @@ async function settleCover(page) {
 }
 const origin = `http://127.0.0.1:${server.address().port}`, browser = await chromium.launch({ headless: true });
 try {
-    for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+    for (const viewport of paginationOnly ? [] : [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
         const states = [];
         for (const version of ['reference', 'public']) {
             const context = await browser.newContext({ viewport });
@@ -200,7 +201,7 @@ try {
             await context.close();
         }
     }
-    for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+    for (const viewport of paginationOnly ? [] : [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
         for (const id of ['meat', 'newsite']) {
             for (const version of ['reference', 'public']) {
                 const page = await browser.newPage({ viewport });
@@ -221,8 +222,65 @@ try {
             }
         }
     }
+    for (const viewport of [{width:1280,height:900},{width:390,height:844}]) {
+        for (const javaScriptEnabled of [true,false]) {
+            const context = await browser.newContext({viewport,javaScriptEnabled});
+            const page = await context.newPage(), errors = [];
+            page.on('pageerror',error=>errors.push(error.message));
+            await page.route('**/api/**', route=>route.fulfill({contentType:'application/json',body:JSON.stringify({reader:null,active:false,invoices:[],refunds:[]})}));
+            const capture = async(name,description)=>{
+                await page.locator('img').evaluateAll(images=>Promise.all(images.map(image=>image.decode().catch(()=>{}))));
+                assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+                assert.equal(await page.locator('img:visible').evaluateAll(images=>images.some(image=>!image.naturalWidth)),false);
+                if (!javaScriptEnabled) {
+                    assert.equal(await page.locator('.preview-image-state .image-status:visible').count(),0);
+                }
+                const file=`${viewport.width}-pagination-${javaScriptEnabled?'js':'nojs'}-${name}.png`;
+                await page.screenshot({path:path.join(root,file),fullPage:false});
+                captures.push({file,description,viewport,state:`pagination-${name}`,javaScriptEnabled});
+            };
+            await page.goto(`${origin}/paged/`);
+            await page.getByTestId('post-51').waitFor();
+            if (javaScriptEnabled) {
+                await page.waitForTimeout(250);
+            }
+            assert.equal(new URL(page.url()).hash,'');
+            assert.equal(await page.locator('.member-post').count(),11);
+            assert.equal(await page.getByTestId('load-more').count(),0);
+            assert.equal(await page.getByTestId('latest-posts').count(),0);
+            assert.equal(await page.getByTestId('footer-home').getAttribute('href'),'./');
+            assert((await page.locator('.member-footer').textContent()).includes('Powered by GeeSome'));
+            assert.equal(await page.getByTestId('newer-posts').count(),0);
+            assert(!await page.content().then(html=>html.includes('PRIVATE 51')));
+            await capture('home','Top of the real 11-post homepage shows newest post 51 and clean URL hydration; navigation and full count are verified independently with and without JavaScript.');
+            await page.getByTestId('older-posts').click();
+            await page.waitForURL(url=>url.pathname==='/paged/page/4/');
+            await page.getByTestId('post-40').waitFor();
+            assert.equal(new URL(page.url()).hash,'');
+            assert.equal(await page.locator('.member-post').count(),10);
+            assert.equal(await page.getByTestId('post-41').count(),0);
+            assert.equal(await page.getByTestId('newer-posts').getAttribute('href'),'../../');
+            const older = page.getByTestId('older-posts');
+            await older.scrollIntoViewIfNeeded();
+            await capture('archive','Bottom of archive 4 shows its last post 31, Newer/Older links and the footer home link with GeeSome attribution; the ten-post count, clean folder URL and absence of home duplicates are verified independently.');
+            await older.click();
+            await page.waitForURL(url=>url.pathname==='/paged/page/3/');
+            await page.getByTestId('post-30').waitFor();
+            await page.getByTestId('newer-posts').click();
+            await page.waitForURL(url=>url.pathname==='/paged/page/4/');
+            assert.equal(await page.getByTestId('footer-home').getAttribute('href'),'../../');
+            await page.getByTestId('footer-home').click();
+            await page.waitForURL(url=>url.pathname==='/paged/');
+            await page.goto(`${origin}/paged/posts/51/`);
+            await page.getByText('PUBLIC 51',{exact:true}).waitFor();
+            assert.equal(new URL(page.url()).hash,'');
+            assert.equal(await page.locator('a.back-link').getAttribute('href'),'../../');
+            assert.deepEqual(errors,[]);
+            await context.close();
+        }
+    }
     // New checkout behavior intentionally differs from the legacy reference.
-    for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+    for (const viewport of paginationOnly ? [] : [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
         const page = await browser.newPage({ viewport });
         const methods = [
             {id:'eth-ethereum',currency:'ETH',network:'ethereum',networkLabel:'Ethereum',available:true},
@@ -269,7 +327,10 @@ try {
         await page.goto(`${origin}/public/index.html`);
         await page.getByTestId('account-link').waitFor();
         await page.getByTestId('join-membership').click();
+        const quoteReady = page.waitForResponse(response => response.request().method() === 'POST'
+            && new URL(response.url()).pathname.endsWith('/invoices'));
         await page.getByTestId('direct-crypto-payment').click();
+        await quoteReady;
         await page.locator('.crypto-qr').waitFor();
         assert.deepEqual(assets,['usdt-ethereum']);
         assert.equal(await page.getByTestId('crypto-currency-USDT').getAttribute('aria-pressed'),'true');
