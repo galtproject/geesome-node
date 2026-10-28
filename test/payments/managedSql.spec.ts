@@ -129,11 +129,11 @@ test('managed SQL: stable user indexes, invoice boundaries, fee samples, exact r
 		assert.equal(native.get(service), 4000000000000000n);
 		assert.equal(native.get(payout), 1000000000000000n - 2n * fee);
 		assert.equal([...broadcasts.values()].filter(b => b.r.kind === 'swap').length, beforeSwaps);
-		// Same reader, new resource, same address. New invoice boundary prevents old receipts being reused.
+		// A new resource receives a separate permanent address.
 		block = 102;
 		const two = await invoice(reader, 'two', 'meat');
-		assert.equal(two.address, one.address);
-		assert.equal(await M.crypto_hd_accounts.count(), 2);
+		assert.notEqual(two.address, one.address);
+		assert.equal(await M.crypto_hd_accounts.count(), 3);
 		await s.directCrypto.run();
 		assert.equal((await s.directCrypto.read('meat', reader, two.id)).received, '0');
 		now = new Date(now.getTime() + 31 * 60000);
@@ -142,7 +142,7 @@ test('managed SQL: stable user indexes, invoice boundaries, fee samples, exact r
 		block = 103;
 		const three = await invoice(reader, 'three');
 		assert.equal(three.address, one.address);
-		assert.equal((await M.crypto_invoices.findByPk(two.id)).snapshot.endBlock, '103');
+		assert.equal((await M.crypto_invoices.findByPk(two.id)).snapshot.endBlock, undefined);
 		deposits.set(one.address, [{ key: 'base:new', txid: 'new', atomic: '5000000', confirmed: true, timestamp: now.getTime() + 1000, blockHeight: '104' }]);
 		now = new Date(now.getTime() + 3601000);
 		await s.directCrypto.run();
@@ -431,12 +431,12 @@ test('managed balance SQL: durable observations, concurrent scans, collections, 
 		assert.ok(records.every(row => row.data.txid === '' && row.data.balanceProof));
 		// Even an old boundary captured before a slow allocation cannot reuse already credited blocks.
 		boundary = 100n;
-		const two = await create('meat', 'balance-two');
+		const two = await create('wave', 'balance-two');
 		boundary = null;
 		assert.equal(two.address, one.address);
 		assert.equal((await M.crypto_invoices.findByPk(two.id)).snapshot.startBlock, '110');
-		await s.directCrypto.rescan('meat', two.id);
-		assert.equal((await s.directCrypto.read('meat', reader, two.id)).received, '0');
+		await s.directCrypto.rescan('wave', two.id);
+		assert.equal((await s.directCrypto.read('wave', reader, two.id)).received, '0');
 		const txHash = hash(999n), contract = cryptoAsset('usdc-base').contract!;
 		await M.crypto_transactions.create({ id: one.id + ':payout', network: 'base', hash: txHash, sender: one.address, nonce: '0', raw: '0x00', state: 'confirmed', data: { request: { to: contract, value: '0' }, balanceReceipt: { transactionHash: txHash, blockNumber: '0x70', blockHash: hash(112n), status: '0x1', logs: [{ address: contract, topics: ['0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef', '0x' + one.address.slice(2).padStart(64, '0'), '0x' + 'a'.repeat(40).padStart(64, '0')], data: '0x' + (5000000n).toString(16).padStart(64, '0') }] } } });
 		balances.set(112n, 50000000n);
@@ -445,11 +445,11 @@ test('managed balance SQL: durable observations, concurrent scans, collections, 
 		latest = 115n;
 		finalized = 115n;
 		now = new Date(epoch + 15000);
-		await s.directCrypto.rescan('meat', two.id);
-		assert.equal((await s.directCrypto.read('meat', reader, two.id)).received, '2');
+		await s.directCrypto.rescan('wave', two.id);
+		assert.equal((await s.directCrypto.read('wave', reader, two.id)).received, '2');
 		now = new Date(epoch + 31 * 60000);
-		await s.directCrypto.rescan('meat', two.id);
-		assert.equal((await s.directCrypto.read('meat', reader, two.id)).status, 'expired');
+		await s.directCrypto.rescan('wave', two.id);
+		assert.equal((await s.directCrypto.read('wave', reader, two.id)).status, 'expired');
 		const three = await create('wave', 'balance-three');
 		assert.equal(three.address, one.address);
 		assert.equal((await M.crypto_invoices.findByPk(two.id)).snapshot.endBlock, '115');
@@ -464,9 +464,9 @@ test('managed balance SQL: durable observations, concurrent scans, collections, 
 		finalized = 125n;
 		now = new Date(epoch + 31 * 60000 + 10000);
 		await s.directCrypto.rescan('wave', three.id);
-		await s.directCrypto.rescan('meat', two.id);
+		await s.directCrypto.rescan('wave', two.id);
 		assert.equal((await s.directCrypto.read('wave', reader, three.id)).status, 'paid');
-		assert.equal((await s.directCrypto.read('meat', reader, two.id)).received, '2');
+		assert.equal((await s.directCrypto.read('wave', reader, two.id)).received, '2');
 		assert.equal(await M.periods.count(), 2);
 		await s.directCrypto.rescan('wave', three.id);
 		assert.equal(await M.periods.count(), 2);
