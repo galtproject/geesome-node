@@ -252,7 +252,8 @@ try {
             assert((await page.locator('.member-footer').textContent()).includes('Powered by GeeSome'));
             assert.equal(await page.getByTestId('newer-posts').count(),0);
             assert(!await page.content().then(html=>html.includes('PRIVATE 51')));
-            await capture('home','Top of the real 11-post homepage shows newest post 51 and clean URL hydration; navigation and full count are verified independently with and without JavaScript.');
+            await page.getByTestId('older-posts').scrollIntoViewIfNeeded();
+            await capture('home','Bottom of the real 11-post homepage shows last post 41 and the sole Older posts link aligned right; the clean URL, newest post and full count are verified independently with and without JavaScript.');
             await page.getByTestId('older-posts').click();
             await page.waitForURL(url=>url.pathname==='/paged/page/4/');
             await page.getByTestId('post-40').waitFor();
