@@ -59,7 +59,6 @@ function join() {
                     <section v-if="!posts.length" class="account-panel"><h2>New work is on the way</h2><p>Find the latest updates through the links above.</p></section>
                     <nav v-if="navigation && !single" class="creator-pagination" aria-label="Post pages">
                         <a v-if="navigation.newer" :href="navigation.newer" data-testid="newer-posts">← Newer posts</a>
-                        <a v-if="navigation.newer" :href="navigation.home" data-testid="latest-posts">Latest publications</a>
                         <a v-if="navigation.older" :href="navigation.older" data-testid="older-posts">Older posts →</a>
                     </nav>
                     <button v-else-if="!single && nextOffset !== null" type="button" class="load-more" :disabled="busy" data-testid="load-more" @click="more">{{ busy ? 'Loading…' : 'Load more' }}</button>
@@ -67,7 +66,11 @@ function join() {
                 <p v-if="shareStatus" role="status">{{ shareStatus }}</p>
             </div>
         </main>
-        <footer class="member-footer"><span>{{ '© ' + resource.title }}</span><template v-for="(item, index) in resource.legalLinks || []" :key="index"><a v-if="safeSiteUrl(item.url)" :href="safeSiteUrl(item.url) || undefined" target="_blank" rel="noopener noreferrer">{{ item.label }}</a></template></footer>
+        <footer class="member-footer">
+            <span v-if="!initialState.snapshot.canonicalPath">{{ '© ' + resource.title }}</span>
+            <span v-else>© <a :href="publicPath('/')" data-testid="footer-home">{{ resource.title }}</a> · Powered by <a href="https://github.com/galtproject/geesome-node" target="_blank" rel="noopener noreferrer">GeeSome</a></span>
+            <template v-for="(item, index) in resource.legalLinks || []" :key="index"><a v-if="safeSiteUrl(item.url)" :href="safeSiteUrl(item.url) || undefined" target="_blank" rel="noopener noreferrer">{{ item.label }}</a></template>
+        </footer>
         <MembershipModal v-if="modal" :name="modal" :direct="paymentMethod === 'direct'" :error="error" @close="closeModal">
             <PreviewGallery v-if="modal === 'gallery'" v-model:index="imageIndex" :images="gallery" />
             <template v-else-if="modal === 'login'">

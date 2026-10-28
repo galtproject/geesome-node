@@ -67,6 +67,9 @@ describe('stable creator pagination', function () {
         assert(html(second.manifest.files.public['page/1/index.html']).includes('href="../../page/2/"'));
         assert(html(second.manifest.files.public['index.html']).includes('href="./page/4/"'));
         assert(!html(second.manifest.files.public['index.html']).includes('Load more'));
+        assert(!html(second.manifest.files.public['page/1/index.html']).includes('Latest publications'));
+        assert(html(second.manifest.files.public['page/1/index.html']).includes('href="../../" data-testid="footer-home"'));
+        assert(html(second.manifest.files.public['page/1/index.html']).includes('Powered by'));
         source[0].propertiesJson=JSON.stringify({membership:{title:'Post 1',teaser:'PUBLIC 1',fullText:'EDITED SECRET',free:false}});
         const third=await build(second.manifest);
         assert.deepEqual(third.manifest.files.public,second.manifest.files.public,'private-only edit does not invalidate public HTML');

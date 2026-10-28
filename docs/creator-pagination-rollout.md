@@ -18,8 +18,9 @@ or homepage; old blocks are never refilled by shifting the archive.
 Clean immutable paths are `/ipfs/<CID>/`, `/page/N/`, `/posts/N/`, `/account/`.
 The suffix paths are relative to the selected CID. Each is a real folder with an
 index.html. Creator hydration uses memory history and does not add fragments;
-other SSG themes retain hash routing. Real Newer/Older/Latest anchors work without
-JavaScript. Asset/post/account links stay relative to the selected snapshot.
+other SSG themes retain hash routing. Real Newer/Older anchors and the copyright creator name linking home work
+without JavaScript. The new footer reads © Creator · Powered by GeeSome, with
+GeeSome linking to the project repository; no separate Latest button is shown. Asset/post/account links stay relative to the selected snapshot.
 
 ## Reuse
 

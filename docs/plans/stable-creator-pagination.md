@@ -12,7 +12,7 @@ Tracking: [#1461](https://github.com/galtproject/geesome-node/issues/1461).
 
 ## Accepted contract
 
-Replace Load more with crawlable Newer/Older anchors and a Latest publications link. The homepage grows from 10 to 19 posts; at 20 its oldest ten move into a new archive block. Archive block 1 is oldest, with newer blocks numbered upward. Examples: 50 -> homepage 50..41, archives 1..4; 51 -> homepage 51..41, archives unchanged; 60 -> homepage 60..51, archive 5 adds 50..41. Fewer than ten total posts are all shown.
+Replace Load more with crawlable Newer/Older anchors. The copyright creator name in the footer links home, followed by “Powered by GeeSome”; omit the separate Latest button. The homepage grows from 10 to 19 posts; at 20 its oldest ten move into a new archive block. Archive block 1 is oldest, with newer blocks numbered upward. Examples: 50 -> homepage 50..41, archives 1..4; 51 -> homepage 51..41, archives unchanged; 60 -> homepage 60..51, archive 5 adds 50..41. Fewer than ten total posts are all shown.
 
 Generate real directory URLs without .html/hash for creator pages, with normal HTML navigation and JavaScript-disabled access. Preserve generic SSG hash routing and old immutable publications. Keep public/full posts aligned and entitlement selection server-side; previously obtained complete CIDs remain usable.
 
@@ -37,7 +37,7 @@ Test 0/9/10/19/20/50/51/59/60/61, appended/backdated/restored/hidden/deleted pos
 
 ## Execution record
 
-- 2026-10-28: plan recorded before implementation; branch based on origin/dev ae8abd5a. Existing checkout default PR #1460 remains independent and is not silently merged into this work. No production mutations.
+- 2026-10-28: plan recorded before implementation; branch based on origin/dev ae8abd5a. Checkout default PR #1460 was initially independent; after its user merge, dev was merged into this branch and both browser test flows retained. No production mutations.
 
 - All four workstreams implemented. Version-2 manifests preserve archive assignments and per-variant output fingerprints/CIDs. Directory pages and memory-history creator hydration replace the new publication's hash/file routes; generic themes and old immutable manifests remain compatible.
 - Validation: 37 creator membership/SQL/HTTP/Kubo cases and 56 payment cases passed with no skips. Boundaries, restoration/backdating, isolated public/full caches, private-only edits and branding invalidation are covered. An unchanged rebuild performs zero HTML saves; adding post 51 to 50 saves only four HTML files across both variants.
@@ -45,3 +45,5 @@ Test 0/9/10/19/20/50/51/59/60/61, appended/backdated/restored/hidden/deleted pos
 - Strict creator Vue types, API documentation, security route inventory and database scalability inventory checks passed. A final read-only pagination review found no remaining blockers.
 - Delivery/rollout: see [creator-pagination-rollout.md](../creator-pagination-rollout.md). No database migration or new environment settings. Rebuild v2 snapshots before any stable-domain proxy cutover. Production has not been changed. Metadata is still scanned and directory links reconstructed; CID reuse avoids repeated SSR/save, not all build work.
 - Frontend distribution publication and Docker/BuildKit cache regressions passed (prepared image reuse, source invalidation and persistent server publication reuse). Proxy snippets are documented examples; live nginx configuration/reload was not performed.
+- User follow-up: removed the redundant Latest button. Footer copyright creator name now links to the relative homepage; new directory publications add Powered by GeeSome. Legacy immutable copies stay unchanged.
+- Final merged-dev browser suite passed 62 captures, including both checkout states and the updated footer. Resolved a checkout test race by awaiting the invoice response before asserting the default quote; strict Vue types and pagination cache tests passed again.

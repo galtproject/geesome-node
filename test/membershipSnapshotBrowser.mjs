@@ -247,6 +247,9 @@ try {
             assert.equal(new URL(page.url()).hash,'');
             assert.equal(await page.locator('.member-post').count(),11);
             assert.equal(await page.getByTestId('load-more').count(),0);
+            assert.equal(await page.getByTestId('latest-posts').count(),0);
+            assert.equal(await page.getByTestId('footer-home').getAttribute('href'),'./');
+            assert((await page.locator('.member-footer').textContent()).includes('Powered by GeeSome'));
             assert.equal(await page.getByTestId('newer-posts').count(),0);
             assert(!await page.content().then(html=>html.includes('PRIVATE 51')));
             await capture('home','Top of the real 11-post homepage shows newest post 51 and clean URL hydration; navigation and full count are verified independently with and without JavaScript.');
@@ -259,13 +262,14 @@ try {
             assert.equal(await page.getByTestId('newer-posts').getAttribute('href'),'../../');
             const older = page.getByTestId('older-posts');
             await older.scrollIntoViewIfNeeded();
-            await capture('archive','Bottom of archive 4 shows its last post 31 and crawlable Newer/Latest/Older links; the ten-post count, clean folder URL and absence of home duplicates are verified independently.');
+            await capture('archive','Bottom of archive 4 shows its last post 31, Newer/Older links and the footer home link with GeeSome attribution; the ten-post count, clean folder URL and absence of home duplicates are verified independently.');
             await older.click();
             await page.waitForURL(url=>url.pathname==='/paged/page/3/');
             await page.getByTestId('post-30').waitFor();
             await page.getByTestId('newer-posts').click();
             await page.waitForURL(url=>url.pathname==='/paged/page/4/');
-            await page.getByTestId('latest-posts').click();
+            assert.equal(await page.getByTestId('footer-home').getAttribute('href'),'../../');
+            await page.getByTestId('footer-home').click();
             await page.waitForURL(url=>url.pathname==='/paged/');
             await page.goto(`${origin}/paged/posts/51/`);
             await page.getByText('PUBLIC 51',{exact:true}).waitFor();
@@ -323,7 +327,10 @@ try {
         await page.goto(`${origin}/public/index.html`);
         await page.getByTestId('account-link').waitFor();
         await page.getByTestId('join-membership').click();
+        const quoteReady = page.waitForResponse(response => response.request().method() === 'POST'
+            && new URL(response.url()).pathname.endsWith('/invoices'));
         await page.getByTestId('direct-crypto-payment').click();
+        await quoteReady;
         await page.locator('.crypto-qr').waitFor();
         assert.deepEqual(assets,['usdt-ethereum']);
         assert.equal(await page.getByTestId('crypto-currency-USDT').getAttribute('aria-pressed'),'true');
