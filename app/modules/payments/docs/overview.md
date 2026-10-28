@@ -127,3 +127,21 @@ ledger and fix forward. This migration operates on GeeSome's payments tables;
 it does not import the separate MicrowaveGirls ledger or its Google identities.
 A permanent deposit address still requires a fresh invoice before each payment;
 an unsolicited transfer does not automatically choose a tariff or renew access.
+
+## Working RPC preference (#1456)
+
+Automatic EVM selection tries up to ten eligible endpoints per call by default
+(`rpcMaxAttempts` in the existing JSON configuration). Each network has a
+bounded, **memory-only** list of successful endpoints, shared by RPC adapters
+using the same process/cache state. These endpoints precede the remaining
+Chainlist candidates. A successful chain-validated RPC call promotes its endpoint;
+an endpoint error evicts it from the working list and applies the existing
+cooldown. Later successful probes can add it back. Discovery refresh prunes
+working endpoints that are no longer advertised.
+
+The working list is not written to disk and is rebuilt after process restart.
+The existing file still caches discovery and cooldowns, with unchanged format.
+Explicit `DIRECT_CRYPTO_*_RPC` settings retain their existing bypass behavior;
+remove an explicit override to use automatic selection. Request timeouts, scan
+budgets, wrong-chain rejection and outgoing transaction journaling are unchanged.
+No new environment variable, schema migration or money-worker setting is required.
