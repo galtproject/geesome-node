@@ -80,6 +80,11 @@ const migrationDirs: Record<MigrationModule, string> = {
 const coveredMigrations: CoveredMigration[] = [
   {
     module: 'database',
+    file: '20261028000000-scope-payment-addresses-to-resources.cjs',
+    verifies: ['resource-scoped HD assignment uniqueness', 'globally unique wallet indexes', 'legacy unassigned indexes retained'],
+  },
+  {
+    module: 'database',
     file: '20260506000001-add-content-and-quota-indexes.cjs',
     verifies: ['content preview indexes', 'content manifest/user indexes', 'quota indexes', 'static-id dynamic lookup index'],
   },
@@ -237,6 +242,7 @@ const coveredMigrations: CoveredMigration[] = [
 ];
 
 const expectedColumns: ExpectedColumn[] = [
+  {table: 'payments_crypto_hd_accounts', columns: ['resourceId'], type: 'character varying'},
   {table: 'postsContents', columns: ['isPrivate'], type: 'boolean'},
   {table: 'posts', columns: ['size'], type: 'bigint'},
   {table: 'groups', columns: ['size'], type: 'bigint'},
@@ -291,6 +297,8 @@ const expectedColumns: ExpectedColumn[] = [
 ];
 
 const expectedIndexes: ExpectedIndex[] = [
+  {name: 'payments_hd_accounts_resource_unique', table: 'payments_crypto_hd_accounts', columns: ['walletFingerprint', 'readerId', 'resourceId'], unique: true},
+  {name: 'payments_crypto_hd_accounts_wallet_fingerprint_index', table: 'payments_crypto_hd_accounts', columns: ['walletFingerprint', 'index'], unique: true},
   {name: 'contents_large_preview_storage_idx', table: 'contents', columns: ['largePreviewStorageId']},
   {name: 'contents_medium_preview_storage_idx', table: 'contents', columns: ['mediumPreviewStorageId']},
   {name: 'contents_small_preview_storage_idx', table: 'contents', columns: ['smallPreviewStorageId']},
@@ -474,6 +482,26 @@ const storageObjectMetadataColumns = [
 ];
 
 const countChecks: CountCheck[] = [
+  {
+    name: 'managed payment indexes are positive and resource assignments are unique',
+    requirements: [{table: 'payments_crypto_hd_accounts', columns: ['walletFingerprint', 'readerId', 'resourceId', 'index']}],
+    sql: `SELECT count(*) AS count FROM (
+      SELECT id FROM payments_crypto_hd_accounts WHERE index < 1
+      UNION ALL
+      SELECT MIN(id) FROM payments_crypto_hd_accounts WHERE "resourceId" IS NOT NULL
+        GROUP BY "walletFingerprint", "readerId", "resourceId" HAVING count(*) > 1
+    ) invalid`,
+  },
+  {
+    name: 'obsolete global reader payment uniqueness is removed',
+    requirements: [{table: 'payments_crypto_hd_accounts', columns: ['resourceId']}],
+    sql: `SELECT count(*) AS count FROM pg_index i
+      WHERE i.indrelid = 'payments_crypto_hd_accounts'::regclass AND i.indisunique
+        AND (SELECT array_agg(a.attname::text ORDER BY a.attname)
+          FROM unnest(i.indkey) key(attnum) JOIN pg_attribute a
+            ON a.attrelid = i.indrelid AND a.attnum = key.attnum)
+          = ARRAY['readerId', 'walletFingerprint']::text[]`,
+  },
   {
     name: 'reverted content user/storage unique index is absent',
     requirements: [{table: 'contents'}],

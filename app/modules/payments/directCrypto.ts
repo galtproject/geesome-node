@@ -179,11 +179,11 @@ export function createDirectCrypto({ M, sequelize, serial, resource, grantPaidIn
 				if (!await treasury.available(id, asset!.network)) {
 					fail(409, 'crypto_method_unavailable');
 				}
-				const pending = await M.crypto_invoices.findOne({ where: { readerId, assetId: asset!.id, status: { [Op.in]: ['pending', 'confirming', 'underpaid'] } }, transaction: t });
+				const pending = await M.crypto_invoices.findOne({ where: { readerId, resourceId: id, assetId: asset!.id, status: { [Op.in]: ['pending', 'confirming', 'underpaid'] } }, transaction: t });
 				if (pending) {
 					fail(409, 'crypto_reader_invoice_pending');
 				}
-				const allocated = await treasury.address(readerId, asset!.network, t);
+				const allocated = await treasury.address(readerId, id, asset!.network, t);
 				addressRow = allocated.address;
 				managedIndex = allocated.account.index;
 			}

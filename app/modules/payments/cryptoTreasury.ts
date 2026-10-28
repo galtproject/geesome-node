@@ -87,10 +87,10 @@ export function createCryptoTreasury({ M, sequelize, resource, fail, clock, env,
 		return ((!state || state.data.fingerprint === wallet.fingerprint) &&
 			Boolean((await payouts.resolve(id)).payout));
 	}
-	async function address(readerId: string, network: string, t: any) {
+	async function address(readerId: string, resourceId: string, network: string, t: any) {
 		await bind(t);
 		let account = await M.crypto_hd_accounts.findOne({
-			where: { walletFingerprint: wallet!.fingerprint, readerId },
+			where: { walletFingerprint: wallet!.fingerprint, readerId, resourceId },
 			transaction: t,
 		});
 		if (account) {
@@ -130,6 +130,7 @@ export function createCryptoTreasury({ M, sequelize, resource, fail, clock, env,
 			id: randomUUID(),
 			walletFingerprint: wallet!.fingerprint,
 			readerId,
+			resourceId,
 			addressId: row.id,
 			index,
 		}, { transaction: t });

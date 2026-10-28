@@ -12,6 +12,23 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Permanent reader/resource payment addresses (#1453)
+
+Managed addresses are now stable per wallet/reader/resource. Wave and Meat get
+separate addresses for one Google reader, while renewals and EVM networks reuse
+the resource address. The global index allocator and service index zero remain;
+pending invoice exclusion now permits simultaneous invoices for different
+resources. Existing invoices, receipt ownership, payout snapshots and journals
+are preserved.
+
+The upgrade migration backfills only unambiguous historical resource assignments
+and retains all other old indexes as reserved. Rollback refuses incompatible
+multi-resource assignments. See the [plan](plans/resource-payment-addresses.md)
+and [operator notes](../app/modules/payments/docs/overview.md#permanent-addresses-per-resource-1453).
+Verification: 34 creator HTTP/SQL cases, 53 payment cases and a migrated SQL
+integrity audit passed; scalability inventory is current. Production was not
+modified.
+
 ## Owner default payout (#1429)
 
 Private owner payout defaults apply to creator groups without an explicit
