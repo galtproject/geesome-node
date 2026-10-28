@@ -40,6 +40,16 @@ describe('membership snapshots using shared site templates', function () {
 		assert(single.includes('src="../public/client.js"'));
 		assert(single.includes('data-testid="post-1"'));
 	});
+	it('renders gallery link Content as the existing full-set action on index and post pages', async () => {
+		const url = '/ipfs/bafyexistinggallery12345678901234567890/#/';
+		for (const single of [false, true]) {
+			const html = await renderSnapshot({title: 'Gallery'}, [{id: '1', title: 'Post', free: false,
+				media: [{mime: 'text/uri-list', text: url, url}], postUrl: 'posts/1.html'}], true, single);
+			assert(html.includes(`href="${url}"`));
+			assert(html.includes('data-testid="view-full-set"'));
+			assert(!html.includes('class="attachment-link"'), 'the URI is not rendered as a download or raw text');
+		}
+	});
 	it('renders uploaded icon CIDs as root-relative images on index and nested post pages', async () => {
 		const cid = 'bafy' + 'a'.repeat(55);
 		const site = {title: 'Icons', brand: {links: [
@@ -131,3 +141,18 @@ async function renderSnapshot(site, posts, full, single = false, page = 1, pageC
 	const {renderPage} = await siteRenderer.prepareRender(data);
 	return renderPage(single ? `/post/${posts[0].id}` : '/', [['meta', {name: 'og:title', content: site.title}]]);
 }
+
+describe('gallery link attachment validation', () => {
+	it('accepts only one local immutable gallery target and rejects ambiguous or oversized Content', async () => {
+		const {galleryLink, postGalleryLink} = await import('../app/modules/staticSiteGenerator/publicationLinks.js');
+		for (const value of ['javascript:alert(1)', '//evil.test/ipfs/cid/#/', 'https://evil.test/gallery', '/ipfs/cid/../../secret', '/ipfs/' + 'a'.repeat(210) + '/#/']) {
+			assert.equal(galleryLink(value), null);
+		}
+		const uri = {mimeType:'text/uri-list',storageId:'link',size:100};
+		const storage = {getFileDataText:async () => '/ipfs/bafyexistinggallery12345678901234567890/#/'};
+		assert.equal((await postGalleryLink(storage,{contents:[uri]})).cid,'bafyexistinggallery12345678901234567890');
+		assert.equal(await postGalleryLink(storage,{contents:[]}),null);
+		await assert.rejects(() => postGalleryLink(storage,{contents:[uri,uri]}),/publication_link_invalid/);
+		await assert.rejects(() => postGalleryLink(storage,{contents:[{...uri,size:1025}]}),/publication_link_invalid/);
+	});
+});

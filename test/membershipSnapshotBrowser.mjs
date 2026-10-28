@@ -171,14 +171,21 @@ try {
                 await page.getByRole('link', { name: 'Private download', exact: true }).waitFor();
                 await page.screenshot({ path: path.join(root, `${viewport.width}-full-post.png`), fullPage: true });
                 captures.push({ file: `${viewport.width}-full-post.png`, description: 'Complete immutable post contains private text and download after payment.', viewport, state: 'full-post' });
+                await context.route('**/ipfs/bafyexistinggallery12345678901234567890/**', route => route.fulfill({contentType:'text/html',body:'<h1>Existing gallery</h1>'}));
+                const galleryPage = page.waitForEvent('popup');
+                await page.getByTestId('view-full-set').click();
+                const gallery = await galleryPage;
+                await gallery.getByRole('heading', {name:'Existing gallery'}).waitFor();
+                assert.equal(new URL(gallery.url()).pathname, '/ipfs/bafyexistinggallery12345678901234567890/');
+                await gallery.close();
                 await page.getByTestId('account-link').click();
                 await page.waitForURL(url => url.pathname === '/full/account.html');
                 await page.getByTestId('reader-logout').click();
                 await page.waitForURL(url => url.pathname === '/public/index.html');
-                assert(!await page.content().then(html => html.includes('PRIVATE BODY')));
+                assert(!await page.content().then(html => html.includes('PRIVATE BODY') || html.includes('bafyexistinggallery12345678901234567890')));
                 await page.getByRole('button', { name: 'Load more' }).click();
                 await page.waitForURL(url => url.pathname === '/public/page-2.html');
-                assert(!await page.content().then(html => html.includes('PRIVATE BODY')));
+                assert(!await page.content().then(html => html.includes('PRIVATE BODY') || html.includes('bafyexistinggallery12345678901234567890')));
             }
             assert.deepEqual(errors, [], `${version} browser errors`);
             states.push({ version });

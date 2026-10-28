@@ -35,6 +35,9 @@ for (const full of [false, true]) {
         postUrl: 'posts/1.html', media: [{ url: 'media/preview.svg', mime: 'image/svg+xml', name: 'Public attachment' }, { url: 'media/preview.svg', mime: 'image/svg+xml', name: 'Second public attachment' }] };
     const render = async (single, page = 1) => {
         const local = { ...post, media: post.media.map(item => ({ ...item, url: (single ? '../' : '') + item.url })) };
+        if (full) {
+            local.media.push({mime:'text/uri-list', text:'/ipfs/bafyexistinggallery12345678901234567890/#/', url:'/ipfs/bafyexistinggallery12345678901234567890/#/'});
+        }
         if (full && single) {
             local.media.push({ url: '../media/private.txt', mime: 'text/plain', text: 'PRIVATE BODY', name: 'Private text' }, { url: '../media/private.txt', mime: 'application/octet-stream', name: 'Private download' });
         }

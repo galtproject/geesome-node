@@ -1,3 +1,4 @@
+import {galleryLink} from './publicationLinks.js';
 import {creatorLinks, safeCreatorUrl} from './site/public/creator/links.js';
 import {getContentExtension} from './helpers.js';
 import {siteProblem} from '../api/browserSession.js';
@@ -29,6 +30,9 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 	for (const entry of snapshot) {
 		for (const media of entry.full) {
 			artifacts.add(snapshotCid(media.storageId));
+			if (media.mime === 'text/uri-list') {
+				artifacts.add(snapshotCid(galleryLink(media.text).cid));
+			}
 		}
 	}
 
@@ -46,6 +50,10 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 		const localMedia = async (media, prefix) => {
 			const result = [];
 			for (const item of media) {
+				if (item.mime === 'text/uri-list') {
+					result.push({...item, url: galleryLink(item.text).url});
+					continue;
+				}
 				const source = item.storageId;
 				const name = mediaName(item);
 				if (!copied.has(name)) {
@@ -83,7 +91,8 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 				pageUrls: Array.from({length: pageCount}, (_, index) => index === 0 ? 'index.html' : `page-${index + 1}.html`)};
 			const cards = [];
 			for (const post of snapshot.slice(offset, offset + 20)) {
-				cards.push({...post, media: await localMedia(post.previews, ''), postUrl: `posts/${post.id}.html`});
+				const media = full ? [...post.previews.filter(item => item.mime !== 'text/uri-list'), ...post.full.filter(item => item.mime === 'text/uri-list')] : post.previews;
+				cards.push({...post, media: await localMedia(media, ''), postUrl: `posts/${post.id}.html`});
 			}
 			await savePage(await render(site, cards, false, pageIndex + 1), site.pageUrls[pageIndex]);
 		}
@@ -127,14 +136,23 @@ async function readSnapshotPosts(app, row) {
 
 async function snapshotPost(app, post) {
 	const m = membershipMetadata(post), previews = [], media = [];
+	if ((post.contents || []).filter(content => content.mimeType === 'text/uri-list').length > 1) {
+		siteProblem(409, 'publication_link_invalid');
+	}
 	for (const content of post.contents || []) {
 		if (!/^[A-Za-z0-9]{20,200}$/.test(content.storageId || '')) {
 			continue;
 		}
 		const item: any = {storageId: content.storageId, extension: getContentExtension(content), mime: String(content.mimeType || 'application/octet-stream'), name: String(content.name || '').slice(0, 200)};
 		if (item.mime.startsWith('text/') || item.mime.includes('rich-text')) {
+			if (item.mime === 'text/uri-list' && Number(content.size || 0) > 1024) {
+				siteProblem(409, 'publication_link_invalid');
+			}
 			const projected = await app.ms.group.prepareContentData(content);
 			item.text = projected.text;
+			if (item.mime === 'text/uri-list' && !galleryLink(item.text)) {
+				siteProblem(409, 'publication_link_invalid');
+			}
 		}
 		media.push(item);
 		if (content.postsContents?.isPrivate === false) {

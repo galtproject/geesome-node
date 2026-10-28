@@ -1,3 +1,4 @@
+import {postGalleryLink} from './publicationLinks.js';
 import {imageSourceSnapshot} from '../content/resave.js';
 import {randomUUID} from 'node:crypto';
 import {Op} from 'sequelize';
@@ -89,7 +90,8 @@ export class SiteReplacements {
                     problem('image_retirement_requires_private_membership_group');
                 }
                 const metadata = this.membership(post);
-                if (!sameCid(pageCid(metadata.pageUrl), request.previousSiteStorageId)) {
+                const link = await postGalleryLink(this.app.ms.storage, post);
+                if (!sameCid(link?.cid || pageCid(metadata.pageUrl), request.previousSiteStorageId)) {
                     problem('image_replacement_publication_changed');
                 }
                 const archive = await this.app.ms.archive.getArchive(request.previousSiteStorageId);

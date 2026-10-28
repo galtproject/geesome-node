@@ -735,3 +735,9 @@ immutable sites keep their CIDs. Full publication encoders are unchanged.
 MicrowaveGirls uploads social icons as raw original content without previews.
 See [policy and evidence](plans/image-preview-policy.md) for verification and the
 separately reproduced existing aborted-upload stress-test failure.
+
+### Membership posts reuse published galleries (2026-10-28)
+
+Creator snapshots understand a single `text/uri-list` attachment containing `/ipfs/CID/#/`. The join-row privacy decides whether the target enters public output. Index and post actions open the existing immutable gallery; the builder retains its root and link Content but does not traverse or copy gallery images. Ordinary text/download attachments and older full-image posts remain supported. Replacement request/finalization validation resolves the canonical link, retaining the old metadata fallback for rolling upgrades.
+
+Verified with disposable PostgreSQL/Kubo membership publication tests (paid target absent from public HTML/directory, full index and post link to the original root), real raw JSON Content saving, compact-post replacement finalization, strict creator Vue types, and desktop/mobile browser flows including opening the gallery after payment and removing its target from output after logout. The browser suite produced 50 captures; desktop and narrow full-post screenshots were inspected. Pair with MicrowaveGirls #733 and its Prepare-time association compaction; existing gallery files are not deleted.

@@ -737,13 +737,14 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			await storage.copyFileFromId(preview.id, directory + '/preview.png');
 			await storage.copyFileFromId(paid.id, directory + '/paid.png');
 			const originalRoot = await storage.getDirectoryId(directory);
+			const galleryUri = await storage.saveFileByData(`/ipfs/${originalRoot}/#/`);
 			const group = await models.Group.create({name: 'real-storage', creatorId: owner.id, title: 'Real storage', isPublic: false, isEncrypted: false, isOpen: false});
 			await membership.provisionSite(owner.id, {id: 'real-storage', origin: 'https://real-storage.test', groupId: String(group.id), ownerId: owner.id,
 				googleClientId: '', enabled: true, registrationEnabled: false, postsEnabled: true, version: 0});
 			const metadata = {title: 'Retained gallery', teaser: 'Preview', fullText: 'Old full text', free: false,
 				pageUrl: `https://real-storage.test/ipfs/${originalRoot}/`, previewMedia: [{url: `https://real-storage.test/ipfs/${originalRoot}/preview.png`}], previewCount: 1};
 			const post = await models.Post.create({name: 'real-gallery', groupId: group.id, userId: owner.id, status: 'published', publishedAt: now, propertiesJson: JSON.stringify({membership: metadata})});
-			publicationContents.set(String(post.id), [{id: 2000, storageId: String(preview.id), mimeType: 'image/png', postsContents: {isPrivate: false}}, {id: 2001, storageId: String(paid.id), mimeType: 'image/png', postsContents: {isPrivate: true}}, {id: 2002, storageId: String(publicText.id), mimeType: 'text/plain', postsContents: {isPrivate: false}}, {id: 2003, storageId: String(privateText.id), mimeType: 'text/plain', postsContents: {isPrivate: true}}, {id: 2004, storageId: String(archive.id), mimeType: 'application/zip', name: 'Download archive', postsContents: {isPrivate: false}}]);
+			publicationContents.set(String(post.id), [{id: 2000, storageId: String(preview.id), mimeType: 'image/png', postsContents: {isPrivate: false}}, {id: 2001, storageId: String(paid.id), mimeType: 'image/png', postsContents: {isPrivate: true}}, {id: 2002, storageId: String(publicText.id), mimeType: 'text/plain', postsContents: {isPrivate: false}}, {id: 2003, storageId: String(privateText.id), mimeType: 'text/plain', postsContents: {isPrivate: true}}, {id: 2004, storageId: String(archive.id), mimeType: 'application/zip', name: 'Download archive', postsContents: {isPrivate: false}}, {id: 2005, storageId: String(galleryUri.id), mimeType: 'text/uri-list', postsContents: {isPrivate: true}}]);
 			await membership.enqueuePublication(owner.id, 'real-storage', {requestKey: 'real-kubo'});
 			await membership.runPublications();
 			const status = await membership.publicationStatus(owner.id, 'real-storage');
@@ -754,6 +755,11 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			const publicRoot = publicPath.split('/')[0], fullRoot = fullPath.split('/')[0];
 			const publicHtml = await storage.getFileDataText(publicPath);
 			assert(!publicHtml.includes(originalRoot));
+			assert(!publicHtml.includes(String(galleryUri.id)));
+			assert((await storage.getFileDataText(fullPath)).includes(`href="/ipfs/${originalRoot}/#/"`));
+			assert((await storage.getFileDataText(`${fullRoot}/posts/${post.id}.html`)).includes(`href="/ipfs/${originalRoot}/#/"`));
+			assert(await membershipModels.publication_artifacts.findByPk(originalRoot));
+			await assert.rejects(() => storage.getFileDataText(`${fullRoot}/media/${publicationDigest(String(galleryUri.id))}.uri`), /not exist|not found|no link/i);
 			assert(!publicHtml.includes('Old full text'));
 			const previewFiles = [];
 			for await (const item of storage.node.ls(`/ipfs/${publicRoot}/media`)) {
