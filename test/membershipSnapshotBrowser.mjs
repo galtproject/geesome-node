@@ -221,6 +221,77 @@ try {
             }
         }
     }
+    // New checkout behavior intentionally differs from the legacy reference.
+    for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+        const page = await browser.newPage({ viewport });
+        const methods = [
+            {id:'eth-ethereum',currency:'ETH',network:'ethereum',networkLabel:'Ethereum',available:true},
+            {id:'usdc-base',currency:'USDC',network:'base',networkLabel:'Base',available:true},
+            {id:'usdt-arbitrum',currency:'USDT',network:'arbitrum',networkLabel:'Arbitrum One',available:true},
+            {id:'usdt-ethereum',currency:'USDT',network:'ethereum',networkLabel:'Ethereum',available:true},
+            {id:'usdt-tron',currency:'USDT',network:'tron',networkLabel:'TRON',available:false},
+            {id:'btc-bitcoin',currency:'BTC',network:'bitcoin',networkLabel:'Bitcoin',available:false},
+        ];
+        const assets = [];
+        let resumed = false;
+        const quote = assetId => ({id:'invoice',provider:'direct',status:'pending',assetId,
+            currency:assetId === 'usdc-base' ? 'USDC' : 'USDT',network:assetId === 'usdc-base' ? 'base' : 'ethereum',
+            amount:'4',received:'0',address:'0x1111111111111111111111111111111111111111',expiresAt:'2030-01-01T00:00:00Z',
+            priceUsd:4,period:'month',optionLabel:'1 month'});
+        await page.route('**/api/**', async route => {
+            const pathname = new URL(route.request().url()).pathname;
+            let data;
+            if (pathname.endsWith('/resource')) {
+                data = {...reference.resource,cryptoMethods:methods};
+            } else if (pathname.endsWith('/account')) {
+                data = {reader:{id:'reader',name:'Test reader'},active:false,invoices:resumed ? [{id:'invoice',provider:'direct',status:'pending',createdAt:'2026-10-28T00:00:00Z',optionSnapshot:reference.resource.options[0]}] : [],refunds:[]};
+            } else if (pathname.endsWith('/feed')) {
+                data = {posts:reference.posts,hasMore:false};
+            } else if (pathname.endsWith('/invoices')) {
+                const assetId = route.request().postDataJSON().assetId;
+                assets.push(assetId);
+                data = quote(assetId);
+            } else if (pathname.endsWith('/invoices/invoice')) {
+                data = quote('usdc-base');
+            } else {
+                throw Error('Unexpected checkout API ' + pathname);
+            }
+            return route.fulfill({contentType:'application/json',body:JSON.stringify(data)});
+        });
+        const captureCheckout = async (name, description) => {
+            await page.locator('.crypto-qr').waitFor();
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+            assert.equal(await page.locator('img:visible').evaluateAll(images => images.some(i => !i.complete || !i.naturalWidth)), false);
+            const file = `${viewport.width}-${name}.png`;
+            await page.screenshot({path:path.join(root,file),fullPage:true});
+            captures.push({file,description,viewport,state:name});
+        };
+        await page.goto(`${origin}/public/index.html`);
+        await page.getByTestId('account-link').waitFor();
+        await page.getByTestId('join-membership').click();
+        await page.getByTestId('direct-crypto-payment').click();
+        await page.locator('.crypto-qr').waitFor();
+        assert.deepEqual(assets,['usdt-ethereum']);
+        assert.equal(await page.getByTestId('crypto-currency-USDT').getAttribute('aria-pressed'),'true');
+        assert.equal(await page.getByTestId('crypto-network').inputValue(),'usdt-ethereum');
+        assert.deepEqual(await page.getByTestId('crypto-network').locator('option').allTextContents(),['Arbitrum One','Ethereum']);
+        assert.equal(await page.getByTestId('crypto-currency-BTC').count(),0);
+        assert(!await page.locator('.crypto-checkout').textContent().then(text => text.toLowerCase().includes('unavailable')));
+        await captureCheckout('checkout-usdt-default','New checkout selects USDT Ethereum, offers only available networks, and omits unavailable BTC/TRON choices.');
+        await page.getByRole('button',{name:'Close dialog'}).click();
+        resumed = true;
+        methods.find(m => m.id === 'usdc-base').available = false;
+        await page.goto(`${origin}/public/account.html`);
+        await page.getByTestId('crypto-resume-invoice').click();
+        await page.locator('.crypto-qr').waitFor();
+        assert.equal((await page.getByTestId('crypto-invoice-network').textContent()).toLowerCase(),'base');
+        assert.equal(await page.getByTestId('crypto-network').count(),0);
+        assert.equal(await page.getByTestId('crypto-currency-USDC').count(),0);
+        assert.equal(await page.getByTestId('crypto-currency-BTC').count(),0);
+        assert.equal(assets.length,1,'resumed invoice must not create a replacement quote');
+        await captureCheckout('checkout-resume-unavailable','Existing USDC Base invoice keeps its QR and network while unavailable methods are absent from new-payment choices.');
+        await page.close();
+    }
     const compare = await browser.newPage();
     await compare.goto(`${origin}/reference/style.css`);
     for (const item of comparisons) {
