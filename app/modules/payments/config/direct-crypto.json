@@ -19,7 +19,7 @@
     "arbitrum",
     "base"
   ],
-  "rpcMaxAttempts": 3,
+  "rpcMaxAttempts": 10,
   "workerIntervalMs": 5000,
   "erc20BenchmarkGas": 65000,
   "collectionRetryIntervalMs": 60000

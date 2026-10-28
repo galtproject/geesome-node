@@ -248,3 +248,122 @@ test('concurrent callers share one expired-cache discovery attempt during an out
 		await context.cleanup();
 	}
 });
+test('default RPC search reaches the tenth endpoint and stops before the eleventh', async () => {
+	assert.equal(automationConfig({}).rpcMaxAttempts, 10);
+	const context = await fixture();
+	const tried: number[] = [];
+	let allBroken = false;
+	const entries = Array.from({ length: 12 }, (_, i) => ({ url: `https://node-${i}.test/`, retryAt: 0 }));
+	await writeFile(context.path, JSON.stringify({ updatedAt: timestamp, networks: { base: entries } }));
+	const fetcher: typeof fetch = async (url, init) => {
+		const index = Number(new URL(String(url)).hostname.split('.')[0].slice(5));
+		const method = JSON.parse(String(init?.body)).method;
+		if (method === 'eth_chainId') {
+			tried.push(index);
+		}
+		if (allBroken || index !== 9) {
+			return new Response('', { status: 503 });
+		}
+		return Response.json({ result: method === 'eth_chainId' ? '0x2105' : '0x42' });
+	};
+	try {
+		let time = timestamp;
+		const rpc = createCryptoRpc({}, fetcher, context.config, () => time);
+		assert.equal(await rpc.call('base', 'eth_blockNumber'), '0x42');
+		assert.deepEqual(tried, Array.from({ length: 10 }, (_, i) => i));
+		tried.length = 0;
+		assert.equal(await rpc.call('base', 'eth_blockNumber'), '0x42');
+		assert.deepEqual(tried, [9]);
+		tried.length = 0;
+		allBroken = true;
+		time += context.config.rpcFailureCooldownMs + 1;
+		await assert.rejects(rpc.call('base', 'eth_blockNumber'), /crypto_rpc_unavailable/);
+		assert.equal(tried.length, 10);
+		assert.equal(tried[0], 9, 'known working endpoint is first');
+		assert.deepEqual(tried, [9, 10, 11, 0, 1, 2, 3, 4, 5, 6], 'only ten candidates are attempted in the current priority order');
+	}
+	finally {
+		await context.cleanup();
+	}
+});
+test('working list is memory-only, preferred across instances, evicts failures and learns recovered endpoints', async () => {
+	const context = await fixture();
+	let time = timestamp, brokenGood = false;
+	const calls: string[] = [];
+	const initial = { updatedAt: timestamp, networks: { ethereum: [
+		{ url: 'https://bad.ethereum.test/', retryAt: timestamp + 1 },
+		{ url: 'https://good.ethereum.test/', retryAt: 0 },
+	] } };
+	await writeFile(context.path, JSON.stringify(initial));
+	const fetcher: typeof fetch = async (url, init) => {
+		const endpoint = String(url);
+		calls.push(endpoint);
+		if (brokenGood && endpoint.includes('good.')) {
+			return new Response('', { status: 429 });
+		}
+		const method = JSON.parse(String(init?.body)).method;
+		return Response.json({ result: method === 'eth_chainId' ? '0x1' : '0x42' });
+	};
+	try {
+		const first = createCryptoRpc({}, fetcher, context.config, () => time);
+		await first.call('ethereum', 'eth_blockNumber');
+		assert.deepEqual(await context.saved(), initial, 'learning a working endpoint does not write to disk');
+		time += 2;
+		calls.length = 0;
+		const second = createCryptoRpc({}, fetcher, context.config, () => time);
+		await second.call('ethereum', 'eth_blockNumber');
+		assert.deepEqual(calls, Array(2).fill('https://good.ethereum.test/'), 'working node stays first after another cooldown expires');
+		const freshPath = join(context.directory, 'fresh-process.json');
+		await writeFile(freshPath, JSON.stringify(await context.saved()));
+		calls.length = 0;
+		await createCryptoRpc({}, fetcher, { ...context.config, rpcCacheFile: freshPath }, () => time).call('ethereum', 'eth_blockNumber');
+		assert.equal(calls[0], 'https://bad.ethereum.test/', 'fresh state cannot recover the memory-only preference from disk');
+		calls.length = 0;
+		brokenGood = true;
+		await first.call('ethereum', 'eth_blockNumber');
+		assert.deepEqual(calls, ['https://good.ethereum.test/', 'https://bad.ethereum.test/', 'https://bad.ethereum.test/']);
+		assert.equal((await context.saved()).networks.ethereum[1].retryAt, time + context.config.rpcFailureCooldownMs);
+		brokenGood = false;
+		time += context.config.rpcFailureCooldownMs + 1;
+		calls.length = 0;
+		await second.call('ethereum', 'eth_blockNumber');
+		assert.deepEqual(calls, Array(2).fill('https://bad.ethereum.test/'), 'failed former preferred node is no longer preferred after recovery');
+		assert.deepEqual(Object.keys(await context.saved()).sort(), ['networks', 'updatedAt']);
+	}
+	finally {
+		await context.cleanup();
+	}
+});
+test('discovery refresh removes withdrawn working nodes and keeps networks isolated', async () => {
+	const context = await fixture();
+	let time = timestamp;
+	const calls: string[] = [];
+	const initial = { updatedAt: timestamp, networks: { ethereum: [
+		{ url: 'https://unknown.ethereum.test/', retryAt: timestamp + 1 },
+		{ url: 'https://working.ethereum.test/', retryAt: 0 },
+	], base: [{ url: 'https://base.test/', retryAt: 0 }] } };
+	await writeFile(context.path, JSON.stringify(initial));
+	const fetcher: typeof fetch = async (url, init) => {
+		const endpoint = String(url);
+		calls.push(endpoint);
+		if (endpoint === context.config.chainlistUrl) {
+			return Response.json([{ chainId: 1, rpc: ['https://replacement.ethereum.test/'] }, { chainId: 8453, rpc: ['https://base.test/'] }]);
+		}
+		const method = JSON.parse(String(init?.body)).method;
+		return Response.json({ result: method === 'eth_chainId' ? (endpoint.includes('base.test') ? '0x2105' : '0x1') : '0x42' });
+	};
+	try {
+		const rpc = createCryptoRpc({}, fetcher, context.config, () => time);
+		await rpc.call('ethereum', 'eth_blockNumber');
+		calls.length = 0;
+		await rpc.call('base', 'eth_blockNumber');
+		assert.deepEqual(calls, Array(2).fill('https://base.test/'));
+		time += context.config.rpcRefreshMs + 1;
+		calls.length = 0;
+		await rpc.call('ethereum', 'eth_blockNumber');
+		assert.deepEqual(calls, [context.config.chainlistUrl, 'https://replacement.ethereum.test/', 'https://replacement.ethereum.test/']);
+	}
+	finally {
+		await context.cleanup();
+	}
+});

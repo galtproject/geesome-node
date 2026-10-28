@@ -12,6 +12,20 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Working payment RPC preference (#1456)
+
+Automatic EVM calls now try up to ten eligible nodes. A per-network memory-only
+working list puts successful nodes first, removes failures, and learns working
+replacements. Shared adapters retain a common preference; discovery refresh
+prunes withdrawn URLs. File cache format and explicit RPC overrides remain
+unchanged. No schema or environment additions are required.
+
+Verification: focused mocked RPC coverage checks the tenth candidate, attempt
+limit, priority after cooldown expiry, failure eviction, learned replacements,
+shared state, no working-list persistence, fresh-state behavior and network/
+discovery isolation. All 34 creator HTTP/SQL cases and 56 payment regressions
+passed, zero skipped. Production was not changed. See the [module notes](../app/modules/payments/docs/overview.md#working-rpc-preference-1456).
+
 ## Permanent reader/resource payment addresses (#1453)
 
 Managed addresses are now stable per wallet/reader/resource. Wave and Meat get

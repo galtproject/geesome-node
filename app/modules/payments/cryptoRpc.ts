@@ -14,6 +14,8 @@ type Cache = {
 };
 type CacheState = {
 	cache: Cache;
+	// Learned successes are process-local; never serialize them into the public cache.
+	working: Record<string, string[]>;
 	loaded: boolean;
 	queue: Promise<void>;
 	refreshInFlight: Promise<void> | null;
@@ -25,6 +27,7 @@ function cacheState(path: string) {
 	if (!state) {
 		state = {
 			cache: { updatedAt: 0, networks: {} },
+			working: {},
 			loaded: false,
 			queue: Promise.resolve(),
 			refreshInFlight: null,
@@ -115,6 +118,7 @@ export function createCryptoRpc(env: NodeJS.ProcessEnv = process.env, fetcher = 
 						.filter((url) => !old.some((e) => e.url === url))
 						.map((url) => ({ url, retryAt: 0 })),
 				];
+				state.working[n] = (state.working[n] || []).filter((url) => urls.includes(url));
 			}
 			cache.updatedAt = now();
 			await persist();
@@ -135,11 +139,14 @@ export function createCryptoRpc(env: NodeJS.ProcessEnv = process.env, fetcher = 
 			});
 			await state.refreshInFlight;
 		}
+		const available = (cache.networks[network] || []).filter((entry) => entry.retryAt <= now());
+		const working = state.working[network] || [];
 		const candidates = configured
 			? [{ url: configured, retryAt: 0 }]
-			: (cache.networks[network] || [])
-				.filter((entry) => entry.retryAt <= now())
-				.map((entry) => ({ ...entry }));
+			: [
+				...working.flatMap((url) => available.filter((entry) => entry.url === url)),
+				...available.filter((entry) => !working.includes(entry.url)),
+			].map((entry) => ({ ...entry }));
 		for (const entry of candidates.slice(0, config.rpcMaxAttempts)) {
 			try {
 				// A reachable endpoint for a different chain must never receive a signed transfer.
@@ -167,6 +174,9 @@ export function createCryptoRpc(env: NodeJS.ProcessEnv = process.env, fetcher = 
 				if (result.error || result.result === undefined) {
 					throw Error();
 				}
+				if (!configured && (cache.networks[network] || []).some((candidate) => candidate.url === entry.url)) {
+					state.working[network] = [entry.url, ...(state.working[network] || []).filter((url) => url !== entry.url)];
+				}
 				return result.result;
 			}
 			catch (error) {
@@ -175,6 +185,7 @@ export function createCryptoRpc(env: NodeJS.ProcessEnv = process.env, fetcher = 
 				}
 				if (!configured) {
 					await serialize(state, async () => {
+						state.working[network] = (state.working[network] || []).filter((url) => url !== entry.url);
 						const entries = cache.networks[network] || [];
 						const current = entries.find((candidate) => candidate.url === entry.url);
 						// Discovery may have removed this endpoint while its request was in flight.
