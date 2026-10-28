@@ -17,6 +17,7 @@ const {resource, posts, nextOffset, account, checked, busy, error, modal, galler
     resourceId, active, expired, activeUntil, enabled, accountPath, publicPath,
     closeModal, login, loginModal, checkout, logout, more, showGallery, sharePost,
     requestRefund, submitRefund, resumePayment, backToPlans, refreshAccess, openAccount} = useMembershipSession(props.initialState);
+const navigation = computed(() => props.initialState.snapshot.navigation);
 const single = computed(() => props.initialState.path.startsWith('/posts/'));
 const selected = computed(() => options.value.find(option => option.id === selectedOption.value) || options.value[0] || {});
 const joinLabel = computed(() => {
@@ -53,15 +54,23 @@ function join() {
                 <AccountPanel v-if="accountPath" :checked="checked" :account="account" :active="active" :active-until="activeUntil" :enabled="enabled" @login="loginModal()" @checkout="checkout" @refund="requestRefund" @resume="resumePayment" @logout="logout" />
                 <template v-else>
                     <a v-if="single" :href="publicPath('/')" class="back-link">← All posts</a>
-                    <h2 v-else class="feed-heading">Latest posts</h2>
+                    <h2 v-else class="feed-heading">{{ navigation?.newer ? 'Archive' : 'Latest posts' }}</h2>
                     <PostCard v-for="post in posts" :key="post.id" :post="post" :single="single" :post-url="publicPath(`/posts/${encodeURIComponent(post.id)}`)" :checked="checked" :expired="expired" @gallery="showGallery" @share="sharePost" @checkout="checkout" />
                     <section v-if="!posts.length" class="account-panel"><h2>New work is on the way</h2><p>Find the latest updates through the links above.</p></section>
-                    <button v-if="nextOffset !== null" type="button" class="load-more" :disabled="busy" data-testid="load-more" @click="more">{{ busy ? 'Loading…' : 'Load more' }}</button>
+                    <nav v-if="navigation && !single" class="creator-pagination" aria-label="Post pages">
+                        <a v-if="navigation.newer" :href="navigation.newer" data-testid="newer-posts">← Newer posts</a>
+                        <a v-if="navigation.older" :href="navigation.older" data-testid="older-posts">Older posts →</a>
+                    </nav>
+                    <button v-else-if="!single && nextOffset !== null" type="button" class="load-more" :disabled="busy" data-testid="load-more" @click="more">{{ busy ? 'Loading…' : 'Load more' }}</button>
                 </template>
                 <p v-if="shareStatus" role="status">{{ shareStatus }}</p>
             </div>
         </main>
-        <footer class="member-footer"><span>{{ '© ' + resource.title }}</span><template v-for="(item, index) in resource.legalLinks || []" :key="index"><a v-if="safeSiteUrl(item.url)" :href="safeSiteUrl(item.url) || undefined" target="_blank" rel="noopener noreferrer">{{ item.label }}</a></template></footer>
+        <footer class="member-footer">
+            <span v-if="!initialState.snapshot.canonicalPath">{{ '© ' + resource.title }}</span>
+            <span v-else>© <a :href="publicPath('/')" data-testid="footer-home">{{ resource.title }}</a> · Powered by <a href="https://github.com/galtproject/geesome-node" target="_blank" rel="noopener noreferrer">GeeSome</a></span>
+            <template v-for="(item, index) in resource.legalLinks || []" :key="index"><a v-if="safeSiteUrl(item.url)" :href="safeSiteUrl(item.url) || undefined" target="_blank" rel="noopener noreferrer">{{ item.label }}</a></template>
+        </footer>
         <MembershipModal v-if="modal" :name="modal" :direct="paymentMethod === 'direct'" :error="error" @close="closeModal">
             <PreviewGallery v-if="modal === 'gallery'" v-model:index="imageIndex" :images="gallery" />
             <template v-else-if="modal === 'login'">

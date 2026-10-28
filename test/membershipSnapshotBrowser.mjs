@@ -4,11 +4,12 @@ import http from 'node:http';
 import assert from 'node:assert/strict';
 import { chromium } from '/work/node_modules/playwright/index.mjs';
 const root = '/evidence', captures = [], comparisons = [];
+const paginationOnly = process.argv.includes('--pagination');
 const reference = JSON.parse(await fs.readFile(root + '/reference-state.json', 'utf8'));
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.txt': 'text/plain', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp' };
 const server = http.createServer(async (req, res) => {
     const relative = new URL(req.url, 'http://localhost').pathname;
-    const target = path.resolve(root, '.' + relative);
+    const target = path.resolve(root, '.' + relative + (relative.endsWith('/') ? 'index.html' : ''));
     if (!target.startsWith(root + '/')) {
         res.writeHead(403).end();
         return;
@@ -35,7 +36,7 @@ async function settleCover(page) {
 }
 const origin = `http://127.0.0.1:${server.address().port}`, browser = await chromium.launch({ headless: true });
 try {
-    for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+    for (const viewport of paginationOnly ? [] : [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
         const states = [];
         for (const version of ['reference', 'public']) {
             const context = await browser.newContext({ viewport });
@@ -200,7 +201,7 @@ try {
             await context.close();
         }
     }
-    for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+    for (const viewport of paginationOnly ? [] : [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
         for (const id of ['meat', 'newsite']) {
             for (const version of ['reference', 'public']) {
                 const page = await browser.newPage({ viewport });
@@ -220,6 +221,137 @@ try {
                 await page.close();
             }
         }
+    }
+    for (const viewport of [{width:1280,height:900},{width:390,height:844}]) {
+        for (const javaScriptEnabled of [true,false]) {
+            const context = await browser.newContext({viewport,javaScriptEnabled});
+            const page = await context.newPage(), errors = [];
+            page.on('pageerror',error=>errors.push(error.message));
+            await page.route('**/api/**', route=>route.fulfill({contentType:'application/json',body:JSON.stringify({reader:null,active:false,invoices:[],refunds:[]})}));
+            const capture = async(name,description)=>{
+                await page.locator('img').evaluateAll(images=>Promise.all(images.map(image=>image.decode().catch(()=>{}))));
+                assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+                assert.equal(await page.locator('img:visible').evaluateAll(images=>images.some(image=>!image.naturalWidth)),false);
+                if (!javaScriptEnabled) {
+                    assert.equal(await page.locator('.preview-image-state .image-status:visible').count(),0);
+                }
+                const file=`${viewport.width}-pagination-${javaScriptEnabled?'js':'nojs'}-${name}.png`;
+                await page.screenshot({path:path.join(root,file),fullPage:false});
+                captures.push({file,description,viewport,state:`pagination-${name}`,javaScriptEnabled});
+            };
+            await page.goto(`${origin}/paged/`);
+            await page.getByTestId('post-51').waitFor();
+            if (javaScriptEnabled) {
+                await page.waitForTimeout(250);
+            }
+            assert.equal(new URL(page.url()).hash,'');
+            assert.equal(await page.locator('.member-post').count(),11);
+            assert.equal(await page.getByTestId('load-more').count(),0);
+            assert.equal(await page.getByTestId('latest-posts').count(),0);
+            assert.equal(await page.getByTestId('footer-home').getAttribute('href'),'./');
+            assert((await page.locator('.member-footer').textContent()).includes('Powered by GeeSome'));
+            assert.equal(await page.getByTestId('newer-posts').count(),0);
+            assert(!await page.content().then(html=>html.includes('PRIVATE 51')));
+            await capture('home','Top of the real 11-post homepage shows newest post 51 and clean URL hydration; navigation and full count are verified independently with and without JavaScript.');
+            await page.getByTestId('older-posts').click();
+            await page.waitForURL(url=>url.pathname==='/paged/page/4/');
+            await page.getByTestId('post-40').waitFor();
+            assert.equal(new URL(page.url()).hash,'');
+            assert.equal(await page.locator('.member-post').count(),10);
+            assert.equal(await page.getByTestId('post-41').count(),0);
+            assert.equal(await page.getByTestId('newer-posts').getAttribute('href'),'../../');
+            const older = page.getByTestId('older-posts');
+            await older.scrollIntoViewIfNeeded();
+            await capture('archive','Bottom of archive 4 shows its last post 31, Newer/Older links and the footer home link with GeeSome attribution; the ten-post count, clean folder URL and absence of home duplicates are verified independently.');
+            await older.click();
+            await page.waitForURL(url=>url.pathname==='/paged/page/3/');
+            await page.getByTestId('post-30').waitFor();
+            await page.getByTestId('newer-posts').click();
+            await page.waitForURL(url=>url.pathname==='/paged/page/4/');
+            assert.equal(await page.getByTestId('footer-home').getAttribute('href'),'../../');
+            await page.getByTestId('footer-home').click();
+            await page.waitForURL(url=>url.pathname==='/paged/');
+            await page.goto(`${origin}/paged/posts/51/`);
+            await page.getByText('PUBLIC 51',{exact:true}).waitFor();
+            assert.equal(new URL(page.url()).hash,'');
+            assert.equal(await page.locator('a.back-link').getAttribute('href'),'../../');
+            assert.deepEqual(errors,[]);
+            await context.close();
+        }
+    }
+    // New checkout behavior intentionally differs from the legacy reference.
+    for (const viewport of paginationOnly ? [] : [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+        const page = await browser.newPage({ viewport });
+        const methods = [
+            {id:'eth-ethereum',currency:'ETH',network:'ethereum',networkLabel:'Ethereum',available:true},
+            {id:'usdc-base',currency:'USDC',network:'base',networkLabel:'Base',available:true},
+            {id:'usdt-arbitrum',currency:'USDT',network:'arbitrum',networkLabel:'Arbitrum One',available:true},
+            {id:'usdt-ethereum',currency:'USDT',network:'ethereum',networkLabel:'Ethereum',available:true},
+            {id:'usdt-tron',currency:'USDT',network:'tron',networkLabel:'TRON',available:false},
+            {id:'btc-bitcoin',currency:'BTC',network:'bitcoin',networkLabel:'Bitcoin',available:false},
+        ];
+        const assets = [];
+        let resumed = false;
+        const quote = assetId => ({id:'invoice',provider:'direct',status:'pending',assetId,
+            currency:assetId === 'usdc-base' ? 'USDC' : 'USDT',network:assetId === 'usdc-base' ? 'base' : 'ethereum',
+            amount:'4',received:'0',address:'0x1111111111111111111111111111111111111111',expiresAt:'2030-01-01T00:00:00Z',
+            priceUsd:4,period:'month',optionLabel:'1 month'});
+        await page.route('**/api/**', async route => {
+            const pathname = new URL(route.request().url()).pathname;
+            let data;
+            if (pathname.endsWith('/resource')) {
+                data = {...reference.resource,cryptoMethods:methods};
+            } else if (pathname.endsWith('/account')) {
+                data = {reader:{id:'reader',name:'Test reader'},active:false,invoices:resumed ? [{id:'invoice',provider:'direct',status:'pending',createdAt:'2026-10-28T00:00:00Z',optionSnapshot:reference.resource.options[0]}] : [],refunds:[]};
+            } else if (pathname.endsWith('/feed')) {
+                data = {posts:reference.posts,hasMore:false};
+            } else if (pathname.endsWith('/invoices')) {
+                const assetId = route.request().postDataJSON().assetId;
+                assets.push(assetId);
+                data = quote(assetId);
+            } else if (pathname.endsWith('/invoices/invoice')) {
+                data = quote('usdc-base');
+            } else {
+                throw Error('Unexpected checkout API ' + pathname);
+            }
+            return route.fulfill({contentType:'application/json',body:JSON.stringify(data)});
+        });
+        const captureCheckout = async (name, description) => {
+            await page.locator('.crypto-qr').waitFor();
+            assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+            assert.equal(await page.locator('img:visible').evaluateAll(images => images.some(i => !i.complete || !i.naturalWidth)), false);
+            const file = `${viewport.width}-${name}.png`;
+            await page.screenshot({path:path.join(root,file),fullPage:true});
+            captures.push({file,description,viewport,state:name});
+        };
+        await page.goto(`${origin}/public/index.html`);
+        await page.getByTestId('account-link').waitFor();
+        await page.getByTestId('join-membership').click();
+        const quoteReady = page.waitForResponse(response => response.request().method() === 'POST'
+            && new URL(response.url()).pathname.endsWith('/invoices'));
+        await page.getByTestId('direct-crypto-payment').click();
+        await quoteReady;
+        await page.locator('.crypto-qr').waitFor();
+        assert.deepEqual(assets,['usdt-ethereum']);
+        assert.equal(await page.getByTestId('crypto-currency-USDT').getAttribute('aria-pressed'),'true');
+        assert.equal(await page.getByTestId('crypto-network').inputValue(),'usdt-ethereum');
+        assert.deepEqual(await page.getByTestId('crypto-network').locator('option').allTextContents(),['Arbitrum One','Ethereum']);
+        assert.equal(await page.getByTestId('crypto-currency-BTC').count(),0);
+        assert(!await page.locator('.crypto-checkout').textContent().then(text => text.toLowerCase().includes('unavailable')));
+        await captureCheckout('checkout-usdt-default','New checkout selects USDT Ethereum, offers only available networks, and omits unavailable BTC/TRON choices.');
+        await page.getByRole('button',{name:'Close dialog'}).click();
+        resumed = true;
+        methods.find(m => m.id === 'usdc-base').available = false;
+        await page.goto(`${origin}/public/account.html`);
+        await page.getByTestId('crypto-resume-invoice').click();
+        await page.locator('.crypto-qr').waitFor();
+        assert.equal((await page.getByTestId('crypto-invoice-network').textContent()).toLowerCase(),'base');
+        assert.equal(await page.getByTestId('crypto-network').count(),0);
+        assert.equal(await page.getByTestId('crypto-currency-USDC').count(),0);
+        assert.equal(await page.getByTestId('crypto-currency-BTC').count(),0);
+        assert.equal(assets.length,1,'resumed invoice must not create a replacement quote');
+        await captureCheckout('checkout-resume-unavailable','Existing USDC Base invoice keeps its QR and network while unavailable methods are absent from new-payment choices.');
+        await page.close();
     }
     const compare = await browser.newPage();
     await compare.goto(`${origin}/reference/style.css`);

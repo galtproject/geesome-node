@@ -58,7 +58,9 @@ export function createMembershipPublisher(app, M, membership, dependencies) {
 			const sourceVersion = publicationState(row).sourceVersion;
 			const group = await app.ms.group.getLocalGroup(row.ownerId, row.groupId);
 			const options = await M.options.findAll({where: {resourceId: row.id, enabled: true}, order: [['amountCents', 'ASC']]});
-			const result = await buildMembershipSnapshots(app, row, group.title, {options, description: group.description, renew, beginDirectory: async variant => {
+			const previous = publicationState(row).publicationId ? await M.publications.findByPk(publicationState(row).publicationId) : null;
+			const previousManifest = previous?.status === 'ready' && previous.resourceId === row.id ? previous.manifest : null;
+			const result = await buildMembershipSnapshots(app, row, group.title, {previousManifest, options, description: group.description, renew, beginDirectory: async variant => {
 				const directory = `/membership-${job.id}-${job.leaseToken}-${variant}`;
 				job.stagingPaths = [...job.stagingPaths, directory];
 				const [registered] = await M.publications.update({stagingPaths: job.stagingPaths}, {where: {id: job.id, leaseToken: job.leaseToken, status: 'building'}});
