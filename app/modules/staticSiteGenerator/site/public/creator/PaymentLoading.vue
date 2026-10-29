@@ -18,7 +18,6 @@ const props = defineProps<{currency: string; network: string; previousQr: string
                 <p class="crypto-loading-spacer-text">{{ `Confirmed received: 0 ${props.currency}` }}</p>
                 <p class="crypto-loading-spacer-text">Quote expires: 10/17/2026, 12:00:00 AM</p>
                 <div class="crypto-status-control"><p class="crypto-status crypto-loading-spacer-text">Waiting for payment</p><span class="crypto-loading-spacer-check"></span></div>
-                <p class="crypto-monitoring crypto-loading-spacer-text">Automatic monitoring ends: 10/24/2026, 12:00:00 AM. Contact the author about payments after that date.</p>
             </div>
         </div>
     </div>
