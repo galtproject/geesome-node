@@ -1053,6 +1053,39 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		}
 	});
 
+	it('queues one source revision for an atomic attachment and post edit, retaining separate edits and rollback', async () => {
+		const groupModule = createGroupModule(app, models);
+		const group = await models.Group.create({name: 'atomic-publication-edit', creatorId: owner.id, isPublic: false});
+		const id = 'atomic-publication-edit';
+		await membership.provisionSite(owner.id, {id, origin: 'https://atomic-publication-edit.test', groupId: String(group.id), ownerId: owner.id,
+			googleClientId: '', enabled: true, registrationEnabled: false, postsEnabled: true, version: 0});
+		const post = await models.Post.create({groupId: group.id, userId: owner.id, status: 'published'});
+		const content = await models.Content.create({userId: owner.id, mimeType: 'image/png', storageId: 'atomic-edit-content'});
+		const head = await membershipModels.publications.create({id: randomUUID(), resourceId: id, requestKey: 'head', status: 'ready', sourceVersion: 0});
+		await membershipModels.resources.update({data: {publication: {publicationId: head.id, sourceVersion: 0}}}, {where: {id}});
+		const revision = async () => (await membershipModels.resources.findByPk(id)).data.publication.sourceVersion;
+		try {
+			await db.transaction(async transaction => {
+				await groupModule.setPostContents(post.id, [{id: content.id, isPrivate: false}], {transaction});
+				await models.Post.update({propertiesJson: '{"title":"edited"}'}, {where: {id: post.id}, transaction});
+			});
+			assert.equal(await revision(), 1);
+			assert.equal(await membershipModels.publications.count({where: {resourceId: id, status: 'queued'}}), 1);
+			await groupModule.setPostContents(post.id, [{id: content.id, isPrivate: true}]);
+			assert.equal(await revision(), 2, 'standalone attachment edit still invalidates');
+			await assert.rejects(db.transaction(async transaction => {
+				await membership.invalidateGroup(group.id, transaction);
+				throw Error('rollback-source');
+			}), /rollback-source/);
+			assert.equal(await revision(), 2, 'rolled-back transaction publishes nothing');
+			await db.transaction(transaction => membership.invalidateGroup(group.id, transaction));
+			assert.equal(await revision(), 3, 'deduplication never crosses transaction boundaries');
+			assert.equal(await membershipModels.publications.count({where: {resourceId: id, status: 'queued'}}), 3);
+		} finally {
+			await membershipModels.publications.destroy({where: {resourceId: id}});
+		}
+	});
+
 	it('persists per-post attachment visibility, preserves it across edits, and upgrades legacy rows conservatively', async () => {
 		const groupModule = createGroupModule(app, models);
 		const publicGroup = await models.Group.create({name: 'visibility-public', creatorId: owner.id, isPublic: true});
