@@ -53,7 +53,7 @@ then explicit Rebuild snapshots; existing immutable CIDs remain unchanged.
   API docs and security/scalability inventories passed without tracked changes.
 - Producer: 107 membership tests and the media helper test passed. Docker
   resource-binding first pass: 2 cases and 14 mapped captures; final source rerun
-  is in progress. Backend must deploy before producer, then explicit Rebuild.
+  also passed (2 cases, 14 mapped captures). Backend must deploy before producer, then explicit Rebuild.
 - New user steering (2026-10-29): direct membership and Patreon are alternative
   subscriptions to nearly the same archive. Direct crypto is cheaper. Requested
   a separate critique of CTA placement/copy. Do not invent Patreon prices, account linking or entitlement equivalence;
@@ -74,3 +74,8 @@ then explicit Rebuild snapshots; existing immutable CIDs remain unchanged.
 
 - Post-integration focused browser run passed with 44 mapped captures, including
   the sole Older link on the home page and footer return navigation.
+
+- Delivery: backend PR #1467 targets dev; producer commit 4dc6e67d is on dev.
+  Deployment remains GeeSome first, then Microwave Girls, then explicit Rebuild.
+  The hub pointer is left untouched because unrelated concurrent producer edits
+  keep that checkout dirty; no production update or PR merge was performed.
