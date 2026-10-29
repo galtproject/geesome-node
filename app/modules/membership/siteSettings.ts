@@ -1,3 +1,4 @@
+import {normalizeSitePresentation} from '../staticSiteGenerator/site/presentation.js';
 import { randomUUID } from 'node:crypto';
 import { CorePermissionName } from '../database/interface.js';
 import { siteProblem } from '../api/browserSession.js';
@@ -5,6 +6,10 @@ import { siteProblem } from '../api/browserSession.js';
 export default function siteSettings(app, M, group, owner, publicBrand, invalidateGroup) {
 	const sequelize = app.ms.database.sequelize;
 	function validate(body) {
+        if (body?.presentation !== undefined) {
+            try { body.presentation = normalizeSitePresentation(body.presentation); }
+            catch { siteProblem(400, 'membership_presentation_invalid'); }
+        }
 		if (!body || !Number.isSafeInteger(body.version) || body.version < 0
 			|| typeof body.enabled !== 'boolean' || typeof body.registrationEnabled !== 'boolean'
 			|| typeof body.postsEnabled !== 'boolean' || typeof body.googleClientId !== 'string'
@@ -24,9 +29,11 @@ export default function siteSettings(app, M, group, owner, publicBrand, invalida
 		if (body.version !== (current?.version || 0)) {
 			siteProblem(409, 'membership_site_version_conflict');
 		}
-		if (body.displayTitle === undefined && row.data?.displayTitle !== undefined) {
-			body = {...body, displayTitle: row.data.displayTitle};
-		}
+		for (const field of ['displayTitle','presentation']) {
+            if (body[field]===undefined && row.data?.[field]!==undefined) {
+                body={...body,[field]:row.data[field]};
+            }
+        }
 		const brandingChanged = JSON.stringify(publicBrand(row.data)) !== JSON.stringify(publicBrand(body));
 		await row.update({ postsEnabled: body.postsEnabled, data: {...publicBrand(body), ...(row.data?.publication ? {publication: row.data.publication} : {})} }, { transaction });
 		const values = { googleClientId: body.googleClientId, enabled: body.enabled,
@@ -54,7 +61,7 @@ export default function siteSettings(app, M, group, owner, publicBrand, invalida
 		async saveSiteSettings(userId, id, body) {
 			await owner(userId, id);
 			validate(body);
-			if (Object.keys(body).some(key => !['version', 'enabled', 'googleClientId', 'registrationEnabled', 'postsEnabled', 'displayTitle', 'coverUrl', 'avatarUrl', 'links', 'patreonUrl', 'legalLinks'].includes(key))) {
+			if (Object.keys(body).some(key => !['version', 'enabled', 'googleClientId', 'registrationEnabled', 'postsEnabled', 'displayTitle', 'presentation', 'coverUrl', 'avatarUrl', 'links', 'patreonUrl', 'legalLinks'].includes(key))) {
 				siteProblem(400, 'membership_site_invalid');
 			}
 			return sequelize.transaction(async transaction => {

@@ -25,9 +25,19 @@ describe('membership snapshots using shared site templates', function () {
 		assert(!Object.hasOwn(data.creator.posts[0], 'secret'));
 		assert(!Object.hasOwn(data.creator.posts[0], 'fullText'));
 		assert(!JSON.stringify(data.creator).includes('PRIVATE'));
-		assert(html.includes('class="membership-site theme-wave'));
+		assert(html.includes('class="membership-site'));
+        assert(!html.includes('theme-wave'));
+        assert(!html.includes('Era Of Wave'));
 		assert(html.includes('data-testid="subscribe-post"'));
 	});
+    it('escapes presentation copy as text and never treats it as a template or script', async()=>{
+        const copy='</script><script>alert(1)</script>';
+        const html=await renderSnapshot({title:'Independent',brand:{presentation:{schemaVersion:1,copy:{feedHeading:copy}}}},[],false);
+        assert(!html.includes(copy));
+        assert(html.includes('&lt;/script&gt;&lt;script&gt;alert(1)&lt;/script&gt;'));
+        const data=JSON.parse(html.match(/<script id="site-data"[^>]*>([\s\S]*?)<\/script>/)[1]);
+        assert.equal(data.creator.resource.presentation.copy.feedHeading,copy);
+    });
 	it('keeps directory-relative post and page links so a known snapshot never asks for newer content', async () => {
 		const html = await renderSnapshot({title: 'Creator', homeUrl: 'index.html', pageUrls: ['index.html', 'page-2.html']},
 			[{id: '1', title: 'Post', teaser: 'Public', fullText: 'Full', free: false, media: [], postUrl: 'posts/1.html'}], true, false, 1, 2);

@@ -9,7 +9,17 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import renderer from '../app/modules/staticSiteGenerator/site/index.js';
 import { buildBrowserClient } from '../app/modules/staticSiteGenerator/site/browserBundle.js';
-import { membershipRenderData } from '../app/modules/staticSiteGenerator/membershipRenderData.ts';
+import {creatorPresentation} from '../../microwave-girls/app/modules/membership/websitePresentation.ts';
+import { membershipRenderData as baseMembershipRenderData } from '../app/modules/staticSiteGenerator/membershipRenderData.ts';
+function membershipRenderData(site,...args) {
+    const brand=site.brand || {};
+    const presentation=creatorPresentation({id:site.resourceId},brand);
+    if (presentation.membership.external) {
+        presentation.membership.external.label='Support on Patreon';
+    }
+    presentation.membership.banner={title:'Less than Patreon. More value here.',text:'Get your membership for less when you buy directly on this site.'};
+    return baseMembershipRenderData({...site,brand:{...brand,presentation}},...args);
+}
 const root = path.resolve(process.env.MEMBERSHIP_BROWSER_EVIDENCE || 'test/.geesome-test-output/membership-browser');
 const frontendRequire = createRequire(new URL('../../microwave-girls/frontend/package.json', import.meta.url));
 const { createSSRApp } = frontendRequire('vue');
@@ -103,7 +113,7 @@ for (const [id, title, brand] of [['meat', 'Era Of Meat', referenceState.resourc
     await fs.writeFile(path.join(directory, 'index.html'), await prepared.renderPage('/', []));
 }
 
-assert((await fs.readFile('app/modules/staticSiteGenerator/site/public/creator/style.css','utf8')).startsWith(await fs.readFile('../microwave-girls/frontend/public/style.css','utf8')),'Creator theme preserves the original stylesheet');
+assert(!/theme-meat|theme-wave|Era Of Wave/.test(await fs.readFile('app/modules/staticSiteGenerator/site/public/creator/style.css','utf8')),'Creator stylesheet has no project theme selectors');
 
 // Materialize an actual version-2 publication rather than a hand-built pagination fixture.
 {
@@ -126,7 +136,9 @@ assert((await fs.readFile('app/modules/staticSiteGenerator/site/public/creator/s
         copyFileFromId:async(cid,target)=>{const parts=target.split('/');directories.get('/'+parts[1]).set(parts.slice(2).join('/'),cid);},
         getDirectoryId:async path=>(await put(JSON.stringify([...directories.get(path)]))).id
     }}};
-    await buildMembershipSnapshots(app,{id:'wave',groupId:'1',domain:'creator.test',data:{displayTitle:'Archive creator',coverUrl:'/public/media/cover.png',avatarUrl:'/public/media/avatar.jpg',patreonUrl:'https://patreon.com/example',links:withIcons([{label:'Patreon',url:'https://patreon.com/example'},{label:'Ko-fi',url:'https://ko-fi.com/example',iconUrl:'/ipfs/'+iconCid('kofi')},{label:'X',url:'https://x.com/example'},{label:'Discord',url:'https://discord.gg/example'},{label:'Bluesky',url:'https://bsky.app/profile/example'},{label:'Telegram',url:'https://t.me/example'},{label:'Portfolio',url:'https://example.com',iconUrl:undefined}])}},'Private group members',{
+    const publicationResource={id:'wave',groupId:'1',domain:'creator.test',data:{displayTitle:'Archive creator',coverUrl:'/public/media/cover.png',avatarUrl:'/public/media/avatar.jpg',patreonUrl:'https://patreon.com/example',links:withIcons([{label:'Patreon',url:'https://patreon.com/example'},{label:'Ko-fi',url:'https://ko-fi.com/example',iconUrl:'/ipfs/'+iconCid('kofi')},{label:'X',url:'https://x.com/example'},{label:'Discord',url:'https://discord.gg/example'},{label:'Bluesky',url:'https://bsky.app/profile/example'},{label:'Telegram',url:'https://t.me/example'},{label:'Portfolio',url:'https://example.com',iconUrl:undefined}])}};
+    publicationResource.data.presentation=creatorPresentation(publicationResource,publicationResource.data);
+    await buildMembershipSnapshots(app,publicationResource,'Private group members',{
         options:[{id:'monthly',label:'1 month',amountCents:400,currency:'USD',period:'month'},{id:'six',label:'6 months',amountCents:2000,currency:'USD',period:'halfyear'}],description:'',renew:async()=>{},beginDirectory:async variant=>'/pagination-'+variant
     });
     for(const variant of ['public','full']) {
@@ -155,6 +167,9 @@ for (const variant of ['no-patreon','unavailable','links-only']) {
     const data = structuredClone(socialState);
     if (variant === 'no-patreon') {
         delete data.creator.resource.patreonUrl;
+        delete data.creator.resource.presentation.membership.external;
+        delete data.creator.resource.presentation.membership.banner;
+        data.creator.resource.presentation.membership.ribbon=[];
         data.creator.resource.links = data.creator.resource.links.filter(link=>link.label!=='Patreon');
     } else if (variant === 'links-only') {
         data.creator.resource.postsEnabled = false;
@@ -163,4 +178,25 @@ for (const variant of ['no-patreon','unavailable','links-only']) {
     }
     const prepared = await renderer.prepareRender(data);
     await fs.writeFile(path.join(root,'paged',`${variant}.html`),await prepared.renderPage('/',[]));
+}
+
+for (const variant of ['custom-presentation','neutral-presentation']) {
+    const data=structuredClone(socialState);
+    data.creator.resource.title='Independent creator';
+    if (variant==='neutral-presentation') {
+        delete data.creator.resource.presentation;
+        delete data.creator.resource.patreonUrl;
+        data.creator.resource.links=[];
+    } else {
+        data.creator.resource.presentation={schemaVersion:1,theme:{accent:'#007d62',background:'#f3f4f5',surface:'#ffffff',text:'#14242c',muted:'#52646c',border:'#ccd4d8',radius:'square',density:'compact'},layout:{columns:'single',header:['account','brand'],profile:['profile'],sidebar:['social-links','membership'],footer:['home']},copy:{feedHeading:'Owner-selected heading',socialHeading:'My links'},membership:{ribbon:['Custom claim'],external:{label:'Another membership service',url:'https://membership.example.com',accent:'#ffcc00'},benefits:[{title:'<script>alert(1)</script>',text:'Literal text, not a template'}]}};
+    }
+    const prepared=await renderer.prepareRender(data);
+    const dir=path.join(root,variant);
+    await fs.mkdir(dir,{recursive:true});
+    await fs.writeFile(path.join(dir,'style.css'),prepared.css);
+    await fs.writeFile(path.join(dir,'index.html'),await prepared.renderPage('/',[]));
+}
+for (const variant of ['custom-presentation','neutral-presentation']) {
+    await fs.cp(path.join(root,'paged/public'),path.join(root,variant,'public'),{recursive:true});
+    await fs.cp(path.join(root,'paged/media'),path.join(root,variant,'media'),{recursive:true});
 }

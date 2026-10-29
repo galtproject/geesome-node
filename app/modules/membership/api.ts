@@ -14,6 +14,7 @@ export default function (app, module) {
 	* @apiBody {Boolean} enabled Enable browser access for this binding.
 	* @apiBody {Boolean} registrationEnabled Allow creation of private readers.
 	* @apiBody {Boolean} postsEnabled Enable public preview feed.
+	* @apiBody {Object} [presentation] Declarative creator/1 presentation; same schema as mutable site settings. No CSS/scripts/templates.
 	* @apiSuccess {Object} result Persisted site settings including incremented version.
 	* @apiError (403) not_permitted AdminMembershipSites on account and active key required; delegated credentials also require UserGroupManagement and own group.
 	* @apiError (409) membership_site_binding_changed Resource identity is immutable.
@@ -45,6 +46,7 @@ export default function (app, module) {
 	* @apiBody {Boolean} enabled Allow browser access.
 	* @apiBody {Boolean} registrationEnabled Allow reader registration.
 	* @apiBody {Boolean} postsEnabled Allow public preview feed.
+	* @apiBody {Object} [presentation] Versioned declarative presentation manifest (schemaVersion=1, template creator/1). Accepts only documented block IDs, hex color tokens and bounded text; no executable templates, CSS or scripts. Omission preserves the existing manifest.
 	* @apiBody {String} [displayTitle] Public creator name (1–200 characters); independent of the private group title. Omission preserves the existing value.
 	* @apiBody {String} [coverUrl] Cover URL.
 	* @apiBody {String} [avatarUrl] Avatar URL.
@@ -53,6 +55,7 @@ export default function (app, module) {
 	* @apiBody {Object[]} [legalLinks] Public legal links.
 	* @apiSuccess {Object} result Settings with incremented version; applies without restart.
 	* @apiError (403) owner_required Group creator and UserGroupManagement required.
+	* @apiError (400) membership_presentation_invalid Unsupported or unsafe presentation manifest.
 	* @apiError (409) membership_site_version_conflict Stale settings version.
 	*/
 	app.ms.api.onAuthorizedPost('membership/admin/:resource/site', creatorSiteEndpoint(async (req, res) => {
@@ -66,6 +69,7 @@ export default function (app, module) {
 	* @apiSuccess {String} id Site id.
 	* @apiSuccess {String} domain Canonical host.
 	* @apiSuccess {Boolean} postsEnabled Whether the feed is enabled.
+	* @apiSuccess {Object} presentation Optional owner-defined, validated presentation manifest.
 	* @apiSuccess {Object[]} options Enabled access tariffs.
 	* @apiSuccess {Object[]} cryptoMethods Payment method availability.
 	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.

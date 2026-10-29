@@ -533,3 +533,19 @@ Remaining work follows the [audited migration plan](plans/creator-membership-mig
 - Switch site APIs under a single authoritative payment worker, then remove replaced billing/auth workers from microwave-girls.
 - Build the safe creator SSG theme and protected original delivery; current CID links remain public.
 - Add explicit existing-account Google linking if required; never auto-link by email.
+
+<!-- todo-section: site-presentation-editor -->
+## Site presentation editor and preview (deferred)
+
+Explicitly deferred by the user while delivering the owner-defined presentation
+manifest (#1468). API configuration and producer presets are the first stage.
+
+- Build a form/block-order editor against the existing versioned settings API and
+  the closed presentation schema; expose validation errors and preserve unknown
+  newer versions instead of silently downgrading them.
+- Add isolated draft preview for public and full projections, with access checks
+  and no accidental publication or exposure of paid data.
+- Keep arbitrary templates/CSS/JS execution outside this editor's trust model.
+
+Contract and rollout: [site-presentation.md](site-presentation.md).
+<!-- /todo-section -->

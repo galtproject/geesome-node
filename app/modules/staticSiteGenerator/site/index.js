@@ -1,3 +1,4 @@
+import {sitePresentationCss} from './presentation.js';
 import {loadCreatorApp} from './creatorRenderer.js';
 import * as sass from 'sass';
 import { createApp } from './public/index.js';
@@ -11,7 +12,7 @@ export default {
     async prepareRender(storageData) {
         // const storageData = {path: url.split('?')[0], urlQuery, ...additionalData};
         loadAssets(storageData);
-        const {css} = await compileStyles(Boolean(storageData.membership));
+        const {css} = await compileStyles(Boolean(storageData.membership), storageData.creator?.resource?.presentation);
         const rootContent = getFileContent('index.html');
         return {
             css,
@@ -72,9 +73,9 @@ function escapeHtmlAttribute(value) {
         .replace(/'/g, '&#39;');
 }
 
-function compileStyles(creator = false) {
+function compileStyles(creator = false, presentation) {
     if (creator) {
-        return {css: getFileContent('public/creator/style.css')};
+        return {css: getFileContent('public/creator/style.css') + '\n' + sitePresentationCss(presentation)};
     }
     return sass.compileAsync(getFilePath('styles/index.scss'));
 }

@@ -794,3 +794,20 @@ Creator snapshots support general text/uri-list Content: genuine CIDs, optional 
 MicrowaveGirls supplies the 'View full set' caption and view=link for its existing galleries. Its idempotent Prepare upgrade preserves crops, unrelated links and the group, verifies gallery availability and removes only excess image associations. Existing gallery files are not deleted. See docs/plans/membership-gallery-links.md and MicrowaveGirls #733.
 
 Verification includes real PostgreSQL/Kubo snapshot privacy, bounded URI reads, raw JSON Content saving, compact-post replacement, strict creator Vue types and desktop/narrow browser flows. The browser suite checks named document links, original gallery navigation after payment, and private targets absent after logout. No production deployment or new snapshot build was triggered by this implementation.
+
+## Owner-defined creator presentation (#1468)
+
+Creator publications accept a versioned owner manifest in the existing membership
+resource JSON, with closed block regions, bounded editorial copy, style tokens
+and external membership offers. Trusted auth/payment components retain their
+handlers and authoritative values. Unknown fields, executable templates, CSS and
+script sources are rejected. Old settings clients preserve the manifest when
+omitted; updates use existing version locks, invalidation and publication fences.
+
+Project presets and marketing belong to the producer. Node has neutral defaults
+and no resource-id theme switch. Public/full projection and immutable artifact
+retention remain unchanged. Contract and upgrade: [site-presentation.md](site-presentation.md).
+Verification: 45 PostgreSQL/HTTP/Kubo and 56 payment cases, 21 focused
+render/schema/shared-option checks, strict Vue types, 116 full browser captures
+and a final 58-capture focused pass.
+The editor/preview remain explicitly deferred in todo.md.
