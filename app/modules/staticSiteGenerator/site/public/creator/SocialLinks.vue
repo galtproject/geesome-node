@@ -2,6 +2,7 @@
 import {computed, ref, onMounted} from 'vue';
 import {presentationForeground} from '../../presentation.js';
 import {safeSiteUrl} from './api.ts';
+import {socialLabel} from './presentation.ts';
 import type {CreatorResource} from './types.ts';
 const props = defineProps<{resource: CreatorResource; polished?: boolean}>();
 const failedIcons = ref(new Set<string>());
@@ -16,7 +17,7 @@ onMounted(() => {
     }
 });
 const expanded = ref(false);
-const links = computed(() => props.resource.links || []);
+const links = computed(() => (props.resource.links || []).map(link => props.polished ? {...link, label: socialLabel(link.label, link.url)} : link));
 const offer = computed(() => props.resource.presentation?.membership.external);
 const externalUrl = computed(() => safeSiteUrl(offer.value?.url));
 const compactLinks = computed(() => links.value.filter(link => !externalUrl.value || safeSiteUrl(link.url) !== externalUrl.value));

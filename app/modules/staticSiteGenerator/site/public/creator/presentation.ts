@@ -23,3 +23,21 @@ export function postHeading(title: string, domain?: string) {
     }
     return {title: date(value.toISOString()), dateOnly: true};
 }
+
+// Keep authored names; expand technical host labels from imported profiles.
+export function socialLabel(label: string, url: string) {
+    try {
+        const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+        const names: Record<string, string> = {'ko-fi.com': 'Ko-fi', 'x.com': 'X', 'twitter.com': 'X',
+            'discord.gg': 'Discord', 'discord.com': 'Discord', 'bsky.app': 'Bluesky', 't.me': 'Telegram',
+            'telegram.me': 'Telegram', 'patreon.com': 'Patreon', 'youtube.com': 'YouTube', 'youtu.be': 'YouTube',
+            'instagram.com': 'Instagram', 'twitch.tv': 'Twitch', 'boosty.to': 'Boosty'};
+        const name = names[host];
+        if (name && (!label.trim() || label.toLowerCase().replace(/^www\./, '') === host || label.toLowerCase() === name.toLowerCase())) {
+            return name;
+        }
+    } catch {
+        // Invalid destinations are filtered separately by safeSiteUrl.
+    }
+    return label;
+}
