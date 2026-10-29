@@ -56,8 +56,8 @@ then explicit Rebuild snapshots; existing immutable CIDs remain unchanged.
   is in progress. Backend must deploy before producer, then explicit Rebuild.
 - New user steering (2026-10-29): direct membership and Patreon are alternative
   subscriptions to nearly the same archive. Direct crypto is cheaper. Requested
-  a separate critique of CTA placement/copy. Do not promise future site-exclusive
-  content or invent Patreon prices, account linking or entitlement equivalence.
+  a separate critique of CTA placement/copy. Do not invent Patreon prices, account linking or entitlement equivalence;
+  use the author’s exclusive-content launch clarification below.
   Pricing presentation is pending that review, separate from payment behavior.
 
 - User clarification: preserve the existing site-exclusive checkout benefit. The
@@ -71,3 +71,6 @@ then explicit Rebuild snapshots; existing immutable CIDs remain unchanged.
 - Integrated the existing pagination-alignment feature branch to avoid handing
   the user overlapping stylesheet conflicts. Retain distinct profile and bottom
   navigation captures; this does not merge either PR into dev.
+
+- Post-integration focused browser run passed with 44 mapped captures, including
+  the sole Older link on the home page and footer return navigation.
