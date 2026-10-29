@@ -276,6 +276,8 @@ try {
                 await capture('social-expanded','Expanded social links retain labels, uniform icon sizes and visible underlines, including a link without an image.');
                 await page.getByTestId('expand-links').click();
             }
+            await page.locator('.member-footer').scrollIntoViewIfNeeded();
+            await capture('home-navigation','The sole Older posts link is right aligned below the homepage, with no Newer link and with an underlined footer home link.');
             await page.getByTestId('older-posts').click();
             await page.waitForURL(url=>url.pathname==='/paged/page/4/');
             await page.getByTestId('post-40').waitFor();
