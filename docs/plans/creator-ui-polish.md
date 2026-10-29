@@ -59,3 +59,15 @@ then explicit Rebuild snapshots; existing immutable CIDs remain unchanged.
   a separate critique of CTA placement/copy. Do not promise future site-exclusive
   content or invent Patreon prices, account linking or entitlement equivalence.
   Pricing presentation is pending that review, separate from payment behavior.
+
+- User clarification: preserve the existing site-exclusive checkout benefit. The
+  site is not publicly launched and the author will prepare exclusives before
+  launch. No checkout benefits were removed. CTA recommendation for the next
+  iteration: group direct crypto membership (lower price + additional content)
+  and Patreon as alternatives under the profile, with one social-links view.
+  Other is only fixture data, never a built-in mandatory social action. Show links
+  currently remains functional; removing this duplicate view is a recommendation
+  pending the user's implementation instruction.
+- Integrated the existing pagination-alignment feature branch to avoid handing
+  the user overlapping stylesheet conflicts. Retain distinct profile and bottom
+  navigation captures; this does not merge either PR into dev.
