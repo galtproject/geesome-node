@@ -42,6 +42,13 @@ try {
         for (const version of ['reference', 'public']) {
             const context = await browser.newContext({ viewport });
             const page = await context.newPage(), errors = [];
+            await page.addInitScript(() => {
+                Object.defineProperty(navigator, 'share', {value:undefined, configurable:true});
+                Object.defineProperty(navigator, 'clipboard', {value:{writeText:async url=>{
+                    if(window.denyClipboard)throw Error('clipboard denied');
+                    window.sharedUrl=url;
+                }}, configurable:true});
+            });
             await page.addInitScript(() => Object.defineProperty(navigator,'clipboard',{value:{writeText:async value=>{window.sharedUrl=value;}}}));
             let signedIn = false, paid = false, payAllowed = false, accountInvoice = false, storedInvoice = false, createCalls = 0;
             const invoice = () => ({ id: 'invoice', provider: 'direct', status: paid ? 'paid' : 'pending', amount: '4', received: '0', assetId: 'usdc-base', currency: 'USDC', network: 'base', address: '0x1111111111111111111111111111111111111111', expiresAt: '2030-01-01T00:00:00.000Z', monitoringUntil: '2030-01-08T00:00:00.000Z', priceUsd: 4, period: 'month', optionLabel: '1 month' });
@@ -227,6 +234,13 @@ try {
         for (const javaScriptEnabled of [true,false]) {
             const context = await browser.newContext({viewport,javaScriptEnabled});
             const page = await context.newPage(), errors = [];
+            await page.addInitScript(() => {
+                Object.defineProperty(navigator, 'share', {value:undefined, configurable:true});
+                Object.defineProperty(navigator, 'clipboard', {value:{writeText:async url=>{
+                    if(window.denyClipboard)throw Error('clipboard denied');
+                    window.sharedUrl=url;
+                }}, configurable:true});
+            });
             page.on('pageerror',error=>errors.push(error.message));
             let membershipAccount = {reader:null,active:false,invoices:[],refunds:[]};
             await page.route('**/api/**', route=>route.fulfill({contentType:'application/json',body:JSON.stringify(membershipAccount)}));
@@ -283,6 +297,20 @@ try {
             await capture('home','The left sidebar offers a compact crypto option with the extra-content/lower-price ribbon and an equally prominent coral Patreon button; labelled socials have no duplicate disclosure.');
             await page.getByTestId('post-51').locator('.post-copy').scrollIntoViewIfNeeded();
             await capture('card','Technical own-domain timestamp is presented as one readable date, with no empty description gap and compact Share/subscription actions.');
+            assert.deepEqual(await page.locator('.social-label').allTextContents(), ['Ko-fi','X','Discord','Bluesky','Telegram','Portfolio']);
+            assert.equal(await page.getByTestId('post-51').locator('.post-copy>small').count(),0);
+            if(javaScriptEnabled) {
+                const card = page.getByTestId('post-51');
+                await card.getByTestId('share-post').click();
+                await card.getByRole('status').filter({hasText:'Link copied'}).waitFor();
+                assert.equal(await page.evaluate(()=>window.sharedUrl),'https://creator.test/api/v1/membership/site/posts/51/');
+                await capture('share-copied','Share is an outlined icon button with nearby Link copied feedback, and the duplicate locked-post note is absent.');
+                await page.evaluate(()=>{window.denyClipboard=true;});
+                await card.getByTestId('share-post').click();
+                assert.equal(await card.getByTestId('share-link').inputValue(),'https://creator.test/api/v1/membership/site/posts/51/');
+                await capture('share-manual','When clipboard permission is denied, Share shows a labelled readonly public post link for manual copying.');
+                await page.evaluate(()=>{window.denyClipboard=false;});
+            }
             await page.getByTestId('post-50').locator('.post-copy').scrollIntoViewIfNeeded();
             await capture('long-title','A long authored title wraps without clipping or overflow; its text and publication date remain intact.');
             await page.locator('.member-footer').scrollIntoViewIfNeeded();

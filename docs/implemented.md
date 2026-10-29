@@ -884,3 +884,23 @@ Verification: 61 creator membership cases (including real PostgreSQL/Kubo) and
 The first new regression exposed separate invalidation instances in the test's
 hook-replacement/restart path; transaction identity is now shared across those
 instances. No production update or publication was triggered for this fix.
+
+
+## Creator social labels and post sharing (#1480)
+
+The polished creator theme expands imported social host labels to Ko-fi, X,
+Discord, Bluesky and Telegram while preserving custom authored names. Share is
+an outlined button with a matching line icon and feedback beside the action.
+It uses native sharing where available, then clipboard copying; denial or missing
+clipboard support reveals a selectable readonly link. Cancellation of the native
+sheet does not trigger an unwanted clipboard write. Shared URLs use the public
+post selector on the creator domain, never the current full snapshot CID, and
+remain usable before/after stable-domain cutover. The repeated locked-post note
+is removed in the polished theme; legacy theme markup is retained.
+
+Verification: strict creator Vue types and 18 focused presentation/share/snapshot
+tests passed. The pagination browser flow verified 66 desktop/narrow JS/no-JS
+captures, including copied/manual Share feedback and friendly labels seeded from
+technical host names. Card, sidebar and narrow manual-copy captures were visually
+inspected. No production update or snapshot rebuild was triggered; deploy and
+rebuild to publish these template/client changes.
