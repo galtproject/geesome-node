@@ -82,7 +82,7 @@ export function createMembership(app, models, dependencies: any = {}) {
 	async function publicResource(id) {
 		const row = await resource(id);
 		const value = await group(row);
-		return { id: row.id, domain: row.domain, title: value.title, description: value.description,
+		return { id: row.id, domain: row.domain, title: row.data?.displayTitle || value.title, description: value.description,
 			postsEnabled: row.postsEnabled, ...publicBrand(row.data),
 			options: await M.options.findAll({ where: { resourceId: id, enabled: true }, order: [['amountCents', 'ASC']] }),
 			cryptoMethods: await app.ms.payments.engine.methods(id) };
@@ -191,7 +191,7 @@ export function periodEnd(start: Date, period: string, anchorDay = start.getUTCD
 	return date;
 }
 function publicBrand(value = {}) {
-	return Object.fromEntries(['coverUrl', 'avatarUrl', 'links', 'patreonUrl', 'legalLinks'].filter(key => value[key] !== undefined).map(key => [key, value[key]]));
+	return Object.fromEntries(['displayTitle', 'coverUrl', 'avatarUrl', 'links', 'patreonUrl', 'legalLinks'].filter(key => value[key] !== undefined).map(key => [key, value[key]]));
 }
 function refundMethods(M, serial, entitlement, clock) {
 	async function requestRefund(id: string, readerId: string, invoiceId: string, requestKey: string, reason: string) {

@@ -15,7 +15,8 @@ const server = http.createServer(async (req, res) => {
         return;
     }
     try {
-        res.writeHead(200, { 'content-type': types[path.extname(target)] || 'application/octet-stream' }).end(await fs.readFile(target));
+        const data = await fs.readFile(target);
+        res.writeHead(200, { 'content-type': types[path.extname(target)] || (data.toString('utf8',0,1024).includes('<svg') ? 'image/svg+xml' : 'application/octet-stream') }).end(data);
     }
     catch {
         res.writeHead(404).end();
@@ -235,6 +236,12 @@ try {
                 if (!javaScriptEnabled) {
                     assert.equal(await page.locator('.preview-image-state .image-status:visible').count(),0);
                 }
+                if (name === 'archive') {
+                    await page.locator('.member-footer').scrollIntoViewIfNeeded();
+                }
+                if (name === 'full-post') {
+                    await page.getByTestId('post-51').locator('.post-copy').scrollIntoViewIfNeeded();
+                }
                 const file=`${viewport.width}-pagination-${javaScriptEnabled?'js':'nojs'}-${name}.png`;
                 await page.screenshot({path:path.join(root,file),fullPage:false});
                 captures.push({file,description,viewport,state:`pagination-${name}`,javaScriptEnabled});
@@ -252,7 +259,23 @@ try {
             assert((await page.locator('.member-footer').textContent()).includes('Powered by GeeSome'));
             assert.equal(await page.getByTestId('newer-posts').count(),0);
             assert(!await page.content().then(html=>html.includes('PRIVATE 51')));
-            await capture('home','Top of the real 11-post homepage shows newest post 51 and clean URL hydration; navigation and full count are verified independently with and without JavaScript.');
+            assert.equal(await page.locator('.creator-profile h1').textContent(),'Archive creator');
+            assert.equal(await page.getByTestId('post-51').locator('h2').textContent(),'Feb 20, 2026');
+            assert.equal(await page.getByTestId('post-51').locator('.post-copy>time,.post-copy>.post-description').count(),0);
+            assert.equal(await page.locator('.patreon-link').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 118, 94)');
+            assert.equal(await page.getByTestId('footer-home').evaluate(el=>getComputedStyle(el).textDecorationLine),'underline');
+            assert.equal(await page.locator('.social-icons a').first().evaluate(el=>el.getBoundingClientRect().width),64);
+            await capture('home','Creator profile uses the public display title, coral Patreon and a full-width three-column social grid with readable labels, including the repaired Bluesky butterfly.');
+            await page.getByTestId('post-51').locator('.post-copy').scrollIntoViewIfNeeded();
+            await capture('card','Technical own-domain timestamp is presented as one readable date, with no empty description gap and compact Share/subscription actions.');
+            await page.getByTestId('post-50').locator('.post-copy').scrollIntoViewIfNeeded();
+            await capture('long-title','A long authored title wraps without clipping or overflow; its text and publication date remain intact.');
+            if (javaScriptEnabled) {
+                await page.getByTestId('expand-links').click();
+                await page.getByTestId('social-links').scrollIntoViewIfNeeded();
+                await capture('social-expanded','Expanded social links retain labels, uniform icon sizes and visible underlines, including a link without an image.');
+                await page.getByTestId('expand-links').click();
+            }
             await page.getByTestId('older-posts').click();
             await page.waitForURL(url=>url.pathname==='/paged/page/4/');
             await page.getByTestId('post-40').waitFor();
@@ -262,7 +285,13 @@ try {
             assert.equal(await page.getByTestId('newer-posts').getAttribute('href'),'../../');
             const older = page.getByTestId('older-posts');
             await older.scrollIntoViewIfNeeded();
-            await capture('archive','Bottom of archive 4 shows its last post 31, Newer/Older links and the footer home link with GeeSome attribution; the ten-post count, clean folder URL and absence of home duplicates are verified independently.');
+            await capture('archive','Bottom of archive 4 shows its last post 31, correctly aligned Newer/Older navigation and visibly underlined footer links; the ten-post count and clean directory URL are verified independently.');
+            if (javaScriptEnabled) {
+                await older.focus();
+                await page.keyboard.press('Tab');
+                assert.equal(await page.getByTestId('footer-home').evaluate(el=>el === document.activeElement),true);
+                assert.equal(await page.getByTestId('footer-home').evaluate(el=>getComputedStyle(el).outlineStyle),'solid');
+            }
             await older.click();
             await page.waitForURL(url=>url.pathname==='/paged/page/3/');
             await page.getByTestId('post-30').waitFor();
@@ -272,9 +301,41 @@ try {
             await page.getByTestId('footer-home').click();
             await page.waitForURL(url=>url.pathname==='/paged/');
             await page.goto(`${origin}/paged/posts/51/`);
-            await page.getByText('PUBLIC 51',{exact:true}).waitFor();
+            await page.getByTestId('post-51').locator('h2').waitFor();
+            assert.equal(await page.getByTestId('post-51').locator('h2').textContent(),'Feb 20, 2026');
             assert.equal(new URL(page.url()).hash,'');
             assert.equal(await page.locator('a.back-link').getAttribute('href'),'../../');
+            if (javaScriptEnabled) {
+                const icon = page.locator('.social-icons a[aria-label="Bluesky"] img');
+                const iconPath = '**' + new URL(await icon.getAttribute('src'), origin).pathname;
+                await page.route(iconPath, route=>route.fulfill({status:404,body:''}));
+                await page.reload();
+                await page.locator('.social-icons a[aria-label="Bluesky"] .social-fallback').waitFor();
+                assert.equal(await page.locator('.social-icons a[aria-label="Bluesky"] img').count(),0);
+                await page.getByTestId('social-links').scrollIntoViewIfNeeded();
+                await capture('icon-fallback','An unavailable social image is replaced by a labelled link fallback without a broken image or a missing link.');
+                await page.unroute(iconPath);
+            }
+            if (javaScriptEnabled) {
+                for (const count of [3,5,6,7]) {
+                    await page.goto(`${origin}/paged/social-${count}.html`);
+                    const block = page.getByTestId('social-links');
+                    await block.scrollIntoViewIfNeeded();
+                    assert.equal(await block.locator('.social-icons>a').count(),count);
+                    const boxes = await block.locator('.social-icons>a').evaluateAll(items=>items.map(item=>{const r=item.getBoundingClientRect();return {x:r.x,y:r.y};}));
+                    for (let i=3;i<count;i++) assert(Math.abs(boxes[i].x-boxes[i%3].x)<1);
+                    await capture(`social-${count}`,`${count} social links align to three stable columns on the full sidebar width; the seven-link case retains a long custom label and a square custom image.`);
+                    await page.getByTestId('expand-links').click();
+                    assert.equal(await block.locator('.social-icons').count(),0);
+                    assert.equal(await block.locator('.full-links li').count(),count);
+                    assert.equal(await block.locator('a[href="https://patreon.com/example"]').count(),1);
+                    await capture(`social-${count}-expanded`,`${count} links expand into a labelled list, with one Patreon button and no duplicate icon grid.`);
+                }
+            }
+            await page.goto(`${origin}/paged-full/posts/51/`);
+            await page.getByText('PRIVATE 51',{exact:true}).waitFor();
+            await page.getByTestId('post-51').locator('.post-copy').scrollIntoViewIfNeeded();
+            await capture('full-post','The complete immutable post retains its full text with the same compact title and action styling.');
             assert.deepEqual(errors,[]);
             await context.close();
         }

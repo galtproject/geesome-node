@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import {createHash} from 'node:crypto';
+import {CID} from 'multiformats/cid';
+import {create as digest} from 'multiformats/hashes/digest';
 import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import { App as ReferenceApp, createInitialState } from '../../microwave-girls/frontend/public/app.ts';
@@ -12,11 +15,11 @@ const frontendRequire = createRequire(new URL('../../microwave-girls/frontend/pa
 const { createSSRApp } = frontendRequire('vue');
 const { renderToString } = frontendRequire('@vue/server-renderer');
 const bundle = await buildBrowserClient();
-const iconCid = name => 'bafy' + 'a'.repeat(40) + name;
-const withIcons = links => links.map(link => ({...link, iconUrl: '/ipfs/' + iconCid(link.label === 'X' ? 'twitter' : link.label.toLowerCase())}));
+const iconCid = name => CID.createV1(0x55,digest(0x12,createHash('sha256').update(name).digest())).toString();
+const withIcons = links => links.map(link => ({...link, iconUrl: link.label === 'Other' ? undefined : '/ipfs/' + iconCid(link.label === 'X' ? 'twitter' : link.label === 'Ko-fi' ? 'kofi' : link.label.toLowerCase())}));
 await fs.mkdir(path.join(root, 'ipfs'), {recursive: true});
-for (const name of ['twitter', 'discord', 'telegram']) {
-    await fs.copyFile(`../microwave-girls/public/assets/${name}.png`, path.join(root, 'ipfs', iconCid(name)));
+for (const name of ['twitter', 'discord', 'telegram', 'kofi', 'bluesky', 'patreon']) {
+    await fs.copyFile(`../microwave-girls/public/assets/${name}.${['bluesky','patreon'].includes(name) ? 'svg' : 'png'}`, path.join(root, 'ipfs', iconCid(name)));
 }
 const image = '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="240"><rect width="600" height="240" fill="#c3d8ea"/><text x="30" y="125" font-size="32">Public attachment</text></svg>';
 for (const full of [false, true]) {
@@ -114,15 +117,16 @@ assert((await fs.readFile('app/modules/staticSiteGenerator/site/public/creator/s
     };
     const preview = (await put(image)).id;
     const groupPosts = Array.from({length:51},(_,i)=>({id:i+1,publishedAt:new Date(Date.UTC(2026,0,1)+i*86400000),status:'published',
-        propertiesJson:JSON.stringify({membership:{title:`Archive post ${i+1}`,teaser:`PUBLIC ${i+1}`,fullText:`PRIVATE ${i+1}`,free:false}}),
+        propertiesJson:JSON.stringify({membership:{title:i===50?'creator.test - 2026-02-20 16:39:16':i===49?'An author-written title that is deliberately long enough to wrap neatly on a small phone without losing its meaning':`Archive post ${i+1}`,teaser:`PUBLIC ${i+1}`,fullText:`PRIVATE ${i+1}`,free:false}}),
         contents:[{storageId:preview,mimeType:'image/svg+xml',postsContents:{isPrivate:false}}]}));
+    groupPosts[50].propertiesJson=JSON.stringify({...JSON.parse(groupPosts[50].propertiesJson),membership:{...JSON.parse(groupPosts[50].propertiesJson).membership,teaser:''}});
     const app = {ms:{group:{forEachHydratedGroupPostBatch:async(_group,_options,fn)=>fn({groupPosts,refCount:groupPosts.length})},storage:{
         saveFileByData:put,makeDir:async path=>{if(!directories.has(path))directories.set(path,new Map());},
         getFileStat:async()=>({type:'file'}),
         copyFileFromId:async(cid,target)=>{const parts=target.split('/');directories.get('/'+parts[1]).set(parts.slice(2).join('/'),cid);},
         getDirectoryId:async path=>(await put(JSON.stringify([...directories.get(path)]))).id
     }}};
-    await buildMembershipSnapshots(app,{id:'wave',groupId:'1',domain:'creator.test',data:{coverUrl:'/public/media/cover.png',avatarUrl:'/public/media/avatar.jpg'}},'Archive creator',{
+    await buildMembershipSnapshots(app,{id:'wave',groupId:'1',domain:'creator.test',data:{displayTitle:'Archive creator',coverUrl:'/public/media/cover.png',avatarUrl:'/public/media/avatar.jpg',patreonUrl:'https://patreon.com/example',links:withIcons([{label:'Patreon',url:'https://patreon.com/example'},{label:'Ko-fi',url:'https://ko-fi.com/example',iconUrl:'/ipfs/'+iconCid('kofi')},{label:'X',url:'https://x.com/example'},{label:'Discord',url:'https://discord.gg/example'},{label:'Bluesky',url:'https://bsky.app/profile/example'},{label:'Telegram',url:'https://t.me/example'},{label:'Other',url:'https://example.com',iconUrl:undefined}])}},'Private group members',{
         options:[],description:'',renew:async()=>{},beginDirectory:async variant=>'/pagination-'+variant
     });
     for(const variant of ['public','full']) {
@@ -133,4 +137,16 @@ assert((await fs.readFile('app/modules/staticSiteGenerator/site/public/creator/s
             await fs.writeFile(path.join(target,name),files.get(cid));
         }
     }
+}
+// Exercise the social composition independently of feed length and membership state.
+const socialHtml = await fs.readFile(path.join(root,'paged/index.html'),'utf8');
+const socialState = JSON.parse(socialHtml.match(/<script id="site-data"[^>]*>([\s\S]*?)<\/script>/)[1]);
+const patreonLink = socialState.creator.resource.links.find(link=>link.label==='Patreon');
+const socialLinks = socialState.creator.resource.links.filter(link=>link.label!=='Patreon');
+const extraLink = {label:'A custom creator community',url:'https://community.example.com',iconUrl:'/public/media/preview.svg'};
+for (const count of [3,5,6,7]) {
+    const data = structuredClone(socialState);
+    data.creator.resource.links = [patreonLink,...[...socialLinks,extraLink].slice(0,count)];
+    const prepared = await renderer.prepareRender(data);
+    await fs.writeFile(path.join(root,'paged',`social-${count}.html`),await prepared.renderPage('/',[]));
 }

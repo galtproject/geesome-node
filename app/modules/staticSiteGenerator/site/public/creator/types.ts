@@ -12,7 +12,7 @@ export interface CreatorPost {
     pageUrl?: string; postPath?: string;
 }
 export interface CreatorResource {
-    id: string; title: string; description?: string; postsEnabled: boolean;
+    id: string; title: string; domain?: string; description?: string; postsEnabled: boolean;
     coverUrl?: string; avatarUrl?: string; links?: CreatorLink[]; legalLinks?: CreatorLink[];
     patreonUrl?: string; options?: MembershipOption[]; cryptoMethods?: CryptoMethod[];
     publicBasePath?: string; e2eMockAuth?: boolean;
