@@ -1,6 +1,11 @@
 import {Op} from 'sequelize';
 import {publicationState, savePublicationState} from '../staticSiteGenerator/membershipPublisher.js';
 
+// All source writes in one transaction become visible together. Attachment
+// and Post hooks must therefore enqueue one revision for that atomic edit.
+// Transaction identity also survives replacement of the registered model hooks.
+const invalidatedResources = new WeakMap<object, Set<string>>();
+
 export function registerPublicationSources(app, M, publisher) {
 	const database = app.ms.database.sequelize, hooks = [];
 	async function invalidateGroups(ids, transaction?) {
@@ -11,7 +16,16 @@ export function registerPublicationSources(app, M, publisher) {
 			return database.transaction(t => invalidateGroups(ids, t));
 		}
 		const resources = await M.resources.findAll({where: {groupId: {[Op.in]: [...new Set(ids.filter(Boolean).map(String))]}}, order: [['id', 'ASC']], transaction, lock: transaction.LOCK.UPDATE});
+		let invalidated = invalidatedResources.get(transaction);
+		if (!invalidated) {
+			invalidated = new Set();
+			invalidatedResources.set(transaction, invalidated);
+		}
 		for (const row of resources) {
+			if (invalidated.has(row.id)) {
+				continue;
+			}
+			invalidated.add(row.id);
 			const previous = publicationState(row), sourceVersion = previous.sourceVersion + 1;
 			await savePublicationState(row, {...previous, sourceVersion}, transaction);
 			if (previous.publicationId) {

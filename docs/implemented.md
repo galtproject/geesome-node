@@ -863,3 +863,24 @@ captures across desktop/narrow JS/no-JS, including trusted crypto checkout from
 an owner shell. Existing strict legacy pixel parity passed. API docs, security
 route and database scalability inventory checks passed. No production deployment
 or rebuild was triggered.
+
+
+## Atomic snapshot source invalidation (#1478)
+
+A combined post/attachment edit previously invalidated its resource twice in the
+same database transaction. Source hooks now retain a weak transaction-scoped set
+of invalidated resource IDs, incrementing each resource revision and enqueuing
+its auto publication once per atomic commit. Standalone attachment changes and
+later transactions retain their own invalidations; rollback persists neither
+revision nor job. No schema migration or queued-job deletion is required.
+
+The companion Microwave Girls #775 polls preparing website status independently
+of the editor and list load, every two seconds. It does not change the publisher's
+five-second discovery interval. Local PostgreSQL regression covers the real
+attachment method plus Post hooks, standalone changes and rollback isolation.
+
+Verification: 61 creator membership cases (including real PostgreSQL/Kubo) and
+56 creator payment cases passed through `npm run test:creator-membership:docker`.
+The first new regression exposed separate invalidation instances in the test's
+hook-replacement/restart path; transaction identity is now shared across those
+instances. No production update or publication was triggered for this fix.
