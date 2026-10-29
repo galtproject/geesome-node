@@ -6,7 +6,7 @@ const groups = [
         ['Ramp Network', 'Buy crypto into your own wallet with a card or bank transfer.', 'https://rampnetwork.com/'],
         ['Peer', 'Peer-to-peer purchases using supported payment apps. Offers vary.', 'https://app.peer.xyz/'],
     ]},
-    {title: 'U.S. accounts', id: 'us', apps: [
+    {title: 'For U.S. accounts', id: 'us', apps: [
         ['PayPal', 'External transfers for eligible U.S. crypto accounts. Transfer minimums apply.', 'https://www.paypal.com/myaccount/crypto'],
         ['Cash App', 'Buy Bitcoin and send it to an external wallet.', 'https://cash.app/'],
         ['Venmo', 'Buy and transfer supported crypto with a verified U.S. account.', 'https://venmo.com/'],
