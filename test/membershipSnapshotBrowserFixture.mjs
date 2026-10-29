@@ -16,7 +16,7 @@ const { createSSRApp } = frontendRequire('vue');
 const { renderToString } = frontendRequire('@vue/server-renderer');
 const bundle = await buildBrowserClient();
 const iconCid = name => CID.createV1(0x55,digest(0x12,createHash('sha256').update(name).digest())).toString();
-const withIcons = links => links.map(link => ({...link, iconUrl: link.label === 'Other' ? undefined : '/ipfs/' + iconCid(link.label === 'X' ? 'twitter' : link.label === 'Ko-fi' ? 'kofi' : link.label.toLowerCase())}));
+const withIcons = links => links.map(link => ({...link, iconUrl: ['Other','Portfolio'].includes(link.label) ? undefined : '/ipfs/' + iconCid(link.label === 'X' ? 'twitter' : link.label === 'Ko-fi' ? 'kofi' : link.label.toLowerCase())}));
 await fs.mkdir(path.join(root, 'ipfs'), {recursive: true});
 for (const name of ['twitter', 'discord', 'telegram', 'kofi', 'bluesky', 'patreon']) {
     await fs.copyFile(`../microwave-girls/public/assets/${name}.${['bluesky','patreon'].includes(name) ? 'svg' : 'png'}`, path.join(root, 'ipfs', iconCid(name)));
@@ -126,8 +126,8 @@ assert((await fs.readFile('app/modules/staticSiteGenerator/site/public/creator/s
         copyFileFromId:async(cid,target)=>{const parts=target.split('/');directories.get('/'+parts[1]).set(parts.slice(2).join('/'),cid);},
         getDirectoryId:async path=>(await put(JSON.stringify([...directories.get(path)]))).id
     }}};
-    await buildMembershipSnapshots(app,{id:'wave',groupId:'1',domain:'creator.test',data:{displayTitle:'Archive creator',coverUrl:'/public/media/cover.png',avatarUrl:'/public/media/avatar.jpg',patreonUrl:'https://patreon.com/example',links:withIcons([{label:'Patreon',url:'https://patreon.com/example'},{label:'Ko-fi',url:'https://ko-fi.com/example',iconUrl:'/ipfs/'+iconCid('kofi')},{label:'X',url:'https://x.com/example'},{label:'Discord',url:'https://discord.gg/example'},{label:'Bluesky',url:'https://bsky.app/profile/example'},{label:'Telegram',url:'https://t.me/example'},{label:'Other',url:'https://example.com',iconUrl:undefined}])}},'Private group members',{
-        options:[],description:'',renew:async()=>{},beginDirectory:async variant=>'/pagination-'+variant
+    await buildMembershipSnapshots(app,{id:'wave',groupId:'1',domain:'creator.test',data:{displayTitle:'Archive creator',coverUrl:'/public/media/cover.png',avatarUrl:'/public/media/avatar.jpg',patreonUrl:'https://patreon.com/example',links:withIcons([{label:'Patreon',url:'https://patreon.com/example'},{label:'Ko-fi',url:'https://ko-fi.com/example',iconUrl:'/ipfs/'+iconCid('kofi')},{label:'X',url:'https://x.com/example'},{label:'Discord',url:'https://discord.gg/example'},{label:'Bluesky',url:'https://bsky.app/profile/example'},{label:'Telegram',url:'https://t.me/example'},{label:'Portfolio',url:'https://example.com',iconUrl:undefined}])}},'Private group members',{
+        options:[{id:'monthly',label:'1 month',amountCents:400,currency:'USD',period:'month'},{id:'six',label:'6 months',amountCents:2000,currency:'USD',period:'halfyear'}],description:'',renew:async()=>{},beginDirectory:async variant=>'/pagination-'+variant
     });
     for(const variant of ['public','full']) {
         const target = path.join(root,variant==='public'?'paged':'paged-full');
@@ -149,4 +149,18 @@ for (const count of [3,5,6,7]) {
     data.creator.resource.links = [patreonLink,...[...socialLinks,extraLink].slice(0,count)];
     const prepared = await renderer.prepareRender(data);
     await fs.writeFile(path.join(root,'paged',`social-${count}.html`),await prepared.renderPage('/',[]));
+}
+
+for (const variant of ['no-patreon','unavailable','links-only']) {
+    const data = structuredClone(socialState);
+    if (variant === 'no-patreon') {
+        delete data.creator.resource.patreonUrl;
+        data.creator.resource.links = data.creator.resource.links.filter(link=>link.label!=='Patreon');
+    } else if (variant === 'links-only') {
+        data.creator.resource.postsEnabled = false;
+    } else {
+        data.creator.resource.cryptoMethods = [];
+    }
+    const prepared = await renderer.prepareRender(data);
+    await fs.writeFile(path.join(root,'paged',`${variant}.html`),await prepared.renderPage('/',[]));
 }

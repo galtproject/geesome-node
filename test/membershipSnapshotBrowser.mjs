@@ -228,7 +228,8 @@ try {
             const context = await browser.newContext({viewport,javaScriptEnabled});
             const page = await context.newPage(), errors = [];
             page.on('pageerror',error=>errors.push(error.message));
-            await page.route('**/api/**', route=>route.fulfill({contentType:'application/json',body:JSON.stringify({reader:null,active:false,invoices:[],refunds:[]})}));
+            let membershipAccount = {reader:null,active:false,invoices:[],refunds:[]};
+            await page.route('**/api/**', route=>route.fulfill({contentType:'application/json',body:JSON.stringify(membershipAccount)}));
             const capture = async(name,description)=>{
                 await page.locator('img').evaluateAll(images=>Promise.all(images.map(image=>image.decode().catch(()=>{}))));
                 assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
@@ -262,20 +263,23 @@ try {
             assert.equal(await page.locator('.creator-profile h1').textContent(),'Archive creator');
             assert.equal(await page.getByTestId('post-51').locator('h2').textContent(),'Feb 20, 2026');
             assert.equal(await page.getByTestId('post-51').locator('.post-copy>time,.post-copy>.post-description').count(),0);
-            assert.equal(await page.locator('.patreon-link').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(255, 118, 94)');
+            assert.equal(await page.getByTestId('join-patreon').count(),1);
+            assert.equal(await page.getByTestId('social-links').locator('.patreon-link').count(),0);
+            assert.equal(await page.getByTestId('expand-links').count(),0);
+            assert.equal(await page.getByTestId('membership-ribbon').count(),1);
+            assert((await page.getByTestId('join-membership').textContent()).includes('Join here · $4.00 / 1 month'));
+            assert.equal(await page.getByTestId('join-membership').isEnabled(),true);
+            if (viewport.width>760) {
+                const layout = await page.evaluate(()=>({side:document.querySelector('.creator-sidebar').getBoundingClientRect().toJSON(),feed:document.querySelector('.member-feed').getBoundingClientRect().toJSON()}));
+                assert(layout.side.x<layout.feed.x && Math.abs(layout.side.y-layout.feed.y)<1,'Subscription sidebar and posts begin beside each other');
+            }
             assert.equal(await page.getByTestId('footer-home').evaluate(el=>getComputedStyle(el).textDecorationLine),'underline');
             assert.equal(await page.locator('.social-icons a').first().evaluate(el=>el.getBoundingClientRect().width),64);
-            await capture('home','Creator profile uses the public display title, coral Patreon and a full-width three-column social grid with readable labels, including the repaired Bluesky butterfly.');
+            await capture('home','The left sidebar offers a compact crypto option with the extra-content/lower-price ribbon and an equally prominent coral Patreon button; labelled socials have no duplicate disclosure.');
             await page.getByTestId('post-51').locator('.post-copy').scrollIntoViewIfNeeded();
             await capture('card','Technical own-domain timestamp is presented as one readable date, with no empty description gap and compact Share/subscription actions.');
             await page.getByTestId('post-50').locator('.post-copy').scrollIntoViewIfNeeded();
             await capture('long-title','A long authored title wraps without clipping or overflow; its text and publication date remain intact.');
-            if (javaScriptEnabled) {
-                await page.getByTestId('expand-links').click();
-                await page.getByTestId('social-links').scrollIntoViewIfNeeded();
-                await capture('social-expanded','Expanded social links retain labels, uniform icon sizes and visible underlines, including a link without an image.');
-                await page.getByTestId('expand-links').click();
-            }
             await page.locator('.member-footer').scrollIntoViewIfNeeded();
             await capture('home-navigation','The sole Older posts link is right aligned below the homepage, with no Newer link and with an underlined footer home link.');
             await page.getByTestId('older-posts').click();
@@ -327,17 +331,45 @@ try {
                     const boxes = await block.locator('.social-icons>a').evaluateAll(items=>items.map(item=>{const r=item.getBoundingClientRect();return {x:r.x,y:r.y};}));
                     for (let i=3;i<count;i++) assert(Math.abs(boxes[i].x-boxes[i%3].x)<1);
                     await capture(`social-${count}`,`${count} social links align to three stable columns on the full sidebar width; the seven-link case retains a long custom label and a square custom image.`);
-                    await page.getByTestId('expand-links').click();
-                    assert.equal(await block.locator('.social-icons').count(),0);
-                    assert.equal(await block.locator('.full-links li').count(),count);
-                    assert.equal(await block.locator('a[href="https://patreon.com/example"]').count(),1);
-                    await capture(`social-${count}-expanded`,`${count} links expand into a labelled list, with one Patreon button and no duplicate icon grid.`);
+                    assert.equal(await block.locator('.full-links').count(),0);
+                    assert.equal(await page.getByTestId('expand-links').count(),0);
+                    assert.equal(await page.getByTestId('join-patreon').count(),1);
                 }
+            }
+            for (const variant of ['no-patreon','unavailable','links-only']) {
+                await page.goto(`${origin}/paged/${variant}.html`);
+                await page.getByTestId(variant==='links-only' ? 'social-links' : 'membership-choice').scrollIntoViewIfNeeded();
+                assert.equal(await page.getByTestId('membership-ribbon').count(),0);
+                if (variant==='no-patreon') {
+                    assert.equal(await page.getByTestId('join-patreon').count(),0);
+                    assert(!(await page.getByTestId('membership-choice').textContent()).includes('than Patreon'));
+                } else if (variant==='links-only') {
+                    assert.equal(await page.getByTestId('membership-choice').count(),0);
+                    assert.equal(await page.locator('.patreon-link').count(),1);
+                    assert.equal(await page.locator('.member-post').count(),0);
+                    assert.equal(await page.getByTestId('expand-links').count(),0);
+                } else {
+                    assert.equal(await page.getByTestId('join-membership').isDisabled(),true);
+                }
+                await capture(variant,variant==='links-only' ? 'Links-only mode preserves the Patreon destination and all social links without offering direct purchases or displaying posts.' : variant==='no-patreon' ? 'Without a Patreon URL the site offers only direct membership, without a comparison, separator or ribbon.' : 'Explicitly unavailable payment methods disable new site purchases; Patreon remains a working alternative.');
             }
             await page.goto(`${origin}/paged-full/posts/51/`);
             await page.getByText('PRIVATE 51',{exact:true}).waitFor();
             await page.getByTestId('post-51').locator('.post-copy').scrollIntoViewIfNeeded();
             await capture('full-post','The complete immutable post retains its full text with the same compact title and action styling.');
+            if (javaScriptEnabled) {
+                membershipAccount = {reader:{id:'reader',name:'Test member'},active:true,expiresAt:'2030-01-01T00:00:00Z',invoices:[],refunds:[]};
+                await page.goto(`${origin}/paged-full/`);
+                await page.getByTestId('join-membership').filter({hasText:'My membership'}).waitFor();
+                assert.equal(await page.getByTestId('membership-ribbon').count(),0);
+                await page.getByTestId('membership-choice').scrollIntoViewIfNeeded();
+                await capture('active-member','An active direct member sees My membership and the access date, with no sales ribbon. Patreon remains a separate purchase alternative.');
+                membershipAccount = {reader:{id:'reader',name:'Test member'},active:false,expired:true,invoices:[{id:'paid',status:'paid'}],refunds:[]};
+                await page.goto(`${origin}/paged/`);
+                await page.getByTestId('join-membership').filter({hasText:'Renew membership'}).waitFor();
+                await page.getByTestId('membership-choice').scrollIntoViewIfNeeded();
+                await capture('expired-member','An expired direct member gets Renew membership while the Patreon alternative and crypto explanation remain clear.');
+            }
             assert.deepEqual(errors,[]);
             await context.close();
         }
@@ -403,6 +435,21 @@ try {
         assert(!await page.locator('.crypto-checkout').textContent().then(text => text.toLowerCase().includes('unavailable')));
         await captureCheckout('checkout-usdt-default','New checkout selects USDT Ethereum, offers only available networks, and omits unavailable BTC/TRON choices.');
         await page.getByRole('button',{name:'Close dialog'}).click();
+        await page.goto(`${origin}/paged/`);
+        await page.getByTestId('account-link').waitFor();
+        await page.getByTestId('join-membership').click();
+        await page.getByRole('heading',{name:'Join on this site',exact:true}).waitFor();
+        assert((await page.getByTestId('direct-crypto-payment').textContent()).includes('Continue to crypto payment'));
+        assert((await page.locator('.membership-modal').textContent()).includes('One-time payment. No automatic renewal.'));
+        const planFile = `${viewport.width}-membership-choice-plans.png`;
+        await page.screenshot({path:path.join(root,planFile),fullPage:false});
+        captures.push({file:planFile,description:'The direct membership plan dialog explicitly says this site, crypto payment, real periods/prices and no automatic renewal.',viewport,state:'membership-choice-plans'});
+        await page.getByTestId('direct-crypto-payment').click();
+        await page.locator('.crypto-qr').waitFor();
+        assert((await page.getByTestId('crypto-value-banner').textContent()).includes('Lower membership price with crypto'));
+        assert((await page.getByTestId('crypto-benefits').textContent()).includes('Site-exclusive sets'));
+        await captureCheckout('membership-choice-crypto','Direct checkout explains the lower crypto price and possible network fees, retaining the approved site-exclusive benefit.');
+        await page.getByRole('button',{name:'Close dialog'}).click();
         resumed = true;
         methods.find(m => m.id === 'usdc-base').available = false;
         await page.goto(`${origin}/public/account.html`);
@@ -412,7 +459,7 @@ try {
         assert.equal(await page.getByTestId('crypto-network').count(),0);
         assert.equal(await page.getByTestId('crypto-currency-USDC').count(),0);
         assert.equal(await page.getByTestId('crypto-currency-BTC').count(),0);
-        assert.equal(assets.length,1,'resumed invoice must not create a replacement quote');
+        assert.equal(assets.length,2,'resumed invoice must not create a replacement quote');
         await captureCheckout('checkout-resume-unavailable','Existing USDC Base invoice keeps its QR and network while unavailable methods are absent from new-payment choices.');
         await page.close();
     }

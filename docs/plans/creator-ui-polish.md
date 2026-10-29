@@ -79,3 +79,47 @@ then explicit Rebuild snapshots; existing immutable CIDs remain unchanged.
   Deployment remains GeeSome first, then Microwave Girls, then explicit Rebuild.
   The hub pointer is left untouched because unrelated concurrent producer edits
   keep that checkout dirty; no production update or PR merge was performed.
+
+## Membership choice follow-up (2026-10-29)
+
+User approved implementation of the reviewed alternatives and a diagonal
+EXTRA CONTENT / LOWER PRICE ribbon for direct membership. Continue PR #1467 and
+issue #1466. Scope: creator Vue components, styles and generated-browser evidence;
+no producer/API/payment changes. Preserve existing exclusive-content benefits.
+
+- Render one profile choice block: direct price/period from options, crypto
+  explanation, secondary Patreon link and separate-subscriptions clarification.
+- Move Patreon out of the polished social sidebar; remove duplicate disclosure
+  while retaining every real non-Patreon link and its actual label.
+- Preserve legacy rendering. Active direct members see My membership; renewal
+  and unavailable payment states remain explicit. Missing Patreon omits comparison.
+- Verify desktop/mobile and JS/no-JS, full/public, active/expired/unavailable,
+  no-Patreon and custom links. Inspect real generated screenshots, then commit,
+  push and update the existing PR. No deployment or PR merge.
+
+### Final design decisions
+
+The user simplified the first preview: remove repeated explanations and restore
+Patreon's coral fill, with equal button prominence. Move the entire choice block
+into the left sidebar above socials on desktop; posts start alongside it. Mobile
+keeps the same sidebar order above the feed. The direct card contains only Pay
+with crypto, its configured price/period CTA and the diagonal two-line advantage
+ribbon. Active membership retains its access date; unavailable purchases remain
+disabled. Legacy snapshots keep their old controls and theme.
+
+Implementation uses a focused MembershipChoice Vue component. Modern social
+links have labels and one permanent view; the legacy disclosure is retained only
+for legacy snapshots. A real custom link is never removed as Other; the fixture
+now calls its actual example destination Portfolio. Links-only mode retains
+Patreon even though the direct-membership component is absent.
+
+Verification: strict Vue types passed; the full generated browser suite passed
+with 104 mapped captures before the final sidebar relocation. A focused run of
+46 captures passed after relocation, including left/right alignment, public/full,
+JS/no-JS, 3/5/6/7 socials, failed images, no Patreon, unavailable purchases and
+active/expired membership. Inspected desktop/mobile compact profiles and active
+membership. Checkout explicitly names crypto and this site; its approved
+exclusive-content benefit is preserved. Final focused run passed with 50 mapped captures, including links-only mode
+with its retained Patreon link and no direct purchase offer.
+No API, payment accounting, producer, database or environment changes in this
+follow-up. Continue the existing PR #1467; no deployment or merge.

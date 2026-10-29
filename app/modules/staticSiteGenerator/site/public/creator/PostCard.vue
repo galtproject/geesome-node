@@ -32,9 +32,9 @@ const emit = defineEmits<{gallery: [previews: PreviewMedia[], index: number]; sh
                 <button type="button" data-testid="share-post" @click="emit('share', props.post.id)">{{ props.polished ? 'Share' : 'Share ↗' }}</button>
                 <a v-for="(item, index) in actions" :key="index" :href="safeSiteUrl(item.url) || undefined" target="_blank" rel="noopener noreferrer" class="primary" data-testid="content-link">{{ item.name || 'Open link' }} ↗</a>
                 <a v-if="props.post.pageUrl && safeSiteUrl(props.post.pageUrl)" :href="safeSiteUrl(props.post.pageUrl) || undefined" target="_blank" rel="noopener noreferrer" class="primary" data-testid="view-full-set">View full set ↗</a>
-                <button v-else-if="props.post.locked || !links.length" type="button" class="primary" :disabled="!props.checked" data-testid="subscribe-post" @click="emit('checkout')">{{ !props.checked ? 'Checking access…' : props.expired ? 'Renew membership' : 'Subscribe to unlock' }}</button>
+                <button v-else-if="props.post.locked || !links.length" type="button" class="primary" :disabled="!props.checked" data-testid="subscribe-post" @click="emit('checkout')">{{ !props.checked ? 'Checking access…' : props.expired ? 'Renew membership' : props.polished ? 'Join here to unlock' : 'Subscribe to unlock' }}</button>
             </div>
-            <small v-if="!props.post.pageUrl && (props.post.locked || !links.length)">Membership unlocks full-set links across the entire archive.</small>
+            <small v-if="!props.post.pageUrl && (props.post.locked || !links.length)">{{ props.polished ? 'Site membership unlocks full-set links across the archive.' : 'Membership unlocks full-set links across the entire archive.' }}</small>
         </div>
     </article>
 </template>

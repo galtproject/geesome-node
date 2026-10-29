@@ -2,7 +2,7 @@
 import {computed} from 'vue';
 import {money, accessPeriodLabel} from './api.ts';
 import type {MembershipOption} from './types.ts';
-const props = defineProps<{title: string; options: MembershipOption[]; directReady: boolean; busy: boolean}>();
+const props = defineProps<{polished?: boolean; title: string; options: MembershipOption[]; directReady: boolean; busy: boolean}>();
 const selected = defineModel<string>({required: true});
 const emit = defineEmits<{continue: []}>();
 const selectedTotal = computed(() => {
@@ -16,8 +16,9 @@ function saving(option: MembershipOption) {
 </script>
 <template>
     <span class="crypto-eyebrow">Your membership</span>
-    <h2 id="membership-dialog-title">Unlock every full set</h2>
+    <h2 id="membership-dialog-title">{{ props.polished ? 'Join on this site' : 'Unlock every full set' }}</h2>
     <p class="membership-intro">{{ `Get the entire ${props.title} archive and every new post during your access period.` }}</p>
+    <p v-if="props.polished" class="membership-intro">Pay with crypto for access during your selected period.</p>
     <div class="membership-perks"><span>✓ Entire archive</span><span>✓ New posts included</span><span>✓ Full-set links</span></div>
     <fieldset class="membership-plans">
         <legend>Choose your access period</legend>
@@ -28,5 +29,5 @@ function saving(option: MembershipOption) {
         </label>
     </fieldset>
     <p class="membership-renewal">One-time payment. No automatic renewal.</p>
-    <button v-if="props.directReady" type="button" class="primary membership-continue" :disabled="props.busy || !selected" data-testid="direct-crypto-payment" @click="emit('continue')">{{ `Continue to payment${selectedTotal ? ` · ${selectedTotal}` : ''} →` }}</button>
+    <button v-if="props.directReady" type="button" class="primary membership-continue" :disabled="props.busy || !selected" data-testid="direct-crypto-payment" @click="emit('continue')">{{ `Continue to ${props.polished ? 'crypto payment' : 'payment'}${selectedTotal ? ` · ${selectedTotal}` : ''} →` }}</button>
 </template>
