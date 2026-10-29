@@ -495,3 +495,23 @@ status/due time and wallet/nonce identities. Period-chain evaluation retains the
 source ledger's per-reader/site chronological scan to preserve contiguous access
 semantics; it is not a group-wide post scan. New creator tables are model-synced
 and require no modification to deployed Group/Post schemas.
+
+
+## Incremental publication recovery (#1475)
+
+The new model-sync `membership_publication_staging` table records only a bounded
+path, job/token UUIDs and next sweep time. Composite `(nextSweepAt, path)` supports
+ordered 16-row due batches; `(jobId, leaseToken)` supports successful-commit
+journal deletion without scanning historical failures. Reconciliation reschedules
+failed-attempt tombstones by one minute and locks their publication rows before
+removing MFS paths. It never enumerates media directories or published DAGs.
+
+Failed-attempt tombstones intentionally have no TTL: timing out an RPC cannot
+prove the server will never finish it. Rows grow with failed attempts, while work
+per worker tick remains bounded. At 16 rows per five-second tick, an idle worker
+visits about 192 rows/minute; a full backlog adds proportional reconciliation
+latency. Successful builds remove their current token's rows in the ready
+transaction, and historical winning MFS roots remain untouched. Operators should
+monitor failure rates/table growth; destructive retention requires a separately
+proved remote-operation quiescence policy. No production table/schema migration
+is introduced, and no existing Post/Group query contract changes.

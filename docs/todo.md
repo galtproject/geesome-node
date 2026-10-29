@@ -534,6 +534,8 @@ Remaining work follows the [audited migration plan](plans/creator-membership-mig
 - Build the safe creator SSG theme and protected original delivery; current CID links remain public.
 - Add explicit existing-account Google linking if required; never auto-link by email.
 
+<!-- /todo-section -->
+
 <!-- todo-section: site-presentation-editor -->
 ## Site presentation editor and preview (deferred)
 

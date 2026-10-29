@@ -263,6 +263,13 @@ function modelRows(): ModelRow[] {
       notes: ['browser resolution uses one indexed domain lookup and one settings primary-key lookup', 'no per-request unbounded site scan or process configuration cache'],
     },
     {
+      area: 'Publication staging recovery',
+      source: 'app/modules/staticSiteGenerator/membershipPublicationModels.ts',
+      model: 'membership_publication_staging',
+      indexes: ['path primary key', 'nextSweepAt,path due sweep', 'jobId,leaseToken successful-commit deletion'],
+      notes: ['reconciles at most 16 due rows per worker tick under publication row locks', 'failed-token tombstones persist across restart and successful removal to recover arbitrarily late RPCs', 'rows grow with failed attempts; each row and batch is bounded; winning rows are deleted transactionally'],
+    },
+    {
       area: 'Group posts',
       source: 'app/modules/group/models/post.ts',
       model: 'Post',
