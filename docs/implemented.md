@@ -12,6 +12,28 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Incremental IPFS snapshot publication (#1475)
+
+The paired membership publisher now records complete, independently bound public
+and full inventories in additive v2 manifest capabilities. Eligible Kubo roots
+are cloned into token-scoped staging and patched only at changed paths. Legacy
+or unsupported roots use the full writer, preserving archive layout and render
+caches; `GEESOME_PUBLICATION_ASSEMBLY=full` or `repair` provides operator bypass.
+Old snapshots, paid/public projection, linked galleries, artifact references,
+source fencing and atomic pair selection are preserved.
+
+Lease renewal has one request in flight and bounded periodic/critical updates.
+A model-sync staging journal recovers late remote RPC orphans with bounded indexed
+batches after restart; failed-token tombstones intentionally persist. Content-free
+versioned debug metrics distinguish projection, preparation, render/cache work,
+assembly, committed-ready and cleanup. No API or shared storage-adapter change.
+
+The [execution plan and measurements](plans/incremental-ipfs-publication.md)
+record the real PostgreSQL/Kubo correctness/failure tests, five matched warm runs
+for 46/146 posts, and browser verification. A newest-title edit uses two root
+copies plus four changed paths, zero unchanged-media stat/mkdir/copy calls,
+and four lease UPDATEs for short builds. Production rollout is a separate step.
+
 ## Available checkout methods and USDT Ethereum default (#1459)
 
 New generated-site checkout prefers available USDT on Ethereum, falling back to

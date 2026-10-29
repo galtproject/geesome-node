@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import {Readable} from 'node:stream';
-import {readFileSync} from 'node:fs';
+import {readFileSync, mkdirSync, writeFileSync} from 'node:fs';
 import {createRequire} from 'node:module';
 import {getModule as createGroupModule} from '../app/modules/group/index.js';
 import {CID} from 'multiformats/cid';
 import {create as createKuboClient} from 'kubo-rpc-client';
 import JsIpfsServiceNode from 'geesome-libs/src/JsIpfsServiceNode.js';
 import {sha256} from 'multiformats/hashes/sha2';
+import {buildMembershipSnapshots} from '../app/modules/staticSiteGenerator/membershipPublication.js';
+import {createMembershipPublisher} from '../app/modules/staticSiteGenerator/membershipPublisher.js';
 import {publicationDigest} from '../app/modules/staticSiteGenerator/membershipProjection.js';
 import registerPublicationApi from '../app/modules/membership/publicationApi.js';
 import createApp from '../app/index.js';
@@ -740,6 +742,18 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		await membership.runPublications();
 		assert(!directories.has(orphan), 'reclaimed crash removes the previous attempt staging directory');
 		assert.equal((await recovered.reload()).status, 'ready', 'an expired build lease is recoverable after restart');
+		assert(await membershipModels.publication_staging.findByPk(orphan), 'failed-token tombstone survives successful retry');
+		await app.ms.storage.makeDir(orphan); // Remote cp completes after earlier cleanup.
+		const winningPath = recovered.stagingPaths[0];
+		await membershipModels.publication_staging.create({path: winningPath, jobId: recovered.id,
+			leaseToken: winningPath.match(/-([a-f0-9-]{36})-(public|full)$/)[1], nextSweepAt: now});
+		now = new Date(now.getTime() + 61000);
+		const restartedPublisher = createMembershipPublisher(app, membershipModels, membership, {});
+		await restartedPublisher.runPublications();
+		assert(!directories.has(orphan), 'durable reconciliation removes a late RPC orphan after worker restart');
+		assert(directories.has(winningPath), 'reconciliation preserves historical ready staging');
+		assert.equal(await membershipModels.publication_staging.findByPk(winningPath), null);
+		assert(await membershipModels.publication_staging.findByPk(orphan), 'successful sweeps retain tombstones for arbitrarily late RPCs');
 		const copyNormally = app.ms.storage.copyFileFromId;
 		let releaseWrite, writeStarted;
 		const blocked = new Promise(resolve => { writeStarted = resolve; });
@@ -802,6 +816,35 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		} finally {
 			membership.serial = serialNormally;
 		}
+
+
+		const headBeforeLeaseLoss = (await membership.resource('rotate0')).data.publication.publicationId;
+		let unblock, started;
+		const startedWrite = new Promise(resolve => { started = resolve; });
+		let lostPath;
+		app.ms.storage.copyFileFromId = async (id, path) => {
+			if (!lostPath) {
+				lostPath = '/' + path.split('/')[1];
+				await new Promise(resolve => {unblock = resolve; started();});
+			}
+			return copyNormally(id, path);
+		};
+		const stolen = await membership.enqueuePublication(owner.id, 'rotate0', {requestKey: 'lease-stolen'});
+		const losingWork = membership.runPublications();
+		try {
+			await startedWrite;
+			await membershipModels.publications.update({leaseToken: randomUUID()}, {where: {id: stolen.id}});
+		} finally {
+			unblock?.();
+			await losingWork;
+			app.ms.storage.copyFileFromId = copyNormally;
+		}
+		assert.equal((await membership.resource('rotate0')).data.publication.publicationId, headBeforeLeaseLoss, 'lost lease cannot select a stale pair');
+		assert(await membershipModels.publication_staging.findByPk(lostPath));
+		await membershipModels.publications.update({status: 'failed', leaseToken: null}, {where: {id: stolen.id}});
+		now = new Date(now.getTime() + 61000);
+		await restartedPublisher.runPublications();
+		assert(!directories.has(lostPath), 'other-token cleanup is recovered through the durable journal');
 
 
 	});
@@ -885,11 +928,130 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			assert.equal(await storage.getFileDataText(`${fullRoot}/media/${publicationDigest(String(paid.id))}.png`), 'PAID-BYTES');
 			assert.equal(await storage.getFileDataText(`${publicRoot}/media/${publicationDigest(String(archive.id))}.zip`), 'PUBLIC ARCHIVE BYTES');
 			assert.equal(await membership.isStorageIdAllowed(fullRoot), true);
+			const metrics = [];
+			const publisher = createMembershipPublisher(app, membershipModels, membership, {publicationMetrics: event => metrics.push(event)});
+			const goodHead = current.revision;
+			const copy = storage.copyFileFromId.bind(storage);
+			storage.copyFileFromId = async (cid, path) => {
+				const result = await copy(cid, path);
+				if (path.endsWith('-public')) {
+					throw new Error('partial_clone_response_failure');
+				}
+				return result;
+			};
+			const failing = await publisher.enqueue('real-storage', 'partial-real-clone');
+			await publisher.runPublications();
+			assert.equal((await failing.reload()).status, 'queued');
+			assert.equal((await membership.resource('real-storage')).data.publication.publicationId, goodHead);
+			assert(await membershipModels.publication_staging.count({where: {jobId: failing.id}}));
+			storage.copyFileFromId = copy;
+			now = new Date(now.getTime() + 11000);
+			await publisher.runPublications();
+			assert.equal((await failing.reload()).status, 'ready');
+			assert.equal(metrics.at(-1).attempt, 2);
+			assert.equal(metrics.at(-1).variants.public.mode, 'fresh', 'retry disables cloning');
+			assert(metrics.at(-1).leaseUpdates <= 5, 'short builds use only four critical renewals, independent of path count');
+			assert.equal(metrics.at(-1).outcome, 'ready');
+			assert(metrics.at(-1).readyMs >= metrics.at(-1).commitMs, 'ready timing ends after transaction completion');
+			const selected = failing.id;
+			publicationContents.set(String(post.id), publicationContents.get(String(post.id)).filter(item => item.id !== 2000));
+			const remove = storage.node.files.rm.bind(storage.node.files);
+			storage.node.files.rm = async (path, options) => {
+				if (path.startsWith('/membership-') && path.includes('/media/')) {
+					throw new Error('delta_remove_failed');
+				}
+				return remove(path, options);
+			};
+			const failedRemove = await publisher.enqueue('real-storage', 'partial-real-remove');
+			await publisher.runPublications();
+			assert.equal((await failedRemove.reload()).status, 'queued');
+			assert.equal((await membership.resource('real-storage')).data.publication.publicationId, selected);
+			storage.node.files.rm = remove;
+			now = new Date(now.getTime() + 11000);
+			await publisher.runPublications();
+			assert.equal((await failedRemove.reload()).status, 'ready');
+			assert(!failedRemove.manifest.media.public.includes(`${publicationDigest(String(preview.id))}.png`));
+			assert.equal(await storage.getFileDataText(`${publicRoot}/media/${publicationDigest(String(preview.id))}.png`), 'PREVIEW-BYTES', 'historical references survive failed and retried delta removals');
+			assert(!JSON.stringify(metrics).includes(fullRoot), 'metrics contain no root CIDs');
 		} finally {
 			app.ms.storage = previous;
 		}
 	});
 
+
+	it('benchmarks matched 46/146-post SQL/Kubo fixtures and bounds live publisher renewal counts', async function () {
+		if (!process.env.CREATOR_MEMBERSHIP_TEST_IPFS_URL) {
+			this.skip();
+		}
+		this.timeout(180000);
+		const previousStorage = app.ms.storage, paths = [], evidence = [], publisherEvidence = [];
+		const storage = new JsIpfsServiceNode(createKuboClient({url: process.env.CREATOR_MEMBERSHIP_TEST_IPFS_URL}), 'kubo-rpc');
+		app.ms.storage = storage;
+		try {
+			for (const count of [46, 146]) {
+				const id = `benchmark-${count}`;
+				const group = await models.Group.create({name: id, creatorId: owner.id, title: 'Benchmark creator', isPublic: false, isEncrypted: false, isOpen: false});
+				const posts = await models.Post.bulkCreate(Array.from({length: count}, (_, i) => ({groupId: group.id, userId: owner.id, status: 'published', publishedAt: new Date(i + 1),
+					propertiesJson: JSON.stringify({membership: {title: `Post ${i}`, teaser: `Public ${i}`, fullText: `Private ${i}`, free: false}})})));
+				for (const post of posts) {
+					const preview = await storage.saveFileByData(`preview-${post.id}`);
+					publicationContents.set(String(post.id), [{storageId: String(preview.id), mimeType: 'image/png', postsContents: {isPrivate: false}}]);
+				}
+				await membership.provisionSite(owner.id, {id, origin: `https://${id}.test`, groupId: String(group.id), ownerId: owner.id,
+					googleClientId: '', enabled: true, registrationEnabled: false, postsEnabled: true, version: 0});
+				const events = [];
+				const publisher = createMembershipPublisher(app, membershipModels, {...membership, clock: () => new Date()}, {publicationMetrics: event => events.push(event)});
+				const job = await publisher.enqueue(id, 'initial');
+				await publisher.runPublications();
+				assert.equal((await job.reload()).status, 'ready');
+				assert(events.at(-1).leaseUpdates <= 5, 'full-build renewals do not scale with path count');
+				const row = await membership.resource(id);
+				const options = await membershipModels.options.findAll({where: {resourceId: id, enabled: true}, order: [['amountCents', 'ASC']]});
+				const build = mode => buildMembershipSnapshots(app, row, group.title, {previousManifest: job.manifest, assemblyMode: mode, description: group.description, options, renew: async () => {}, beginDirectory: async variant => {
+					const path = `/membership-benchmark-${randomUUID()}-${variant}`;
+					paths.push(path);
+					return path;
+				}});
+				await build('full');
+				for (let repeat = 0; repeat < 5; repeat++) {
+					const post = posts.at(-1), metadata = JSON.parse(post.propertiesJson).membership;
+					await post.update({propertiesJson: JSON.stringify({membership: {...metadata, title: `Changed title ${repeat}`}})});
+					const pair: any = {count, repeat};
+					for (const mode of repeat % 2 ? ['full', 'incremental'] : ['incremental', 'full']) {
+						const start = performance.now(), result = await build(mode);
+						pair[mode] = {activeMs: performance.now() - start, ...result.metrics};
+						pair[`${mode}Roots`] = [result.manifest.public, result.manifest.full];
+					}
+					assert.deepEqual(pair.incrementalRoots, pair.fullRoots);
+					delete pair.incrementalRoots;
+					delete pair.fullRoots;
+					assert.equal(pair.incremental.copies, 6);
+					assert.equal(pair.incremental.mkdirs, 0);
+					assert.equal(pair.incremental.sourceStats, 0);
+					evidence.push(pair);
+				}
+				await publisher.runPublications(); // A queued source revision projects the latest state under its source fence.
+				assert.equal(events.at(-1).variants.public.mode, 'clone');
+				assert.equal(events.at(-1).copies, 6);
+				assert(events.at(-1).leaseUpdates <= 5, 'delta-build renewals are bounded independently of site size');
+				publisherEvidence.push({count, initial: events[0], edited: events.at(-1)});
+				for (let pending = 0; pending < 10 && await membershipModels.publications.count({where: {resourceId: id, status: 'queued'}}); pending++) {
+					await publisher.runPublications();
+				}
+				assert.equal(await membershipModels.publications.count({where: {resourceId: id, status: 'queued'}}), 0);
+				const median = mode => evidence.filter(row => row.count === count).map(row => row[mode].activeMs).sort((a, b) => a - b)[2];
+				assert(median('incremental') < median('full'), `${count}-post active build median improves`);
+			}
+			mkdirSync('test/.geesome-test-output', {recursive: true});
+			writeFileSync('test/.geesome-test-output/incremental-publication-benchmark.json', JSON.stringify({runtime: process.version,
+				conditions: 'Disposable Postgres 14 and Kubo v0.42.0; real production Post models and SQL batch scan; local warm matched fixed layout; alternating order; no profiler or production load. Matched active build times exclude queue/commit/cleanup; publisher samples separately include those. No cold-process or p95 claim.', evidence, publisherEvidence}, null, 2));
+		} finally {
+			app.ms.storage = previousStorage;
+			for (const path of paths) {
+				await storage.node.files.rm(path, {recursive: true}).catch(() => {});
+			}
+		}
+	});
 
 	it('persists per-post attachment visibility, preserves it across edits, and upgrades legacy rows conservatively', async () => {
 		const groupModule = createGroupModule(app, models);

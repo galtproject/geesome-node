@@ -1,7 +1,6 @@
 # Incremental IPFS publication optimization
 
-Tracking: #1473. Status: independently audited plan; implementation not started. This change delivers
-only the plan and review; it does not implement or deploy the optimization.
+Tracking: implementation #1475; planning #1473 / #1474. Status: implemented and verified locally; awaiting user PR merge and normal release. No production deployment.
 
 ## Contents
 
@@ -12,11 +11,14 @@ only the plan and review; it does not implement or deploy the optimization.
 - [Acceptance and verification](#acceptance-and-verification)
 - [Rollout and rollback](#rollout-and-rollback)
 - [Audit and decisions](#audit-and-decisions)
+- [Implementation notes](#implementation-notes-2026-10-29)
+- [Execution evidence and operator procedure](#execution-evidence-and-operator-procedure)
 
 ## Source of truth and measurements
 
-User request: write an optimization plan and have a subagent audit it. Runtime
-implementation requires a subsequent request. Preserve the accepted model: an
+Original request: write an optimization plan and have a subagent audit it.
+The subsequent 2026-10-29 request authorizes reviewing, correcting and implementing
+this plan through verified PR delivery. Preserve the accepted model: an
 expired member keeps any full snapshot CID already received; access gates only
 new full versions. Galleries/other URI targets are links, never recursively copied.
 
@@ -228,7 +230,7 @@ verify that dependency before node, under its local workflow.
 The original implementer owns integration, review and handoff. Delegate only with
 explicit file ownership: C owns assembler, D owns publisher; shared interfaces
 must be agreed before edits. Test/doc work can be parallel after contracts freeze.
-No agent may merge a PR or deploy as part of this planning request.
+No agent may merge a PR or deploy as part of this implementation request.
 
 ## Acceptance and verification
 
@@ -330,3 +332,125 @@ Plan validation: TODO section helper and whitespace checks; verified source
 paths and local measurement JSON. Repaired one pre-existing missing closing TODO
 section marker so deterministic TODO tooling can load this new section. No
 runtime tests were run for this documentation-only change.
+
+## Implementation notes (2026-10-29)
+
+- Capability encoding: additive `assembly.{public,full}` in outer v2 manifests,
+  containing version 1, resourceId, variant, canonical root, inventory and digest.
+  Inventory validation allows only current publisher namespaces, canonical parent
+  directories and terminal media file/opaque-subtree entries. Eligibility also
+  checks consistency against the v2 files/media fields.
+- Assembly collects and validates the complete desired inventory before registering
+  or mutating staging. Root availability is checked before cloning; mutation errors
+  propagate to normal retry, whose next attempt disables cloning (explicit repair continues to bypass body/media caches).
+- Operator bypass: `GEESOME_PUBLICATION_ASSEMBLY=full` keeps file caches/layout;
+  `repair` also bypasses cached bodies and media bindings. No API change.
+- A new model-sync-only `membership_publication_staging` table journals paths before
+  RPCs. Failed-attempt tombstones survive deletion and restart. Each worker tick
+  reconciles at most 16 due rows, rescheduling them by one minute; active and winning
+  paths are protected under the publication row lock. Winning tombstones are removed
+  in the ready transaction. Tombstone count grows with failed attempts by design:
+  finite expiry cannot guarantee recovery from an arbitrarily late remote request.
+  Work per tick and each row are bounded; no unbounded job JSON history is added.
+- Metrics version 1 is a single content-free debug event per attempt under
+  `geesome:membership:publication`, with normal deployment log retention and no DB
+  payload history. Storage counters count calls at the storage API boundary;
+  adapter-internal destination probes are measured separately by the Kubo tests.
+  Timings distinguish committed-ready and cleanup. No public endpoint is added.
+- Renewal uses one in-flight request, at most one periodic renewal per 30 seconds,
+  and forced checks at start, each staging registration and final commit boundary.
+  Local renewal failure is checked by every assembler gate; final token/source and
+  expiry checks remain transactional.
+
+- Real PostgreSQL roundtrip found that JSONB reorders object keys. Capability
+  verification hashes the canonical semantic inventory, not the raw deserialized
+  object. A regression test deliberately reorders all JSON keys; real publisher
+  clone/failure tests verify the optimization survives database persistence.
+- Matched benchmark setup must include the actual provisioned tariff options;
+  substituting an empty options list changes every page input and invalidates the
+  comparison. SQL fixtures use the same enabled options and description as the worker.
+- Browser investigation: all 186 generated fixture files from the original and new
+  assemblers matched byte for byte. Pixel comparison intermittently exceeded its
+  zero-difference-count tolerance on 87 mobile gallery pixels (max channel delta 2,
+  zero materially different pixels). Baseline run passed all 122 captures; record
+  the intermittent raster check rather than changing product styling or weakening
+  its threshold within this optimization.
+
+## Execution evidence and operator procedure
+
+Workstreams A–D are implemented in node without shared-library or API changes.
+E covers local correctness, SQL/Kubo performance, browser regression and documented
+operator rollout; production deployment, a live post experiment and PR merging
+are outside this task. The new journal is a model-sync table, not an alteration
+of deployed tables; schema sync creates it before the worker starts.
+
+For bypass/repair, set the node service environment to
+`GEESOME_PUBLICATION_ASSEMBLY=full` or `GEESOME_PUBLICATION_ASSEMBLY=repair`, restart
+through the normal deployment procedure, then use the existing authenticated
+`POST /v1/membership/admin/:resource/publications` with a fresh `requestKey`.
+The option never accepts arbitrary roots. Full mode preserves logical pagination
+and body caches; repair additionally regenerates bodies/revalidates media. A
+failed attempt gets a new token on retry and never changes the selected pair.
+Restore the environment to `incremental` (the default) to resume cloning.
+
+The first post-upgrade publication from a legacy manifest is full. Once ready,
+the next eligible revision clones. Old v2 readers ignore additive `assembly`
+fields and the new journal table; normal rollback should first use full/repair
+rather than deleting immutable IPFS content. Failed tombstones should not be
+expired merely because their path was absent once. Recovery covers registered
+paths from this writer and legacy paths still present in the job journal at
+upgrade; it cannot discover an orphan whose old writer already discarded all
+records before upgrade.
+
+Local warm benchmark evidence is generated by the real SQL/Kubo integration test
+at ignored `test/.geesome-test-output/incremental-publication-benchmark.json`.
+Fixtures use production models, SQL batch reads and actual provisioned tariff
+options, with the same previous manifest/layout in each pair and alternating
+mode order. Timings are active builder work; separate real worker samples include
+claim-to-commit and cleanup, with a real clock. No cold-process, production or
+p95 estimate is inferred from these samples. Cold startup and a production load
+comparison remain operator rollout measurements, not local speed guarantees.
+
+### Final local results (2026-10-29)
+
+Node v22.21.1; disposable Postgres 14 / Kubo v0.42.0. Five matched warm
+runs per size; no profiler. Individual active builder times in milliseconds:
+
+| Posts | Full runs | Incremental runs | Median full → incremental |
+| --- | --- | --- | --- |
+| 46 | 675.97, 744.52, 866.91, 1070.27, 689.38 | 63.94, 66.17, 70.64, 96.54, 83.53 | 744.52 → 70.64 |
+| 146 | 2600.75, 2576.92, 2497.62, 2808.34, 5287.85 | 74.19, 75.91, 85.68, 97.78, 70.88 | 2600.75 → 75.91 |
+
+All matched roots and complete artifact sets agree between fresh and cloned
+assembly. For 46 posts, copies fall from 198 to 6 (2 roots + 4 replacements),
+mkdirs from 110 to 0; unchanged source stats are 0. No-op uses 2 root copies,
+0 body saves/renders/mkdirs/source stats. Both 46- and 146-post real worker samples
+use 4 renewal UPDATEs, independently of the path count. These are local warm
+fixtures, not estimates for the production baseline measured above.
+
+Final verification:
+
+- `npm run test:creator-membership:docker`: **58 passing**, including real SQL/Kubo
+  JSONB eligibility, clone/no-op/text-edit parity, key-miss/same-CID, add at page
+  boundary, branding, privacy/media deletion, hide/all-delete, empty roots,
+  file/opaque-subtree transitions, legacy/corrupt/unavailable/unsupported fallback,
+  real partial-clone/removal failure and full retry, source/lease loss, heartbeat,
+  crash recovery, ambiguous commit and late-orphan recovery after restart.
+- The wrapper's `npm run test:creator-payments`: **56 passing**.
+- `npm run test:ssg-creator-types`: passed.
+- `npm run test:ssg-membership-browser`: all **122 captures** passed on final
+  repeat; earlier sub-threshold mobile-gallery raster flake is described above.
+- `npm run test:ssg-membership-pagination-browser`: **62 captures** passed.
+- Baseline/new generated browser fixtures: **186 files identical byte for byte**;
+  baseline browser run also passed. No renderer/UI changes were needed.
+- `npm run database:scalability:update`, review and check: passed; indexed bounded
+  staging recovery is recorded in the inventory/review.
+- TODO section helper and `git diff --check`: passed. Completed TODO moved to
+  `docs/implemented.md`. No API/route docs regeneration was needed because no
+  handlers changed; no shared adapter/library changes or production actions.
+
+The initial wrapper occasionally failed before tests with no published IPFS API
+port; isolated reruns completed. The final required Docker wrapper succeeded.
+Raw logs, benchmark JSON and screenshots remain ignored local evidence; durable
+counts and individual timings are recorded here. Cold-process and production-load
+measurements are deferred explicitly to the operator rollout step above.

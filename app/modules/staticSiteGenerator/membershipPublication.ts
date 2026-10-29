@@ -1,3 +1,4 @@
+import {assemblyCapability, previousInventory, canonicalInventory, canCloneMembershipRoot, assembleMembershipTree, InventoryEntry} from './membershipInventory.js';
 import {htmlShellAssets} from './site/htmlShell.js';
 import {readFileSync} from 'node:fs';
 import {creatorLayout, creatorPagePaths} from './membershipPagination.js';
@@ -12,9 +13,11 @@ import {snapshotCid, publicationDigest, membershipMetadata} from './membershipPr
 
 const mediaName = item => `${publicationDigest(item.storageId)}.${item.extension}`;
 
-export async function buildMembershipSnapshots(app, row, title, {renew, beginDirectory, options, description, previousManifest = null}) {
+export async function buildMembershipSnapshots(app, row, title, {renew, beginDirectory, options, description, previousManifest = null, assemblyMode = 'incremental', metrics = publicationBuildMetrics()}) {
 	title = row.data?.displayTitle || title;
+	const sourceStart = performance.now();
 	const snapshot = await readSnapshotPosts(app, row), artifacts = new Set<string>();
+	metrics.sourceMs = performance.now() - sourceStart;
 	const brand = {...row.data};
 	for (const value of [brand.coverUrl, brand.avatarUrl, ...creatorLinks(brand.links).map(link => link.iconUrl), brand.presentation?.membership?.external?.iconUrl, ...(brand.presentation?.template?.id === 'html-shell' ? htmlShellAssets(brand.presentation.template.html) : [])]) {
 		const url = safeCreatorUrl(value);
@@ -26,6 +29,8 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 	const branding = {brand, options, description, resourceId: row.id, domain: row.domain};
 	const saveHtml = async html => {
 		await renew();
+		metrics.bodySaves++;
+		metrics.newBodyBytes += Buffer.byteLength(html);
 		const {id} = await app.ms.storage.saveFileByData(html);
 		const cid = snapshotCid(id);
 		artifacts.add(cid);
@@ -46,18 +51,19 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 	const layout = creatorLayout(snapshot, previous?.layout);
 	const paths = creatorPagePaths(layout);
 	const manifest: any = {version: 2, public: null, full: null, layout, pagePaths: paths, pageCount: paths.length,
-		files: {public: {}, full: {}}, media: {public: [], full: []}, posts: Object.fromEntries(snapshot.map(post => [post.id, []]))};
+		assembly: {}, files: {public: {}, full: {}}, media: {public: [], full: []}, posts: Object.fromEntries(snapshot.map(post => [post.id, []]))};
 	const byId = new Map(snapshot.map(post => [String(post.id), post]));
+	const prepareStart = performance.now();
 	const bundle = await buildBrowserClient();
 	const shell = readFileSync(new URL('./site/index.html', import.meta.url), 'utf8');
 	const rendererSource = readFileSync(new URL('./site/index.js', import.meta.url), 'utf8');
+	metrics.prepareMs = performance.now() - prepareStart;
 	for (const full of [false, true]) {
+		const variantStart = performance.now();
 		const variant = full ? 'full' : 'public';
-		const directory = await beginDirectory(variant);
-		await app.ms.storage.makeDir(directory);
-		for (const path of ['posts', 'media', 'public', 'page', 'account']) {
-			await app.ms.storage.makeDir(`${directory}/${path}`);
-		}
+		const inventory: InventoryEntry[] = [];
+		const verified = assemblyMode === 'repair' ? null : previousInventory(previous, row.id, variant);
+		const oldEntries = new Map<string, InventoryEntry>((verified?.entries || []).map(entry => [entry.path, entry]));
 		const copied = new Set<string>();
 		await renew();
 		const localMedia = async (media, prefix) => {
@@ -70,11 +76,18 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 				const name = mediaName(item);
 				if (!copied.has(name)) {
 					await renew();
-					const stat = await app.ms.storage.getFileStat(item.storageId, {attempts: 0, attemptTimeout: 0, withLocal: true, size: true, timeout: 30000});
-					if (!['file', 'directory'].includes(stat?.type)) {
-						siteProblem(409, 'publication_content_required');
+					const cid = snapshotCid(item.storageId), path = `media/${name}`;
+					const old = oldEntries.get(path);
+					let kind = old?.cid === cid ? old.kind : null;
+					if (!kind) {
+						metrics.sourceStats++;
+						const stat = await app.ms.storage.getFileStat(item.storageId, {attempts: 0, attemptTimeout: 0, withLocal: true, size: true, timeout: 30000});
+						if (!['file', 'directory'].includes(stat?.type)) {
+							siteProblem(409, 'publication_content_required');
+						}
+						kind = stat.type === 'directory' ? 'opaque-subtree' : 'file';
 					}
-					await app.ms.storage.copyFileFromId(item.storageId, `${directory}/media/${name}`);
+					inventory.push({path, cid, kind});
 					copied.add(name);
 				}
 				result.push({...item, url: `${prefix}media/${name}`});
@@ -82,16 +95,34 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 			return result;
 		};
 		const renderData: any = membershipRenderData({title, ...branding}, [], full);
+		const compileStart = performance.now();
 		const {css, renderPage} = await siteRenderer.prepareRender(renderData);
+		metrics.prepareMs += performance.now() - compileStart;
 		const renderVersion = publicationDigest([bundle, css, shell, rendererSource, renderData.assets]);
 		const publish = async (path, input, generate) => {
 			await renew();
 			const key = publicationDigest([renderVersion, input]);
 			const cached = previous?.files?.[variant]?.[path];
-			const cid = cached?.key === key ? snapshotCid(cached.cid) : await saveHtml(await generate());
+			const hit = assemblyMode !== 'repair' && cached?.key === key;
+			if (hit) {
+				metrics.hits++;
+			}
+			let cid;
+			if (hit) {
+				cid = snapshotCid(cached.cid);
+			} else {
+				const renderStart = performance.now();
+				const body = await generate();
+				if (path.endsWith('.html')) {
+					metrics.renders++;
+					metrics.renderMs += performance.now() - renderStart;
+					metrics.newHtmlBytes += Buffer.byteLength(body);
+				}
+				cid = await saveHtml(body);
+			}
 			artifacts.add(cid);
 			manifest.files[variant][path] = {key, cid};
-			await app.ms.storage.copyFileFromId(cid, `${directory}/${path}`);
+			inventory.push({path, cid, kind: 'file'});
 		};
 		await publish('style.css', css, () => css);
 		await publish('public/client.js', bundle, () => bundle);
@@ -105,16 +136,12 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 			});
 		};
 		for (const post of snapshot) {
-			await app.ms.storage.makeDir(`${directory}/posts/${post.id}`);
 			const site = {title, ...branding, relativeRoot: '../../', homeUrl: '../../', entryPath: `${membershipBase}/posts/${post.id}/`};
 			await render(site, [{...post, postUrl: './', media: await localMedia(full ? post.full : post.previews, '../../')}], `posts/${post.id}/index.html`, `/post/${post.id}`, true);
 		}
 		const groups = [layout.home, ...layout.archives];
 		for (let index = 0; index < groups.length; index++) {
 			const prefix = index === 0 ? './' : '../../';
-			if (index) {
-				await app.ms.storage.makeDir(`${directory}/page/${index}`);
-			}
 			const older = index === 0 ? layout.archives.length : index - 1;
 			const navigation = {home: prefix, ...(older > 0 ? {older: `${prefix}page/${older}/`} : {}),
 				...(index > 0 ? {newer: index < layout.archives.length ? `${prefix}page/${index + 1}/` : prefix} : {})};
@@ -138,7 +165,30 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 			return renderPage('/', [['meta', {name: 'og:title', content: title}], ['meta', {name: 'robots', content: 'noindex,nofollow'}]]);
 		});
 		manifest.media[variant] = [...copied];
-		const root = snapshotCid(await app.ms.storage.getDirectoryId(directory));
+		const desired = canonicalInventory(inventory);
+		let clone = assemblyMode === 'incremental' && canCloneMembershipRoot(app.ms.storage) ? verified : null;
+		let reason = assemblyMode !== 'incremental' ? 'forced' : !verified ? 'inventory' : !clone ? 'adapter' : null;
+		if (clone) {
+			await renew();
+			try {
+				const stat = await app.ms.storage.node.files.stat(`/ipfs/${previous[variant]}`);
+				if (stat.type !== 'directory') {
+					clone = null;
+					reason = 'root-unavailable';
+				}
+			} catch (error) {
+				if (error?.code !== 'ERR_NOT_FOUND' && !/not found|does not exist|no link/i.test(error?.message || '')) {
+					throw error;
+				}
+				clone = null;
+				reason = 'root-unavailable';
+			}
+		}
+		const directory = await beginDirectory(variant);
+		const assemblyStart = performance.now();
+		const root = await assembleMembershipTree(app.ms.storage, directory, desired, clone, previous?.[variant], renew, metrics);
+		manifest.assembly[variant] = assemblyCapability(row.id, variant, root, desired);
+		metrics.variants[variant] = {mode: clone ? 'clone' : 'fresh', reason, assemblyMs: performance.now() - assemblyStart, totalMs: performance.now() - variantStart};
 		artifacts.add(root);
 		manifest[variant] = root;
 		if (!full) {
@@ -147,7 +197,7 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 			}
 		}
 	}
-	return {manifest, artifacts};
+	return {manifest, artifacts, metrics};
 }
 
 async function readSnapshotPosts(app, row) {
@@ -191,4 +241,8 @@ async function snapshotPost(app, post) {
 	}
 	return {id: String(post.id), date: new Date(post.publishedAt || 0).getTime(), title: String(m.title || '').slice(0, 500), teaser: String(m.teaser ?? m.description ?? '').slice(0, 10000),
 		fullText: String(m.fullText ?? m.description ?? '').slice(0, 100000), free: m.free === true, full: media, previews};
+}
+
+export function publicationBuildMetrics() {
+	return {version: 1, renders: 0, renderMs: 0, bodySaves: 0, newHtmlBytes: 0, hits: 0, newBodyBytes: 0, copies: 0, mkdirs: 0, removes: 0, sourceStats: 0, rootReads: 0, sourceMs: 0, prepareMs: 0, variants: {}};
 }
