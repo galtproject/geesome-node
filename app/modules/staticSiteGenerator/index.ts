@@ -1,4 +1,5 @@
 import fs from 'fs';
+import {normalizeSitePresentation} from './site/presentation.js';
 import {SiteReplacements} from './replacements.js';
 import {configureSiteReplacements} from './replacementWorker.js';
 import registerReplacementApi from './replacementApi.js';
@@ -96,6 +97,9 @@ function validateStaticSiteName(name) {
 
 export function normalizeStaticSiteOptions(options: any = {}) {
     const normalized = clone(options) || {};
+    if (normalized.presentation !== undefined) {
+        normalized.presentation = normalizeSitePresentation(normalized.presentation);
+    }
     normalized.post = normalized.post || {};
     normalized.postList = normalized.postList || {};
     normalized.site = normalized.site || {};

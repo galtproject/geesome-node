@@ -15,7 +15,8 @@ const server = http.createServer(async (req, res) => {
         return;
     }
     try {
-        res.writeHead(200, { 'content-type': types[path.extname(target)] || 'application/octet-stream' }).end(await fs.readFile(target));
+        const data = await fs.readFile(target);
+        res.writeHead(200, { 'content-type': types[path.extname(target)] || (data.toString('utf8',0,1024).includes('<svg') ? 'image/svg+xml' : 'application/octet-stream') }).end(data);
     }
     catch {
         res.writeHead(404).end();
@@ -227,13 +228,25 @@ try {
             const context = await browser.newContext({viewport,javaScriptEnabled});
             const page = await context.newPage(), errors = [];
             page.on('pageerror',error=>errors.push(error.message));
-            await page.route('**/api/**', route=>route.fulfill({contentType:'application/json',body:JSON.stringify({reader:null,active:false,invoices:[],refunds:[]})}));
+            let membershipAccount = {reader:null,active:false,invoices:[],refunds:[]};
+            await page.route('**/api/**', route=>route.fulfill({contentType:'application/json',body:JSON.stringify(membershipAccount)}));
             const capture = async(name,description)=>{
-                await page.locator('img').evaluateAll(images=>Promise.all(images.map(image=>image.decode().catch(()=>{}))));
+                await page.locator('img').evaluateAll(images=>Promise.all(images.map(image=>{
+                    // Lazy images outside a custom layout's viewport may never start loading.
+                    image.loading='eager';
+                    return Promise.race([image.decode().catch(()=>{}),new Promise((_resolve,reject)=>setTimeout(()=>reject(Error('Image decode timed out: '+image.getAttribute('src'))),10000))]);
+                })));
                 assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
                 assert.equal(await page.locator('img:visible').evaluateAll(images=>images.some(image=>!image.naturalWidth)),false);
+                assert.equal(await page.locator('.preview-image-state.image-error').count(),0,'No failed preview is hidden behind an error placeholder');
                 if (!javaScriptEnabled) {
                     assert.equal(await page.locator('.preview-image-state .image-status:visible').count(),0);
+                }
+                if (name === 'archive') {
+                    await page.locator('.member-footer').scrollIntoViewIfNeeded();
+                }
+                if (name === 'full-post') {
+                    await page.getByTestId('post-51').locator('.post-copy').scrollIntoViewIfNeeded();
                 }
                 const file=`${viewport.width}-pagination-${javaScriptEnabled?'js':'nojs'}-${name}.png`;
                 await page.screenshot({path:path.join(root,file),fullPage:false});
@@ -252,7 +265,28 @@ try {
             assert((await page.locator('.member-footer').textContent()).includes('Powered by GeeSome'));
             assert.equal(await page.getByTestId('newer-posts').count(),0);
             assert(!await page.content().then(html=>html.includes('PRIVATE 51')));
-            await capture('home','Top of the real 11-post homepage shows newest post 51 and clean URL hydration; navigation and full count are verified independently with and without JavaScript.');
+            assert.equal(await page.locator('.creator-profile h1').textContent(),'Archive creator');
+            assert.equal(await page.getByTestId('post-51').locator('h2').textContent(),'Feb 20, 2026');
+            assert.equal(await page.getByTestId('post-51').locator('.post-copy>time,.post-copy>.post-description').count(),0);
+            assert.equal(await page.getByTestId('join-external').count(),1);
+            assert.equal(await page.getByTestId('social-links').locator('.external-membership-link').count(),0);
+            assert.equal(await page.getByTestId('expand-links').count(),0);
+            assert.equal(await page.getByTestId('membership-ribbon').count(),1);
+            assert((await page.getByTestId('join-membership').textContent()).includes('Join here · $4.00 / 1 month'));
+            assert.equal(await page.getByTestId('join-membership').isEnabled(),true);
+            if (viewport.width>760) {
+                const layout = await page.evaluate(()=>({side:document.querySelector('.creator-sidebar').getBoundingClientRect().toJSON(),feed:document.querySelector('.member-feed').getBoundingClientRect().toJSON()}));
+                assert(layout.side.x<layout.feed.x && Math.abs(layout.side.y-layout.feed.y)<1,'Subscription sidebar and posts begin beside each other');
+            }
+            assert.equal(await page.getByTestId('footer-home').evaluate(el=>getComputedStyle(el).textDecorationLine),'underline');
+            assert.equal(await page.locator('.social-icons a').first().evaluate(el=>el.getBoundingClientRect().width),64);
+            await capture('home','The left sidebar offers a compact crypto option with the extra-content/lower-price ribbon and an equally prominent coral Patreon button; labelled socials have no duplicate disclosure.');
+            await page.getByTestId('post-51').locator('.post-copy').scrollIntoViewIfNeeded();
+            await capture('card','Technical own-domain timestamp is presented as one readable date, with no empty description gap and compact Share/subscription actions.');
+            await page.getByTestId('post-50').locator('.post-copy').scrollIntoViewIfNeeded();
+            await capture('long-title','A long authored title wraps without clipping or overflow; its text and publication date remain intact.');
+            await page.locator('.member-footer').scrollIntoViewIfNeeded();
+            await capture('home-navigation','The sole Older posts link is right aligned below the homepage, with no Newer link and with an underlined footer home link.');
             await page.getByTestId('older-posts').click();
             await page.waitForURL(url=>url.pathname==='/paged/page/4/');
             await page.getByTestId('post-40').waitFor();
@@ -262,7 +296,13 @@ try {
             assert.equal(await page.getByTestId('newer-posts').getAttribute('href'),'../../');
             const older = page.getByTestId('older-posts');
             await older.scrollIntoViewIfNeeded();
-            await capture('archive','Bottom of archive 4 shows its last post 31, Newer/Older links and the footer home link with GeeSome attribution; the ten-post count, clean folder URL and absence of home duplicates are verified independently.');
+            await capture('archive','Bottom of archive 4 shows its last post 31, correctly aligned Newer/Older navigation and visibly underlined footer links; the ten-post count and clean directory URL are verified independently.');
+            if (javaScriptEnabled) {
+                await older.focus();
+                await page.keyboard.press('Tab');
+                assert.equal(await page.getByTestId('footer-home').evaluate(el=>el === document.activeElement),true);
+                assert.equal(await page.getByTestId('footer-home').evaluate(el=>getComputedStyle(el).outlineStyle),'solid');
+            }
             await older.click();
             await page.waitForURL(url=>url.pathname==='/paged/page/3/');
             await page.getByTestId('post-30').waitFor();
@@ -272,9 +312,97 @@ try {
             await page.getByTestId('footer-home').click();
             await page.waitForURL(url=>url.pathname==='/paged/');
             await page.goto(`${origin}/paged/posts/51/`);
-            await page.getByText('PUBLIC 51',{exact:true}).waitFor();
+            await page.getByTestId('post-51').locator('h2').waitFor();
+            assert.equal(await page.getByTestId('post-51').locator('h2').textContent(),'Feb 20, 2026');
             assert.equal(new URL(page.url()).hash,'');
             assert.equal(await page.locator('a.back-link').getAttribute('href'),'../../');
+            if (javaScriptEnabled) {
+                const icon = page.locator('.social-icons a[aria-label="Bluesky"] img');
+                const iconPath = '**' + new URL(await icon.getAttribute('src'), origin).pathname;
+                await page.route(iconPath, route=>route.fulfill({status:404,body:''}));
+                await page.reload();
+                await page.locator('.social-icons a[aria-label="Bluesky"] .social-fallback').waitFor();
+                assert.equal(await page.locator('.social-icons a[aria-label="Bluesky"] img').count(),0);
+                await page.getByTestId('social-links').scrollIntoViewIfNeeded();
+                await capture('icon-fallback','An unavailable social image is replaced by a labelled link fallback without a broken image or a missing link.');
+                await page.unroute(iconPath);
+            }
+            if (javaScriptEnabled) {
+                for (const count of [3,5,6,7]) {
+                    await page.goto(`${origin}/paged/social-${count}.html`);
+                    const block = page.getByTestId('social-links');
+                    await block.scrollIntoViewIfNeeded();
+                    assert.equal(await block.locator('.social-icons>a').count(),count);
+                    const boxes = await block.locator('.social-icons>a').evaluateAll(items=>items.map(item=>{const r=item.getBoundingClientRect();return {x:r.x,y:r.y};}));
+                    for (let i=3;i<count;i++) assert(Math.abs(boxes[i].x-boxes[i%3].x)<1);
+                    await capture(`social-${count}`,`${count} social links align to three stable columns on the full sidebar width; the seven-link case retains a long custom label and a square custom image.`);
+                    assert.equal(await block.locator('.full-links').count(),0);
+                    assert.equal(await page.getByTestId('expand-links').count(),0);
+                    assert.equal(await page.getByTestId('join-external').count(),1);
+                }
+            }
+            for (const variant of ['no-patreon','unavailable','links-only']) {
+                await page.goto(`${origin}/paged/${variant}.html`);
+                await page.getByTestId(variant==='links-only' ? 'social-links' : 'membership-choice').scrollIntoViewIfNeeded();
+                assert.equal(await page.getByTestId('membership-ribbon').count(),0);
+                if (variant==='no-patreon') {
+                    assert.equal(await page.getByTestId('join-external').count(),0);
+                    assert(!(await page.getByTestId('membership-choice').textContent()).includes('than Patreon'));
+                } else if (variant==='links-only') {
+                    assert.equal(await page.getByTestId('membership-choice').count(),0);
+                    assert.equal(await page.locator('.external-membership-link').count(),1);
+                    assert.equal(await page.locator('.member-post').count(),0);
+                    assert.equal(await page.getByTestId('expand-links').count(),0);
+                } else {
+                    assert.equal(await page.getByTestId('join-membership').isDisabled(),true);
+                }
+                await capture(variant,variant==='links-only' ? 'Links-only mode preserves the Patreon destination and all social links without offering direct purchases or displaying posts.' : variant==='no-patreon' ? 'Without a Patreon URL the site offers only direct membership, without a comparison, separator or ribbon.' : 'Explicitly unavailable payment methods disable new site purchases; Patreon remains a working alternative.');
+            }
+            for (const variant of ['custom-presentation','neutral-presentation','html-shell']) {
+                await page.goto(`${origin}/${variant}/`);
+                await page.getByTestId('membership-choice').waitFor();
+                if (variant==='custom-presentation') {
+                    assert.equal(await page.locator('.creator-cover').count(),0);
+                    assert.equal(await page.locator('.site-single.site-square.site-compact').count(),1);
+                    assert.equal(await page.locator('.feed-heading').textContent(),'Owner-selected heading');
+                    assert.equal(await page.getByTestId('join-external').textContent(),'Another membership service↗');
+                    assert.equal(await page.locator('body').evaluate(()=>getComputedStyle(document.documentElement).backgroundColor),'rgb(243, 244, 245)');
+                    assert.equal(await page.locator('.creator-sidebar').evaluate(el=>el.firstElementChild.getAttribute('data-testid')),'social-links');
+                } else if (variant==='html-shell') {
+                    await page.getByTestId('html-shell').waitFor();
+                    assert.equal(await page.locator('geesome-slot').count(),0);
+                    assert((await page.getByTestId('html-shell').innerText()).includes('Owner shell · Independent creator'));
+                    assert.equal(await page.getByTestId('older-posts').count(),1);
+                    if (javaScriptEnabled) {
+                        await page.getByTestId('reader-login').click();
+                        await page.locator('.membership-modal').waitFor();
+                        assert.equal(await page.getByTestId('html-shell').locator('.membership-modal').count(),0);
+                        await page.getByTestId('membership-close').click();
+                    }
+                } else {
+                    assert.equal(await page.getByTestId('membership-ribbon').count(),0);
+                    assert.equal(await page.getByTestId('join-external').count(),0);
+                    assert(!/Patreon|Era Of Wave|Site-exclusive/.test(await page.locator('body').innerText()));
+                }
+                await capture(variant,variant==='html-shell' ? 'An owner HTML shell places trusted membership/social blocks left and the public feed/navigation right; login stays outside owner markup. Rendered with and without JavaScript.' : variant==='custom-presentation' ? 'An owner manifest changes colors, square corners, density, sidebar order and single-column layout without code, with a separately named external offer.' : 'A site with no presentation manifest uses neutral defaults and no brand-specific promotions or external subscription.');
+            }
+            await page.goto(`${origin}/paged-full/posts/51/`);
+            await page.getByText('PRIVATE 51',{exact:true}).waitFor();
+            await page.getByTestId('post-51').locator('.post-copy').scrollIntoViewIfNeeded();
+            await capture('full-post','The complete immutable post retains its full text with the same compact title and action styling.');
+            if (javaScriptEnabled) {
+                membershipAccount = {reader:{id:'reader',name:'Test member'},active:true,expiresAt:'2030-01-01T00:00:00Z',invoices:[],refunds:[]};
+                await page.goto(`${origin}/paged-full/`);
+                await page.getByTestId('join-membership').filter({hasText:'My membership'}).waitFor();
+                assert.equal(await page.getByTestId('membership-ribbon').count(),0);
+                await page.getByTestId('membership-choice').scrollIntoViewIfNeeded();
+                await capture('active-member','An active direct member sees My membership and the access date, with no sales ribbon. Patreon remains a separate purchase alternative.');
+                membershipAccount = {reader:{id:'reader',name:'Test member'},active:false,expired:true,invoices:[{id:'paid',status:'paid'}],refunds:[]};
+                await page.goto(`${origin}/paged/`);
+                await page.getByTestId('join-membership').filter({hasText:'Renew membership'}).waitFor();
+                await page.getByTestId('membership-choice').scrollIntoViewIfNeeded();
+                await capture('expired-member','An expired direct member gets Renew membership while the Patreon alternative and crypto explanation remain clear.');
+            }
             assert.deepEqual(errors,[]);
             await context.close();
         }
@@ -340,6 +468,21 @@ try {
         assert(!await page.locator('.crypto-checkout').textContent().then(text => text.toLowerCase().includes('unavailable')));
         await captureCheckout('checkout-usdt-default','New checkout selects USDT Ethereum, offers only available networks, and omits unavailable BTC/TRON choices.');
         await page.getByRole('button',{name:'Close dialog'}).click();
+        await page.goto(`${origin}/paged/`);
+        await page.getByTestId('account-link').waitFor();
+        await page.getByTestId('join-membership').click();
+        await page.getByRole('heading',{name:'Join on this site',exact:true}).waitFor();
+        assert((await page.getByTestId('direct-crypto-payment').textContent()).includes('Continue to crypto payment'));
+        assert((await page.locator('.membership-modal').textContent()).includes('One-time payment. No automatic renewal.'));
+        const planFile = `${viewport.width}-membership-choice-plans.png`;
+        await page.screenshot({path:path.join(root,planFile),fullPage:false});
+        captures.push({file:planFile,description:'The direct membership plan dialog explicitly says this site, crypto payment, real periods/prices and no automatic renewal.',viewport,state:'membership-choice-plans'});
+        await page.getByTestId('direct-crypto-payment').click();
+        await page.locator('.crypto-qr').waitFor();
+        assert((await page.getByTestId('crypto-value-banner').textContent()).includes('Lower membership price with crypto'));
+        assert((await page.getByTestId('crypto-benefits').textContent()).includes('Site-exclusive sets'));
+        await captureCheckout('membership-choice-crypto','Direct checkout explains the lower crypto price and possible network fees, retaining the approved site-exclusive benefit.');
+        await page.getByRole('button',{name:'Close dialog'}).click();
         resumed = true;
         methods.find(m => m.id === 'usdc-base').available = false;
         await page.goto(`${origin}/public/account.html`);
@@ -349,8 +492,19 @@ try {
         assert.equal(await page.getByTestId('crypto-network').count(),0);
         assert.equal(await page.getByTestId('crypto-currency-USDC').count(),0);
         assert.equal(await page.getByTestId('crypto-currency-BTC').count(),0);
-        assert.equal(assets.length,1,'resumed invoice must not create a replacement quote');
+        assert.equal(assets.length,2,'resumed invoice must not create a replacement quote');
         await captureCheckout('checkout-resume-unavailable','Existing USDC Base invoice keeps its QR and network while unavailable methods are absent from new-payment choices.');
+        await page.getByTestId('membership-close').click();
+        await page.goto(`${origin}/html-shell/`);
+        await page.getByTestId('html-shell').waitFor();
+        await page.getByTestId('account-link').waitFor();
+        await page.getByTestId('join-membership').click();
+        await page.getByTestId('direct-crypto-payment').click();
+        await page.locator('.crypto-qr').waitFor();
+        assert.equal(assets.at(-1),'usdt-ethereum');
+        assert.equal(await page.getByTestId('html-shell').locator('.membership-modal').count(),0);
+        assert((await page.getByTestId('crypto-address').textContent()).includes('0x1111111111111111111111111111111111111111'));
+        await captureCheckout('html-shell-crypto','An editable HTML shell retains the trusted checkout outside owner markup, with server invoice address, QR and the USDT Ethereum default.');
         await page.close();
     }
     const compare = await browser.newPage();

@@ -1,3 +1,4 @@
+import type {SitePresentation} from '../../presentation.js';
 import type {CryptoMethod, CryptoInvoice} from './crypto.ts';
 export interface MembershipOption {
     id?: string; label?: string; amountCents?: number; amountMinor?: number;
@@ -12,9 +13,9 @@ export interface CreatorPost {
     pageUrl?: string; postPath?: string;
 }
 export interface CreatorResource {
-    id: string; title: string; description?: string; postsEnabled: boolean;
+    id: string; title: string; domain?: string; description?: string; postsEnabled: boolean;
     coverUrl?: string; avatarUrl?: string; links?: CreatorLink[]; legalLinks?: CreatorLink[];
-    patreonUrl?: string; options?: MembershipOption[]; cryptoMethods?: CryptoMethod[];
+    presentation?: SitePresentation; patreonUrl?: string; options?: MembershipOption[]; cryptoMethods?: CryptoMethod[];
     publicBasePath?: string; e2eMockAuth?: boolean;
 }
 export interface MembershipInvoice {

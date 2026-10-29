@@ -1,3 +1,4 @@
+import {htmlShellAssets} from './site/htmlShell.js';
 import {readFileSync} from 'node:fs';
 import {creatorLayout, creatorPagePaths} from './membershipPagination.js';
 import {contentIpfsLinks} from './publicationLinks.js';
@@ -12,16 +13,17 @@ import {snapshotCid, publicationDigest, membershipMetadata} from './membershipPr
 const mediaName = item => `${publicationDigest(item.storageId)}.${item.extension}`;
 
 export async function buildMembershipSnapshots(app, row, title, {renew, beginDirectory, options, description, previousManifest = null}) {
+	title = row.data?.displayTitle || title;
 	const snapshot = await readSnapshotPosts(app, row), artifacts = new Set<string>();
 	const brand = {...row.data};
-	for (const value of [brand.coverUrl, brand.avatarUrl, ...creatorLinks(brand.links).map(link => link.iconUrl)]) {
+	for (const value of [brand.coverUrl, brand.avatarUrl, ...creatorLinks(brand.links).map(link => link.iconUrl), brand.presentation?.membership?.external?.iconUrl, ...(brand.presentation?.template?.id === 'html-shell' ? htmlShellAssets(brand.presentation.template.html) : [])]) {
 		const url = safeCreatorUrl(value);
 		const source = url && new URL(url, `https://${row.domain}`).pathname.match(/^\/ipfs\/([A-Za-z0-9]+)(?:\/|$)/)?.[1];
 		if (source) {
 			artifacts.add(snapshotCid(source));
 		}
 	}
-	const branding = {brand, options, description, resourceId: row.id};
+	const branding = {brand, options, description, resourceId: row.id, domain: row.domain};
 	const saveHtml = async html => {
 		await renew();
 		const {id} = await app.ms.storage.saveFileByData(html);

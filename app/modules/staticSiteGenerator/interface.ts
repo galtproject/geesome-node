@@ -7,6 +7,7 @@ export interface IStaticSiteRenderArgs {
 	entityIds?: any[];
 }
 export interface IStaticSiteOptions {
+    presentation?: import('./site/presentation.js').SitePresentation;
 	allowSearchIndexing?: boolean;
 	archive?: boolean;
 	baseStorageUri?;

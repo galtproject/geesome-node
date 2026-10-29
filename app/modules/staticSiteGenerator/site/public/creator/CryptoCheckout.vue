@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import {computed} from 'vue';
+import {normalizeSitePresentation, type SitePresentation} from '../../presentation.js';
 import {useCryptoCheckout, type CheckoutProps} from './useCryptoCheckout.ts';
 import {accessPeriodLabel} from './api.ts';
 import {cryptoStatusText, paymentAmount} from './crypto.ts';
 import PaymentLoading from './PaymentLoading.vue';
 import CryptoHelp from './CryptoHelp.vue';
-const props = withDefaults(defineProps<CheckoutProps>(), {methods: () => [], resume: null});
+const props = withDefaults(defineProps<CheckoutProps & {presentation?: SitePresentation}>(), {methods: () => [], resume: null});
 const emit = defineEmits<{paid: []; back: []}>();
 const {invoice, currency, asset, busy, previousQr, creating, error, notice, detailsElement, reservedHeight,
     networks, currencies, remaining, chosen, networkLabel, qr, selectCurrency, selectAsset, refresh, create, copy} = useCryptoCheckout(props, () => emit('paid'));
@@ -15,12 +16,7 @@ const verificationWarning = computed(() => ['crypto_balance_outgoing_untracked',
     : 'Network monitoring is temporarily unavailable. Your invoice and confirmed payments are preserved.');
 const price = computed(() => '$' + (invoice.value ? invoice.value.priceUsd.toFixed(2) : ((props.option.amountMinor ?? props.option.amountCents ?? 0) / 100).toFixed(2)));
 const period = computed(() => accessPeriodLabel(invoice.value?.period || props.option.periodUnit || props.option.period));
-const benefits = [
-    ['Every set, unlocked', 'Browse all sets in this author’s archive during your access period.'],
-    ['Site-exclusive sets', 'Discover exclusive sets you won’t find on Patreon.'],
-    ['New releases included', 'Enjoy new sets published during your membership.'],
-    ['No automatic renewal', 'Pay once for your selected period. Renew whenever you want.'],
-];
+const marketing = computed(() => (props.presentation || normalizeSitePresentation()).membership);
 function changeNetwork(event: Event) {
     selectAsset((event.target as HTMLSelectElement).value);
 }
@@ -29,7 +25,7 @@ function changeNetwork(event: Event) {
     <div class="crypto-checkout" data-testid="crypto-checkout">
         <div class="crypto-checkout-header" data-testid="crypto-checkout-header">
             <button type="button" class="crypto-back" data-testid="crypto-back" @click="emit('back')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Payment methods</button>
-            <div class="crypto-value-banner" data-testid="crypto-value-banner"><span class="crypto-value-icon" aria-hidden="true">↘</span><div><strong>Less than Patreon. More value here.</strong><p>Get your membership for less when you buy directly on this site.</p></div></div>
+            <div v-if="marketing.banner" class="crypto-value-banner" data-testid="crypto-value-banner"><span class="crypto-value-icon" aria-hidden="true">↘</span><div><strong>{{ marketing.banner.title }}</strong><p>{{ marketing.banner.text }}</p></div></div>
         </div>
         <div class="crypto-payment">
             <h3>Pay with cryptocurrency</h3>
@@ -68,7 +64,7 @@ function changeNetwork(event: Event) {
                 <h3>{{ invoice?.optionLabel || props.option.label || 'Membership' }}</h3>
                 <div class="crypto-price"><strong>{{ price }}</strong><span>{{ ` / ${period}` }}</span></div>
                 <p class="crypto-plan-intro">One payment. The whole author archive.</p>
-                <ul class="crypto-benefits"><li v-for="[title, description] in benefits" :key="title"><span class="crypto-benefit-icon" aria-hidden="true">✓</span><div><strong>{{ title }}</strong><p>{{ description }}</p></div></li></ul>
+                <ul class="crypto-benefits"><li v-for="benefit in marketing.benefits" :key="benefit.title"><span class="crypto-benefit-icon" aria-hidden="true">✓</span><div><strong>{{ benefit.title }}</strong><p>{{ benefit.text }}</p></div></li></ul>
             </aside>
             <CryptoHelp />
         </div>

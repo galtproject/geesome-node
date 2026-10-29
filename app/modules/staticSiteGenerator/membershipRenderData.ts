@@ -1,3 +1,4 @@
+import {normalizeSitePresentation} from './site/presentation.js';
 import {safeCreatorUrl, creatorLinks} from './site/public/creator/links.js';
 export const membershipBase = '/api/v1/membership/site';
 
@@ -6,19 +7,24 @@ type SnapshotPost = {
 	id?: string | number; date?: number; title?: string; teaser?: string; fullText?: string;
 	free?: boolean; postUrl?: string; media: SnapshotMedia[];
 };
-type SnapshotSite = {brand?: any; description?: string; resourceId?: string; options?: any[]; title: string; homeUrl?: string; entryPath?: string; postsCount?: number; pageUrls?: string[]; relativeRoot?: string; navigation?: {newer?: string; older?: string; home: string}; canonicalPath?: string};
+type SnapshotSite = {brand?: any; domain?: string; description?: string; resourceId?: string; options?: any[]; title: string; homeUrl?: string; entryPath?: string; postsCount?: number; pageUrls?: string[]; relativeRoot?: string; navigation?: {newer?: string; older?: string; home: string}; canonicalPath?: string};
 
 // The shared renderer receives only the selected variant. Never serialize the
 // original snapshot object with both public and full content into site-data.
 export function membershipRenderData(site: SnapshotSite, posts: SnapshotPost[], full: boolean, single = false, page = 1, pageCount = 1) {
 	const brand = site.brand || {};
+    const presentation = normalizeSitePresentation(brand.presentation);
+    // Deprecated external URL stays readable; new manifests own its label and styling.
+    if (!brand.presentation && safeCreatorUrl(brand.patreonUrl)) {
+        presentation.membership.external = {label:'External membership',url:safeCreatorUrl(brand.patreonUrl),accent:'#e3e3e3'};
+    }
 	const branding = {description: String(site.description || '').slice(0, 10000), coverUrl: safeCreatorUrl(brand.coverUrl), avatarUrl: safeCreatorUrl(brand.avatarUrl),
 		links: creatorLinks(brand.links), legalLinks: creatorLinks(brand.legalLinks), patreonUrl: safeCreatorUrl(brand.patreonUrl)};
 	const options = (site.options || []).map(option => ({id: option.id, label: option.label, amountCents: option.amountCents, currency: option.currency, period: option.period}));
 	const nextPage = !single && !site.navigation ? site.pageUrls?.[page] || null : null;
 	const relativeRoot = site.relativeRoot || (single ? '../' : './');
 	const creator = {
-		resource: {id: site.resourceId || 'wave', title: site.title, postsEnabled: true, ...branding, options},
+		resource: {id: site.resourceId || 'wave', domain: site.domain, title: site.brand?.displayTitle || site.title, postsEnabled: true, ...branding, presentation, options},
 		posts: posts.map(post => ({id: post.id, title: post.title, description: full || post.free ? post.fullText : post.teaser,
 			publishedAt: post.date ? new Date(post.date).toISOString() : null, free: post.free === true, locked: !full && !post.free,
 			previews: post.media.filter(media => media.mime.startsWith('image/')).map(media => ({url: media.url, alt: media.name})),

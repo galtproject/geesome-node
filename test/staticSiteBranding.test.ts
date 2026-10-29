@@ -50,4 +50,11 @@ describe('static-site layout branding', () => {
         const once = sanitizeStaticSiteLayoutHtml(header);
         assert.equal(sanitizeStaticSiteLayoutHtml(once), once);
     });
+    it('validates the shared presentation contract independently of legacy HTML/CSS options',()=>{
+        const options=normalizeStaticSiteOptions({presentation:{schemaVersion:1,theme:{accent:'#123456'}}});
+        assert.equal(options.presentation.template.id,'creator');
+        assert.equal(options.presentation.theme.accent,'#123456');
+        assert.throws(()=>normalizeStaticSiteOptions({presentation:{schemaVersion:1,stylesCss:'body{display:none}'}}),/site_presentation_invalid/);
+    });
+
 });
