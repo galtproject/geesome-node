@@ -890,17 +890,19 @@ instances. No production update or publication was triggered for this fix.
 
 The polished creator theme expands imported social host labels to Ko-fi, X,
 Discord, Bluesky and Telegram while preserving custom authored names. Share is
-an outlined button with a matching line icon and feedback beside the action.
-It uses native sharing where available, then clipboard copying; denial or missing
-clipboard support reveals a selectable readonly link. Cancellation of the native
-sheet does not trigger an unwanted clipboard write. Shared URLs use the public
+an outlined button with a matching line icon and an animated bottom notification.
+It copies directly to the clipboard and shows one bottom notification reading
+"Copied to clipboard" for ten seconds, animating up on entry and down on exit.
+Repeated actions restart the timer; missing/denied clipboard access shows an honest
+English error notification. Reduced-motion preference disables animation, and
+unmount clears the timer. No inline status or manual-copy field is added to cards. Shared URLs use the public
 post selector on the creator domain, never the current full snapshot CID, and
 remain usable before/after stable-domain cutover. The repeated locked-post note
 is removed in the polished theme; legacy theme markup is retained.
 
-Verification: strict creator Vue types and 18 focused presentation/share/snapshot
+Verification: strict creator Vue types and 17 focused presentation/share/snapshot
 tests passed. The pagination browser flow verified 66 desktop/narrow JS/no-JS
-captures, including copied/manual Share feedback and friendly labels seeded from
-technical host names. Card, sidebar and narrow manual-copy captures were visually
+captures, including copied/error Share notifications and repeated-click expiry and friendly labels seeded from
+technical host names. Card, sidebar and narrow notification captures were visually
 inspected. No production update or snapshot rebuild was triggered; deploy and
 rebuild to publish these template/client changes.

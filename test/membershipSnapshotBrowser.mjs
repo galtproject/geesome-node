@@ -301,15 +301,34 @@ try {
             assert.equal(await page.getByTestId('post-51').locator('.post-copy>small').count(),0);
             if(javaScriptEnabled) {
                 const card = page.getByTestId('post-51');
+                await page.clock.install();
+                await page.clock.pauseAt(await page.evaluate(()=>Date.now()+1000));
                 await card.getByTestId('share-post').click();
-                await card.getByRole('status').filter({hasText:'Link copied'}).waitFor();
+                const toast = page.getByTestId('share-notification');
+                await toast.filter({hasText:'Copied to clipboard'}).waitFor();
                 assert.equal(await page.evaluate(()=>window.sharedUrl),'https://creator.test/api/v1/membership/site/posts/51/');
-                await capture('share-copied','Share is an outlined icon button with nearby Link copied feedback, and the duplicate locked-post note is absent.');
+                assert.equal(await card.getByTestId('share-link').count(),0);
+                await page.clock.runFor(350);
+                await toast.evaluate(el=>el.getAnimations().forEach(animation=>animation.finish()));
+                await capture('share-copied','Share copies the public post URL and shows an English blue notification at the bottom without changing the post card layout.');
+                await page.clock.runFor(5000);
+                await card.getByTestId('share-post').click();
+                assert.equal(await toast.count(),1,'Repeated Share uses one notification and restarts its timer');
+                await page.clock.runFor(9900);
+                assert.equal(await toast.isVisible(),true,'The notification remains for ten seconds after the latest copy');
+                await page.clock.runFor(150);
+                assert((await toast.getAttribute('class')).includes('share-toast-leave-active'),'Expiry animates the notification out');
+                await page.clock.runFor(350);
+                assert.equal(await toast.count(),0);
                 await page.evaluate(()=>{window.denyClipboard=true;});
                 await card.getByTestId('share-post').click();
-                assert.equal(await card.getByTestId('share-link').inputValue(),'https://creator.test/api/v1/membership/site/posts/51/');
-                await capture('share-manual','When clipboard permission is denied, Share shows a labelled readonly public post link for manual copying.');
+                await toast.filter({hasText:'Could not copy the link. Please try again.'}).waitFor();
+                await page.clock.runFor(350);
+                await toast.evaluate(el=>el.getAnimations().forEach(animation=>animation.finish()));
+                await capture('share-error','Denied clipboard access shows an English error notification at the bottom, without a manual-copy field or a false success message.');
                 await page.evaluate(()=>{window.denyClipboard=false;});
+                await page.clock.runFor(10000);
+                await page.clock.resume();
             }
             await page.getByTestId('post-50').locator('.post-copy').scrollIntoViewIfNeeded();
             await capture('long-title','A long authored title wraps without clipping or overflow; its text and publication date remain intact.');

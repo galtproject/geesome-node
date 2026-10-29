@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {computed} from 'vue';
+import {computed, ref, onBeforeUnmount} from 'vue';
 import {normalizeSitePresentation} from '../../presentation.js';
 import CreatorLayout from './CreatorLayout.vue';
 import PostCard from './PostCard.vue';
@@ -15,6 +15,15 @@ import {money, safeSiteUrl, accessPeriodLabel} from './api.ts';
 import {date} from './presentation.ts';
 import type {PublicState} from './types.ts';
 const props = defineProps<{initialState: PublicState}>();
+const notification = ref<{message: string; failed: boolean} | null>(null);
+let notificationTimer: ReturnType<typeof setTimeout> | undefined;
+function notify(value: {message: string; failed: boolean}) {
+    clearTimeout(notificationTimer);
+    notification.value = value;
+    notificationTimer = setTimeout(() => { notification.value = null; }, 10000);
+}
+onBeforeUnmount(() => { clearTimeout(notificationTimer); });
+
 const {resource, posts, nextOffset, account, checked, busy, error, modal, gallery, imageIndex,
     selectedOption, options, paymentMethod, cryptoMethods, cryptoResume, refundReason, shareStatus,
     resourceId, active, expired, activeUntil, enabled, accountPath, publicPath,
@@ -68,7 +77,7 @@ function join() {
                 <template v-else>
                     <a v-if="single" :href="publicPath('/')" class="back-link">← All posts</a>
                     <h2 v-else class="feed-heading">{{ navigation?.newer ? presentation.copy.archiveHeading : presentation.copy.feedHeading }}</h2>
-                    <PostCard :subscribe-label="presentation.copy.subscribe" :polished="polished" :domain="resource.domain" v-for="post in posts" :key="post.id" :post="post" :single="single" :post-url="publicPath(`/posts/${encodeURIComponent(post.id)}`)" :checked="checked" :expired="expired" @gallery="showGallery" @share="sharePost" @checkout="checkout" />
+                    <PostCard :subscribe-label="presentation.copy.subscribe" :polished="polished" :domain="resource.domain" v-for="post in posts" :key="post.id" :post="post" :single="single" :post-url="publicPath(`/posts/${encodeURIComponent(post.id)}`)" :checked="checked" :expired="expired" @gallery="showGallery" @share="sharePost" @checkout="checkout" @notify="notify" />
                     <section v-if="!posts.length" class="account-panel"><h2>New work is on the way</h2><p>Find the latest updates through the links above.</p></section>
                 </template>
             </template>
@@ -118,5 +127,11 @@ function join() {
             </template>
             <MembershipPlans v-else :polished="polished" v-model="selectedOption" :title="resource.title" :options="options" :direct-ready="cryptoMethods.some(method => method.available)" :busy="busy" @continue="paymentMethod = 'direct'" />
         </MembershipModal>
+        <Transition name="share-toast">
+            <div v-if="notification" class="share-notification" :class="{'share-notification-error':notification.failed}" role="status" aria-live="polite" data-testid="share-notification">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path v-if="notification.failed" d="M12 7v6m0 4h.01"/><path v-else d="m8 12 3 3 5-6"/></svg>
+                {{ notification.message }}
+            </div>
+        </Transition>
     </div>
 </template>
