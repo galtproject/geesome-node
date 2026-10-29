@@ -8,6 +8,7 @@ export default function siteSettings(app, M, group, owner, publicBrand, invalida
 		if (!body || !Number.isSafeInteger(body.version) || body.version < 0
 			|| typeof body.enabled !== 'boolean' || typeof body.registrationEnabled !== 'boolean'
 			|| typeof body.postsEnabled !== 'boolean' || typeof body.googleClientId !== 'string'
+			|| (body.displayTitle !== undefined && (typeof body.displayTitle !== 'string' || !body.displayTitle.trim() || body.displayTitle.length > 200))
 			|| body.googleClientId.length > 200 || (body.googleClientId && !/^[A-Za-z0-9._-]+$/.test(body.googleClientId))) {
 			siteProblem(400, 'membership_site_invalid');
 		}
@@ -22,6 +23,9 @@ export default function siteSettings(app, M, group, owner, publicBrand, invalida
 		const current = await M.site_settings.findByPk(row.id, { transaction, lock: transaction.LOCK.UPDATE });
 		if (body.version !== (current?.version || 0)) {
 			siteProblem(409, 'membership_site_version_conflict');
+		}
+		if (body.displayTitle === undefined && row.data?.displayTitle !== undefined) {
+			body = {...body, displayTitle: row.data.displayTitle};
 		}
 		const brandingChanged = JSON.stringify(publicBrand(row.data)) !== JSON.stringify(publicBrand(body));
 		await row.update({ postsEnabled: body.postsEnabled, data: {...publicBrand(body), ...(row.data?.publication ? {publication: row.data.publication} : {})} }, { transaction });
@@ -50,7 +54,7 @@ export default function siteSettings(app, M, group, owner, publicBrand, invalida
 		async saveSiteSettings(userId, id, body) {
 			await owner(userId, id);
 			validate(body);
-			if (Object.keys(body).some(key => !['version', 'enabled', 'googleClientId', 'registrationEnabled', 'postsEnabled', 'coverUrl', 'avatarUrl', 'links', 'patreonUrl', 'legalLinks'].includes(key))) {
+			if (Object.keys(body).some(key => !['version', 'enabled', 'googleClientId', 'registrationEnabled', 'postsEnabled', 'displayTitle', 'coverUrl', 'avatarUrl', 'links', 'patreonUrl', 'legalLinks'].includes(key))) {
 				siteProblem(400, 'membership_site_invalid');
 			}
 			return sequelize.transaction(async transaction => {

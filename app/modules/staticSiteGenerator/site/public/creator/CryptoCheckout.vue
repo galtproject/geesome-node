@@ -5,7 +5,7 @@ import {accessPeriodLabel} from './api.ts';
 import {cryptoStatusText, paymentAmount} from './crypto.ts';
 import PaymentLoading from './PaymentLoading.vue';
 import CryptoHelp from './CryptoHelp.vue';
-const props = withDefaults(defineProps<CheckoutProps>(), {methods: () => [], resume: null});
+const props = withDefaults(defineProps<CheckoutProps & {polished?: boolean}>(), {methods: () => [], resume: null});
 const emit = defineEmits<{paid: []; back: []}>();
 const {invoice, currency, asset, busy, previousQr, creating, error, notice, detailsElement, reservedHeight,
     networks, currencies, remaining, chosen, networkLabel, qr, selectCurrency, selectAsset, refresh, create, copy} = useCryptoCheckout(props, () => emit('paid'));
@@ -29,7 +29,7 @@ function changeNetwork(event: Event) {
     <div class="crypto-checkout" data-testid="crypto-checkout">
         <div class="crypto-checkout-header" data-testid="crypto-checkout-header">
             <button type="button" class="crypto-back" data-testid="crypto-back" @click="emit('back')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Payment methods</button>
-            <div class="crypto-value-banner" data-testid="crypto-value-banner"><span class="crypto-value-icon" aria-hidden="true">↘</span><div><strong>Less than Patreon. More value here.</strong><p>Get your membership for less when you buy directly on this site.</p></div></div>
+            <div class="crypto-value-banner" data-testid="crypto-value-banner"><span class="crypto-value-icon" aria-hidden="true">↘</span><div><strong>{{ props.polished ? 'Lower membership price with crypto' : 'Less than Patreon. More value here.' }}</strong><p>{{ props.polished ? 'Join directly on this site for less than Patreon. Network fees may apply.' : 'Get your membership for less when you buy directly on this site.' }}</p></div></div>
         </div>
         <div class="crypto-payment">
             <h3>Pay with cryptocurrency</h3>

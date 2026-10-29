@@ -45,6 +45,7 @@ export default function (app, module) {
 	* @apiBody {Boolean} enabled Allow browser access.
 	* @apiBody {Boolean} registrationEnabled Allow reader registration.
 	* @apiBody {Boolean} postsEnabled Allow public preview feed.
+	* @apiBody {String} [displayTitle] Public creator name (1–200 characters); independent of the private group title. Omission preserves the existing value.
 	* @apiBody {String} [coverUrl] Cover URL.
 	* @apiBody {String} [avatarUrl] Avatar URL.
 	* @apiBody {Object[]} [links] Public links with label, url and optional iconUrl (/ipfs/CID of an uploaded image).

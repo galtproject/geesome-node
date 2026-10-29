@@ -3,6 +3,7 @@ import {computed} from 'vue';
 import PostCard from './PostCard.vue';
 import AccountPanel from './AccountPanel.vue';
 import SocialLinks from './SocialLinks.vue';
+import MembershipChoice from './MembershipChoice.vue';
 import PreviewGallery from './PreviewGallery.vue';
 import MembershipModal from './MembershipModal.vue';
 import MembershipPlans from './MembershipPlans.vue';
@@ -17,6 +18,7 @@ const {resource, posts, nextOffset, account, checked, busy, error, modal, galler
     resourceId, active, expired, activeUntil, enabled, accountPath, publicPath,
     closeModal, login, loginModal, checkout, logout, more, showGallery, sharePost,
     requestRefund, submitRefund, resumePayment, backToPlans, refreshAccess, openAccount} = useMembershipSession(props.initialState);
+const polished = computed(() => Boolean(props.initialState.snapshot.canonicalPath));
 const navigation = computed(() => props.initialState.snapshot.navigation);
 const single = computed(() => props.initialState.path.startsWith('/posts/'));
 const selected = computed(() => options.value.find(option => option.id === selectedOption.value) || options.value[0] || {});
@@ -36,7 +38,7 @@ function join() {
 }
 </script>
 <template>
-    <div :class="['membership-site', resourceId === 'meat' ? 'theme-meat' : 'theme-wave', !enabled ? 'links-only' : '']">
+    <div :class="['membership-site', resourceId === 'meat' ? 'theme-meat' : 'theme-wave', !enabled ? 'links-only' : '', polished ? 'creator-polished' : '']">
         <header class="member-nav">
             <a :href="publicPath('/')" class="brand">{{ resource.title || 'Era Of Wave' }}</a>
             <template v-if="enabled"><a v-if="account" :href="publicPath('/account/subscription')" data-testid="account-link">My account</a><button v-else type="button" data-testid="reader-login" @click="loginModal()">Sign in</button></template>
@@ -45,17 +47,21 @@ function join() {
         <section class="creator-profile">
             <img v-if="resource.avatarUrl" class="creator-avatar" :src="resource.avatarUrl" :alt="`${resource.title} avatar`">
             <div><h1>{{ resource.title }}</h1><p>{{ resource.description }}</p></div>
-            <button v-if="enabled" type="button" class="primary" data-testid="join-membership" @click="join">{{ joinLabel }}</button>
+            <button v-if="enabled && !polished" type="button" class="primary" data-testid="join-membership" @click="join">{{ joinLabel }}</button>
         </section>
         <div v-if="error && !modal" class="error-banner" role="alert">{{ error }}<button type="button" @click="refreshAccess">Retry</button></div>
         <main class="member-layout">
-            <SocialLinks :resource="resource" />
+            <aside v-if="polished" class="creator-sidebar">
+                <MembershipChoice v-if="enabled" :resource="resource" :active="active" :expired="expired" :active-until="activeUntil" :busy="busy" @join="join" />
+                <SocialLinks :polished="polished" :resource="resource" />
+            </aside>
+            <SocialLinks v-else :resource="resource" />
             <div v-if="enabled || accountPath" class="member-feed">
                 <AccountPanel v-if="accountPath" :checked="checked" :account="account" :active="active" :active-until="activeUntil" :enabled="enabled" @login="loginModal()" @checkout="checkout" @refund="requestRefund" @resume="resumePayment" @logout="logout" />
                 <template v-else>
                     <a v-if="single" :href="publicPath('/')" class="back-link">← All posts</a>
                     <h2 v-else class="feed-heading">{{ navigation?.newer ? 'Archive' : 'Latest posts' }}</h2>
-                    <PostCard v-for="post in posts" :key="post.id" :post="post" :single="single" :post-url="publicPath(`/posts/${encodeURIComponent(post.id)}`)" :checked="checked" :expired="expired" @gallery="showGallery" @share="sharePost" @checkout="checkout" />
+                    <PostCard :polished="polished" :domain="resource.domain" v-for="post in posts" :key="post.id" :post="post" :single="single" :post-url="publicPath(`/posts/${encodeURIComponent(post.id)}`)" :checked="checked" :expired="expired" @gallery="showGallery" @share="sharePost" @checkout="checkout" />
                     <section v-if="!posts.length" class="account-panel"><h2>New work is on the way</h2><p>Find the latest updates through the links above.</p></section>
                     <nav v-if="navigation && !single" class="creator-pagination" aria-label="Post pages">
                         <a v-if="navigation.newer" :href="navigation.newer" data-testid="newer-posts">← Newer posts</a>
@@ -74,8 +80,8 @@ function join() {
         <MembershipModal v-if="modal" :name="modal" :direct="paymentMethod === 'direct'" :error="error" @close="closeModal">
             <PreviewGallery v-if="modal === 'gallery'" v-model:index="imageIndex" :images="gallery" />
             <template v-else-if="modal === 'login'">
-                <h2 id="membership-dialog-title">Sign in or create an account</h2>
-                <p>Continue with Google to manage your membership.</p>
+                <h2 id="membership-dialog-title">{{ polished ? 'Sign in to join this site' : 'Sign in or create an account' }}</h2>
+                <p>{{ polished ? 'Continue with Google to manage your membership on this site.' : 'Continue with Google to manage your membership.' }}</p>
                 <div id="membership-google"></div>
                 <button v-if="resource.e2eMockAuth" type="button" :disabled="busy" data-testid="google-mock-login" @click="login('e2e-reader')">Continue with Google</button>
             </template>
@@ -87,9 +93,9 @@ function join() {
             </template>
             <template v-else-if="paymentMethod === 'direct'">
                 <h2 id="membership-dialog-title">Direct crypto payment</h2>
-                <CryptoCheckout :resource="resourceId" :option="selected" :methods="cryptoMethods" :resume="cryptoResume" @back="backToPlans" @paid="refreshAccess" />
+                <CryptoCheckout :polished="polished" :resource="resourceId" :option="selected" :methods="cryptoMethods" :resume="cryptoResume" @back="backToPlans" @paid="refreshAccess" />
             </template>
-            <MembershipPlans v-else v-model="selectedOption" :title="resource.title" :options="options" :direct-ready="cryptoMethods.some(method => method.available)" :busy="busy" @continue="paymentMethod = 'direct'" />
+            <MembershipPlans v-else :polished="polished" v-model="selectedOption" :title="resource.title" :options="options" :direct-ready="cryptoMethods.some(method => method.available)" :busy="busy" @continue="paymentMethod = 'direct'" />
         </MembershipModal>
     </div>
 </template>

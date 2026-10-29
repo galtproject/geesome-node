@@ -6,7 +6,7 @@ type SnapshotPost = {
 	id?: string | number; date?: number; title?: string; teaser?: string; fullText?: string;
 	free?: boolean; postUrl?: string; media: SnapshotMedia[];
 };
-type SnapshotSite = {brand?: any; description?: string; resourceId?: string; options?: any[]; title: string; homeUrl?: string; entryPath?: string; postsCount?: number; pageUrls?: string[]; relativeRoot?: string; navigation?: {newer?: string; older?: string; home: string}; canonicalPath?: string};
+type SnapshotSite = {brand?: any; domain?: string; description?: string; resourceId?: string; options?: any[]; title: string; homeUrl?: string; entryPath?: string; postsCount?: number; pageUrls?: string[]; relativeRoot?: string; navigation?: {newer?: string; older?: string; home: string}; canonicalPath?: string};
 
 // The shared renderer receives only the selected variant. Never serialize the
 // original snapshot object with both public and full content into site-data.
@@ -18,7 +18,7 @@ export function membershipRenderData(site: SnapshotSite, posts: SnapshotPost[], 
 	const nextPage = !single && !site.navigation ? site.pageUrls?.[page] || null : null;
 	const relativeRoot = site.relativeRoot || (single ? '../' : './');
 	const creator = {
-		resource: {id: site.resourceId || 'wave', title: site.title, postsEnabled: true, ...branding, options},
+		resource: {id: site.resourceId || 'wave', domain: site.domain, title: site.brand?.displayTitle || site.title, postsEnabled: true, ...branding, options},
 		posts: posts.map(post => ({id: post.id, title: post.title, description: full || post.free ? post.fullText : post.teaser,
 			publishedAt: post.date ? new Date(post.date).toISOString() : null, free: post.free === true, locked: !full && !post.free,
 			previews: post.media.filter(media => media.mime.startsWith('image/')).map(media => ({url: media.url, alt: media.name})),
