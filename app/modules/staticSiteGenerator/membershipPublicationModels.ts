@@ -25,7 +25,14 @@ export default async function definePublicationModels(sequelize) {
   const publication_artifacts = sequelize.define('membership_publication_artifacts', {
     storageId: {type: DataTypes.STRING(200), primaryKey: true}
   }, {tableName: 'membership_publication_artifacts'});
+  const publication_staging = sequelize.define('membership_publication_staging', {
+    path: {type: DataTypes.STRING(200), primaryKey: true},
+    jobId: {type: DataTypes.UUID, allowNull: false},
+    leaseToken: {type: DataTypes.UUID, allowNull: false},
+    nextSweepAt: {type: DataTypes.DATE, allowNull: false}
+  }, {tableName: 'membership_publication_staging', indexes: [{fields: ['nextSweepAt', 'path']}, {fields: ['jobId', 'leaseToken']}]});
+  await publication_staging.sync({});
   await publications.sync({});
   await publication_artifacts.sync({});
-  return {publications, publication_artifacts};
+  return {publications, publication_artifacts, publication_staging};
 }
