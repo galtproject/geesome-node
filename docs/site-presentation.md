@@ -48,9 +48,9 @@ are not presentation fields.
 
 All sections except `schemaVersion` are optional and receive neutral defaults.
 The exact manifest and default values are defined by
-`app/modules/staticSiteGenerator/site/presentation.ts`. Only creator renderer
-version 1 is installed: the template identifier is an allowlist, not an import
-path. A template/schema version that is not supported fails closed.
+`app/modules/staticSiteGenerator/site/presentation.ts`. The default is creator/1. The optional html-shell/1 renderer accepts a
+restricted owner HTML fragment in template.html; see [HTML shell](html-shell.md)
+and examples/creator-shell.html. Identifiers are an allowlist, not import paths. A template/schema version that is not supported fails closed.
 
 ## Allowed configuration
 
@@ -76,7 +76,8 @@ path. A template/schema version that is not supported fails closed.
 
 Unknown keys, repeated/unknown blocks, unsupported enum values, style strings,
 event handlers, component URLs, scripts and forged payment fields are rejected.
-An arbitrary declaration is not fetched or executed. Assets must already be
+The html-shell/1 exception permits only the documented validated HTML grammar,
+not arbitrary executable templates. An arbitrary declaration is not fetched or executed. Assets must already be
 published via the authenticated content API. No network asset download is added.
 
 The same normalizer validates optional `StaticSite.options.presentation` for
@@ -121,6 +122,6 @@ There are no resource-name theme switches or built-in promotional claims.
 ## Deferred work
 
 The block editor and preview UI are explicitly backlog. Current configuration is
-through the versioned settings API or a producer preset. Arbitrary HTML/CSS/Vue/JS
-renderers, plugin execution, manifest CID import/export and additional template
-versions are separate work, not implicitly enabled by this schema.
+through the versioned settings API or a producer preset. Arbitrary HTML/CSS/Vue/JS renderers, plugin execution and manifest CID
+import/export remain separate work. Restricted html-shell/1 source editing is
+available through the settings API; see [HTML shell](html-shell.md).

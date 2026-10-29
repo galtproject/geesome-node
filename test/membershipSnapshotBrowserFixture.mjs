@@ -180,7 +180,7 @@ for (const variant of ['no-patreon','unavailable','links-only']) {
     await fs.writeFile(path.join(root,'paged',`${variant}.html`),await prepared.renderPage('/',[]));
 }
 
-for (const variant of ['custom-presentation','neutral-presentation']) {
+for (const variant of ['custom-presentation','neutral-presentation','html-shell']) {
     const data=structuredClone(socialState);
     data.creator.resource.title='Independent creator';
     if (variant==='neutral-presentation') {
@@ -190,13 +190,17 @@ for (const variant of ['custom-presentation','neutral-presentation']) {
     } else {
         data.creator.resource.presentation={schemaVersion:1,theme:{accent:'#007d62',background:'#f3f4f5',surface:'#ffffff',text:'#14242c',muted:'#52646c',border:'#ccd4d8',radius:'square',density:'compact'},layout:{columns:'single',header:['account','brand'],profile:['profile'],sidebar:['social-links','membership'],footer:['home']},copy:{feedHeading:'Owner-selected heading',socialHeading:'My links'},membership:{ribbon:['Custom claim'],external:{label:'Another membership service',url:'https://membership.example.com',accent:'#ffcc00'},benefits:[{title:'<script>alert(1)</script>',text:'Literal text, not a template'}]}};
     }
+    if (variant==='html-shell') {
+        data.creator.resource.e2eMockAuth=true;
+        data.creator.resource.presentation={schemaVersion:1,template:{id:'html-shell',version:1,html:await fs.readFile(new URL('../examples/creator-shell.html',import.meta.url),'utf8')+'<p>Owner shell · {{site.title}}</p>'}};
+    }
     const prepared=await renderer.prepareRender(data);
     const dir=path.join(root,variant);
     await fs.mkdir(dir,{recursive:true});
     await fs.writeFile(path.join(dir,'style.css'),prepared.css);
     await fs.writeFile(path.join(dir,'index.html'),await prepared.renderPage('/',[]));
 }
-for (const variant of ['custom-presentation','neutral-presentation']) {
+for (const variant of ['custom-presentation','neutral-presentation','html-shell']) {
     await fs.cp(path.join(root,'paged/public'),path.join(root,variant,'public'),{recursive:true});
     await fs.cp(path.join(root,'paged/media'),path.join(root,variant,'media'),{recursive:true});
 }

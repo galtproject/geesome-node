@@ -1,7 +1,9 @@
+import {parseHtmlShell} from './htmlShell.js';
+
 // This manifest is data for a closed renderer, never a component/CSS/script source.
 export interface SitePresentation {
     schemaVersion: 1;
-    template: {id: 'creator'; version: 1};
+    template: {id: 'creator'; version: 1} | {id: 'html-shell'; version: 1; html: string};
     theme: {accent: string; background: string; surface: string; text: string; muted: string; border: string; accentBorder: string; accentSurface: string; accentText: string; badgeBackground: string; badgeText: string; radius: 'rounded' | 'square'; density: 'comfortable' | 'compact'; previewSize: 'standard' | 'compact' | 'large'};
     layout: {columns: 'sidebar' | 'single'; header: string[]; profile: string[]; sidebar: string[]; main: string[]; footer: string[]};
     copy: {join: string; subscribe: string; socialHeading: string; feedHeading: string; archiveHeading: string};
@@ -74,10 +76,16 @@ export function normalizeSitePresentation(value?: unknown): SitePresentation {
         invalid();
     }
     if (input.template!==undefined) {
-        const template = object(input.template,['id','version']);
-        if (template.id!=='creator' || template.version!==1) {
+        const template = object(input.template,['id','version','html']);
+        if (!['creator','html-shell'].includes(template.id) || template.version!==1) {
             invalid();
         }
+    }
+    if (input.template?.id === 'html-shell') {
+        parseHtmlShell(input.template.html);
+        result.template={id:'html-shell',version:1,html:input.template.html.trim()};
+    } else if (input.template?.html !== undefined) {
+        invalid();
     }
     if (input.theme!==undefined) {
         const theme = object(input.theme,Object.keys(defaults.theme));

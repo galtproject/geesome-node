@@ -811,3 +811,28 @@ Verification: 45 PostgreSQL/HTTP/Kubo and 56 payment cases, 21 focused
 render/schema/shared-option checks, strict Vue types, 116 full browser captures
 and a final 58-capture focused pass.
 The editor/preview remain explicitly deferred in todo.md.
+
+## Restricted owner HTML shells (#1470)
+
+Owners can save html-shell/1 source in the existing presentation settings while
+creator/1 remains the default. A bounded HTML parser checks permitted structural
+elements, attributes, utility classes, text substitutions and unique trusted
+slots. All source tokens must belong to the checked tree, preventing silent HTML
+repairs. The renderer creates runtime VNodes without compiling owner source or
+inserting raw HTML. App defines trusted blocks once for both layouts; login,
+refund and payment dialogs stay outside the owner subtree.
+
+Public/full projection, source invalidation, file cache keys, atomic publication
+and retained immutable snapshots are preserved. Literal IPFS assets are retained
+without directory traversal. Invalid saves preserve the previous manifest and
+return a structured field/reason. No new table, worker or environment variable.
+See [html-shell.md](html-shell.md), `examples/creator-shell.html`, and
+[the implementation plan](plans/html-shell.md). Block editor and preview remain
+explicitly deferred.
+
+Verification: 50 PostgreSQL/HTTP/Kubo cases, 56 payment cases, 25 focused
+presentation/render/shared-option cases, strict Vue types and 122 browser
+captures across desktop/narrow JS/no-JS, including trusted crypto checkout from
+an owner shell. Existing strict legacy pixel parity passed. API docs, security
+route and database scalability inventory checks passed. No production deployment
+or rebuild was triggered.

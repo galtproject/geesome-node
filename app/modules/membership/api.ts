@@ -14,7 +14,7 @@ export default function (app, module) {
 	* @apiBody {Boolean} enabled Enable browser access for this binding.
 	* @apiBody {Boolean} registrationEnabled Allow creation of private readers.
 	* @apiBody {Boolean} postsEnabled Enable public preview feed.
-	* @apiBody {Object} [presentation] Declarative creator/1 presentation; same schema as mutable site settings. No CSS/scripts/templates.
+	* @apiBody {Object} [presentation] Versioned presentation; creator/1 or restricted html-shell/1 with template.html. Same schema as mutable site settings; no arbitrary CSS/scripts or executable templates.
 	* @apiSuccess {Object} result Persisted site settings including incremented version.
 	* @apiError (403) not_permitted AdminMembershipSites on account and active key required; delegated credentials also require UserGroupManagement and own group.
 	* @apiError (409) membership_site_binding_changed Resource identity is immutable.
@@ -46,7 +46,7 @@ export default function (app, module) {
 	* @apiBody {Boolean} enabled Allow browser access.
 	* @apiBody {Boolean} registrationEnabled Allow reader registration.
 	* @apiBody {Boolean} postsEnabled Allow public preview feed.
-	* @apiBody {Object} [presentation] Versioned declarative presentation manifest (schemaVersion=1, template creator/1). Accepts only documented block IDs, hex color tokens and bounded text; no executable templates, CSS or scripts. Omission preserves the existing manifest.
+	* @apiBody {Object} [presentation] Versioned presentation manifest (schemaVersion=1, template creator/1 or html-shell/1). html-shell/1 requires template.html with validated structural HTML, fixed utility classes and unique trusted slots. Only documented tokens and placeholders; no executable templates, arbitrary CSS or scripts. Omission preserves the existing manifest.
 	* @apiBody {String} [displayTitle] Public creator name (1–200 characters); independent of the private group title. Omission preserves the existing value.
 	* @apiBody {String} [coverUrl] Cover URL.
 	* @apiBody {String} [avatarUrl] Avatar URL.
@@ -55,7 +55,7 @@ export default function (app, module) {
 	* @apiBody {Object[]} [legalLinks] Public legal links.
 	* @apiSuccess {Object} result Settings with incremented version; applies without restart.
 	* @apiError (403) owner_required Group creator and UserGroupManagement required.
-	* @apiError (400) membership_presentation_invalid Unsupported or unsafe presentation manifest.
+	* @apiError (400) membership_presentation_invalid Unsupported or unsafe presentation manifest; HTML-shell errors include field=presentation.template.html and a bounded reason code.
 	* @apiError (409) membership_site_version_conflict Stale settings version.
 	*/
 	app.ms.api.onAuthorizedPost('membership/admin/:resource/site', creatorSiteEndpoint(async (req, res) => {

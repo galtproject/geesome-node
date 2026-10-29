@@ -538,7 +538,8 @@ Remaining work follows the [audited migration plan](plans/creator-membership-mig
 ## Site presentation editor and preview (deferred)
 
 Explicitly deferred by the user while delivering the owner-defined presentation
-manifest (#1468). API configuration and producer presets are the first stage.
+manifest (#1468). API configuration, producer presets and restricted HTML-shell
+source editing (#1470) are delivered; visual editing and draft preview remain backlog.
 
 - Build a form/block-order editor against the existing versioned settings API and
   the closed presentation schema; expose validation errors and preserve unknown

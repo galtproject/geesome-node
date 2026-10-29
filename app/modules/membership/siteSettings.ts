@@ -1,3 +1,5 @@
+import {HtmlShellValidationError} from '../staticSiteGenerator/site/htmlShell.js';
+import {ApiProblemError} from '../api/problem.js';
 import {normalizeSitePresentation} from '../staticSiteGenerator/site/presentation.js';
 import { randomUUID } from 'node:crypto';
 import { CorePermissionName } from '../database/interface.js';
@@ -8,7 +10,12 @@ export default function siteSettings(app, M, group, owner, publicBrand, invalida
 	function validate(body) {
         if (body?.presentation !== undefined) {
             try { body.presentation = normalizeSitePresentation(body.presentation); }
-            catch { siteProblem(400, 'membership_presentation_invalid'); }
+            catch (error) {
+                if (error instanceof HtmlShellValidationError) {
+                    throw new ApiProblemError(400,'membership_presentation_invalid','Invalid HTML shell',`Invalid HTML shell: ${error.reason}`,{field:'presentation.template.html',reason:error.reason});
+                }
+                siteProblem(400, 'membership_presentation_invalid');
+            }
         }
 		if (!body || !Number.isSafeInteger(body.version) || body.version < 0
 			|| typeof body.enabled !== 'boolean' || typeof body.registrationEnabled !== 'boolean'
