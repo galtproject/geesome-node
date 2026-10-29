@@ -262,6 +262,29 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		// The process and service objects have not been restarted or reconfigured.
 		assert.equal((await membership.resolveSite('eraofwave.com')).version, 6);
 	});
+	it('persists owner presentation, preserves omissions and rejects unsafe or stale writes', async () => {
+        const route='membership/admin/wave/site';
+        const current=(await request(route,{token:'test-owner'})).body;
+        const {id,origin,groupId,ownerId,...settings}=current;
+        const presentation={schemaVersion:1,template:{id:'html-shell',version:1,html:readFileSync(new URL('../examples/creator-shell.html',import.meta.url),'utf8')},theme:{accent:'#123456'},layout:{columns:'single'},membership:{ribbon:['Owner claim']}};
+        const denied=await request(route,{token:'test-other-owner',body:{...settings,presentation}});
+        assert.equal(denied.status,403);
+        assert.equal((await request(route,{token:'test-owner',body:{...settings,presentation:{schemaVersion:1,script:'x'}}})).status,400);
+        const saved=await request(route,{token:'test-owner',body:{...settings,presentation}});
+        assert.equal(saved.status,200);
+        assert.equal(saved.body.presentation.theme.accent,'#123456');
+        assert.equal(saved.body.presentation.template.id,'html-shell');
+        const rejected=await request(route,{token:'test-owner',body:{...settings,version:saved.body.version,presentation:{...presentation,template:{...presentation.template,html:presentation.template.html+'<script>alert(1)</script>'}}}});
+        assert.equal(rejected.status,400);
+        assert.equal(rejected.body.field,'presentation.template.html');
+        assert.equal(rejected.body.reason,'tag_or_nesting_not_allowed');
+        assert.deepEqual((await request(route,{token:'test-owner'})).body.presentation,saved.body.presentation);
+        assert.equal((await request(route,{token:'test-owner',body:{...settings,presentation}})).status,409);
+        const omitted=await request(route,{token:'test-owner',body:{...settings,version:saved.body.version}});
+        assert.equal(omitted.status,200);
+        assert.deepEqual(omitted.body.presentation,saved.body.presentation);
+        assert.deepEqual((await request('membership/resource')).body.presentation,saved.body.presentation);
+    });
 	it('delegates provisioning to account and key scopes without granting full administration or foreign groups', async () => {
 		const group = await models.Group.create({ name: 'delegated', creatorId: delegated.id, title: 'Delegated', isPublic: false, isEncrypted: false, isOpen: false });
 		const input = { id: 'delegated', origin: 'https://delegated.test', groupId: String(group.id), ownerId: delegated.id,
@@ -550,6 +573,23 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		const {displayTitle: _displayTitle, id: _id, origin: _origin, groupId: _groupId, ownerId: _ownerId, ...legacySettings} = currentSettings;
 		await membership.saveSiteSettings(owner.id, 'snapshots', legacySettings);
 		assert.equal((await membership.siteSettings(owner.id, 'snapshots')).displayTitle, 'Public creator name', 'old clients preserve the optional public title');
+        const forPresentation=await membership.siteSettings(owner.id,'snapshots');
+        const beforePresentation=(await membershipModels.resources.findByPk('snapshots')).data.publication;
+        const {id: _pi,origin: _po,groupId: _pg,ownerId: _pu,...presentationSettings}=forPresentation;
+        const shellAsset=(await put('Owner shell image asset')).id;
+        const ownerShell=readFileSync(new URL('../examples/creator-shell.html',import.meta.url),'utf8')+`<p>Owner shell publication</p><img src="/ipfs/${shellAsset}" alt="Owner artwork">`;
+        await membership.saveSiteSettings(owner.id,'snapshots',{...presentationSettings,presentation:{schemaVersion:1,template:{id:'html-shell',version:1,html:ownerShell},theme:{accent:'#123456'}}});
+        const withPresentation=(await membershipModels.resources.findByPk('snapshots')).data.publication;
+        assert.equal(withPresentation.publicationId,beforePresentation.publicationId);
+        assert.equal(withPresentation.sourceVersion,beforePresentation.sourceVersion+1);
+        await membership.runPublications();
+        const shellSelection=await get('membership/site/');
+        const shellHtml=(await request(new URL(shellSelection.headers.get('location')).pathname)).body;
+        assert(shellHtml.includes('data-testid="html-shell"'));
+        assert(shellHtml.includes('Owner shell publication'));
+        assert(!shellHtml.includes('<geesome-slot'));
+        assert(await membershipModels.publication_artifacts.findByPk(shellAsset),'literal owner assets are retained without traversing directories');
+
 		const month = await membershipModels.options.findOne({where:{resourceId:'snapshots',period:'month'}});
 		const beforeTariff = (await membership.resource('snapshots')).data.publication;
 		await membership.saveOption('snapshots',{id:month.id,version:month.version,label:month.label,period:month.period,amountCents:500,enabled:true});

@@ -7,6 +7,25 @@ import {readFileSync} from 'node:fs';
 const membershipClient = readFileSync(new URL('../app/modules/staticSiteGenerator/site/public/membership.js', import.meta.url), 'utf8');
 describe('membership snapshots using shared site templates', function () {
 	this.timeout(15000);
+    it('renders editable HTML shells with trusted public/full slots and escaped owner text', async () => {
+        const source=readFileSync(new URL('../examples/creator-shell.html',import.meta.url),'utf8')+'<p>{{site.title}} {{site.description}}</p>';
+        const site={title:'<script>bad()</script>',description:'{{constructor.constructor("alert(1)")()}}',brand:{presentation:{schemaVersion:1,template:{id:'html-shell',version:1,html:source}}}};
+        const post={id:'shell',title:'Post',teaser:'PUBLIC-SHELL',fullText:'PRIVATE-SHELL',free:false,media:[],postUrl:'posts/shell/'};
+        for (const full of [false,true]) {
+            const html=await renderSnapshot(site,[post],full);
+            assert(html.includes('data-testid="html-shell"'));
+            assert(html.includes('shell-sidebar-left'));
+            assert(html.includes('data-testid="post-shell"'));
+            assert(html.includes(full ? 'PRIVATE-SHELL' : 'PUBLIC-SHELL'));
+            if (!full) {
+                assert(!html.includes('PRIVATE-SHELL'));
+            }
+            assert(!html.includes('<script>bad()'));
+            assert(html.includes('&lt;script&gt;bad()'));
+            assert(html.includes('{{constructor.constructor('));
+            assert(!html.includes('<geesome-slot'), 'slot source must never reach the DOM');
+        }
+    });
 	it('exports only public text and explicit preview files without private links or embedded source objects', async () => {
 		const post = {id: '1', title: '<script>bad()</script>', teaser: 'PUBLIC', fullText: 'PRIVATE', free: false,
 			media: [{url: 'media/preview', mime: 'image/webp', name: '"><script>bad()</script>'}],
@@ -25,9 +44,19 @@ describe('membership snapshots using shared site templates', function () {
 		assert(!Object.hasOwn(data.creator.posts[0], 'secret'));
 		assert(!Object.hasOwn(data.creator.posts[0], 'fullText'));
 		assert(!JSON.stringify(data.creator).includes('PRIVATE'));
-		assert(html.includes('class="membership-site theme-wave'));
+		assert(html.includes('class="membership-site'));
+        assert(!html.includes('theme-wave'));
+        assert(!html.includes('Era Of Wave'));
 		assert(html.includes('data-testid="subscribe-post"'));
 	});
+    it('escapes presentation copy as text and never treats it as a template or script', async()=>{
+        const copy='</script><script>alert(1)</script>';
+        const html=await renderSnapshot({title:'Independent',brand:{presentation:{schemaVersion:1,copy:{feedHeading:copy}}}},[],false);
+        assert(!html.includes(copy));
+        assert(html.includes('&lt;/script&gt;&lt;script&gt;alert(1)&lt;/script&gt;'));
+        const data=JSON.parse(html.match(/<script id="site-data"[^>]*>([\s\S]*?)<\/script>/)[1]);
+        assert.equal(data.creator.resource.presentation.copy.feedHeading,copy);
+    });
 	it('keeps directory-relative post and page links so a known snapshot never asks for newer content', async () => {
 		const html = await renderSnapshot({title: 'Creator', homeUrl: 'index.html', pageUrls: ['index.html', 'page-2.html']},
 			[{id: '1', title: 'Post', teaser: 'Public', fullText: 'Full', free: false, media: [], postUrl: 'posts/1.html'}], true, false, 1, 2);

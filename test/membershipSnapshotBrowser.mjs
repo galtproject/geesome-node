@@ -231,9 +231,14 @@ try {
             let membershipAccount = {reader:null,active:false,invoices:[],refunds:[]};
             await page.route('**/api/**', route=>route.fulfill({contentType:'application/json',body:JSON.stringify(membershipAccount)}));
             const capture = async(name,description)=>{
-                await page.locator('img').evaluateAll(images=>Promise.all(images.map(image=>image.decode().catch(()=>{}))));
+                await page.locator('img').evaluateAll(images=>Promise.all(images.map(image=>{
+                    // Lazy images outside a custom layout's viewport may never start loading.
+                    image.loading='eager';
+                    return Promise.race([image.decode().catch(()=>{}),new Promise((_resolve,reject)=>setTimeout(()=>reject(Error('Image decode timed out: '+image.getAttribute('src'))),10000))]);
+                })));
                 assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
                 assert.equal(await page.locator('img:visible').evaluateAll(images=>images.some(image=>!image.naturalWidth)),false);
+                assert.equal(await page.locator('.preview-image-state.image-error').count(),0,'No failed preview is hidden behind an error placeholder');
                 if (!javaScriptEnabled) {
                     assert.equal(await page.locator('.preview-image-state .image-status:visible').count(),0);
                 }
@@ -263,8 +268,8 @@ try {
             assert.equal(await page.locator('.creator-profile h1').textContent(),'Archive creator');
             assert.equal(await page.getByTestId('post-51').locator('h2').textContent(),'Feb 20, 2026');
             assert.equal(await page.getByTestId('post-51').locator('.post-copy>time,.post-copy>.post-description').count(),0);
-            assert.equal(await page.getByTestId('join-patreon').count(),1);
-            assert.equal(await page.getByTestId('social-links').locator('.patreon-link').count(),0);
+            assert.equal(await page.getByTestId('join-external').count(),1);
+            assert.equal(await page.getByTestId('social-links').locator('.external-membership-link').count(),0);
             assert.equal(await page.getByTestId('expand-links').count(),0);
             assert.equal(await page.getByTestId('membership-ribbon').count(),1);
             assert((await page.getByTestId('join-membership').textContent()).includes('Join here · $4.00 / 1 month'));
@@ -333,7 +338,7 @@ try {
                     await capture(`social-${count}`,`${count} social links align to three stable columns on the full sidebar width; the seven-link case retains a long custom label and a square custom image.`);
                     assert.equal(await block.locator('.full-links').count(),0);
                     assert.equal(await page.getByTestId('expand-links').count(),0);
-                    assert.equal(await page.getByTestId('join-patreon').count(),1);
+                    assert.equal(await page.getByTestId('join-external').count(),1);
                 }
             }
             for (const variant of ['no-patreon','unavailable','links-only']) {
@@ -341,17 +346,45 @@ try {
                 await page.getByTestId(variant==='links-only' ? 'social-links' : 'membership-choice').scrollIntoViewIfNeeded();
                 assert.equal(await page.getByTestId('membership-ribbon').count(),0);
                 if (variant==='no-patreon') {
-                    assert.equal(await page.getByTestId('join-patreon').count(),0);
+                    assert.equal(await page.getByTestId('join-external').count(),0);
                     assert(!(await page.getByTestId('membership-choice').textContent()).includes('than Patreon'));
                 } else if (variant==='links-only') {
                     assert.equal(await page.getByTestId('membership-choice').count(),0);
-                    assert.equal(await page.locator('.patreon-link').count(),1);
+                    assert.equal(await page.locator('.external-membership-link').count(),1);
                     assert.equal(await page.locator('.member-post').count(),0);
                     assert.equal(await page.getByTestId('expand-links').count(),0);
                 } else {
                     assert.equal(await page.getByTestId('join-membership').isDisabled(),true);
                 }
                 await capture(variant,variant==='links-only' ? 'Links-only mode preserves the Patreon destination and all social links without offering direct purchases or displaying posts.' : variant==='no-patreon' ? 'Without a Patreon URL the site offers only direct membership, without a comparison, separator or ribbon.' : 'Explicitly unavailable payment methods disable new site purchases; Patreon remains a working alternative.');
+            }
+            for (const variant of ['custom-presentation','neutral-presentation','html-shell']) {
+                await page.goto(`${origin}/${variant}/`);
+                await page.getByTestId('membership-choice').waitFor();
+                if (variant==='custom-presentation') {
+                    assert.equal(await page.locator('.creator-cover').count(),0);
+                    assert.equal(await page.locator('.site-single.site-square.site-compact').count(),1);
+                    assert.equal(await page.locator('.feed-heading').textContent(),'Owner-selected heading');
+                    assert.equal(await page.getByTestId('join-external').textContent(),'Another membership service↗');
+                    assert.equal(await page.locator('body').evaluate(()=>getComputedStyle(document.documentElement).backgroundColor),'rgb(243, 244, 245)');
+                    assert.equal(await page.locator('.creator-sidebar').evaluate(el=>el.firstElementChild.getAttribute('data-testid')),'social-links');
+                } else if (variant==='html-shell') {
+                    await page.getByTestId('html-shell').waitFor();
+                    assert.equal(await page.locator('geesome-slot').count(),0);
+                    assert((await page.getByTestId('html-shell').innerText()).includes('Owner shell · Independent creator'));
+                    assert.equal(await page.getByTestId('older-posts').count(),1);
+                    if (javaScriptEnabled) {
+                        await page.getByTestId('reader-login').click();
+                        await page.locator('.membership-modal').waitFor();
+                        assert.equal(await page.getByTestId('html-shell').locator('.membership-modal').count(),0);
+                        await page.getByTestId('membership-close').click();
+                    }
+                } else {
+                    assert.equal(await page.getByTestId('membership-ribbon').count(),0);
+                    assert.equal(await page.getByTestId('join-external').count(),0);
+                    assert(!/Patreon|Era Of Wave|Site-exclusive/.test(await page.locator('body').innerText()));
+                }
+                await capture(variant,variant==='html-shell' ? 'An owner HTML shell places trusted membership/social blocks left and the public feed/navigation right; login stays outside owner markup. Rendered with and without JavaScript.' : variant==='custom-presentation' ? 'An owner manifest changes colors, square corners, density, sidebar order and single-column layout without code, with a separately named external offer.' : 'A site with no presentation manifest uses neutral defaults and no brand-specific promotions or external subscription.');
             }
             await page.goto(`${origin}/paged-full/posts/51/`);
             await page.getByText('PRIVATE 51',{exact:true}).waitFor();
@@ -461,6 +494,17 @@ try {
         assert.equal(await page.getByTestId('crypto-currency-BTC').count(),0);
         assert.equal(assets.length,2,'resumed invoice must not create a replacement quote');
         await captureCheckout('checkout-resume-unavailable','Existing USDC Base invoice keeps its QR and network while unavailable methods are absent from new-payment choices.');
+        await page.getByTestId('membership-close').click();
+        await page.goto(`${origin}/html-shell/`);
+        await page.getByTestId('html-shell').waitFor();
+        await page.getByTestId('account-link').waitFor();
+        await page.getByTestId('join-membership').click();
+        await page.getByTestId('direct-crypto-payment').click();
+        await page.locator('.crypto-qr').waitFor();
+        assert.equal(assets.at(-1),'usdt-ethereum');
+        assert.equal(await page.getByTestId('html-shell').locator('.membership-modal').count(),0);
+        assert((await page.getByTestId('crypto-address').textContent()).includes('0x1111111111111111111111111111111111111111'));
+        await captureCheckout('html-shell-crypto','An editable HTML shell retains the trusted checkout outside owner markup, with server invoice address, QR and the USDT Ethereum default.');
         await page.close();
     }
     const compare = await browser.newPage();
