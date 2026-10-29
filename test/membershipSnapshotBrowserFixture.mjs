@@ -26,7 +26,7 @@ const { createSSRApp } = frontendRequire('vue');
 const { renderToString } = frontendRequire('@vue/server-renderer');
 const bundle = await buildBrowserClient();
 const iconCid = name => CID.createV1(0x55,digest(0x12,createHash('sha256').update(name).digest())).toString();
-const withIcons = links => links.map(link => ({...link, iconUrl: ['Other','Portfolio'].includes(link.label) ? undefined : '/ipfs/' + iconCid(link.label === 'X' ? 'twitter' : link.label === 'Ko-fi' ? 'kofi' : link.label.toLowerCase())}));
+const withIcons = links => links.map(link => ({...link, iconUrl: ['Other','Portfolio'].includes(link.label) ? undefined : '/ipfs/' + iconCid(({'x.com':'twitter','ko-fi.com':'kofi','discord.gg':'discord','bsky.app':'bluesky','t.me':'telegram'})[link.label] || (link.label === 'X' ? 'twitter' : link.label === 'Ko-fi' ? 'kofi' : link.label.toLowerCase()))}));
 await fs.mkdir(path.join(root, 'ipfs'), {recursive: true});
 for (const name of ['twitter', 'discord', 'telegram', 'kofi', 'bluesky', 'patreon']) {
     await fs.copyFile(`../microwave-girls/public/assets/${name}.${['bluesky','patreon'].includes(name) ? 'svg' : 'png'}`, path.join(root, 'ipfs', iconCid(name)));
@@ -136,7 +136,7 @@ assert(!/theme-meat|theme-wave|Era Of Wave/.test(await fs.readFile('app/modules/
         copyFileFromId:async(cid,target)=>{const parts=target.split('/');directories.get('/'+parts[1]).set(parts.slice(2).join('/'),cid);},
         getDirectoryId:async path=>(await put(JSON.stringify([...directories.get(path)]))).id
     }}};
-    const publicationResource={id:'wave',groupId:'1',domain:'creator.test',data:{displayTitle:'Archive creator',coverUrl:'/public/media/cover.png',avatarUrl:'/public/media/avatar.jpg',patreonUrl:'https://patreon.com/example',links:withIcons([{label:'Patreon',url:'https://patreon.com/example'},{label:'Ko-fi',url:'https://ko-fi.com/example',iconUrl:'/ipfs/'+iconCid('kofi')},{label:'X',url:'https://x.com/example'},{label:'Discord',url:'https://discord.gg/example'},{label:'Bluesky',url:'https://bsky.app/profile/example'},{label:'Telegram',url:'https://t.me/example'},{label:'Portfolio',url:'https://example.com',iconUrl:undefined}])}};
+    const publicationResource={id:'wave',groupId:'1',domain:'creator.test',data:{displayTitle:'Archive creator',coverUrl:'/public/media/cover.png',avatarUrl:'/public/media/avatar.jpg',patreonUrl:'https://patreon.com/example',links:withIcons([{label:'Patreon',url:'https://patreon.com/example'},{label:'ko-fi.com',url:'https://ko-fi.com/example',iconUrl:'/ipfs/'+iconCid('kofi')},{label:'x.com',url:'https://x.com/example'},{label:'discord.gg',url:'https://discord.gg/example'},{label:'bsky.app',url:'https://bsky.app/profile/example'},{label:'t.me',url:'https://t.me/example'},{label:'Portfolio',url:'https://example.com',iconUrl:undefined}])}};
     publicationResource.data.presentation=creatorPresentation(publicationResource,publicationResource.data);
     await buildMembershipSnapshots(app,publicationResource,'Private group members',{
         options:[{id:'monthly',label:'1 month',amountCents:400,currency:'USD',period:'month'},{id:'six',label:'6 months',amountCents:2000,currency:'USD',period:'halfyear'}],description:'',renew:async()=>{},beginDirectory:async variant=>'/pagination-'+variant

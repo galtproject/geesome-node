@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {computed} from 'vue';
 import PreviewImage from './PreviewImage.vue';
+import SharePost from './SharePost.vue';
 import {safeSiteUrl} from './api.ts';
 import {date, postHeading} from './presentation.ts';
 import type {CreatorPost, PreviewMedia} from './types.ts';
@@ -9,7 +10,7 @@ const heading = computed(() => props.polished ? postHeading(props.post.title, pr
 const links = computed(() => (props.post.attachments || []).filter(item => item.mime === 'text/uri-list'));
 const actions = computed(() => links.value.filter(item => item.view === 'link' && safeSiteUrl(item.url)));
 const details = computed(() => (props.post.attachments || []).filter(item => item.mime === 'text/uri-list' ? item.view !== 'link' : props.single));
-const emit = defineEmits<{gallery: [previews: PreviewMedia[], index: number]; share: [id: string | number]; checkout: []}>();
+const emit = defineEmits<{gallery: [previews: PreviewMedia[], index: number]; share: [id: string | number]; checkout: []; notify: [value: {message: string; failed: boolean}]}>();
 </script>
 <template>
     <article :id="props.single ? 'post-full-content' : undefined" class="member-post" :data-testid="`post-${props.post.id}`">
@@ -29,12 +30,13 @@ const emit = defineEmits<{gallery: [previews: PreviewMedia[], index: number]; sh
                 <a v-else class="attachment-link" :href="item.url" target="_blank" rel="noopener noreferrer">{{ item.name || 'Download file' }}</a>
             </template>
             <div class="post-actions">
-                <button type="button" data-testid="share-post" @click="emit('share', props.post.id)">{{ props.polished ? 'Share' : 'Share ↗' }}</button>
+                <SharePost v-if="props.polished" :id="props.post.id" :domain="props.domain" :post-url="props.postUrl" @notify="emit('notify', $event)" />
+                <button v-else type="button" data-testid="share-post" @click="emit('share', props.post.id)">Share ↗</button>
                 <a v-for="(item, index) in actions" :key="index" :href="safeSiteUrl(item.url) || undefined" target="_blank" rel="noopener noreferrer" class="primary" data-testid="content-link">{{ item.name || 'Open link' }} ↗</a>
                 <a v-if="props.post.pageUrl && safeSiteUrl(props.post.pageUrl)" :href="safeSiteUrl(props.post.pageUrl) || undefined" target="_blank" rel="noopener noreferrer" class="primary" data-testid="view-full-set">View full set ↗</a>
                 <button v-else-if="props.post.locked || !links.length" type="button" class="primary" :disabled="!props.checked" data-testid="subscribe-post" @click="emit('checkout')">{{ !props.checked ? 'Checking access…' : props.expired ? 'Renew membership' : props.polished ? props.subscribeLabel || 'Join here to unlock' : 'Subscribe to unlock' }}</button>
             </div>
-            <small v-if="!props.post.pageUrl && (props.post.locked || !links.length)">{{ props.polished ? 'Site membership unlocks full-set links across the archive.' : 'Membership unlocks full-set links across the entire archive.' }}</small>
+            <small v-if="!props.polished && !props.post.pageUrl && (props.post.locked || !links.length)">Membership unlocks full-set links across the entire archive.</small>
         </div>
     </article>
 </template>
