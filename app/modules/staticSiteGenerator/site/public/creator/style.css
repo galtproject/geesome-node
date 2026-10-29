@@ -58,3 +58,4 @@
 .attachment-link{display:block;margin:16px 0;text-decoration:underline;overflow-wrap:anywhere}.member-post video{width:100%;max-height:70vh}
 
 .creator-pagination{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:24px 0}.creator-pagination a{display:inline-block;padding:12px 16px;border:1px solid #63566f;border-radius:10px;text-decoration:none;color:inherit}
+.creator-pagination .older-posts{margin-left:auto}

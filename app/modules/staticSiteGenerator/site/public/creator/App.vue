@@ -59,7 +59,7 @@ function join() {
                     <section v-if="!posts.length" class="account-panel"><h2>New work is on the way</h2><p>Find the latest updates through the links above.</p></section>
                     <nav v-if="navigation && !single" class="creator-pagination" aria-label="Post pages">
                         <a v-if="navigation.newer" :href="navigation.newer" data-testid="newer-posts">← Newer posts</a>
-                        <a v-if="navigation.older" :href="navigation.older" data-testid="older-posts">Older posts →</a>
+                        <a v-if="navigation.older" :href="navigation.older" class="older-posts" data-testid="older-posts">Older posts →</a>
                     </nav>
                     <button v-else-if="!single && nextOffset !== null" type="button" class="load-more" :disabled="busy" data-testid="load-more" @click="more">{{ busy ? 'Loading…' : 'Load more' }}</button>
                 </template>
