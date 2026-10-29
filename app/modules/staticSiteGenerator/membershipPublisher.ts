@@ -3,7 +3,10 @@ import helpers from '../../helpers.js';
 import {randomUUID} from 'node:crypto';
 import {Op} from 'sequelize';
 import {siteProblem} from '../api/browserSession.js';
-import {buildMembershipSnapshots, publicationBuildMetrics} from './membershipPublication.js';
+import {buildMembershipSnapshots} from './membershipPublication.js';
+import {createPublicationBuildMetrics} from './publicationMetrics.js';
+import type {PublicationAttemptMetrics} from './publicationMetrics.js';
+import {createMembershipPublicationStaging, publicationStagingPath} from './membershipPublicationStaging.js';
 
 const log = debug('geesome:membership:publication');
 
@@ -16,75 +19,15 @@ export async function savePublicationState(row, state, transaction) {
 // locking/validation; access to an already obtained CID never invokes it.
 export function createMembershipPublisher(app, M, membership, dependencies) {
 	const clock = membership.clock, database = app.ms.database.sequelize;
+	const staging = createMembershipPublicationStaging(app, M, clock);
 	let timer, running = false;
 	async function enqueue(resourceId, requestKey, transaction?) {
 		const [job] = await M.publications.findOrCreate({where: {resourceId, requestKey}, defaults: {id: randomUUID(), status: 'queued'}, transaction});
 		return job;
 	}
-	async function rememberPath(path, jobId, leaseToken, transaction) {
-		if (path !== `/membership-${jobId}-${leaseToken}-public` && path !== `/membership-${jobId}-${leaseToken}-full`) {
-			throw new Error('invalid_publication_staging_path');
-		}
-		await M.publication_staging.findOrCreate({where: {path}, defaults: {jobId, leaseToken, nextSweepAt: clock()}, transaction});
-	}
-	async function removePath(path) {
-		try {
-			await app.ms.storage.node.files.rm(path, {recursive: true, timeout: 30000});
-		} catch (error) {
-			if (error?.code !== 'ERR_NOT_FOUND' && !/does not exist|not found/i.test(error?.message || '')) {
-				throw error;
-			}
-		}
-	}
-	async function reconcileStaging() {
-		// Tombstones survive successful removal: a timed-out remote cp can recreate
-		// its old path later. Sweep bounded batches forever, including after restart.
-		const paths = await M.publication_staging.findAll({where: {nextSweepAt: {[Op.lte]: clock()}}, order: [['nextSweepAt', 'ASC'], ['path', 'ASC']], limit: 16});
-		for (const candidate of paths) {
-			await database.transaction(async transaction => {
-				const job = await M.publications.findByPk(candidate.jobId, {transaction, lock: transaction.LOCK.UPDATE});
-				const entry = await M.publication_staging.findByPk(candidate.path, {transaction, lock: transaction.LOCK.UPDATE});
-				if (!entry) {
-					return;
-				}
-				if (entry.path !== `/membership-${entry.jobId}-${entry.leaseToken}-public` && entry.path !== `/membership-${entry.jobId}-${entry.leaseToken}-full`) {
-					throw new Error('invalid_publication_staging_path');
-				}
-				const winning = job?.status === 'ready' && job.stagingPaths.includes(entry.path);
-				const active = job?.status === 'building' && job.leaseToken === entry.leaseToken;
-				if (winning) {
-					await entry.destroy({transaction});
-					return;
-				}
-				if (!active) {
-					await removePath(entry.path);
-				}
-				await entry.update({nextSweepAt: new Date(clock().getTime() + 60000)}, {transaction});
-			});
-		}
-	}
-	async function cleanup(job) {
-		await database.transaction(async transaction => {
-			// Wait for a possibly successful in-flight commit before removing MFS.
-			const fresh = await M.publications.findByPk(job.id, {transaction, lock: transaction.LOCK.UPDATE});
-			if (!fresh || fresh.status === 'ready' || fresh.leaseToken !== job.leaseToken) {
-				return;
-			}
-			for (const path of fresh.stagingPaths) {
-				if (!new RegExp(`^/membership-${job.id}-[a-f0-9-]{36}-(public|full)$`).test(path)) {
-					throw new Error('invalid_publication_staging_path');
-				}
-				const match = path.match(/^\/membership-[a-f0-9-]{36}-([a-f0-9-]{36})-(public|full)$/);
-				await rememberPath(path, job.id, match[1], transaction);
-				await removePath(path);
-			}
-			await fresh.update({stagingPaths: []}, {transaction});
-			job.stagingPaths = [];
-		});
-	}
 	async function build(job) {
 		const start = performance.now();
-		const metrics: any = {...publicationBuildMetrics(), queueMs: job.queueMs, jobAgeMs: Math.max(0, clock().getTime() - new Date(job.createdAt).getTime()), leaseUpdates: 0};
+		const metrics: PublicationAttemptMetrics = {...createPublicationBuildMetrics(), queueMs: job.queueMs, jobAgeMs: Math.max(0, clock().getTime() - new Date(job.createdAt).getTime()), leaseUpdates: 0};
 		let lastRenewed = -Infinity, renewing, heartbeatError, result, committed = false;
 		const interval = Math.min(dependencies.publicationHeartbeatMs || 30000, 30000);
 		const renew = async (force = false) => {
@@ -118,7 +61,7 @@ export function createMembershipPublisher(app, M, membership, dependencies) {
 		heartbeat.unref();
 		try {
 			await renew(true);
-			await cleanup(job);
+			await staging.cleanup(job);
 			const row = await membership.owner((await membership.resource(job.resourceId)).ownerId, job.resourceId);
 			const sourceVersion = publicationState(row).sourceVersion;
 			const group = await app.ms.group.getLocalGroup(row.ownerId, row.groupId);
@@ -127,7 +70,7 @@ export function createMembershipPublisher(app, M, membership, dependencies) {
 			const previousManifest = previous?.status === 'ready' && previous.resourceId === row.id ? previous.manifest : null;
 			const mode = publicationAssemblyMode();
 			result = await buildMembershipSnapshots(app, row, group.title, {previousManifest, metrics, assemblyMode: job.attempts > 1 && mode === 'incremental' ? 'full' : mode, options, description: group.description, renew, beginDirectory: async variant => {
-				const directory = `/membership-${job.id}-${job.leaseToken}-${variant}`;
+				const directory = publicationStagingPath(job.id, job.leaseToken, variant);
 				job.stagingPaths = [...job.stagingPaths, directory];
 				await renew(true);
 				await database.transaction(async transaction => {
@@ -135,7 +78,7 @@ export function createMembershipPublisher(app, M, membership, dependencies) {
 					if (fresh?.leaseToken !== job.leaseToken || fresh.status !== 'building') {
 						siteProblem(409, 'publication_lease_lost');
 					}
-					await rememberPath(directory, job.id, job.leaseToken, transaction);
+					await staging.rememberPath(directory, job.id, job.leaseToken, transaction);
 					await fresh.update({stagingPaths: job.stagingPaths}, {transaction});
 				});
 				return directory;
@@ -161,14 +104,14 @@ export function createMembershipPublisher(app, M, membership, dependencies) {
 			});
 			committed = true;
 			metrics.commitMs = performance.now() - commitStart;
-			metrics.readyMs = performance.now() - start;
-			metrics.queueToReadyMs = metrics.queueMs + metrics.readyMs;
+			metrics.buildToReadyMs = performance.now() - start;
+			metrics.queueToReadyMs = metrics.queueMs + metrics.buildToReadyMs;
 		} finally {
 			clearInterval(heartbeat);
 			await renewing?.catch(() => {});
 			const cleanupStart = performance.now();
 			try {
-				await cleanup(job);
+				await staging.cleanup(job);
 			} finally {
 				const event = {...result?.metrics, ...metrics, outcome: committed ? 'ready' : 'failed', attempt: job.attempts, cleanupMs: performance.now() - cleanupStart, attemptMs: performance.now() - start};
 				helpers.logDebug(log, () => ['build', event]);
@@ -184,7 +127,7 @@ export function createMembershipPublisher(app, M, membership, dependencies) {
 			}
 			running = true;
 			try {
-				await reconcileStaging();
+				await staging.reconcile();
 				const job = await database.transaction(async transaction => {
 					const row = await M.publications.findOne({where: {[Op.or]: [{status: 'queued', [Op.or]: [{nextAttemptAt: null}, {nextAttemptAt: {[Op.lte]: clock()}}]}, {status: 'building', leaseUntil: {[Op.lt]: clock()}}]}, order: [['createdAt', 'ASC']], transaction, lock: transaction.LOCK.UPDATE, skipLocked: true});
 					if (!row) {

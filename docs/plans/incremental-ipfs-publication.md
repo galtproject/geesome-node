@@ -1,4 +1,4 @@
-# Incremental IPFS publication optimization
+# Incremental creator-site IPFS snapshot publication
 
 Tracking: implementation #1475; planning #1473 / #1474. Status: implemented and verified locally; awaiting user PR merge and normal release. No production deployment.
 
@@ -13,6 +13,7 @@ Tracking: implementation #1475; planning #1473 / #1474. Status: implemented and 
 - [Audit and decisions](#audit-and-decisions)
 - [Implementation notes](#implementation-notes-2026-10-29)
 - [Execution evidence and operator procedure](#execution-evidence-and-operator-procedure)
+- [Naming and responsibility audit follow-up](#naming-and-responsibility-audit-follow-up)
 
 ## Source of truth and measurements
 
@@ -105,7 +106,7 @@ plus the canonical directory set (including intentional empty base directories).
 Reject traversal, absolute/protocol paths, duplicate/conflicting entries and
 file/directory ancestor conflicts before mutating staging. An entry is either a
 file or an `opaque-subtree` bound to an immutable directory CID. Current
-`localMedia` accepts directory Content; preserve it without enumerating its
+`prepareLocalMedia` accepts directory Content; preserve it without enumerating its
 children. An opaque subtree is a terminal inventory boundary: no child patch or
 managed-directory cleanup may enter it. Add/replace/remove that entry as a whole,
 with file <-> subtree transition tests. Source CID/type bindings established by
@@ -352,7 +353,7 @@ runtime tests were run for this documentation-only change.
   in the ready transaction. Tombstone count grows with failed attempts by design:
   finite expiry cannot guarantee recovery from an arbitrarily late remote request.
   Work per tick and each row are bounded; no unbounded job JSON history is added.
-- Metrics version 1 is a single content-free debug event per attempt under
+- Metrics version 2 is a single content-free debug event per attempt under
   `geesome:membership:publication`, with normal deployment log retention and no DB
   payload history. Storage counters count calls at the storage API boundary;
   adapter-internal destination probes are measured separately by the Kubo tests.
@@ -454,3 +455,49 @@ port; isolated reruns completed. The final required Docker wrapper succeeded.
 Raw logs, benchmark JSON and screenshots remain ignored local evidence; durable
 counts and individual timings are recorded here. Cold-process and production-load
 measurements are deferred explicitly to the operator rollout step above.
+
+## Naming and responsibility audit follow-up
+
+The follow-up review separated the creator-site inventory contract from the
+storage tree algorithm; renaming the entire original file as generic inventory
+would have hidden its site-specific path whitelist and public/full v2 binding.
+
+- `membershipPublicationInventory.ts` owns the complete creator-site namespace,
+  canonical inventory and verified prior-manifest binding.
+- `publicationTreeAssembly.ts` owns structural inventory types and fresh/clone
+  tree assembly over already validated inventories, with adapter capability
+  detection. It remains in SSG alongside its current consumer.
+- `publicationIdentity.ts` owns CID normalization and input hashing. The exact
+  `JSON.stringify` hashing algorithm is preserved, including cache/media names.
+- `membershipPostMetadata.ts` reads the feature's post metadata as a leaf adapter;
+  malformed JSON still returns null. It does not import membership bootstrap.
+- `publicationMetrics.ts` defines typed build/attempt schemas and the factory.
+  Debug schema **v2** renames `hits` → `fileCacheHits`, `newBodyBytes` →
+  `generatedBodyBytes`, `newHtmlBytes` → `generatedHtmlBytes`, and `readyMs` →
+  `buildToReadyMs`. Queue-to-ready and other timing/counter semantics are preserved.
+  This debug schema version is independent of the unchanged manifest outer v2
+  and assembly capability v1. Log consumers must select the matching debug schema.
+- `membershipPublicationStaging.ts` owns journal registration, cleanup and bounded
+  reconciliation, with one staging path builder/parser. SQL model keys, table
+  names, MFS prefix/path format, tombstone retention and locking remain unchanged.
+- Local names now reflect preparation (`prepareGeneratedFile`, `prepareLocalMedia`,
+  `registeredMediaNames`, `saveGeneratedBody`) rather than claiming copies have
+  happened before assembly. Verified inventory reads and Kubo adapter support
+  also have explicit names.
+
+Worker and models remain in SSG, consistent with the established architecture
+in `membership/docs/overview.md`: SSG owns snapshot generation/durable publication;
+membership owns resource binding, entitlement and variant selection. No global
+storage framework or additional publication consumer is introduced. Tests retain
+`creatorMembership*.test.ts` naming so the existing verification wrapper runs them.
+
+Follow-up verification: focused inventory/pagination checks passed (6 tests),
+then `npm run test:creator-membership:docker` passed **60 membership tests** and
+**56 payment regressions** on disposable PostgreSQL/Kubo, including the repeated
+46/146-post benchmark and two staging ownership/parser cases. Creator Vue types,
+scalability generation/check and whitespace checks passed. Generated browser
+fixture output remained byte-identical in **all 186 files** to the pre-refactor
+baseline. Browser screenshot suites were not repeated for this source-module
+refactor; their earlier evidence remains recorded above. A second independent
+read-only review found no remaining required naming/boundary issues or runtime
+import cycles and confirmed unchanged hash, RPC, lock and cleanup semantics.

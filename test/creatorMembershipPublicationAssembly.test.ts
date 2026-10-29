@@ -3,8 +3,9 @@ import {randomUUID} from 'node:crypto';
 import {create as createKuboClient} from 'kubo-rpc-client';
 import JsIpfsServiceNode from 'geesome-libs/src/JsIpfsServiceNode.js';
 import {buildMembershipSnapshots} from '../app/modules/staticSiteGenerator/membershipPublication.js';
-import {canonicalInventory, assembleMembershipTree} from '../app/modules/staticSiteGenerator/membershipInventory.js';
-import {publicationDigest, snapshotCid} from '../app/modules/staticSiteGenerator/membershipProjection.js';
+import {canonicalMembershipPublicationInventory} from '../app/modules/staticSiteGenerator/membershipPublicationInventory.js';
+import {assemblePublicationTree} from '../app/modules/staticSiteGenerator/publicationTreeAssembly.js';
+import {hashPublicationInput, normalizePublicationCid} from '../app/modules/staticSiteGenerator/publicationIdentity.js';
 
 const suite = process.env.CREATOR_MEMBERSHIP_TEST_IPFS_URL ? describe : describe.skip;
 suite('incremental snapshot assembly on real Kubo', function () {
@@ -148,28 +149,28 @@ suite('incremental snapshot assembly on real Kubo', function () {
 		assert.equal(unsupported.metrics.variants.full.mode, 'fresh');
 		storage.type = 'kubo-rpc';
 		const repair = await build(first.manifest, 'repair');
-		assert.equal(repair.metrics.hits, 0);
+		assert.equal(repair.metrics.fileCacheHits, 0);
 		assert(repair.metrics.sourceStats > 0);
 		assert.equal(repair.manifest.public, first.manifest.public);
 	});
 	it('treats directory media as opaque leaves through file/subtree replacement and removal', async () => {
-		const file = snapshotCid((await storage.saveFileByData('leaf')).id);
+		const file = normalizePublicationCid((await storage.saveFileByData('leaf')).id);
 		const sourcePath = `/incremental-${randomUUID()}`;
 		paths.push(sourcePath);
 		await storage.makeDir(sourcePath);
 		await storage.copyFileFromId(file, `${sourcePath}/private-leaf`);
-		const subtree = snapshotCid(await storage.getDirectoryId(sourcePath));
-		const name = `media/${publicationDigest(file)}.bin`;
-		const make = (cid, kind: any) => canonicalInventory([{path: name, cid, kind}]);
+		const subtree = normalizePublicationCid(await storage.getDirectoryId(sourcePath));
+		const name = `media/${hashPublicationInput(file)}.bin`;
+		const make = (cid, kind: any) => canonicalMembershipPublicationInventory([{path: name, cid, kind}]);
 		let previous = null, root;
-		for (const desired of [make(file, 'file'), make(subtree, 'opaque-subtree'), make(file, 'file'), canonicalInventory([])]) {
+		for (const desired of [make(file, 'file'), make(subtree, 'opaque-subtree'), make(file, 'file'), canonicalMembershipPublicationInventory([])]) {
 			const directory = `/incremental-${randomUUID()}`;
 			paths.push(directory);
 			const metrics = {copies: 0, mkdirs: 0, removes: 0, rootReads: 0};
-			root = await assembleMembershipTree(storage, directory, desired, previous, root, async () => {}, metrics);
+			root = await assemblePublicationTree(storage, directory, desired, previous, root, async () => {}, metrics);
 			const freshPath = `/incremental-${randomUUID()}`;
 			paths.push(freshPath);
-			const fresh = await assembleMembershipTree(storage, freshPath, desired, null, null, async () => {}, metrics);
+			const fresh = await assemblePublicationTree(storage, freshPath, desired, null, null, async () => {}, metrics);
 			assert.equal(root, fresh);
 			previous = desired;
 		}

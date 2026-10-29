@@ -1,6 +1,6 @@
 import {siteProblem} from '../api/browserSession.js';
 import {membershipBase} from '../staticSiteGenerator/membershipRenderData.js';
-import {snapshotCid} from '../staticSiteGenerator/membershipProjection.js';
+import {normalizePublicationCid} from '../staticSiteGenerator/publicationIdentity.js';
 import {createMembershipPublisher, publicationState} from '../staticSiteGenerator/membershipPublisher.js';
 import {registerPublicationSources} from './publicationSources.js';
 
@@ -37,7 +37,7 @@ export function createPublicationDelivery(app, M, membership, dependencies: any 
 		},
 		async isStorageIdAllowed(storageId) {
 			try {
-				return Boolean(await M.publication_artifacts.findByPk(snapshotCid(storageId)));
+				return Boolean(await M.publication_artifacts.findByPk(normalizePublicationCid(storageId)));
 			} catch {
 				return false;
 			}

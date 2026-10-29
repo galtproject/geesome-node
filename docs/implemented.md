@@ -28,6 +28,11 @@ batches after restart; failed-token tombstones intentionally persist. Content-fr
 versioned debug metrics distinguish projection, preparation, render/cache work,
 assembly, committed-ready and cleanup. No API or shared storage-adapter change.
 
+A naming audit follow-up separates the site inventory, tree assembly, CID/input
+identity, metadata adapter, typed metrics and staging journal into focused modules.
+Metric debug schema v2 uses explicit generated-byte/cache-hit/build-to-ready names;
+manifest/schema/storage compatibility is preserved.
+
 The [execution plan and measurements](plans/incremental-ipfs-publication.md)
 record the real PostgreSQL/Kubo correctness/failure tests, five matched warm runs
 for 46/146 posts, and browser verification. A newest-title edit uses two root

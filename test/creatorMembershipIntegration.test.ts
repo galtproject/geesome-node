@@ -9,7 +9,7 @@ import JsIpfsServiceNode from 'geesome-libs/src/JsIpfsServiceNode.js';
 import {sha256} from 'multiformats/hashes/sha2';
 import {buildMembershipSnapshots} from '../app/modules/staticSiteGenerator/membershipPublication.js';
 import {createMembershipPublisher} from '../app/modules/staticSiteGenerator/membershipPublisher.js';
-import {publicationDigest} from '../app/modules/staticSiteGenerator/membershipProjection.js';
+import {hashPublicationInput} from '../app/modules/staticSiteGenerator/publicationIdentity.js';
 import registerPublicationApi from '../app/modules/membership/publicationApi.js';
 import createApp from '../app/index.js';
 import { request as httpRequest } from 'node:http';
@@ -667,8 +667,8 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert.equal((await get('membership/site/', {cookie: '__Host-geesome_session=forged'})).headers.get('location'), publicLocation);
 		const oldPost = (await get(`membership/site/posts/${post.id}/`, {cookie})).headers.get('location');
 		assert((await read(oldPost)).body.includes('FIRST-PAID-TEXT'));
-		assert((await read(oldPost)).body.includes(`../../media/${publicationDigest(fullCid)}.png`));
-		assert.equal((await read(new URL(`../../media/${publicationDigest(fullCid)}.png`, oldPost).href)).body, 'FULL-MEDIA-BYTES');
+		assert((await read(oldPost)).body.includes(`../../media/${hashPublicationInput(fullCid)}.png`));
+		assert.equal((await read(new URL(`../../media/${hashPublicationInput(fullCid)}.png`, oldPost).href)).body, 'FULL-MEDIA-BYTES');
 		assert(!(await read(publicLocation)).body.includes(fullCid));
 
 
@@ -688,7 +688,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		await membershipModels.periods.update({revoked: true}, {where: {resourceId: 'snapshots', readerId}});
 		assert.notEqual((await get('membership/site/', {cookie})).headers.get('location'), newerPaid, 'refund/revocation stops new full selection');
 		assert.equal((await read(oldPost)).status, 200, 'obtained old post and files remain readable');
-		assert.equal((await read(new URL(`../../media/${publicationDigest(fullCid)}.png`, oldPost).href)).body, 'FULL-MEDIA-BYTES');
+		assert.equal((await read(new URL(`../../media/${hashPublicationInput(fullCid)}.png`, oldPost).href)).body, 'FULL-MEDIA-BYTES');
 
 		const oldHead = (await membershipModels.resources.findByPk('snapshots')).data.publication.publicationId;
 		const readyDirectories = [...directories.keys()];
@@ -894,7 +894,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			assert((await storage.getFileDataText(fullPath)).includes(`/ipfs/${originalRoot}/source.zip`));
 			assert(!publicHtml.includes('manual.pdf'));
 			assert(!publicHtml.includes('source.zip'));
-			await assert.rejects(() => storage.getFileDataText(`${fullRoot}/media/${publicationDigest(String(galleryUri.id))}.uri`), /not exist|not found|no link/i);
+			await assert.rejects(() => storage.getFileDataText(`${fullRoot}/media/${hashPublicationInput(String(galleryUri.id))}.uri`), /not exist|not found|no link/i);
 			assert(!publicHtml.includes('Old full text'));
 			const previewFiles = [];
 			for await (const item of storage.node.ls(`/ipfs/${publicRoot}/media`)) {
@@ -910,8 +910,8 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 				directories.push(entry.name);
 			}
 			assert(!directories.includes('sets'), 'all exports derive from attachments without a legacy gallery directory');
-			assert.equal(await storage.getFileDataText(`${fullRoot}/media/${publicationDigest(String(paid.id))}.png`), 'PAID-BYTES');
-			assert.equal(await storage.getFileDataText(`${publicRoot}/media/${publicationDigest(String(archive.id))}.zip`), 'PUBLIC ARCHIVE BYTES');
+			assert.equal(await storage.getFileDataText(`${fullRoot}/media/${hashPublicationInput(String(paid.id))}.png`), 'PAID-BYTES');
+			assert.equal(await storage.getFileDataText(`${publicRoot}/media/${hashPublicationInput(String(archive.id))}.zip`), 'PUBLIC ARCHIVE BYTES');
 			assert((await storage.getFileDataText(fullPath)).includes('Old full text'));
 			await post.update({propertiesJson: JSON.stringify({membership: {...metadata, fullText: 'New full text'}})});
 			for (let attempt = 0; attempt < 10; attempt++) {
@@ -925,8 +925,8 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			const newJob = await membershipModels.publications.findByPk(current.revision);
 			assert.notEqual(newJob.manifest.full, job.manifest.full, JSON.stringify(current));
 			assert((await storage.getFileDataText(fullPath)).includes('Old full text'));
-			assert.equal(await storage.getFileDataText(`${fullRoot}/media/${publicationDigest(String(paid.id))}.png`), 'PAID-BYTES');
-			assert.equal(await storage.getFileDataText(`${publicRoot}/media/${publicationDigest(String(archive.id))}.zip`), 'PUBLIC ARCHIVE BYTES');
+			assert.equal(await storage.getFileDataText(`${fullRoot}/media/${hashPublicationInput(String(paid.id))}.png`), 'PAID-BYTES');
+			assert.equal(await storage.getFileDataText(`${publicRoot}/media/${hashPublicationInput(String(archive.id))}.zip`), 'PUBLIC ARCHIVE BYTES');
 			assert.equal(await membership.isStorageIdAllowed(fullRoot), true);
 			const metrics = [];
 			const publisher = createMembershipPublisher(app, membershipModels, membership, {publicationMetrics: event => metrics.push(event)});
@@ -952,7 +952,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			assert.equal(metrics.at(-1).variants.public.mode, 'fresh', 'retry disables cloning');
 			assert(metrics.at(-1).leaseUpdates <= 5, 'short builds use only four critical renewals, independent of path count');
 			assert.equal(metrics.at(-1).outcome, 'ready');
-			assert(metrics.at(-1).readyMs >= metrics.at(-1).commitMs, 'ready timing ends after transaction completion');
+			assert(metrics.at(-1).buildToReadyMs >= metrics.at(-1).commitMs, 'ready timing ends after transaction completion');
 			const selected = failing.id;
 			publicationContents.set(String(post.id), publicationContents.get(String(post.id)).filter(item => item.id !== 2000));
 			const remove = storage.node.files.rm.bind(storage.node.files);
@@ -970,8 +970,8 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			now = new Date(now.getTime() + 11000);
 			await publisher.runPublications();
 			assert.equal((await failedRemove.reload()).status, 'ready');
-			assert(!failedRemove.manifest.media.public.includes(`${publicationDigest(String(preview.id))}.png`));
-			assert.equal(await storage.getFileDataText(`${publicRoot}/media/${publicationDigest(String(preview.id))}.png`), 'PREVIEW-BYTES', 'historical references survive failed and retried delta removals');
+			assert(!failedRemove.manifest.media.public.includes(`${hashPublicationInput(String(preview.id))}.png`));
+			assert.equal(await storage.getFileDataText(`${publicRoot}/media/${hashPublicationInput(String(preview.id))}.png`), 'PREVIEW-BYTES', 'historical references survive failed and retried delta removals');
 			assert(!JSON.stringify(metrics).includes(fullRoot), 'metrics contain no root CIDs');
 		} finally {
 			app.ms.storage = previous;

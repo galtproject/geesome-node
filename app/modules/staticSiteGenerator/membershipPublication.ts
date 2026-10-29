@@ -1,4 +1,9 @@
-import {assemblyCapability, previousInventory, canonicalInventory, canCloneMembershipRoot, assembleMembershipTree, InventoryEntry} from './membershipInventory.js';
+import {createPublicationBuildMetrics} from './publicationMetrics.js';
+import type {PublicationVariantMetrics} from './publicationMetrics.js';
+import {readMembershipPostMetadata} from './membershipPostMetadata.js';
+import {assemblyCapability, readVerifiedPublicationInventory, canonicalMembershipPublicationInventory} from './membershipPublicationInventory.js';
+import {supportsKuboTreeCloning, assemblePublicationTree} from './publicationTreeAssembly.js';
+import type {InventoryEntry} from './publicationTreeAssembly.js';
 import {htmlShellAssets} from './site/htmlShell.js';
 import {readFileSync} from 'node:fs';
 import {creatorLayout, creatorPagePaths} from './membershipPagination.js';
@@ -9,11 +14,11 @@ import {siteProblem} from '../api/browserSession.js';
 import {membershipRenderData, membershipBase} from './membershipRenderData.js';
 import siteRenderer from './site/index.js';
 import {buildBrowserClient} from './site/browserBundle.js';
-import {snapshotCid, publicationDigest, membershipMetadata} from './membershipProjection.js';
+import {normalizePublicationCid, hashPublicationInput} from './publicationIdentity.js';
 
-const mediaName = item => `${publicationDigest(item.storageId)}.${item.extension}`;
+const mediaName = item => `${hashPublicationInput(item.storageId)}.${item.extension}`;
 
-export async function buildMembershipSnapshots(app, row, title, {renew, beginDirectory, options, description, previousManifest = null, assemblyMode = 'incremental', metrics = publicationBuildMetrics()}) {
+export async function buildMembershipSnapshots(app, row, title, {renew, beginDirectory, options, description, previousManifest = null, assemblyMode = 'incremental', metrics = createPublicationBuildMetrics()}) {
 	title = row.data?.displayTitle || title;
 	const sourceStart = performance.now();
 	const snapshot = await readSnapshotPosts(app, row), artifacts = new Set<string>();
@@ -23,25 +28,25 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 		const url = safeCreatorUrl(value);
 		const source = url && new URL(url, `https://${row.domain}`).pathname.match(/^\/ipfs\/([A-Za-z0-9]+)(?:\/|$)/)?.[1];
 		if (source) {
-			artifacts.add(snapshotCid(source));
+			artifacts.add(normalizePublicationCid(source));
 		}
 	}
 	const branding = {brand, options, description, resourceId: row.id, domain: row.domain};
-	const saveHtml = async html => {
+	const saveGeneratedBody = async body => {
 		await renew();
 		metrics.bodySaves++;
-		metrics.newBodyBytes += Buffer.byteLength(html);
-		const {id} = await app.ms.storage.saveFileByData(html);
-		const cid = snapshotCid(id);
+		metrics.generatedBodyBytes += Buffer.byteLength(body);
+		const {id} = await app.ms.storage.saveFileByData(body);
+		const cid = normalizePublicationCid(id);
 		artifacts.add(cid);
 		return cid;
 	};
 	for (const entry of snapshot) {
 		for (const media of entry.full) {
-			artifacts.add(snapshotCid(media.storageId));
+			artifacts.add(normalizePublicationCid(media.storageId));
 			if (media.mime === 'text/uri-list') {
 				for (const link of media.links) {
-					artifacts.add(snapshotCid(link.cid));
+					artifacts.add(normalizePublicationCid(link.cid));
 				}
 			}
 		}
@@ -62,11 +67,11 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 		const variantStart = performance.now();
 		const variant = full ? 'full' : 'public';
 		const inventory: InventoryEntry[] = [];
-		const verified = assemblyMode === 'repair' ? null : previousInventory(previous, row.id, variant);
+		const verified = assemblyMode === 'repair' ? null : readVerifiedPublicationInventory(previous, row.id, variant);
 		const oldEntries = new Map<string, InventoryEntry>((verified?.entries || []).map(entry => [entry.path, entry]));
-		const copied = new Set<string>();
+		const registeredMediaNames = new Set<string>();
 		await renew();
-		const localMedia = async (media, prefix) => {
+		const prepareLocalMedia = async (media, prefix) => {
 			const result = [];
 			for (const item of media) {
 				if (item.mime === 'text/uri-list') {
@@ -74,9 +79,9 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 					continue;
 				}
 				const name = mediaName(item);
-				if (!copied.has(name)) {
+				if (!registeredMediaNames.has(name)) {
 					await renew();
-					const cid = snapshotCid(item.storageId), path = `media/${name}`;
+					const cid = normalizePublicationCid(item.storageId), path = `media/${name}`;
 					const old = oldEntries.get(path);
 					let kind = old?.cid === cid ? old.kind : null;
 					if (!kind) {
@@ -88,7 +93,7 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 						kind = stat.type === 'directory' ? 'opaque-subtree' : 'file';
 					}
 					inventory.push({path, cid, kind});
-					copied.add(name);
+					registeredMediaNames.add(name);
 				}
 				result.push({...item, url: `${prefix}media/${name}`});
 			}
@@ -98,38 +103,38 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 		const compileStart = performance.now();
 		const {css, renderPage} = await siteRenderer.prepareRender(renderData);
 		metrics.prepareMs += performance.now() - compileStart;
-		const renderVersion = publicationDigest([bundle, css, shell, rendererSource, renderData.assets]);
-		const publish = async (path, input, generate) => {
+		const renderVersion = hashPublicationInput([bundle, css, shell, rendererSource, renderData.assets]);
+		const prepareGeneratedFile = async (path, input, generate) => {
 			await renew();
-			const key = publicationDigest([renderVersion, input]);
+			const key = hashPublicationInput([renderVersion, input]);
 			const cached = previous?.files?.[variant]?.[path];
 			const hit = assemblyMode !== 'repair' && cached?.key === key;
 			if (hit) {
-				metrics.hits++;
+				metrics.fileCacheHits++;
 			}
 			let cid;
 			if (hit) {
-				cid = snapshotCid(cached.cid);
+				cid = normalizePublicationCid(cached.cid);
 			} else {
 				const renderStart = performance.now();
 				const body = await generate();
 				if (path.endsWith('.html')) {
 					metrics.renders++;
 					metrics.renderMs += performance.now() - renderStart;
-					metrics.newHtmlBytes += Buffer.byteLength(body);
+					metrics.generatedHtmlBytes += Buffer.byteLength(body);
 				}
-				cid = await saveHtml(body);
+				cid = await saveGeneratedBody(body);
 			}
 			artifacts.add(cid);
 			manifest.files[variant][path] = {key, cid};
 			inventory.push({path, cid, kind: 'file'});
 		};
-		await publish('style.css', css, () => css);
-		await publish('public/client.js', bundle, () => bundle);
+		await prepareGeneratedFile('style.css', css, () => css);
+		await prepareGeneratedFile('public/client.js', bundle, () => bundle);
 		const render = async (site, posts, path, route, single = false, page = 1) => {
 			const data = membershipRenderData({...site, canonicalPath: '/' + path.replace(/index\.html$/, '')}, posts, full, single, page, 1);
 			const canonical = `https://${row.domain}/${path.replace(/index\.html$/, '')}`;
-			await publish(path, [data, route, canonical], () => {
+			await prepareGeneratedFile(path, [data, route, canonical], () => {
 				Object.assign(renderData, data);
 				return renderPage(route, [['meta', {name: 'og:title', content: title}], ['link', {rel: 'canonical', href: canonical}],
 					...((full || path === 'account/index.html') ? [['meta', {name: 'robots', content: 'noindex,nofollow'}]] : [])]);
@@ -137,7 +142,7 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 		};
 		for (const post of snapshot) {
 			const site = {title, ...branding, relativeRoot: '../../', homeUrl: '../../', entryPath: `${membershipBase}/posts/${post.id}/`};
-			await render(site, [{...post, postUrl: './', media: await localMedia(full ? post.full : post.previews, '../../')}], `posts/${post.id}/index.html`, `/post/${post.id}`, true);
+			await render(site, [{...post, postUrl: './', media: await prepareLocalMedia(full ? post.full : post.previews, '../../')}], `posts/${post.id}/index.html`, `/post/${post.id}`, true);
 		}
 		const groups = [layout.home, ...layout.archives];
 		for (let index = 0; index < groups.length; index++) {
@@ -153,21 +158,21 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 					continue;
 				}
 				const media = full ? [...post.previews.filter(item => item.mime !== 'text/uri-list'), ...post.full.filter(item => item.mime === 'text/uri-list')] : post.previews;
-				cards.push({...post, media: await localMedia(media, prefix), postUrl: `${prefix}posts/${post.id}/`});
+				cards.push({...post, media: await prepareLocalMedia(media, prefix), postUrl: `${prefix}posts/${post.id}/`});
 			}
 			await render(site, cards, paths[index], index === 0 ? '/' : `/page/${index}`, false, index || 1);
 		}
 		const accountSite = {title, ...branding, canonicalPath: '/account/', relativeRoot: '../', homeUrl: '../', entryPath: `${membershipBase}/account/`};
 		const account = membershipRenderData(accountSite, [], full);
 		account.creator.path = '/account/subscription';
-		await publish('account/index.html', account, () => {
+		await prepareGeneratedFile('account/index.html', account, () => {
 			Object.assign(renderData, account);
 			return renderPage('/', [['meta', {name: 'og:title', content: title}], ['meta', {name: 'robots', content: 'noindex,nofollow'}]]);
 		});
-		manifest.media[variant] = [...copied];
-		const desired = canonicalInventory(inventory);
-		let clone = assemblyMode === 'incremental' && canCloneMembershipRoot(app.ms.storage) ? verified : null;
-		let reason = assemblyMode !== 'incremental' ? 'forced' : !verified ? 'inventory' : !clone ? 'adapter' : null;
+		manifest.media[variant] = [...registeredMediaNames];
+		const desired = canonicalMembershipPublicationInventory(inventory);
+		let clone = assemblyMode === 'incremental' && supportsKuboTreeCloning(app.ms.storage) ? verified : null;
+		let reason: PublicationVariantMetrics['reason'] = assemblyMode !== 'incremental' ? 'forced' : !verified ? 'inventory' : !clone ? 'adapter' : null;
 		if (clone) {
 			await renew();
 			try {
@@ -186,7 +191,7 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 		}
 		const directory = await beginDirectory(variant);
 		const assemblyStart = performance.now();
-		const root = await assembleMembershipTree(app.ms.storage, directory, desired, clone, previous?.[variant], renew, metrics);
+		const root = await assemblePublicationTree(app.ms.storage, directory, desired, clone, previous?.[variant], renew, metrics);
 		manifest.assembly[variant] = assemblyCapability(row.id, variant, root, desired);
 		metrics.variants[variant] = {mode: clone ? 'clone' : 'fresh', reason, assemblyMs: performance.now() - assemblyStart, totalMs: performance.now() - variantStart};
 		artifacts.add(root);
@@ -209,7 +214,7 @@ async function readSnapshotPosts(app, row) {
 	}, async ({groupPosts, refCount}) => {
 		scanned += refCount;
 		for (const post of groupPosts) {
-			const metadata = membershipMetadata(post);
+			const metadata = readMembershipPostMetadata(post);
 			if (metadata && !metadata.hidden && !post.isDeleted && post.status === 'published') {
 				snapshot.push(await snapshotPost(app, post));
 			}
@@ -222,7 +227,7 @@ async function readSnapshotPosts(app, row) {
 }
 
 async function snapshotPost(app, post) {
-	const m = membershipMetadata(post), previews = [], media = [];
+	const m = readMembershipPostMetadata(post), previews = [], media = [];
 	for (const content of post.contents || []) {
 		if (!/^[A-Za-z0-9]{20,200}$/.test(content.storageId || '')) {
 			continue;
@@ -241,8 +246,4 @@ async function snapshotPost(app, post) {
 	}
 	return {id: String(post.id), date: new Date(post.publishedAt || 0).getTime(), title: String(m.title || '').slice(0, 500), teaser: String(m.teaser ?? m.description ?? '').slice(0, 10000),
 		fullText: String(m.fullText ?? m.description ?? '').slice(0, 100000), free: m.free === true, full: media, previews};
-}
-
-export function publicationBuildMetrics() {
-	return {version: 1, renders: 0, renderMs: 0, bodySaves: 0, newHtmlBytes: 0, hits: 0, newBodyBytes: 0, copies: 0, mkdirs: 0, removes: 0, sourceStats: 0, rootReads: 0, sourceMs: 0, prepareMs: 0, variants: {}};
 }
