@@ -534,6 +534,8 @@ Remaining work follows the [audited migration plan](plans/creator-membership-mig
 - Build the safe creator SSG theme and protected original delivery; current CID links remain public.
 - Add explicit existing-account Google linking if required; never auto-link by email.
 
+<!-- /todo-section -->
+
 <!-- todo-section: site-presentation-editor -->
 ## Site presentation editor and preview (deferred)
 
@@ -549,4 +551,20 @@ source editing (#1470) are delivered; visual editing and draft preview remain ba
 - Keep arbitrary templates/CSS/JS execution outside this editor's trust model.
 
 Contract and rollout: [site-presentation.md](site-presentation.md).
+<!-- /todo-section -->
+
+
+<!-- todo-section: incremental-ipfs-publication -->
+## Incremental IPFS publication (#1473)
+
+Plan/review only; implementation is not started. Follow
+[the optimization plan](plans/incremental-ipfs-publication.md).
+
+- Add bounded publication-scoped measurements and reproducible full/incremental baselines.
+- Define complete, versioned variant inventories and safe legacy/unsupported-adapter fallback.
+- Clone each eligible immutable root into isolated staging; replace/add/remove only changed paths, preserving privacy, artifacts and atomic pair selection.
+- Bound lease renewals without weakening token/source fencing or retry/cleanup.
+- Verify actual Kubo output parity, failure/privacy matrix and request counts before controlled rollout.
+
+The block editor and preview remain deferred separately above.
 <!-- /todo-section -->
