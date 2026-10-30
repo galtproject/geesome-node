@@ -917,3 +917,11 @@ MoonPay, Ramp and Peer first, then eligible U.S. PayPal/Cash App/Venmo accounts.
 See [the official-source audit](crypto-purchase-help-audit.md) for country, token,
 minimum and withdrawal limitations and verification evidence. These are external
 buying links, not a new fiat payment integration.
+
+
+## Payment status alignment (#1486)
+
+The checkout status indicator and label use one vertically centred flex row with
+a fixed gap and a nonshrinking dot. This replaces inline baseline positioning,
+which placed the dot below the label's visual centre. Desktop/narrow checkout
+status captures are included in the membership browser workflow.
