@@ -1,3 +1,4 @@
+import {creatorSitemap} from './site/creatorSeo.js';
 import {createPublicationBuildMetrics} from './publicationMetrics.js';
 import type {PublicationVariantMetrics} from './publicationMetrics.js';
 import {readMembershipPostMetadata} from './membershipPostMetadata.js';
@@ -24,7 +25,7 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 	const snapshot = await readSnapshotPosts(app, row), artifacts = new Set<string>();
 	metrics.sourceMs = performance.now() - sourceStart;
 	const brand = {...row.data};
-	for (const value of [brand.coverUrl, brand.avatarUrl, ...creatorLinks(brand.links).map(link => link.iconUrl), brand.presentation?.membership?.external?.iconUrl, ...(brand.presentation?.template?.id === 'html-shell' ? htmlShellAssets(brand.presentation.template.html) : [])]) {
+	for (const value of [brand.coverUrl, brand.avatarUrl, brand.seo?.imageUrl, brand.seo?.faviconUrl, ...creatorLinks(brand.links).map(link => link.iconUrl), brand.presentation?.membership?.external?.iconUrl, ...(brand.presentation?.template?.id === 'html-shell' ? htmlShellAssets(brand.presentation.template.html) : [])]) {
 		const url = safeCreatorUrl(value);
 		const source = url && new URL(url, `https://${row.domain}`).pathname.match(/^\/ipfs\/([A-Za-z0-9]+)(?:\/|$)/)?.[1];
 		if (source) {
@@ -169,6 +170,10 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 			Object.assign(renderData, account);
 			return renderPage('/', [['meta', {name: 'og:title', content: title}], ['meta', {name: 'robots', content: 'noindex,nofollow'}]]);
 		});
+		const sitemap = creatorSitemap(row.domain, full ? [] : [...paths, ...snapshot.map(post => `posts/${post.id}/index.html`)]);
+		await prepareGeneratedFile('sitemap.xml', sitemap, () => sitemap);
+		const robots = full ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nDisallow: /account/\nDisallow: /api/\nSitemap: https://${row.domain}/sitemap.xml\n`;
+		await prepareGeneratedFile('robots.txt', robots, () => robots);
 		manifest.media[variant] = [...registeredMediaNames];
 		const desired = canonicalMembershipPublicationInventory(inventory);
 		let clone = assemblyMode === 'incremental' && supportsKuboTreeCloning(app.ms.storage) ? verified : null;
