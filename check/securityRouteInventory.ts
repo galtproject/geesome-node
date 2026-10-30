@@ -106,7 +106,7 @@ function notesFor(route: RouteRow, block: string): string[] {
         : 'bearer only; membership.owner checks group creator and UserGroupManagement; no browser cookie authorization');
     } else {
       notes.add(routeLower.startsWith('/v1/membership/site') && !routeLower.endsWith('/client.js')
-        ? 'membership HTTPS Host allowlist; session-bound public/full CID redirect only; safe external GET/HEAD document navigation allowed; cross-site API fetches rejected; private no-store, Vary Cookie/Host'
+        ? 'membership HTTPS Host allowlist; session-bound public/full CID redirect only; bounded process-local public guest cache, session/Authorization bypass; safe external GET/HEAD document navigation allowed; cross-site API fetches rejected; private no-store, Vary Cookie/Host'
         : 'membership SQL HTTPS Host allowlist; cookie accepted explicitly and bound to site; mutation requires exact Origin; no-store');
       if (block.includes('reader(req, site, true)')) {
         notes.add('requires live private reader session; no core upload permissions or API key issued');

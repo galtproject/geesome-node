@@ -12,12 +12,17 @@ export async function configuredSite(app, req, mutation = false) {
 	if (!site) {
 		siteProblem(404, 'membership_site_not_found');
 	}
+	assertSiteOrigin(req, site, mutation);
+	return site;
+}
+
+/** Recheck the request policy even when a public selection came from memory. */
+export function assertSiteOrigin(req, site, mutation = false) {
 	if ((req.headers.origin && req.headers.origin !== site.origin)
 		|| req.headers['sec-fetch-site'] === 'cross-site'
 		|| (mutation && req.headers.origin !== site.origin)) {
 		siteProblem(403, 'origin_invalid');
 	}
-	return site;
 }
 
 export function noStore(res) {

@@ -12,6 +12,22 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Anonymous creator snapshot selection (#1495)
+
+Cookie-free selections now share bounded, one-second process-local public
+redirects with concurrent miss deduplication and commit-aware invalidation.
+Origin/Fetch Metadata checks still run on hits; session/Authorization requests
+keep live identity and entitlement checks and all HTTP responses remain no-store.
+Cold requests reuse the loaded resource and fetch only JSONB routing fields,
+without large publication inventories. No schema or domain configuration changes.
+
+Validation: 77 creator membership tests and 57 payment tests passed using isolated
+PostgreSQL/Kubo; API docs and security route inventory passed. Warm guest HTTP
+requests produced zero SQL queries in the integration fixture. The test wrapper
+now waits for real IPFS RPC and host-port readiness instead of offline `ipfs id`.
+
+See [selector behavior and verification](./creator-selector-performance.md).
+
 ## Creator website SEO and social previews (#1492)
 
 Creator publications render per-page canonical titles, bounded public descriptions,

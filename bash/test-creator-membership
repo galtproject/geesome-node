@@ -15,11 +15,22 @@ done
 port=$(docker port "$name" 5432 | sed 's/.*://')
 export CREATOR_MEMBERSHIP_TEST_DATABASE_URL="postgres://geesome:geesome@127.0.0.1:${port}/geesome_membership_test"
 docker run --detach --name "$ipfs_name" --publish 127.0.0.1::5001   --env IPFS_PROFILE=test ipfs/kubo:v0.42.0 >/dev/null
+ipfs_port=""
 for attempt in {1..30}; do
-  if docker exec "$ipfs_name" ipfs id >/dev/null 2>&1; then break; fi
+  # Without --api, `ipfs id` can succeed offline before the daemon/port is ready.
+  if docker exec "$ipfs_name" ipfs --api /ip4/127.0.0.1/tcp/5001 id >/dev/null 2>&1; then
+    ipfs_port=$(docker port "$ipfs_name" 5001 2>/dev/null | sed 's/.*://' || true)
+    if [[ -n "$ipfs_port" ]]; then
+      break
+    fi
+  fi
   sleep 1
 done
-ipfs_port=$(docker port "$ipfs_name" 5001 | sed 's/.*://')
+if [[ -z "$ipfs_port" ]]; then
+  docker logs --tail 30 "$ipfs_name" >&2 || true
+  echo "Test IPFS RPC/host port did not become ready" >&2
+  exit 1
+fi
 export CREATOR_MEMBERSHIP_TEST_IPFS_URL="http://127.0.0.1:${ipfs_port}"
 npm run test:creator-membership
 
