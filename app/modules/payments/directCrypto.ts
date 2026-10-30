@@ -7,9 +7,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { cryptoAssets, cryptoAsset, cryptoNetworks, type CryptoNetwork } from './cryptoAssets.js';
 import { publicWallet, receivingAddress, validReceivingAddress } from './cryptoWallet.js';
 import { createCryptoObserver, type ChainTransfer } from './cryptoObserver.js';
+const quoteLifetimeMs = 7 * 86400000;
+const monitoringLifetimeMs = 14 * 86400000;
+
 export function createDirectCrypto({ M, sequelize, serial, resource, grantPaidInvoice, fail, clock, env, adapter, observer = createCryptoObserver(env) }: any) {
 	const treasury = createCryptoTreasury({ M, sequelize, resource, fail, clock, env, observer, adapter });
-	const dto = (c: any, address: any) => ({ id: c.id, provider: 'direct', status: c.status, lastError: c.lastError || null, monitoringUntil: new Date(new Date(c.createdAt).getTime() + 7 * 86400000), assetId: c.assetId, address: address.address, amount: displayAtomic(c.snapshot.amountAtomic, c.snapshot.decimals), received: displayAtomic(c.receivedAtomic, c.snapshot.decimals), expiresAt: c.expiresAt, priceUsd: c.snapshot.amountCents / 100, optionLabel: c.snapshot.optionLabel, period: c.snapshot.period, currency: c.snapshot.currency, network: c.snapshot.network, decimals: c.snapshot.decimals, contract: c.snapshot.contract });
+	const dto = (c: any, address: any) => ({ id: c.id, provider: 'direct', status: c.status, lastError: c.lastError || null, monitoringUntil: new Date(new Date(c.createdAt).getTime() + monitoringLifetimeMs), assetId: c.assetId, address: address.address, amount: displayAtomic(c.snapshot.amountAtomic, c.snapshot.decimals), received: displayAtomic(c.receivedAtomic, c.snapshot.decimals), expiresAt: c.expiresAt, priceUsd: c.snapshot.amountCents / 100, optionLabel: c.snapshot.optionLabel, period: c.snapshot.period, currency: c.snapshot.currency, network: c.snapshot.network, decimals: c.snapshot.decimals, contract: c.snapshot.contract });
 	const hash = (s: string) => createHash('sha256').update(s).digest('hex');
 	const balanceJournalWhere = (network: string, address: string) => ({ network, [Op.or]: [{ sender: address }, { 'data.request.to': address }, { 'data.proof.to': address }] });
 	async function capacity(w: any) {
@@ -247,7 +250,7 @@ export function createDirectCrypto({ M, sequelize, serial, resource, grantPaidIn
 			const payoutDestination = managed ? await treasury.destination(id, t) : undefined;
 			const snapshot = { ...(managed ? { payoutDestination } : {}), ...(managed ? { managedIndex, managedFingerprint: treasury.wallet!.fingerprint } : {}), assetId: asset!.id, currency: asset!.currency, network: asset!.network, contract: asset!.contract, decimals: asset!.decimals, amountAtomic, rateUsd: rate!, amountCents: option.amountCents, optionId: option.id, optionLabel: option.label, period: option.period, createdAt: now.getTime(), ...(startBlock ? { startBlock } : {}) };
 			await M.invoices.create({ id: uuid, resourceId: id, readerId, requestKey: hash('direct:' + requestKey), optionSnapshot: option.toJSON(), providerId: 'direct:' + uuid, checkoutUrl: `https://${r.domain}/account/payments?cryptoInvoice=${uuid}`, status: 'pending' }, { transaction: t });
-			return M.crypto_invoices.create({ id: uuid, resourceId: id, readerId, invoiceId: uuid, requestKey, assetId: asset!.id, addressId: addressRow.id, snapshot, status: 'pending', expiresAt: new Date(now.getTime() + 30 * 60000), nextCheckAt: now, receivedAtomic: '0' }, { transaction: t });
+			return M.crypto_invoices.create({ id: uuid, resourceId: id, readerId, invoiceId: uuid, requestKey, assetId: asset!.id, addressId: addressRow.id, snapshot, status: 'pending', expiresAt: new Date(now.getTime() + quoteLifetimeMs), nextCheckAt: now, receivedAtomic: '0' }, { transaction: t });
 		});
 		return read(id, readerId, created.id);
 	}
@@ -374,7 +377,7 @@ export function createDirectCrypto({ M, sequelize, serial, resource, grantPaidIn
 		}
 	}
 	async function run() {
-		const rows = await M.crypto_invoices.findAll({ where: { status: { [Op.in]: ['pending', 'confirming', 'underpaid', 'expired', 'late_payment'] }, nextCheckAt: { [Op.lte]: clock() }, createdAt: { [Op.gt]: new Date(clock().getTime() - 7 * 86400000) } }, order: [['nextCheckAt', 'ASC']], limit: 10 });
+		const rows = await M.crypto_invoices.findAll({ where: { status: { [Op.in]: ['pending', 'confirming', 'underpaid', 'expired', 'late_payment'] }, nextCheckAt: { [Op.lte]: clock() }, createdAt: { [Op.gt]: new Date(clock().getTime() - monitoringLifetimeMs) } }, order: [['nextCheckAt', 'ASC']], limit: 10 });
 		for (const c of rows)
 			await scanInvoice(c);
 	}
@@ -405,6 +408,6 @@ export function createDirectCrypto({ M, sequelize, serial, resource, grantPaidIn
 		}
 		return dto(await M.crypto_invoices.findByPk(c.id), await M.crypto_addresses.findByPk(c.addressId));
 	}
-	async function reviews(id: string) { const rows = await M.crypto_invoices.findAll({ where: { resourceId: id, [Op.or]: [{ status: 'late_payment' }, { status: 'expired', receivedAtomic: { [Op.ne]: '0' } }, { status: { [Op.in]: ['pending', 'underpaid', 'confirming', 'expired'] }, createdAt: { [Op.lte]: new Date(clock().getTime() - 7 * 86400000) } }] }, order: [['createdAt', 'DESC']], limit: 100 }); return { invoices: await Promise.all(rows.map(async (c) => dto(c, await M.crypto_addresses.findByPk(c.addressId)))) }; }
+	async function reviews(id: string) { const rows = await M.crypto_invoices.findAll({ where: { resourceId: id, [Op.or]: [{ status: 'late_payment' }, { status: 'expired', receivedAtomic: { [Op.ne]: '0' } }, { status: { [Op.in]: ['pending', 'underpaid', 'confirming', 'expired'] }, createdAt: { [Op.lte]: new Date(clock().getTime() - monitoringLifetimeMs) } }] }, order: [['createdAt', 'DESC']], limit: 100 }); return { invoices: await Promise.all(rows.map(async (c) => dto(c, await M.crypto_addresses.findByPk(c.addressId)))) }; }
 	return { settings, methods, save, test, invoice, read, run, review, reviews, rescan, treasury };
 }

@@ -455,7 +455,7 @@ try {
         }
     }
     // New checkout behavior intentionally differs from the legacy reference.
-    for (const viewport of paginationOnly ? [] : [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+    for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
         const page = await browser.newPage({ viewport });
         const methods = [
             {id:'eth-ethereum',currency:'ETH',network:'ethereum',networkLabel:'Ethereum',available:true},
@@ -496,7 +496,7 @@ try {
             assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
             assert.equal(await page.locator('img:visible').evaluateAll(images => images.some(i => !i.complete || !i.naturalWidth)), false);
             const file = `${viewport.width}-${name}.png`;
-            await page.screenshot({path:path.join(root,file),fullPage:true});
+            await page.screenshot({path:path.join(root,file),fullPage:false});
             captures.push({file,description,viewport,state:name});
         };
         await page.goto(`${origin}/public/index.html`);
@@ -529,6 +529,13 @@ try {
         assert((await page.getByTestId('crypto-value-banner').textContent()).includes('Lower membership price with crypto'));
         assert((await page.getByTestId('crypto-benefits').textContent()).includes('Site-exclusive sets'));
         await captureCheckout('membership-choice-crypto','Direct checkout explains the lower crypto price and possible network fees, retaining the approved site-exclusive benefit.');
+        assert(!(await page.locator('.crypto-checkout').textContent()).includes('Automatic monitoring ends:'));
+        const general = page.getByTestId('crypto-help-general'), us = page.getByTestId('crypto-help-us');
+        assert.deepEqual(await general.locator('strong').allTextContents(), ['Coinbase','MoonPay','Ramp Network','Peer']);
+        assert.deepEqual(await us.locator('strong').allTextContents(), ['PayPal','Cash App','Venmo']);
+        await us.scrollIntoViewIfNeeded();
+        await captureCheckout('checkout-regional-help','Crypto buying help lists international options first and U.S. accounts below, with withdrawal, minimum and network constraints; no automatic-monitoring deadline is displayed.');
+
         await page.getByRole('button',{name:'Close dialog'}).click();
         resumed = true;
         methods.find(m => m.id === 'usdc-base').available = false;

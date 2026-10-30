@@ -132,6 +132,8 @@ test('managed SQL: stable user indexes, invoice boundaries, fee samples, exact r
 		// A new resource receives a separate permanent address.
 		block = 102;
 		const two = await invoice(reader, 'two', 'meat');
+		// Retained legacy quote keeps its original thirty-minute deadline.
+		await M.crypto_invoices.update({expiresAt:new Date(now.getTime()+30*60000)}, {where:{id:two.id}});
 		assert.notEqual(two.address, one.address);
 		assert.equal(await M.crypto_hd_accounts.count(), 3);
 		await s.directCrypto.run();
@@ -432,6 +434,8 @@ test('managed balance SQL: durable observations, concurrent scans, collections, 
 		// Even an old boundary captured before a slow allocation cannot reuse already credited blocks.
 		boundary = 100n;
 		const two = await create('wave', 'balance-two');
+		// Exercise retained pre-upgrade thirty-minute quote history.
+		await M.crypto_invoices.update({expiresAt:new Date(epoch+30*60000)}, {where:{id:two.id}});
 		boundary = null;
 		assert.equal(two.address, one.address);
 		assert.equal((await M.crypto_invoices.findByPk(two.id)).snapshot.startBlock, '110');
