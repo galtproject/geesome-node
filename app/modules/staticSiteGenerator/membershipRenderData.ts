@@ -19,7 +19,7 @@ export function membershipRenderData(site: SnapshotSite, posts: SnapshotPost[], 
     if (!brand.presentation && safeCreatorUrl(brand.patreonUrl)) {
         presentation.membership.external = {label:'External membership',url:safeCreatorUrl(brand.patreonUrl),accent:'#e3e3e3'};
     }
-	const branding = {description: String(site.description || brand.seo?.description || '').slice(0, 10000), coverUrl: safeCreatorUrl(brand.coverUrl), avatarUrl: safeCreatorUrl(brand.avatarUrl),
+	const branding = {description: String(brand.displayDescription ?? (site.description || brand.seo?.description || '')).slice(0, 10000), coverUrl: safeCreatorUrl(brand.coverUrl), avatarUrl: safeCreatorUrl(brand.avatarUrl),
 		links: creatorLinks(brand.links), legalLinks: creatorLinks(brand.legalLinks), patreonUrl: safeCreatorUrl(brand.patreonUrl)};
 	const options = (site.options || []).map(option => ({id: option.id, label: option.label, amountCents: option.amountCents, currency: option.currency, period: option.period}));
 	const nextPage = !single && !site.navigation ? site.pageUrls?.[page] || null : null;
