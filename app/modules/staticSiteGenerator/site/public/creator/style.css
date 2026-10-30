@@ -143,3 +143,6 @@
 .share-notification svg{flex-shrink:0}.share-notification-error{background:#321c29;border-color:#9e526a;color:#ffc0d2}
 .share-toast-enter-active,.share-toast-leave-active{transition:transform .3s ease,opacity .3s ease}.share-toast-enter-from,.share-toast-leave-to{transform:translateY(calc(100% + 40px));opacity:0}
 @media(prefers-reduced-motion:reduce){.share-toast-enter-active,.share-toast-leave-active{transition:none}}
+
+.membership-plan-total{display:flex;align-items:center;justify-content:flex-end;gap:8px}.membership-plan-total del{font-size:15px;color:#b7afbf;text-decoration-thickness:1.5px}.membership-plan-total strong{font-size:23px;letter-spacing:-.03em}
+@media(max-width:420px){.membership-plan-total{gap:6px}.membership-plan-total strong{font-size:21px}.membership-plan-total del{font-size:13px}}

@@ -925,3 +925,12 @@ The checkout status indicator and label use one vertically centred flex row with
 a fixed gap and a nonshrinking dot. This replaces inline baseline positioning,
 which placed the dot below the label's visual centre. Desktop/narrow checkout
 status captures are included in the membership browser workflow.
+
+
+## Discounted membership plan emphasis (#1489)
+
+In the polished theme, a six-month option with a positive saving displays its
+monthly-equivalent total struck through beside the actual price, followed by a
+Discount/savings badge. The existing tariff comparison drives the display; no
+prices or selected option change. Desktop/narrow plan captures cover $24 vs $20
+and absence of a struck-through price for the regular monthly option.
