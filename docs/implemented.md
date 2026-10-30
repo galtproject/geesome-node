@@ -906,3 +906,14 @@ captures, including copied/error Share notifications and repeated-click expiry a
 technical host names. Card, sidebar and narrow notification captures were visually
 inspected. No production update or snapshot rebuild was triggered; deploy and
 rebuild to publish these template/client changes.
+
+
+## Weekly payment quotes and regional crypto help (#1483)
+
+New direct-crypto quotes last seven days with a fourteen-day bounded observation
+window. Existing stored quote amounts/deadlines remain intact. Checkout and its
+loading state omit the automatic-monitoring deadline. Buying help puts Coinbase,
+MoonPay, Ramp and Peer first, then eligible U.S. PayPal/Cash App/Venmo accounts.
+See [the official-source audit](crypto-purchase-help-audit.md) for country, token,
+minimum and withdrawal limitations and verification evidence. These are external
+buying links, not a new fiat payment integration.

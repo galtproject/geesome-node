@@ -51,7 +51,6 @@ function changeNetwork(event: Event) {
                         <div v-if="invoice.status === 'underpaid'" class="crypto-detail">Remaining to send<code data-testid="crypto-remaining">{{ `${remaining} ${invoice.currency}` }}</code><button type="button" data-testid="crypto-copy-remaining" @click="copy(remaining)">Copy remaining amount</button></div>
                         <p>{{ `Quote expires: ${new Date(invoice.expiresAt).toLocaleString('en-US')}` }}</p>
                         <div class="crypto-status-control" data-testid="crypto-status-control"><p :class="`crypto-status crypto-status--${invoice.status}`" role="status" aria-live="polite" data-testid="crypto-status">{{ cryptoStatusText[invoice.status] || invoice.status }}</p><button type="button" :disabled="busy || creating" data-testid="crypto-check" @click="refresh(true)">{{ busy ? 'Checking…' : 'Check payment status' }}</button></div>
-                        <p v-if="invoice.monitoringUntil" class="crypto-monitoring">{{ `Automatic monitoring ends: ${new Date(invoice.monitoringUntil).toLocaleString('en-US')}. Contact the author about payments after that date.` }}</p>
                     </div>
                 </template>
             </div>

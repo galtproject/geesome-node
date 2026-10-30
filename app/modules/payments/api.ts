@@ -28,7 +28,7 @@ export default function (app, module) {
 	* @apiSuccess {String} address Receiving address.
 	* @apiSuccess {String} amount Required atomic-safe display amount.
 	* @apiSuccess {String} status Current invoice status.
-	* @apiSuccess {String} expiresAt Quote expiry.
+	* @apiSuccess {String} expiresAt Persisted quote expiry; new quotes last seven days. Existing quotes retain their saved deadline.
 	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.
 	* @apiError (403) Forbidden Origin or owner/permission mismatch.
 	*/

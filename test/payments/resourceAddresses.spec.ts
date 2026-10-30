@@ -98,3 +98,34 @@ test('resource address migration preserves keys and reserves ambiguous allocatio
         await db.close();
     }
 });
+
+test('weekly quotes remain payable through day seven and observe on-time receipts confirmed afterwards', {skip: !url}, async () => {
+    const db = database(), deposits = new Map<string, any[]>();
+    const epoch = Date.parse('2026-10-28T12:00:00Z');
+    let now = new Date(epoch);
+    const observer = {check:async()=>true, boundary:async()=>({height:'100'}), quote:async()=> '1',
+        scan:async (_snapshot, address)=>(deposits.get(address)||[])};
+    try {
+        const service = await createMembershipService({sequelize:db, env, clock:()=>now, cryptoObserver:observer, cryptoAdapter:{}});
+        await service.seedSites();
+        await (await service.resource('wave')).update({postsEnabled:true});
+        await service.directCrypto.treasury.save('wave',{payout:'0x'+'a'.repeat(40),version:0});
+        const option=(await service.models.options.findOne({where:{resourceId:'wave'}})).id;
+        const invoice=await service.directCrypto.invoice('wave',randomUUID(),{optionId:option,assetId:'usdc-base',idempotencyKey:randomUUID()});
+        assert.equal(new Date(invoice.expiresAt).getTime(),epoch+7*86400000);
+        // The SQL createdAt uses the real database clock, unlike the injected application clock.
+        await service.models.crypto_invoices.update({createdAt:new Date(epoch)}, {where:{id:invoice.id},silent:true});
+        assert.equal(new Date((await service.directCrypto.read('wave', (await service.models.crypto_invoices.findByPk(invoice.id)).readerId, invoice.id)).monitoringUntil).getTime(), epoch+14*86400000);
+        now=new Date(epoch+6*86400000);
+        await service.directCrypto.run();
+        assert.equal((await service.models.crypto_invoices.findByPk(invoice.id)).status,'pending');
+        now=new Date(epoch+7*86400000+60000);
+        deposits.set(invoice.address,[{key:'base:week-end',txid:'week-end',atomic:'4000000',confirmed:true,
+            timestamp:epoch+7*86400000-60000,blockHeight:'101'}]);
+        await service.directCrypto.run();
+        assert.equal((await service.models.crypto_invoices.findByPk(invoice.id)).status,'paid');
+        assert.equal(await service.models.periods.count({where:{invoiceId:invoice.id}}),1);
+        await service.directCrypto.run();
+        assert.equal(await service.models.periods.count({where:{invoiceId:invoice.id}}),1);
+    } finally {await db.close();}
+});
