@@ -12,6 +12,21 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Creator website SEO and social previews (#1492)
+
+Creator publications render per-page canonical titles, bounded public descriptions,
+Open Graph/Twitter cards, public JSON-LD and configured image favicons. Optional
+validated SEO branding persists across legacy settings updates and invalidates
+publication inputs. Public sitemap/robots files have stable delivery routes that
+always select the public variant, while accounts/full HTML/IPFS copies retain
+noindex policy. Preview alt text no longer exposes uploaded filenames.
+
+Validation: 69 creator membership tests and 57 payment tests passed with isolated
+PostgreSQL/Kubo; creator type checks, API doc generation and route inventory passed.
+
+See [configuration and rollout](./creator-site-seo.md) for owner settings,
+regeneration, proxy mappings and outstanding production checks.
+
 ## Incremental IPFS snapshot publication (#1475)
 
 The paired membership publisher now records complete, independently bound public

@@ -272,6 +272,9 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
         const denied=await request(route,{token:'test-other-owner',body:{...settings,presentation}});
         assert.equal(denied.status,403);
         assert.equal((await request(route,{token:'test-owner',body:{...settings,presentation:{schemaVersion:1,script:'x'}}})).status,400);
+        const badSeo=await request(route,{token:'test-owner',body:{...settings,seo:{imageUrl:'javascript:alert(1)'}}});
+        assert.equal(badSeo.status,400);
+        assert(JSON.stringify(badSeo.body).includes('membership_seo_invalid'));
         const saved=await request(route,{token:'test-owner',body:{...settings,presentation}});
         assert.equal(saved.status,200);
         assert.equal(saved.body.presentation.theme.accent,'#123456');
@@ -564,7 +567,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert((await request(new URL(renamedSelection.headers.get('location')).pathname)).body.includes('Creator profile description'));
 		const renamedResource = await membershipModels.resources.findByPk('snapshots');
 		const settings = await membership.siteSettings(owner.id, 'snapshots');
-		await membership.saveSiteSettings(owner.id, 'snapshots', {version: settings.version, enabled: settings.enabled, registrationEnabled: settings.registrationEnabled, googleClientId: settings.googleClientId, postsEnabled: settings.postsEnabled, displayTitle: 'Public creator name', coverUrl: 'https://snapshots.test/cover.png'});
+		await membership.saveSiteSettings(owner.id, 'snapshots', {version: settings.version, enabled: settings.enabled, registrationEnabled: settings.registrationEnabled, googleClientId: settings.googleClientId, postsEnabled: settings.postsEnabled, displayTitle: 'Public creator name', coverUrl: 'https://snapshots.test/cover.png', seo: {description:'Public creator introduction',imageUrl:'https://snapshots.test/share.webp',adult:true}});
 		const brandedState = (await membershipModels.resources.findByPk('snapshots')).data.publication;
 		assert.equal(brandedState.publicationId, renamedResource.data.publication.publicationId, 'branding keeps the current pair available');
 		assert.equal(brandedState.sourceVersion, renamedResource.data.publication.sourceVersion + 1, 'branding requests a new source revision');
@@ -572,9 +575,10 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert.equal((await membership.publicResource('snapshots')).title, 'Public creator name');
 		assert.equal((await models.Group.findByPk(group.id)).title, 'Renamed snapshot site');
 		const currentSettings = await membership.siteSettings(owner.id, 'snapshots');
-		const {displayTitle: _displayTitle, id: _id, origin: _origin, groupId: _groupId, ownerId: _ownerId, ...legacySettings} = currentSettings;
+		const {seo: _seo, displayTitle: _displayTitle, id: _id, origin: _origin, groupId: _groupId, ownerId: _ownerId, ...legacySettings} = currentSettings;
 		await membership.saveSiteSettings(owner.id, 'snapshots', legacySettings);
 		assert.equal((await membership.siteSettings(owner.id, 'snapshots')).displayTitle, 'Public creator name', 'old clients preserve the optional public title');
+		assert.deepEqual((await membership.siteSettings(owner.id, 'snapshots')).seo, {description:'Public creator introduction',imageUrl:'https://snapshots.test/share.webp',adult:true}, 'legacy updates preserve SEO');
         const forPresentation=await membership.siteSettings(owner.id,'snapshots');
         const beforePresentation=(await membershipModels.resources.findByPk('snapshots')).data.publication;
         const {id: _pi,origin: _po,groupId: _pg,ownerId: _pu,...presentationSettings}=forPresentation;
@@ -618,6 +622,20 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert(!stable.body.includes('FIRST-PAID-TEXT'));
 		assert.equal(stable.headers.get('cache-control'), 'private, no-store');
 		assert.equal((await get('membership/site/view/', {method: 'HEAD'})).body, null);
+		assert.equal(stable.headers.get('x-robots-tag'), undefined);
+		const sitemap = await get('membership/site/view/sitemap.xml');
+		assert.equal(sitemap.status, 200);
+		assert.equal(sitemap.headers.get('content-type'), 'application/xml; charset=utf-8');
+		assert(sitemap.body.includes(`https://snapshots.test/posts/${post.id}/`));
+		assert(!sitemap.body.includes('/account/'));
+		assert(!sitemap.body.includes('/ipfs/'));
+		assert.equal((await get('membership/site/view/sitemap.xml', {method:'HEAD'})).body, null);
+		const robots = await get('membership/site/view/robots.txt');
+		assert.equal(robots.status, 200);
+		assert.equal(robots.headers.get('content-type'), 'text/plain; charset=utf-8');
+		assert(robots.body.includes('Sitemap: https://snapshots.test/sitemap.xml'));
+		assert(stable.body.includes('property="og:image" content="https://snapshots.test/share.webp"'));
+		assert(stable.body.includes('Public creator introduction'));
 		assert.equal((await get('membership/site/page/0/')).status, 404);
 		assert.equal((await get('membership/site/view/page/0/')).status, 404);
 		assert.equal((await get('membership/site/view/', {headers: {'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'navigate','Sec-Fetch-Dest':'document'}})).status, 200);
@@ -639,6 +657,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		const legacyJob = await membershipModels.publications.create({id:randomUUID(),resourceId:'snapshots',requestKey:'legacy-path-check',status:'ready',manifest:{public:headManifest.public,full:headManifest.full,pageCount:2,posts:headManifest.posts}});
 		await boundResource.update({data:{...savedBinding,publication:{...savedBinding.publication,publicationId:legacyJob.id}}});
 		assert((await get('membership/site/')).headers.get('location').endsWith('/index.html'));
+		assert.equal((await get('membership/site/view/sitemap.xml')).status,404, 'legacy snapshots do not attempt to read absent discovery files');
 		assert((await get('membership/site/?page=2')).headers.get('location').endsWith('/page-2.html'));
 		assert((await get(`membership/site/posts/${post.id}/`)).headers.get('location').endsWith(`/posts/${post.id}.html`));
 		await boundResource.update({data:savedBinding});
@@ -659,6 +678,8 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		const fullStable = await get('membership/site/view/', {cookie});
 		assert(fullStable.body.includes('FIRST-PAID-TEXT'));
 		assert.equal(fullStable.headers.get('x-robots-tag'), 'noindex, nofollow');
+		assert.equal((await get('membership/site/view/sitemap.xml', {cookie})).body, sitemap.body, 'entitled discovery still selects only public URLs');
+		assert.equal((await get('membership/site/view/robots.txt', {cookie})).body, robots.body);
 
 		assert.notEqual(paidLocation, publicLocation); assert((await read(paidLocation)).body.includes('FIRST-PAID-TEXT'));
 		assert.equal((await get('membership/site/', {cookie, method: 'HEAD'})).headers.get('location'), paidLocation);

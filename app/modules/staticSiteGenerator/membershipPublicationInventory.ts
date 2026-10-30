@@ -2,7 +2,7 @@ import {hashPublicationInput, normalizePublicationCid} from './publicationIdenti
 import type {InventoryEntry, PublicationInventory} from './publicationTreeAssembly.js';
 
 const baseDirectories = ['account', 'media', 'page', 'posts', 'public'];
-const managedFile = /^(index\.html|style\.css|public\/client\.js|account\/index\.html|posts\/[1-9][0-9]*\/index\.html|page\/[1-9][0-9]*\/index\.html|media\/[a-f0-9]{64}\.[a-zA-Z0-9_-]+)$/;
+const managedFile = /^(index\.html|sitemap\.xml|robots\.txt|style\.css|public\/client\.js|account\/index\.html|posts\/[1-9][0-9]*\/index\.html|page\/[1-9][0-9]*\/index\.html|media\/[a-f0-9]{64}\.[a-zA-Z0-9_-]+)$/;
 
 export function canonicalMembershipPublicationInventory(entries: InventoryEntry[]): PublicationInventory {
 	const files = new Set<string>(), directories = new Set(baseDirectories);

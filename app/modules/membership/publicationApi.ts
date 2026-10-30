@@ -90,7 +90,8 @@ export default function registerPublicationApi(app, module) {
 		const siteRequest = documentNavigation ? {...req, headers: {...req.headers, 'sec-fetch-site': 'none'}} : req;
 		const site = await configuredSite(app, siteRequest, false);
 		const requestUrl = new URL(req.route, 'https://creator.invalid');
-		const documentRoute = !req.params.file && !pathname.endsWith('/style.css') && !pathname.endsWith('/client.js');
+		const discovery = pathname.endsWith('/sitemap.xml') ? 'sitemap.xml' : pathname.endsWith('/robots.txt') ? 'robots.txt' : null;
+		const documentRoute = !discovery && !req.params.file && !pathname.endsWith('/style.css') && !pathname.endsWith('/client.js');
 		if (documentRoute && !requestUrl.pathname.endsWith('/')) {
 			res.setHeader('Location', pathname.split('/').pop() + '/' + requestUrl.search);
 			res.writeHead(308, {});
@@ -98,7 +99,7 @@ export default function registerPublicationApi(app, module) {
 			return;
 		}
 
-		const reader = await app.ms.googleAuthorization.reader(req, site, false);
+		const reader = discovery ? null : await app.ms.googleAuthorization.reader(req, site, false);
 		const account = routePath(req).endsWith('/account');
 		const location = await module.currentSnapshot(site.id, reader?.id, req.params.post,
 			sequencePage(req), account);
@@ -108,6 +109,9 @@ export default function registerPublicationApi(app, module) {
 			path += 'index.html';
 		}
 		const asset = req.params.file;
+		if (discovery) {
+			path = discovery;
+		}
 		if (asset) {
 			if (!/^[a-f0-9]{64}\.[a-z0-9]{1,16}$/.test(asset)) {
 				siteProblem(404, 'page_not_found');
@@ -123,14 +127,17 @@ export default function registerPublicationApi(app, module) {
 		if (!variant) {
 			siteProblem(503, 'publication_source_changed');
 		}
+		if (discovery && !manifest.files?.public?.[path]) {
+			siteProblem(404, 'page_not_found');
+		}
 		if (manifest.version === 2 && (asset ? !manifest.media?.[variant]?.includes(asset) : !manifest.files?.[variant]?.[path])) {
 			siteProblem(404, 'page_not_found');
 		}
 		if (account || variant === 'full') {
 			res.setHeader('X-Robots-Tag', 'noindex, nofollow');
 		}
-		const type = path.endsWith('.css') ? 'text/css' : path.endsWith('.js') ? 'application/javascript' : path.endsWith('.html') ? 'text/html' : ({png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',gif:'image/gif',svg:'image/svg+xml',avif:'image/avif',mp4:'video/mp4',webm:'video/webm',mp3:'audio/mpeg',ogg:'audio/ogg',pdf:'application/pdf',txt:'text/plain'}[path.split('.').pop()] || 'application/octet-stream');
-		res.setHeader('Content-Type', type + (type.startsWith('text/') || type === 'application/javascript' ? '; charset=utf-8' : ''));
+		const type = path.endsWith('.xml') ? 'application/xml' : path.endsWith('.txt') ? 'text/plain' : path.endsWith('.css') ? 'text/css' : path.endsWith('.js') ? 'application/javascript' : path.endsWith('.html') ? 'text/html' : ({png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',webp:'image/webp',gif:'image/gif',svg:'image/svg+xml',avif:'image/avif',mp4:'video/mp4',webm:'video/webm',mp3:'audio/mpeg',ogg:'audio/ogg',pdf:'application/pdf',txt:'text/plain'}[path.split('.').pop()] || 'application/octet-stream');
+		res.setHeader('Content-Type', type + (type.startsWith('text/') || type === 'application/xml' || type === 'application/javascript' ? '; charset=utf-8' : ''));
 		const stream = await app.ms.storage.getFileStream(`${root}/${path}`);
 		if (req.stream.method === 'HEAD') {
 			stream.destroy();
@@ -154,6 +161,19 @@ export default function registerPublicationApi(app, module) {
 	app.ms.api.onGet('membership/site/view/media/:file', view);
 	app.ms.api.onHead('membership/site/view/media/:file', view);
 
+	/**
+	 * @api {get} /v1/membership/site/view/sitemap.xml Read public creator discovery files
+	 * @apiName MembershipSiteDiscovery
+	 * @apiGroup Membership
+	 * @apiHeader {String} Host Configured creator-site host.
+	 * @apiSuccess {String} body Public-only XML sitemap; /robots.txt serves text/plain. GET and HEAD supported.
+	 * @apiDescription Map /sitemap.xml and /robots.txt to these view routes at the reverse proxy. Discovery always selects the public snapshot, even for entitled readers; it never lists accounts or full snapshot CIDs. Old snapshots require regeneration before discovery files become available.
+	 * @apiError (404) page_not_found Discovery file absent from an older publication.
+	 */
+	app.ms.api.onGet('membership/site/view/sitemap.xml', view);
+	app.ms.api.onHead('membership/site/view/sitemap.xml', view);
+	app.ms.api.onGet('membership/site/view/robots.txt', view);
+	app.ms.api.onHead('membership/site/view/robots.txt', view);
 
 	/**
 	 * @api {get} /v1/membership/site/client.js Load snapshot account controls

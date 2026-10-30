@@ -35,21 +35,26 @@ async function renderApp(storageData, rootContent, url, headers, lang) {
     // VueSSR: generated html string of page
     const content = await renderToString(app);
 
-    const title = getHeaderContent(headers, 'og:title');
+    const metadata = storageData.membership ? storageData.creatorMetadata : null;
+    const title = metadata?.title || getHeaderContent(headers, 'og:title');
+    if (metadata) {
+        headers = [...metadata.headers, ...headers.filter(([tag, attr]) => tag === 'meta' && attr.name === 'robots')];
+    }
 
     // VueSSR: replace index.html variable with result values
     const replacements = {
         relativeRoot, lang, content, bodyClass: storageData.membership ? 'creator-page' : '',
-        favicon: storageData.favicon === false ? '<link rel="icon" href="data:,"/>'
+        favicon: metadata?.favicon ? `<link rel="icon" href="${escapeHtmlAttribute(metadata.favicon)}"/>` : storageData.favicon === false ? '<link rel="icon" href="data:,"/>'
             : `<link rel="shortcut icon" href="${escapeHtmlAttribute(relativeRoot)}favicon.ico"/>`,
-        headers: `<title>${escapeHtml(title)}</title>\n` + headers.map(([tag, attr]) => getHeaderTagHtml(tag, attr)).join('\n'),
+        headers: `<title>${escapeHtml(title)}</title>\n` + headers.map(([tag, attr]) => getHeaderTagHtml(tag, attr)).join('\n')
+            + (metadata ? '\n<script type="application/ld+json">' + JSON.stringify(metadata.structuredData).replace(/</g, '\\u003c') + '</script>' : ''),
         clientData: JSON.stringify({...storageData, path: url}).replace(/</g, '\\u003c'),
     };
     return rootContent.replace(/\{\{(relativeRoot|lang|headers|content|clientData|favicon|bodyClass)}}/g, (_token, key) => replacements[key]);
 }
 
 function getHeaderContent(headers, name) {
-    const header = headers.find(h => h[1].name === name);
+    const header = headers.find(h => (h[1].name || h[1].property) === name);
     if (!header) {
         return '';
     }

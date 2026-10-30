@@ -57,7 +57,7 @@ describe('stable creator pagination', function () {
         assert.deepEqual(replay.manifest.files,first.manifest.files);
         source.push({id:'51',publishedAt:new Date(51),status:'published',contents:[],propertiesJson:JSON.stringify({membership:{title:'Post 51',teaser:'PUBLIC 51',fullText:'PRIVATE 51',free:false}})});
         const second=await build(replay.manifest);
-        assert.equal(writes-before,4,'only public/full homepage and new post HTML are written');
+        assert.equal(writes-before,5,'only public/full homepage, new post HTML and public sitemap are written');
         assert.deepEqual(second.manifest.layout.archives,first.manifest.layout.archives);
         assert.deepEqual(second.manifest.files.public['page/1/index.html'],first.manifest.files.public['page/1/index.html']);
         assert.deepEqual(second.manifest.files.full['posts/1/index.html'],first.manifest.files.full['posts/1/index.html']);
@@ -76,5 +76,12 @@ describe('stable creator pagination', function () {
         assert.notEqual(third.manifest.files.full['posts/1/index.html'].cid,second.manifest.files.full['posts/1/index.html'].cid);
         const branded=await buildMembershipSnapshots(app,row,'New title',{previousManifest:third.manifest,options:[],description:'',renew:async()=>{},beginDirectory:async variant=>`/brand-${variant}`});
         assert.notEqual(branded.manifest.files.public['page/1/index.html'].cid,third.manifest.files.public['page/1/index.html'].cid);
+        row.data = {seo:{description:'A new public introduction',imageUrl:'https://creator.test/share.webp'}};
+        const seoChanged = await build(third.manifest);
+        assert.notEqual(seoChanged.manifest.files.public['posts/1/index.html'].cid,third.manifest.files.public['posts/1/index.html'].cid);
+        assert(html(seoChanged.manifest.files.public['posts/1/index.html']).includes('https://creator.test/share.webp'));
+        assert(!html(seoChanged.manifest.files.public['posts/1/index.html']).includes('EDITED SECRET'));
+        const seoReplay = await build(seoChanged.manifest);
+        assert.deepEqual(seoReplay.manifest.files,seoChanged.manifest.files);
     });
 });
