@@ -529,6 +529,8 @@ try {
         assert((await page.getByTestId('crypto-value-banner').textContent()).includes('Lower membership price with crypto'));
         assert((await page.getByTestId('crypto-benefits').textContent()).includes('Site-exclusive sets'));
         await captureCheckout('membership-choice-crypto','Direct checkout explains the lower crypto price and possible network fees, retaining the approved site-exclusive benefit.');
+        await page.getByTestId('crypto-status-control').scrollIntoViewIfNeeded();
+        await captureCheckout('checkout-status-alignment','Payment status dot and Waiting for payment label share a vertically centred flex row on desktop and narrow screens.');
         assert(!(await page.locator('.crypto-checkout').textContent()).includes('Automatic monitoring ends:'));
         const general = page.getByTestId('crypto-help-general'), us = page.getByTestId('crypto-help-us');
         assert.deepEqual(await general.locator('strong').allTextContents(), ['Coinbase','MoonPay','Ramp Network','Peer']);
