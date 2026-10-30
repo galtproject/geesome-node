@@ -191,7 +191,7 @@ export function periodEnd(start: Date, period: string, anchorDay = start.getUTCD
 	return date;
 }
 function publicBrand(value = {}) {
-	return Object.fromEntries(['displayTitle', 'presentation', 'coverUrl', 'avatarUrl', 'links', 'patreonUrl', 'legalLinks'].filter(key => value[key] !== undefined).map(key => [key, value[key]]));
+	return Object.fromEntries(['displayTitle', 'presentation', 'seo', 'coverUrl', 'avatarUrl', 'links', 'patreonUrl', 'legalLinks'].filter(key => value[key] !== undefined).map(key => [key, value[key]]));
 }
 function refundMethods(M, serial, entitlement, clock) {
 	async function requestRefund(id: string, readerId: string, invoiceId: string, requestKey: string, reason: string) {

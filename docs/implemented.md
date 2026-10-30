@@ -12,6 +12,26 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Creator website SEO and social previews (#1492)
+
+Creator publications render per-page canonical titles, bounded public descriptions,
+Open Graph/Twitter cards, public JSON-LD and configured image favicons. Optional
+validated SEO branding persists across legacy settings updates and invalidates
+publication inputs. Public sitemap/robots files live in the IPFS directory with the site. The
+redundant `membership/site/view` file proxy is removed; only session-bound CID
+selectors remain. Access changes use these selectors even on a static domain
+mount. Accounts/full HTML/IPFS copies retain noindex policy. Preview alt text no longer exposes uploaded filenames.
+
+Validation: 72 creator membership tests and 57 payment tests passed with isolated
+PostgreSQL/Kubo; creator type checks, API doc generation and route inventory passed.
+Pagination browser checks passed with 80 captures; selected mobile/home and
+desktop/archive screenshots were inspected. The full reference-parity browser
+suite stops on differing crypto-help provider links in the existing MicrowaveGirls
+reference and unchanged Geesome component; it is not reported as passing.
+
+See [configuration and rollout](./creator-site-seo.md) for owner settings,
+regeneration, static domain cutover and outstanding production checks.
+
 ## Incremental IPFS snapshot publication (#1475)
 
 The paired membership publisher now records complete, independently bound public

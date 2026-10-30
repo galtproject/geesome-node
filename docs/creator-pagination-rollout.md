@@ -29,7 +29,8 @@ old HTML CIDs instead of repeating SSR/save. Raw private input is not part of th
 public projection/cache. Global total counts/page lists are absent from stable
 page data. Media are linked by existing CIDs, with no gallery traversal.
 
-A new post normally rewrites only the public/full homepage and new post page.
+A new post normally rewrites the public/full homepage, new post page and public
+sitemap.
 On rollover the new archive is written and the previous newest archive's Newer
 link changes from home to its new neighbour; older archives remain reusable.
 Branding/tariffs/template changes invalidate affected outputs. Reading the current
@@ -49,65 +50,32 @@ to the session-selected immutable directory. `/site/page/N/`, `/site/posts/N/`
 and `/site/account/` do the same. Legacy `?page=1` means home; `?page=2` selects
 archive 1 in a version-2 publication.
 
-## Stable domain delivery
+## Static domain delivery
 
-For SEO, the new `/api/v1/membership/site/view/` family streams pre-rendered HTML
-without redirecting to a CID. Public pages have canonical metadata for their
-stable domain path; full/account HTML are noindex. All responses are
-`private, no-store`, vary by Cookie/Host and bypass range/conditional cache reuse.
-Safe external document navigation is allowed; Host binding and ordinary API
-cross-origin restrictions remain enforced. Session changes reload the current
-stable document, while immutable-CID readers use the original selector policy.
+Mount the public publication's IPFS directory as the creator domain root using
+the existing domain gateway. HTML pages, CSS, JavaScript, media, sitemap and robots
+are ordinary files resolved relative to that root. There is no membership file
+proxy. Update the domain binding when the public publication CID changes.
 
-Changing the currently deployed creator-domain homepage from MicrowaveGirls SSR
-to this handler is a separate **operator cutover**, after the new snapshots have
-been verified. No production nginx changes are applied by this implementation.
-Keep `/admin/`, existing `/api/v1/`, `/ipfs/` and any legacy assets/routing intact.
-Map only the selected creator domains, never the node administrator domain.
+The former `/api/v1/membership/site/view/` family has been removed (#1492). If a
+site was configured with those per-page/asset mappings, switch it to the public
+root mount before upgrading. Preserve `/admin/`, `/api/`, `/ipfs/` and any legacy
+assets/routing; apply only to creator domains, not the node administrator domain.
 
-Example shared proxy snippet (install as
-`/etc/nginx/snippets/geesome-creator-proxy.conf`):
+Keep the session-bound `/api/v1/membership/site/`, `/site/posts/N/`,
+`/site/page/N/` and `/site/account/` selectors for discovering the current
+public/full snapshot. They issue private/no-store 302 redirects after checking
+site/session/entitlement and never proxy the selected file bytes. Their HEAD
+responses use the same selection policy. Generated clients use these selectors
+for sign-in, access refresh and logout; ordinary navigation stays directory-relative.
+The old snapshot-account JavaScript route remains for immutable legacy clients.
 
-```nginx
-proxy_pass https://geesome.microwavedev.io;
-proxy_ssl_server_name on;
-proxy_ssl_name geesome.microwavedev.io;
-proxy_set_header Host $host;
-proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-proxy_set_header X-Forwarded-Proto $scheme;
-proxy_read_timeout 300s;
-proxy_buffering off;
-proxy_cache off;
-```
+At domain cutover, verify canonical stable URLs, indexable public-domain headers,
+static CSS/JS/media/discovery files, archive links, account/login, full content
+selection after payment, logout and expiry. Direct IPFS copies retain noindex;
+the public-domain mount must use its intended indexing policy. No production
+proxy or domain binding is changed by this implementation.
 
-Inside each creator-domain server block, after backing up its nginx file:
-
-```nginx
-location = / {
-    rewrite ^ /api/v1/membership/site/view/ break;
-    include /etc/nginx/snippets/geesome-creator-proxy.conf;
-}
-location ~ "^/(page/[1-9][0-9]*|posts/[1-9][0-9]*|account)/?$" {
-    rewrite ^/(.*)$ /api/v1/membership/site/view/$1 break;
-    include /etc/nginx/snippets/geesome-creator-proxy.conf;
-}
-location ~ "^/(style\.css|public/client\.js|media/[a-f0-9]{64}\.[a-z0-9]{1,16})$" {
-    rewrite ^/(.*)$ /api/v1/membership/site/view/$1 break;
-    include /etc/nginx/snippets/geesome-creator-proxy.conf;
-}
-```
-
-Check location precedence against existing ^~ prefixes and test `nginx -t`
-before reload. Preserve the upstream node's existing Host-preserving API route.
-At the CDN, bypass caching for these session-selected documents/assets; never
-configure a cache-everything rule on them. Do not cache redirects or errors.
-
-Validate anonymous page HTML, canonical URL, old/new navigation, CSS/JS/media,
-Google login, full content after verified access, logout and expired session.
-Top-level links from external sites must work. Requests for unpublished post/page
-ids and unknown media must return 404. The IPFS copy remains noindex through the
-existing artifact headers; only public stable documents should be indexed.
-
-For rollback restore the creator-domain proxy config. Keep the authoritative
-publication manifest and immutable artifacts; restoring an old billing database
-or discarding already received CIDs is unnecessary and unsafe.
+For rollback restore the prior domain binding or gateway configuration. Retain
+the publication manifests and obtained immutable artifacts; no billing database
+rollback or deletion of snapshots is required.

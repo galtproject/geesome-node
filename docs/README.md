@@ -48,6 +48,7 @@ can be used for the generated API page, this portal, and module docs.
 
 ## Focused References
 
+- [Creator website SEO and social previews](./creator-site-seo.md)
 - [Creator membership migration: audited plan](./plans/creator-membership-migration.md)
 
 - [Debugging and logs](../DEBUG.md)

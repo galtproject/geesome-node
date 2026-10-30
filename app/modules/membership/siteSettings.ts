@@ -1,3 +1,4 @@
+import {normalizeCreatorSeo} from '../staticSiteGenerator/site/creatorSeo.js';
 import {HtmlShellValidationError} from '../staticSiteGenerator/site/htmlShell.js';
 import {ApiProblemError} from '../api/problem.js';
 import {normalizeSitePresentation} from '../staticSiteGenerator/site/presentation.js';
@@ -8,6 +9,13 @@ import { siteProblem } from '../api/browserSession.js';
 export default function siteSettings(app, M, group, owner, publicBrand, invalidateGroup) {
 	const sequelize = app.ms.database.sequelize;
 	function validate(body) {
+        if (body?.seo !== undefined) {
+            try {
+                body.seo = normalizeCreatorSeo(body.seo);
+            } catch {
+                siteProblem(400, 'membership_seo_invalid');
+            }
+        }
         if (body?.presentation !== undefined) {
             try { body.presentation = normalizeSitePresentation(body.presentation); }
             catch (error) {
@@ -36,7 +44,7 @@ export default function siteSettings(app, M, group, owner, publicBrand, invalida
 		if (body.version !== (current?.version || 0)) {
 			siteProblem(409, 'membership_site_version_conflict');
 		}
-		for (const field of ['displayTitle','presentation']) {
+		for (const field of ['displayTitle','presentation','seo']) {
             if (body[field]===undefined && row.data?.[field]!==undefined) {
                 body={...body,[field]:row.data[field]};
             }
@@ -68,7 +76,7 @@ export default function siteSettings(app, M, group, owner, publicBrand, invalida
 		async saveSiteSettings(userId, id, body) {
 			await owner(userId, id);
 			validate(body);
-			if (Object.keys(body).some(key => !['version', 'enabled', 'googleClientId', 'registrationEnabled', 'postsEnabled', 'displayTitle', 'presentation', 'coverUrl', 'avatarUrl', 'links', 'patreonUrl', 'legalLinks'].includes(key))) {
+			if (Object.keys(body).some(key => !['version', 'enabled', 'googleClientId', 'registrationEnabled', 'postsEnabled', 'displayTitle', 'presentation', 'seo', 'coverUrl', 'avatarUrl', 'links', 'patreonUrl', 'legalLinks'].includes(key))) {
 				siteProblem(400, 'membership_site_invalid');
 			}
 			return sequelize.transaction(async transaction => {
