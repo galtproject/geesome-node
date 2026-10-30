@@ -43,28 +43,44 @@ back to the public avatar. Choose an explicit suitable share image for predictab
 cards. No image dimensions are invented. Sites without images use a summary card.
 `adult` is explicit and is never inferred or enabled for every creator.
 
-## Discovery and rollout
+## Static discovery and rollout
 
-Paired publications contain `sitemap.xml` and `robots.txt`. The public sitemap
-contains the canonical HTTPS home, published post pages and archives. It never
-lists accounts, API selectors or IPFS/full snapshot URLs. Discovery from the
-stable routes always uses the public variant, regardless of the reader cookie.
+Paired publications contain `sitemap.xml` and `robots.txt` as ordinary files in
+the IPFS directory alongside HTML, CSS, JavaScript and media. The public sitemap
+contains canonical HTTPS home, published post pages and archives. It never lists
+accounts, API selectors or IPFS/full snapshot URLs. The full variant has an empty
+sitemap and a robots file disallowing crawling.
 
-In addition to the existing website proxy mappings, map these exact public paths
-on each configured creator host (preserving the original Host header):
+Mount the **public** publication root on the creator domain through the existing
+domain/IPFS gateway mechanism. Its relative paths then serve `/posts/N/`,
+`/page/N/`, `/account/`, `/style.css`, `/public/client.js`, `/media/...`,
+`/sitemap.xml` and `/robots.txt` automatically. Do not add per-file membership API
+proxy routes. The domain binding must follow the newly published public root;
+updating the binding is part of the operator's publication/cutover workflow.
+Do not mount the full root as the public domain root.
 
-- `/sitemap.xml` to `/api/v1/membership/site/view/sitemap.xml`
-- `/robots.txt` to `/api/v1/membership/site/view/robots.txt`
+The `membership/site/view` proxy family has been removed. Before upgrading a
+site configured to use it, replace those proxy mappings with the public-root
+mount. Preserve `/api/`, `/ipfs/`, administration and existing legacy assets.
+The site API selectors remain session-bound 302 redirects to public/full CIDs;
+they never stream file bytes. On sign-in, payment refresh and logout the client
+navigates through its explicit `snapshot.entryPath` selector, including when the
+page was loaded from a domain mount. Login/account/payment APIs remain dynamic.
+The legacy `/membership/site/client.js` is retained for old snapshot references.
 
-Both support GET and HEAD. Existing publications lack discovery files and need
-regeneration. Public stable HTML remains indexable. Accounts and entitled full
-HTML remain noindex; immutable IPFS artifacts retain noindex/nofollow and immutable
-caching. Stable content and discovery responses remain private/no-store.
+Existing publications need regeneration to gain SEO and discovery files and the
+updated access-selection client. Old immutable CIDs and their embedded clients
+do not change. Accounts/full HTML retain noindex metadata. Immutable IPFS
+artifacts retain noindex/nofollow headers and immutable caching; make sure the
+domain gateway's public-root mount uses the correct indexable policy for stable
+public HTML rather than blindly copying IPFS-copy noindex headers. Selector
+responses/errors remain private/no-store and vary by Cookie and Host.
 
-After deploying the reviewed code, configure the public description/images,
-regenerate the paired publication, and verify the final domain HTML and HTTP
-headers, sitemap, and real Telegram/Discord/X cards. The immutable audit CID will
-not change. Submit the stable sitemap in Search Console separately.
+After deployment, configure the public description/images, regenerate the paired
+publication, update the domain binding, and verify the final domain HTML and
+HTTP headers, static sitemap, and real Telegram/Discord/X cards. Submit the stable
+sitemap in Search Console separately. This code change does not configure the
+production domain gateway or deploy a server.
 
 ## Remaining release checks
 

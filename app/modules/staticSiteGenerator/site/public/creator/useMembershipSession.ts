@@ -27,8 +27,9 @@ export function useMembershipSession(initialState: PublicState) {
         const post = posts.value.find(item => path === `/posts/${item.id}`);
         return post?.postPath || snapshot.homePath;
     };
-    const selectionPath = () => initialState.snapshot.canonicalPath && !location.pathname.startsWith('/ipfs/')
-        ? location.pathname : initialState.snapshot.entryPath;
+    // A mounted domain always serves the public directory. Access changes must
+    // resolve the full/public CID through the selector, rather than reload it.
+    const selectionPath = () => initialState.snapshot.entryPath;
     const query = () => `resource=${encodeURIComponent(resourceId.value)}`;
     const active = computed(() => Boolean(account.value?.active));
     const expired = computed(() => Boolean(account.value?.expired || (!active.value && (account.value?.invoices || []).some(payment => ['paid', 'confirmed', 'refunded'].includes(payment.status)))));

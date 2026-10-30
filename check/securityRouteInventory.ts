@@ -105,10 +105,8 @@ function notesFor(route: RouteRow, block: string): string[] {
         ? 'bearer only; self req.user.id; UserGroupManagement and active key permission required; no browser cookie authorization'
         : 'bearer only; membership.owner checks group creator and UserGroupManagement; no browser cookie authorization');
     } else {
-      notes.add(['/v1/membership/site/view/sitemap.xml', '/v1/membership/site/view/robots.txt'].includes(routeLower)
-        ? 'membership HTTPS Host allowlist; always public snapshot; reader cookies never select full discovery; cross-site API fetches rejected; private no-store, Vary Cookie/Host'
-        : routeLower.startsWith('/v1/membership/site/view')
-        ? 'membership HTTPS Host allowlist; site-bound cookie selects public/full; safe external GET/HEAD document navigation allowed; cross-site API fetches rejected; private no-store, Vary Cookie/Host; full/account noindex'
+      notes.add(routeLower.startsWith('/v1/membership/site') && !routeLower.endsWith('/client.js')
+        ? 'membership HTTPS Host allowlist; session-bound public/full CID redirect only; safe external GET/HEAD document navigation allowed; cross-site API fetches rejected; private no-store, Vary Cookie/Host'
         : 'membership SQL HTTPS Host allowlist; cookie accepted explicitly and bound to site; mutation requires exact Origin; no-store');
       if (block.includes('reader(req, site, true)')) {
         notes.add('requires live private reader session; no core upload permissions or API key issued');
