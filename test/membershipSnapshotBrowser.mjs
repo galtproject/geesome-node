@@ -521,9 +521,14 @@ try {
         await page.getByRole('heading',{name:'Join on this site',exact:true}).waitFor();
         assert((await page.getByTestId('direct-crypto-payment').textContent()).includes('Continue to crypto payment'));
         assert((await page.locator('.membership-modal').textContent()).includes('One-time payment. No automatic renewal.'));
+        const discountedPlan = page.getByTestId('membership-plan-halfyear');
+        assert.equal(await discountedPlan.locator('del').textContent(),'$24.00');
+        assert.equal(await discountedPlan.locator('.membership-plan-total strong').textContent(),'$20.00');
+        assert.equal(await discountedPlan.locator('.membership-saving').textContent(),'Discount · Save $4.00');
+        assert.equal(await page.getByTestId('membership-plan-month').locator('del').count(),0);
         const planFile = `${viewport.width}-membership-choice-plans.png`;
         await page.screenshot({path:path.join(root,planFile),fullPage:false});
-        captures.push({file:planFile,description:'The direct membership plan dialog explicitly says this site, crypto payment, real periods/prices and no automatic renewal.',viewport,state:'membership-choice-plans'});
+        captures.push({file:planFile,description:'The direct membership plan dialog shows $24 struck through beside the $20 six-month price and a Discount · Save $4 badge, with monthly pricing and no automatic renewal unchanged.',viewport,state:'membership-choice-plans'});
         await page.getByTestId('direct-crypto-payment').click();
         await page.locator('.crypto-qr').waitFor();
         assert((await page.getByTestId('crypto-value-banner').textContent()).includes('Lower membership price with crypto'));
