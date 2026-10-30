@@ -29,6 +29,7 @@ export default function siteSettings(app, M, group, owner, publicBrand, invalida
 			|| typeof body.enabled !== 'boolean' || typeof body.registrationEnabled !== 'boolean'
 			|| typeof body.postsEnabled !== 'boolean' || typeof body.googleClientId !== 'string'
 			|| (body.displayTitle !== undefined && (typeof body.displayTitle !== 'string' || !body.displayTitle.trim() || body.displayTitle.length > 200))
+			|| (body.displayDescription !== undefined && (typeof body.displayDescription !== 'string' || body.displayDescription.length > 1000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(body.displayDescription)))
 			|| body.googleClientId.length > 200 || (body.googleClientId && !/^[A-Za-z0-9._-]+$/.test(body.googleClientId))) {
 			siteProblem(400, 'membership_site_invalid');
 		}
@@ -44,11 +45,14 @@ export default function siteSettings(app, M, group, owner, publicBrand, invalida
 		if (body.version !== (current?.version || 0)) {
 			siteProblem(409, 'membership_site_version_conflict');
 		}
-		for (const field of ['displayTitle','presentation','seo']) {
+		for (const field of ['displayTitle','displayDescription','presentation','seo']) {
             if (body[field]===undefined && row.data?.[field]!==undefined) {
                 body={...body,[field]:row.data[field]};
             }
         }
+		if (body.displayDescription !== undefined) {
+			body = {...body, displayDescription: body.displayDescription.trim()};
+		}
 		const brandingChanged = JSON.stringify(publicBrand(row.data)) !== JSON.stringify(publicBrand(body));
 		await row.update({ postsEnabled: body.postsEnabled, data: {...publicBrand(body), ...(row.data?.publication ? {publication: row.data.publication} : {})} }, { transaction });
 		const values = { googleClientId: body.googleClientId, enabled: body.enabled,
@@ -76,7 +80,7 @@ export default function siteSettings(app, M, group, owner, publicBrand, invalida
 		async saveSiteSettings(userId, id, body) {
 			await owner(userId, id);
 			validate(body);
-			if (Object.keys(body).some(key => !['version', 'enabled', 'googleClientId', 'registrationEnabled', 'postsEnabled', 'displayTitle', 'presentation', 'seo', 'coverUrl', 'avatarUrl', 'links', 'patreonUrl', 'legalLinks'].includes(key))) {
+			if (Object.keys(body).some(key => !['version', 'enabled', 'googleClientId', 'registrationEnabled', 'postsEnabled', 'displayTitle', 'displayDescription', 'presentation', 'seo', 'coverUrl', 'avatarUrl', 'links', 'patreonUrl', 'legalLinks'].includes(key))) {
 				siteProblem(400, 'membership_site_invalid');
 			}
 			return sequelize.transaction(async transaction => {

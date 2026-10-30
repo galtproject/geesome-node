@@ -35,6 +35,20 @@ describe('creator website SEO', () => {
         assert.equal($('meta[name="robots"]').attr('content'),'noindex,nofollow');
         assert.equal(JSON.parse($('script[type="application/ld+json"]').text()).headline,'Story');
     });
+    it('renders a separate visible introduction, supports hiding it and retains SEO metadata', async () => {
+        for (const full of [false, true]) {
+            for (const description of ['A short visible introduction <b>as text</b>', '']) {
+                const data = membershipRenderData({...site, brand:{...site.brand, displayDescription:description}}, [], full);
+                const html = await (await renderer.prepareRender(data)).renderPage('/', []);
+                const $ = load(html);
+                assert.equal($('.creator-profile p').text(), description);
+                assert.equal($('.creator-profile p').length, description ? 1 : 0);
+                assert.equal($('.creator-profile b').length, 0);
+                assert.equal($('meta[name="description"]').attr('content'), 'Public introduction');
+            }
+        }
+        assert.equal(membershipRenderData(site, [], false).creator.resource.description, 'Public introduction');
+    });
     it('uses owner metadata on home, distinct archive/account titles and safe fallbacks without inventing images', () => {
         assert.equal(creatorMetadata({...site,brand:{seo:{title:'Custom title'}}},[]).title,'Custom title');
         assert.equal(creatorMetadata({...site,canonicalPath:'/page/3/'},[]).title,'Archive 3 — Creator');

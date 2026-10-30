@@ -264,6 +264,25 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		// The process and service objects have not been restarted or reconfigured.
 		assert.equal((await membership.resolveSite('eraofwave.com')).version, 6);
 	});
+	it('roundtrips visible descriptions independently of SEO and accepts explicit clearing', async () => {
+        const route = 'membership/admin/wave/site';
+        const current = (await request(route, {token:'test-owner'})).body;
+        const {id, origin, groupId, ownerId, ...settings} = current;
+        const saved = await request(route, {token:'test-owner', body:{...settings, displayDescription:'  Visible introduction  '}});
+        assert.equal(saved.status, 200);
+        assert.equal(saved.body.displayDescription, 'Visible introduction');
+        const {displayDescription, ...omitted} = settings;
+        const preserved = await request(route, {token:'test-owner', body:{...omitted, version:saved.body.version}});
+        assert.equal(preserved.body.displayDescription, 'Visible introduction');
+        for (const value of [123, 'x'.repeat(1001)]) {
+            assert.equal((await request(route, {token:'test-owner', body:{...settings, version:preserved.body.version, displayDescription:value}})).status, 400);
+        }
+        const cleared = await request(route, {token:'test-owner', body:{...settings, version:preserved.body.version, displayDescription:''}});
+        assert.equal(cleared.status, 200);
+        assert.equal(cleared.body.displayDescription, '');
+        assert.equal((await membership.publicResource('wave')).description, '');
+        assert.deepEqual(cleared.body.seo, current.seo);
+    });
 	it('persists owner presentation, preserves omissions and rejects unsafe or stale writes', async () => {
         const route='membership/admin/wave/site';
         const current=(await request(route,{token:'test-owner'})).body;
@@ -567,17 +586,24 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert((await request(new URL(renamedSelection.headers.get('location')).pathname)).body.includes('Creator profile description'));
 		const renamedResource = await membershipModels.resources.findByPk('snapshots');
 		const settings = await membership.siteSettings(owner.id, 'snapshots');
-		await membership.saveSiteSettings(owner.id, 'snapshots', {version: settings.version, enabled: settings.enabled, registrationEnabled: settings.registrationEnabled, googleClientId: settings.googleClientId, postsEnabled: settings.postsEnabled, displayTitle: 'Public creator name', coverUrl: 'https://snapshots.test/cover.png', seo: {description:'Public creator introduction',imageUrl:'https://snapshots.test/share.webp',adult:true}});
+		await membership.saveSiteSettings(owner.id, 'snapshots', {version: settings.version, enabled: settings.enabled, registrationEnabled: settings.registrationEnabled, googleClientId: settings.googleClientId, postsEnabled: settings.postsEnabled, displayTitle: 'Public creator name', displayDescription: 'Visible creator introduction', coverUrl: 'https://snapshots.test/cover.png', seo: {description:'Public creator introduction',imageUrl:'https://snapshots.test/share.webp',adult:true}});
 		const brandedState = (await membershipModels.resources.findByPk('snapshots')).data.publication;
 		assert.equal(brandedState.publicationId, renamedResource.data.publication.publicationId, 'branding keeps the current pair available');
 		assert.equal(brandedState.sourceVersion, renamedResource.data.publication.sourceVersion + 1, 'branding requests a new source revision');
 		await membership.runPublications();
 		assert.equal((await membership.publicResource('snapshots')).title, 'Public creator name');
+		assert.equal((await membership.publicResource('snapshots')).description, 'Visible creator introduction');
+		const visibleSelection = await get('membership/site/');
+		const visibleHtml = (await request(new URL(visibleSelection.headers.get('location')).pathname)).body;
+		assert(visibleHtml.includes('Visible creator introduction'));
+		assert(visibleHtml.includes('content="Public creator introduction"'));
 		assert.equal((await models.Group.findByPk(group.id)).title, 'Renamed snapshot site');
 		const currentSettings = await membership.siteSettings(owner.id, 'snapshots');
-		const {seo: _seo, displayTitle: _displayTitle, id: _id, origin: _origin, groupId: _groupId, ownerId: _ownerId, ...legacySettings} = currentSettings;
+		const {seo: _seo, displayTitle: _displayTitle, displayDescription: _displayDescription, id: _id, origin: _origin, groupId: _groupId, ownerId: _ownerId, ...legacySettings} = currentSettings;
 		await membership.saveSiteSettings(owner.id, 'snapshots', legacySettings);
 		assert.equal((await membership.siteSettings(owner.id, 'snapshots')).displayTitle, 'Public creator name', 'old clients preserve the optional public title');
+		assert.equal((await membership.siteSettings(owner.id, 'snapshots')).displayDescription, 'Visible creator introduction');
+
 		assert.deepEqual((await membership.siteSettings(owner.id, 'snapshots')).seo, {description:'Public creator introduction',imageUrl:'https://snapshots.test/share.webp',adult:true}, 'legacy updates preserve SEO');
         const forPresentation=await membership.siteSettings(owner.id,'snapshots');
         const beforePresentation=(await membershipModels.resources.findByPk('snapshots')).data.publication;

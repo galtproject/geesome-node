@@ -970,3 +970,19 @@ monthly-equivalent total struck through beside the actual price, followed by a
 Discount/savings badge. The existing tariff comparison drives the display; no
 prices or selected option change. Desktop/narrow plan captures cover $24 vs $20
 and absence of a struck-through price for the regular monthly option.
+
+## Separate creator page description (#1498)
+
+Site branding accepts optional `displayDescription` (up to 1000 characters),
+independent of `seo.description`. Omitted fields preserve existing branding;
+explicit empty text hides the profile paragraph. Public resource data and both
+snapshot variants use the visible override, with the previous group/SEO fallback
+for publications without it. SEO metadata generation stays independent. Branding
+changes use the existing automatic publication invalidation path, without a SQL
+migration. Deploy this contract before the cabinet's Page description editor.
+
+Verification: 79 creator-membership checks passed with disposable PostgreSQL and
+real Kubo, including settings omission/clearing, automatic rebuild and rendered
+HTML with independent SEO. All 57 payment checks passed. API docs generated and
+security route inventory verified unchanged. The dependent cabinet's desktop and
+narrow settings workflow passed with 16 reviewed screenshot captures.

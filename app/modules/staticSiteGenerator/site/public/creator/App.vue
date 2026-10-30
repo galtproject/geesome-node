@@ -66,7 +66,7 @@ function join() {
             <template #profile>
                 <section class="creator-profile">
                     <img v-if="resource.avatarUrl" class="creator-avatar" :src="resource.avatarUrl" :alt="`${resource.title} avatar`">
-                    <div><h1>{{ resource.title }}</h1><p>{{ resource.description }}</p></div>
+                    <div><h1>{{ resource.title }}</h1><p v-if="resource.description">{{ resource.description }}</p></div>
                     <button v-if="enabled && !polished && presentation.template.id === 'creator'" type="button" class="primary" data-testid="join-membership" @click="join">{{ joinLabel }}</button>
                 </section>
             </template>
