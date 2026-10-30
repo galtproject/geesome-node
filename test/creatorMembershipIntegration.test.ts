@@ -610,6 +610,53 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert.equal(publicSelection.status, 302);
 		assert.equal(publicSelection.headers.get('cache-control'), 'private, no-store');
 		const publicLocation = publicSelection.headers.get('location');
+		const measureSelection = async (options: any = {}) => {
+			const sql: string[] = [], logging = db.options.logging;
+			db.options.logging = query => sql.push(query);
+			try { return {response: await get('membership/site/', options), sql}; }
+			finally { db.options.logging = logging; }
+		};
+		const warm = await measureSelection({cookie:'analytics=public'});
+		assert.equal(warm.response.headers.get('location'),publicLocation);
+		assert.equal(warm.response.headers.get('cache-control'),'private, no-store');
+		assert.equal(warm.response.headers.get('vary'),'Cookie, Host');
+		assert.equal(warm.sql.length,0,'warm guest redirect performs no database queries');
+		const invalidSession = await measureSelection({cookie:'__Host-geesome_session=forged'});
+		assert.equal(invalidSession.response.headers.get('location'),publicLocation);
+		assert(invalidSession.sql.length>0,'even malformed session cookies bypass the shared guest cache');
+		const bearer = await measureSelection({token:'test-owner'});
+		assert.equal(bearer.response.status,302);
+		assert(bearer.sql.length>0,'Authorization never consumes the guest entry');
+		assert.equal((await measureSelection({headers:{Origin:'https://foreign.test'}})).response.status,403);
+		assert.equal((await measureSelection({headers:{'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'cors'}})).response.status,403);
+		await membershipModels.site_settings.update({enabled:true},{where:{resourceId:'snapshots'}});
+		const mixedOrigins = await Promise.all([get('membership/site/',{headers:{Origin:'https://foreign.test'}}),get('membership/site/')]);
+		assert.equal(mixedOrigins[0].status,403);
+		assert.equal(mixedOrigins[1].headers.get('location'),publicLocation,'an invalid Origin on a coalesced miss cannot poison a legitimate caller');
+
+		await assert.rejects(db.transaction(async transaction => {
+			await membershipModels.site_settings.update({enabled:false},{where:{resourceId:'snapshots'},transaction});
+			const during = await measureSelection();
+			assert.equal(during.response.status,302);assert.equal(during.sql.length,0,'uncommitted settings do not invalidate committed cache data');
+			throw Error('selector rollback');
+		}),/selector rollback/);
+		assert.equal((await measureSelection()).sql.length,0,'rolled-back edits retain the valid cached selection');
+		await db.transaction(async transaction => {
+			await membershipModels.site_settings.update({enabled:false},{where:{resourceId:'snapshots'},transaction});
+		});
+		assert.equal((await measureSelection()).response.status,404,'committed disable evicts a warmed guest redirect immediately');
+		await membershipModels.site_settings.update({enabled:true},{where:{resourceId:'snapshots'}});
+		const cold = await measureSelection();
+		assert.equal(cold.response.headers.get('location'),publicLocation);
+		assert.equal(cold.sql.filter(query=>query.includes('FROM "membership_resources"')).length,2,'binding and selection reuse resources instead of rereading them through owner/publication helpers');
+		assert(cold.sql.some(query=>query.includes('jsonb_extract_path_text') && !query.includes('"manifest" AS "manifest"')),'selection projects routing fields instead of loading the full manifest');
+		await models.CorePermission.update({isActive:false},{where:{userId:owner.id,name:CorePermissionName.UserGroupManagement}});
+		assert.equal((await measureSelection()).response.status,403,'owner permission revocation invalidates the warmed guest result');
+		await models.CorePermission.update({isActive:true},{where:{userId:owner.id,name:CorePermissionName.UserGroupManagement}});
+		assert.equal((await measureSelection()).response.status,302);
+		now = new Date(now.getTime()+1001);
+		assert((await measureSelection()).sql.length>0,'TTL bounds changes from another worker or direct database writes');
+
 		const read = async url => get(new URL(url).pathname);
 		assert((await read(publicLocation)).body.includes('PUBLIC-TEASER'));
 		const publicHtml = (await read(publicLocation)).body;
@@ -662,6 +709,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 			startsAt: new Date(now.getTime() - 1000), endsAt: new Date(now.getTime() + 60000), revoked: false});
 		assert.equal((await get('membership/site/', {cookie: stranger.cookie})).headers.get('location'), publicLocation, 'payment for another resource is insufficient');
 		const paidLocation = (await get('membership/site/', {cookie})).headers.get('location');
+		assert.equal((await get('membership/site/')).headers.get('location'),publicLocation,'a paid selection never replaces the guest public redirect');
 		const fullHtml = (await read(paidLocation)).body;
 		assert(fullHtml.includes('name="robots" content="noindex,nofollow"'));
 		assert.equal((await read(new URL('sitemap.xml', publicDirectory))).body, sitemap.body, 'public directory files do not depend on a reader session');
@@ -681,6 +729,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert(!(await read(publicLocation)).body.includes(new URL(paidLocation).pathname.split('/')[2]), 'public HTML contains no full root CID');
 		await post.update({propertiesJson: JSON.stringify({membership: {...metadata, fullText: 'SECOND-PAID-TEXT'}})});
 		await membership.runPublications();
+		assert((await measureSelection()).sql.length>0,'successful publication commit invalidates a warmed guest redirect even when public bytes are reused');
 		const newerPaid = (await get('membership/site/', {cookie})).headers.get('location');
 		assert.notEqual(newerPaid, paidLocation); assert((await read(newerPaid)).body.includes('SECOND-PAID-TEXT'));
 		assert((await read(paidLocation)).body.includes('FIRST-PAID-TEXT'), 'old snapshot does not change with canonical post');

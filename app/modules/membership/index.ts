@@ -70,9 +70,9 @@ export function createMembership(app, models, dependencies: any = {}) {
 			anchorDay, startsAt: start, endsAt: periodEnd(start, invoice.optionSnapshot.period, anchorDay), revoked: false }, { transaction });
 		await invoice.update({ status: 'paid', paidAt: clock() }, { transaction });
 	}
-	async function owner(userId, id) {
+	async function owner(userId, id, existingRow?) {
 		await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
-		const row = await resource(id);
+		const row = existingRow?.id === id ? existingRow : await resource(id);
 		if (row.ownerId !== userId) {
 			siteProblem(403, 'owner_required');
 		}
