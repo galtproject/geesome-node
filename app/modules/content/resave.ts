@@ -1,3 +1,4 @@
+import {withImageResaveTimings, imageResaveTimingsEnabled, imageResaveSpan, markImageResaveReused} from './resaveTimings.js';
 import {CorePermissionName} from '../database/interface.js';
 import {requireIntegrationScopes} from '../api/integrationScopes.js';
 import {watermarkIdentity} from '../drivers/convert/imageWatermarkHelpers.js';
@@ -73,6 +74,11 @@ export class ContentResave {
         return content;
     }
     async requestResave(userId, sourceContentId, apiKeyId = null, driver = null) {
+        const result = await withImageResaveTimings(imageResaveTimingsEnabled(), null,
+            () => this.requestResaveMeasured(userId, sourceContentId, apiKeyId, driver));
+        return {...result.value, ...('timings' in result && result.value.status === 'completed' ? {timings: result.timings} : {})};
+    }
+    async requestResaveMeasured(userId, sourceContentId, apiKeyId = null, driver = null) {
         const optimization = optimizationRequest(driver);
         if (!optimization) {
             problem('image_optimization_driver_required', 400);
@@ -82,8 +88,9 @@ export class ContentResave {
         await this.authorize(userId, apiKeyId);
         contentIds([sourceContentId]);
         return withStorageFence(this.app, 'shared', async () => {
-            const existing = await this.saved(userId, sourceContentId, null, undefined, driver, selectedPolicy);
+            const existing = await imageResaveSpan('reuse_lookup', () => this.saved(userId, sourceContentId, null, undefined, driver, selectedPolicy));
             if (existing) {
+                markImageResaveReused();
                 return {status: 'completed', sourceContentId, content: existing};
             }
             const sequelize = this.app.ms.database.sequelize;
@@ -93,8 +100,9 @@ export class ContentResave {
                     problem('image_optimization_content_unavailable', 403);
                 }
                 // A worker may have completed while this admission waited for the lock.
-                const saved = await this.saved(userId, sourceContentId, source, transaction, driver, selectedPolicy);
+                const saved = await imageResaveSpan('reuse_lookup', () => this.saved(userId, sourceContentId, source, transaction, driver, selectedPolicy));
                 if (saved) {
+                    markImageResaveReused();
                     return {status: 'completed', sourceContentId, content: saved};
                 }
                 if (source.isDeleted) {
@@ -110,11 +118,19 @@ export class ContentResave {
         });
     }
     async execute(queue, operation, input) {
-        await this.authorize(queue.userId, queue.userApiKeyId);
+        const result = await withImageResaveTimings(imageResaveTimingsEnabled(), queue.createdAt,
+            () => this.executeMeasured(queue, operation, input));
+        return {...result.value, ...('timings' in result ? {timings: result.timings} : {})};
+    }
+    async executeMeasured(queue, operation, input) {
+        await imageResaveSpan('authorize', () => this.authorize(queue.userId, queue.userApiKeyId));
         const selectedPolicy = imagePolicy(input.policy);
-        let content = await this.saved(queue.userId, input.sourceContentId, null, undefined, input.driver, selectedPolicy);
+        let content = await imageResaveSpan('reuse_lookup', () => this.saved(queue.userId, input.sourceContentId, null, undefined, input.driver, selectedPolicy));
+        if (content) {
+            markImageResaveReused();
+        }
         if (!content) {
-            const source = await this.owned(queue.userId, input.sourceContentId);
+            const source = await imageResaveSpan('source_lookup', () => this.owned(queue.userId, input.sourceContentId));
             if (!sameCid(source.storageId, input.source.storageId)) {
                 problem('image_optimization_source_changed');
             }
@@ -123,17 +139,18 @@ export class ContentResave {
                 problem('source_unavailable_for_policy_upgrade');
             }
             await this.app.ms.asyncOperation.handleOperationCancel(queue.userId, operation.id);
-            content = plain(await this.app.ms.content.saveData(queue.userId,
-                await this.app.ms.storage.getFileStream(source.storageId), source.name || `image-${source.id}.png`,
-                {driver: {name: 'imageOptimize', module: 'convert', params: {policy: selectedPolicy, watermark: input.driver}}, properties: properties(source).imageWatermark ? {imageWatermark: properties(source).imageWatermark} : {}, mimeType: source.mimeType, waitForPin: true, skipFileCatalog: true, requirePreview: true}));
+            const stream = await imageResaveSpan('source_open', () => this.app.ms.storage.getFileStream(source.storageId));
+            content = plain(await imageResaveSpan('save_content', () => this.app.ms.content.saveData(queue.userId,
+                stream, source.name || `image-${source.id}.png`,
+                {driver: {name: 'imageOptimize', module: 'convert', params: {policy: selectedPolicy, watermark: input.driver}}, properties: properties(source).imageWatermark ? {imageWatermark: properties(source).imageWatermark} : {}, mimeType: source.mimeType, waitForPin: true, skipFileCatalog: true, requirePreview: true})));
             if (!content.mediumPreviewStorageId || content.previewExtension !== 'webp') {
                 problem('image_optimization_preview_missing');
             }
             // Content owns provenance. The old row remains a diagnostic tombstone
             // after physical retirement, rather than a separate rendition table.
-            await this.app.ms.database.updateContent(source.id, {propertiesJson: JSON.stringify(this.receiptProperties(source,
+            await imageResaveSpan('provenance_write', () => this.app.ms.database.updateContent(source.id, {propertiesJson: JSON.stringify(this.receiptProperties(source,
                 {policy: selectedPolicy, resultContentId: content.id, resultStorageId: content.storageId,
-                    sourceStorageId: source.storageId, sourceManifestStorageId: source.manifestStorageId}))});
+                    sourceStorageId: source.storageId, sourceManifestStorageId: source.manifestStorageId}))}));
         }
         return {sourceContentId: input.sourceContentId, sourceManifestStorageId: input.source.manifestStorageId, content, policy: selectedPolicy};
     }
