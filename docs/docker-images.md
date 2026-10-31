@@ -139,6 +139,24 @@ operational regressions. `bash bash/docker-image-smoke.sh IMAGE linux/amd64`
 starts isolated services, checks `/v1/health`, then removes its own containers and
 volumes. It does not operate on a deployed production stack.
 
+## Frontend native dependency builds
+
+The legacy frontend uses Node 18.20.8 and builds native dependencies when their
+packages lack a matching prebuilt binary. Its Yarn install sets
+`CHILD_CONCURRENCY=1`: `--network-concurrency 1` alone does not serialize package
+lifecycle scripts. Parallel node-gyp first installs can overwrite their shared
+Node headers while another addon compiles, producing truncated-header or
+incomplete V8 type errors (see [node-gyp issue 3165](https://github.com/nodejs/node-gyp/issues/3165)).
+Keep install scripts enabled and retain the frozen lockfile; changing Node or
+Parcel versions is not required for this race mitigation.
+
+A GHCR authorization failure is separate from a frontend compilation failure.
+Confirm that the exact SHA image has been published and is readable by the server
+account. Authenticate that account for private packages, or make the package
+public if anonymous installation is intended. Once the image is verified,
+`GEESOME_IMAGE_MODE=pull npm run docker-upgrade` prevents fallback to a server
+build. Publication still follows the release checks above after the final merge.
+
 ## Kubo repository upgrades
 
 Compose uses Kubo 0.42.0 (repository v18). Upgrading older repositories is an
