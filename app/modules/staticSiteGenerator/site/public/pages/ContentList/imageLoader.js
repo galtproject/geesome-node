@@ -1,21 +1,25 @@
-export function createGalleryImageLoader(items, onPreview) {
+export function createGalleryImageLoader(items, onPreview, onError = () => {}) {
     let visible = [];
     let disposed = false;
     let warming = 0;
     const previews = new Map();
-    const originals = new Set();
+    const originals = new Map();
+    const attempts = new Map();
+    const retries = new Map();
     const pending = new Set();
 
     function load(url, priority, complete) {
         const image = new Image();
         image.fetchPriority = priority;
         const cancel = () => {
+            clearTimeout(timeout);
             image.onload = null;
             image.onerror = null;
             image.removeAttribute('src');
         };
         pending.add(cancel);
         const finish = success => {
+            clearTimeout(timeout);
             image.onload = null;
             image.onerror = null;
             pending.delete(cancel);
@@ -25,6 +29,10 @@ export function createGalleryImageLoader(items, onPreview) {
         };
         image.onload = () => finish(true);
         image.onerror = () => finish(false);
+        const timeout = setTimeout(() => {
+            finish(false);
+            image.removeAttribute('src');
+        }, 15000);
         image.src = url;
     }
 
@@ -37,15 +45,26 @@ export function createGalleryImageLoader(items, onPreview) {
                 continue;
             }
             previews.set(index, 'loading');
+            const attempt = (attempts.get(index) || 0) + 1;
+            attempts.set(index, attempt);
             load(items[index].preview, 'high', success => {
-                previews.set(index, 'settled');
                 if (success) {
+                    previews.set(index, 'loaded');
                     onPreview(index, items[index].preview);
+                } else if (attempt < 3) {
+                    previews.set(index, 'retrying');
+                    retries.set(index, setTimeout(() => {
+                        retries.delete(index);
+                        previews.delete(index);
+                        pump();
+                    }, attempt * 500));
+                } else {
+                    previews.set(index, 'failed');
                 }
                 pump();
             });
         }
-        if (visible.some(index => previews.get(index) !== 'settled')) {
+        if (visible.some(index => !['loaded', 'failed'].includes(previews.get(index)))) {
             return;
         }
         for (const index of visible) {
@@ -55,10 +74,18 @@ export function createGalleryImageLoader(items, onPreview) {
             if (originals.has(index) || !items[index].original) {
                 continue;
             }
-            originals.add(index);
+            originals.set(index, 'loading');
             warming += 1;
-            load(items[index].original, 'low', () => {
+            load(items[index].original, 'low', success => {
                 warming -= 1;
+                originals.set(index, success ? 'loaded' : 'failed');
+                if (previews.get(index) === 'failed') {
+                    if (success) {
+                        onPreview(index, items[index].original);
+                    } else {
+                        onError(index);
+                    }
+                }
                 pump();
             });
         }
@@ -69,8 +96,21 @@ export function createGalleryImageLoader(items, onPreview) {
             visible = [...indices].sort((left, right) => left - right);
             pump();
         },
+        retry(index) {
+            if (disposed || previews.get(index) !== 'failed' || originals.get(index) !== 'failed') {
+                return;
+            }
+            previews.delete(index);
+            originals.delete(index);
+            attempts.delete(index);
+            pump();
+        },
         dispose() {
             disposed = true;
+            for (const timer of retries.values()) {
+                clearTimeout(timer);
+            }
+            retries.clear();
             for (const cancel of pending) {
                 cancel();
             }

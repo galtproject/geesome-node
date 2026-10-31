@@ -62,7 +62,7 @@
     "test:ssg-creator-types": "vue-tsc --noEmit -p app/modules/staticSiteGenerator/site/tsconfig.json",
     "test:ssg-membership-browser": "bash bash/test-membership-site-browser",
     "test:ssg-membership-pagination-browser": "bash bash/test-membership-site-browser --pagination",
-    "test:ssg-gallery-loading": "node check/staticSiteGalleryLoading.mjs",
+    "test:ssg-gallery-loading": "node --test check/galleryImageLoader.test.mjs && node --import tsx check/staticSiteGalleryLoading.mjs",
     "test:docker": "bash bash/docker-test",
     "test:docker:cold": "bash bash/docker-test --cold",
     "test:docker:no-build": "bash bash/docker-test --no-build",

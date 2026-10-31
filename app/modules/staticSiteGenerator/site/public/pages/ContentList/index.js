@@ -9,7 +9,7 @@ export default {
         EmptyLayout,
     },
     inject: ['store'],
-    data: () => ({previewSources: {}}),
+    data: () => ({previewSources: {}, previewErrors: {}}),
     mounted() {
         const items = this.contents.map((content, index) => ({
             preview: content.previewStorageId ?
@@ -19,7 +19,14 @@ export default {
         }));
         const loader = createGalleryImageLoader(items, (index, url) => {
             this.previewSources[index] = url;
+            delete this.previewErrors[index];
+        }, index => {
+            this.previewErrors[index] = true;
         });
+        this.retryPreview = index => {
+            delete this.previewErrors[index];
+            loader.retry(index);
+        };
         const cards = [...this.$refs.gallery.querySelectorAll('[data-gallery-index]')]
             .filter(card => items[Number(card.dataset.galleryIndex)].preview);
         if ('IntersectionObserver' in window) {
@@ -101,6 +108,10 @@ export default {
           >
             <p v-if="c.type === 'text' && c.view === 'contents'" v-html="c.text"></p>
             <img :alt="c.name" v-if="c.type === 'image'" :src="previewSources[index]"/>
+            <div v-if="previewErrors[index]" class="gallery-image-error" role="status" @click.stop>
+              <span>Image could not load.</span>
+              <button type="button" data-testid="gallery-retry-image" @click.stop="retryPreview(index)">Retry image</button>
+            </div>
             <video v-if="c.type === 'video'" controls preload="none">
               <source :src="contentRoot + (index + 1).toString() + '_' + c.storageId + '.' + c.extension" type="video/mp4"/>
               Your browser does not support the video tag.

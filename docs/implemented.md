@@ -12,6 +12,25 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Gallery image failure recovery (#1508)
+
+Visible gallery previews now get up to three attempts with short delays. A
+15-second request timeout releases hung loads. If the preview remains unavailable,
+the gallery displays the successfully loaded original using the existing
+two-request original warming limit. If both renditions fail, the card shows an
+error and a Retry image button that starts a new bounded attempt sequence.
+Offscreen cards wait until visible; unmount cancels requests and retry timers.
+
+Verification: `npm run test:ssg-gallery-loading` passed three deterministic loader
+tests and the Chromium desktop/narrow/offline gallery regression. Failure cases
+cover transient errors, original fallback, permanent errors, manual recovery,
+timeouts, offscreen retry deferral and disposal. All nine screenshot captures and
+their manifest descriptions were reviewed, including desktop/narrow error and
+recovered states. The test command now loads TypeScript dependencies through tsx.
+No API, database, publisher receipt or source media changes are required. Existing
+immutable site snapshots need rebuilding after deployment to receive this client;
+no production deployment or publication was performed here.
+
 ## Owner payment context for the publishing cabinet (#1502)
 
 Owner invoice/refund arrays provide bounded, stable pages with allowlisted tariff,
