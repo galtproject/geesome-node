@@ -1,3 +1,4 @@
+import {prepareImageBundle, savePreparedImage} from '../app/modules/content/preparedImage.js';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
 import {watermarkDriver} from '../app/modules/drivers/convert/imageWatermarkHelpers.js';
@@ -64,6 +65,65 @@ describe('persisted image saving and local site retirement', function () {
             } else {
                 process.env.GEESOME_IMAGE_RESAVE_TIMINGS = previous;
             }
+        }
+    });
+
+    it('uploads prepared JPEG and previews without encoding, reuses on retry and supplies ordinary resave receipts', async () => {
+        const bytes = await sharp({create: {width: 113, height: 197, channels: 3, background: '#573b8c'}}).png().toBuffer();
+        const source = await app.ms.content.saveData(user.id, bytes, 'prepared-source.png', {driver: {raw: true}, waitForPin: true});
+        const bundle = await prepareImageBundle(bytes, source);
+        const token = await app.generateUserApiKey(user.id, {});
+        const upload = async (manifest = bundle.manifest) => {
+            const form = new FormData();
+            form.append('manifest', JSON.stringify(manifest));
+            for (const [slot, data] of Object.entries(bundle.files)) {
+                form.append(slot, new Blob([data]), `${slot}.bin`);
+            }
+            return fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-prepared-image`,
+                {method: 'POST', headers: {Authorization: `Bearer ${token}`}, body: form});
+        };
+        const preview = app.ms.drivers.preview.image.processByStream;
+        const encode = app.ms.drivers.convert.imageOptimize.processByStream;
+        app.ms.drivers.preview.image.processByStream = async () => {throw Error('prepared preview must not encode');};
+        app.ms.drivers.convert.imageOptimize.processByStream = async () => {throw Error('prepared main must not encode');};
+        try {
+            const response = await upload();
+            assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+            const first = await response.json();
+            assert.equal(first.reused, false);
+            assert.equal(first.content.previewExtension, 'webp');
+            assert.equal(first.content.mimeType, 'image/jpeg');
+            const stored = Buffer.from((await app.ms.storage.getFileData(first.content.storageId)).slice());
+            assert.deepEqual(stored, bundle.files.file);
+            for (const slot of ['small', 'medium', 'large']) {
+                assert.deepEqual(Buffer.from((await app.ms.storage.getFileData(first.content[slot + 'PreviewStorageId'])).slice()), bundle.files[slot]);
+            }
+            const repeat = await (await upload()).json();
+            assert.equal(repeat.reused, true);
+            assert.equal(repeat.content.id, first.content.id);
+            const ordinary = await resave(user.id, source.id, null, null, 'publication-jpeg95-v1');
+            assert.equal(ordinary.status, 'completed');
+            assert.equal(ordinary.content.id, first.content.id);
+            const changed = await upload({...bundle.manifest, sourceStorageId: first.content.storageId});
+            assert.equal(changed.status, 409);
+            const other = await app.ms.content.saveData(admin.id, bytes, 'other.png', {driver: {raw: true}});
+            const denied = await upload({...bundle.manifest, sourceContentId: other.id, sourceStorageId: other.storageId});
+            assert.equal(denied.status, 403);
+            const capabilities = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/image-optimization/capabilities`,
+                {headers: {Authorization: `Bearer ${token}`}}).then(r => r.json());
+            assert.equal(capabilities.preparedImage.contract, 1);
+            const badMark = await upload({...bundle.manifest, watermarkIdentity: 'unexpected'});
+            assert.equal(badMark.status, 400);
+            const oldQuota = app.getUserLimitRemained;
+            app.getUserLimitRemained = async () => 1;
+            try {
+                assert.equal((await upload()).status, 413);
+            } finally {
+                app.getUserLimitRemained = oldQuota;
+            }
+        } finally {
+            app.ms.drivers.preview.image.processByStream = preview;
+            app.ms.drivers.convert.imageOptimize.processByStream = encode;
         }
     });
 
@@ -796,7 +856,9 @@ describe('persisted image saving and local site retirement', function () {
         const headers = {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'};
         const caps = await fetch(`${origin}/user/image-optimization/capabilities`, {headers});
         assert.equal(caps.status, 200);
-        assert.deepEqual(await caps.json(), {contract: 1, policy: 'publication-jpeg95-v1', imagePolicies: ['publication-webp-v1', 'publication-jpeg95-v1'], resave: true, watermark: true, imageOptimizeDriver: true, retirement: true});
+        assert.deepEqual(await caps.json(), {contract: 1, policy: 'publication-jpeg95-v1', imagePolicies: ['publication-webp-v1', 'publication-jpeg95-v1'], resave: true, watermark: true, imageOptimizeDriver: true, retirement: true,
+            preparedImage: {contract: 1, policy: 'publication-jpeg95-v1', producer: 'trusted-client', maxBytes: 64 * 1024 * 1024,
+                slots: ['file', 'small', 'medium', 'large'], previewEdges: {small: 512, medium: 1024, large: 2048}}});
         const png = await sharp({create: {width: 40, height: 60, channels: 3, background: '#123abc'}}).png().toBuffer();
         const content = await app.ms.content.saveData(user.id, png, 'http-contract.png', {driver: imageDriver(), waitForPin: true});
         const body = {requestKey: randomUUID(), driver: imageDriver(), contentIds: [content.id], deleteReplacedFiles: false};
@@ -948,6 +1010,11 @@ describe('persisted image saving and local site retirement', function () {
         await app.stop();
         app = await (await import('../app/index.js')).default({storageConfig, port: 7771,
             databaseConfig: {pool: {max: 1, min: 0, acquire: 3000}}});
+        const original = Buffer.from((await app.ms.storage.getFileData(sources[0].storageId)).slice());
+        const prepared = await prepareImageBundle(original, sources[0]);
+        const uploads = await Promise.all([1, 2].map(() => savePreparedImage(app, user.id, null, prepared.manifest, prepared.files)));
+        assert.equal(uploads[0].content.id, uploads[1].content.id);
+        assert.equal(uploads.filter(value => !value.reused).length, 1);
         const admitted = await Promise.all([sources[0], sources[0], sources[1]].map(source => resave(user.id, source.id)));
         assert.equal(admitted[0].id, admitted[1].id);
         for (let attempt = 0; attempt < 30; attempt++) {
