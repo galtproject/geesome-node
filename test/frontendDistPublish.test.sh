@@ -58,6 +58,9 @@ if (process.argv[2] === '--version') {
   console.log('1.22.22');
 } else {
   if (process.env.YARN_IGNORE_ENGINES !== '1') process.exit(10);
+  if (process.env.CHILD_CONCURRENCY !== '1') {
+    throw Error('Native dependency builds must run serially');
+  }
   fs.mkdirSync('node_modules/.bin', {recursive: true});
   fs.writeFileSync('node_modules/.bin/parcel', 'require("fs").mkdirSync("dist", {recursive: true}); require("fs").writeFileSync("dist/index.html", "<html>built</html>");');
   fs.writeFileSync('run-terser.js', '');
@@ -90,7 +93,7 @@ test "$5" = yarn@1.22.22
 cp "$CASE_DIR/yarn.js" "$4/bin/yarn"
 SH
   chmod +x "$CASE_DIR/frontend/bin/npm"
-  CASE_DIR="$CASE_DIR" PATH="$CASE_DIR/backend/bin:/usr/bin:/bin" \
+  CHILD_CONCURRENCY=8 CASE_DIR="$CASE_DIR" PATH="$CASE_DIR/backend/bin:/usr/bin:/bin" \
     NVM_DIR="$CASE_DIR/nvm" GEESOME_UI_ROOT="$CASE_DIR/ui" \
     GEESOME_FRONTEND_PUBLISH_DIR="$CASE_DIR/published" \
     GEESOME_UI_NODE_VERSION=18.20.8 \
