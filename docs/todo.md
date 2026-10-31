@@ -528,10 +528,10 @@ Each epic should receive its own deterministic TODO section before implementatio
 Backend module foundations are recorded in [implemented.md](implemented.md).
 Remaining work follows the [audited migration plan](plans/creator-membership-migration.md):
 
-- Rehearse legacy UUID/native-post mappings, public preview/hidden metadata, invoices, paid periods, wallet fingerprints/cursors and recovery journals with old workers stopped.
-- Adapt the public/admin browser clients to new API contracts and the Google nonce challenge; verify real browser flows on both domains before proxy switching.
-- Switch site APIs under a single authoritative payment worker, then remove replaced billing/auth workers from microwave-girls.
-- Build the safe creator SSG theme and protected original delivery; current CID links remain public.
+- For the agreed MicrowaveGirls retirement, preserve the existing new GeeSome ledger/seed; do not import the former ledger or replace the seed. Audit outstanding old obligations separately and retain their recovery records.
+- Connect the retained MicrowaveGirls owner screens to the bounded GeeSome invoice/refund DTOs and existing owner operations; verify permissions, immutable site/owner/group binding and real browser flows on both domains.
+- Verify deployed versions and single-runtime ownership before retiring the former allocators and money workers. Code availability alone does not establish production cutover.
+- Creator snapshot theme, nonce-aware browser client and paired public/full publication are delivered. Subscription controls discovery; obtained plaintext CIDs remain accessible, by the accepted immutable snapshot design.
 - Add explicit existing-account Google linking if required; never auto-link by email.
 
 <!-- /todo-section -->

@@ -12,6 +12,23 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Owner payment context for the publishing cabinet (#1502)
+
+Owner invoice/refund arrays provide bounded, stable pages with allowlisted tariff,
+provider/network, reader display name and matching period context. All related
+financial reads stay resource-scoped; missing historical relations return null.
+Google subjects/emails, request keys, checkout URLs and wallet/signing snapshots
+are excluded. The retained MicrowaveGirls owner screens can adapt these arrays
+without continuing a second writable payment ledger. Existing authorization,
+seeds, ledger and worker configuration are unchanged; deployment/cutover remains
+an operational gate.
+
+Verification: `npm run test:creator-membership:docker` passed 80 Mocha cases and
+57 payment regression cases with zero skipped cases, using disposable PostgreSQL,
+Kubo and fake payment adapters. API documentation generation, security route
+inventory update/check and diff hygiene passed. No live transfer, seed access or
+production deployment was performed.
+
 ## Anonymous creator snapshot selection (#1495)
 
 Cookie-free selections now share bounded, one-second process-local public
