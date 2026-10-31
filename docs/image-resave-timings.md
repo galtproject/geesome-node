@@ -110,3 +110,23 @@ plus the required WebP previews. That would be a separate contract/policy change
 these sources must not simply be relabelled as satisfying JPEG95. Local encoding
 also adds download/upload traffic, so the observed encoding speed difference is
 not a forecast of end-to-end migration speed.
+
+
+### Historical queue receipts
+
+A read-only check sampled fifteen completed image-resave operations from the
+previous five-site mixed canary (three queue positions per site). All had
+finished without an operation error. Queue age before processing ranged from
+0.874 to 815.797 seconds (median 352.670);
+operation creation-to-finish ranged from 1.473 to 2.651
+seconds (mean 2.047, median 2.173).
+These are historical operation envelopes, not separate encoding/storage timers.
+
+The current worker polls every two seconds and processes up to ten resaves
+sequentially per pass. Large queue age is consistent with admitted images waiting
+behind earlier work; it is not evidence of that much idle CPU time. Do not sum
+waits across images. The historical sources/workload differ from the read-only
+encoding probe, so subtracting one sample's CPU time from another's operation
+envelope would not establish precise IPFS/DB cost. Private raw proof is
+`resave-historical-queue-timings.json`. No new resave, publication or Patreon
+request was made by this historical check.
