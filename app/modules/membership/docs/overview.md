@@ -132,6 +132,16 @@ refund requests; create/update options; decide refunds and attest completion.
 Ownership and core group-management permission are both required. Account access
 is independent of API-key privileges and subscription never grants either.
 
+Owner invoice/refund lists remain top-level arrays, bounded to 50 rows with an
+`offset` and stable descending createdAt/id ordering. Invoice projections include
+the tariff snapshot, direct/legacy provider, direct network, reader id/name and
+the matching period. Refunds add the same resource-scoped invoice context plus
+reader/period fields; missing related records return null. Projections exclude
+Google subjects/emails, request keys, checkout URLs, arbitrary tariff metadata,
+wallet/signing snapshots and unscoped financial rows. Clients may wrap these
+arrays for their local screen contracts; they must not assume the old
+MicrowaveGirls `{refunds: [...]}` envelope is provided by GeeSome.
+
 Paid periods preserve calendar anchor days, stack on existing future periods,
 and are credited at most once per invoice in the same transaction as settlement.
 Expiry is recomputed per request. Refund approval retains access; manual
@@ -139,17 +149,19 @@ completion revokes that invoice period and leaves the audit record.
 
 ## Serving eraofwave.com
 
-The reverse proxy serves static HTML at `/`, and forwards explicit API paths to
+The reverse proxy serves snapshot HTML at `/`, and forwards explicit API paths to
 GeeSome, preserving Host. No cookie from a different GeeSome domain is required.
-The old `/api/membership` API is **not yet a drop-in compatible facade**: new
-payment endpoints use `/v1/payments`, post ids are native GeeSome ids and Google
-login requires a challenge nonce. Update the browser client and prepare an exact
-route/response adapter before production cutover. Account history is bounded and
-new invoices can be resumed with GET `/v1/payments/crypto/invoices/:id`.
+The snapshot browser client already uses `/v1/payments`, native GeeSome post ids
+and the Google challenge nonce. The former MicrowaveGirls `/api/membership` API
+is not a compatible facade: retained owner screens need an explicit route/DTO
+adapter before retiring that backend. Account history is bounded and invoices
+can be resumed with GET `/v1/payments/crypto/invoices/:id`.
 
-Current phase preserves link gating only. Plaintext IPFS full-set pages and
-media remain public if their CID is known. Private original delivery and a safe
-SSG creator theme are later phases, not a security guarantee of this API.
+The creator SSG theme and paired public/full snapshots are implemented. Current
+access controls discovery of the latest full snapshot. Plaintext IPFS pages and
+media remain accessible if their CID is known; expiry cannot revoke a snapshot
+already obtained by a subscriber. Protected-byte delivery is not part of the
+accepted immutable snapshot contract.
 
 ## Verification and rollout
 
@@ -159,12 +171,13 @@ ported chain/managed-ledger regressions. Google JWTs are signed locally and
 verified by the real Google library with injected test public keys. Chain and
 signing adapters are fake; no transfers or live RPCs are used.
 
-The current stage does not migrate production or remove microwave-girls billing.
-Rehearse the mapping of legacy reader UUIDs to private identities and core users,
-all payment snapshots/address cursors/journals, and native post ids first. Import
-only with old workers stopped and preserve the authoritative ledger for rollback.
-Existing sessions will require re-login unless an explicit session migration is
-implemented. See the [audited plan](../../../../docs/plans/creator-membership-migration.md).
+Code delivery does not itself migrate production or remove MicrowaveGirls billing.
+The agreed consolidation keeps the already configured new GeeSome ledger/seed;
+it imports neither the old ledger nor its signing seed. Preserve old records and
+reconcile outstanding obligations through their separate recovery path. Do not
+activate competing allocators/signers during retirement. Existing old sessions
+require a new GeeSome login. See the current continuation in the
+[audited plan](../../../../docs/plans/creator-membership-migration.md#microwavegirls-consolidation-continuation-1502).
 
 
 ## Immutable website snapshots (#1441)

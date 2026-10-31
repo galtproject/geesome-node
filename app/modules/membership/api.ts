@@ -227,7 +227,12 @@ export default function (app, module) {
 	* @apiUse ApiKey
 	* @apiParam {String} resource Configured site id owned by the actor.
 	* @apiQuery {Number} [offset=0] History offset; invoices/refunds return at most 50 rows.
-	* @apiSuccess {Object[]} result List site invoices.
+	* @apiSuccess {Object[]} result At most 50 invoices, ordered by createdAt/id descending.
+	* @apiSuccess {String} result.provider direct or legacy; no provider credentials or internal reference.
+	* @apiSuccess {Object} result.optionSnapshot Allowlisted tariff id, label, amountCents, currency, period, version and enabled fields.
+	* @apiSuccess {Object} [result.crypto] Direct invoice network only; no wallet or signing snapshot.
+	* @apiSuccess {Object} result.reader Reader id/name, or null if the identity no longer exists; no email or Google subject.
+	* @apiSuccess {Object} result.period Invoice period invoiceId/startsAt/endsAt/revoked, or null.
 	* @apiError (403) owner_required Group creator and core group-management permission required.
 	*/
 	app.ms.api.onAuthorizedGet('membership/admin/:resource/invoices', creatorSiteEndpoint(async (req, res) => {
@@ -241,7 +246,12 @@ export default function (app, module) {
 	* @apiUse ApiKey
 	* @apiParam {String} resource Configured site id owned by the actor.
 	* @apiQuery {Number} [offset=0] History offset; invoices/refunds return at most 50 rows.
-	* @apiSuccess {Object[]} result List site refund requests.
+	* @apiSuccess {Object[]} result At most 50 refund requests, ordered by createdAt/id descending; top-level response remains an array.
+	* @apiSuccess {Object} result.invoice Owner invoice projection with provider, tariff, network, reader and period, or null when missing/outside this resource.
+	* @apiSuccess {Object} result.reader Reader id/name or null; no email or Google subject.
+	* @apiSuccess {Object} result.period Invoice period invoiceId/startsAt/endsAt/revoked, or null.
+	* @apiSuccess {String} result.reason Reader's refund reason.
+	* @apiSuccess {String} result.decisionReason Owner decision/manual completion note.
 	* @apiError (403) owner_required Group creator and core group-management permission required.
 	*/
 	app.ms.api.onAuthorizedGet('membership/admin/:resource/refunds', creatorSiteEndpoint(async (req, res) => {

@@ -108,3 +108,21 @@ the latest full snapshot; previously obtained CIDs and files remain accessible
 after expiry. No extra file store or encryption is required. This supersedes the
 earlier proposed protected-byte delivery design. See the
 [implementation plan](membership-website-snapshots.md).
+
+## MicrowaveGirls consolidation continuation (#1502)
+
+The stage-one pending-client/SSG notes above are historical: paired immutable
+snapshots and the nonce-aware creator browser client are implemented. The
+2026-10-31 consolidation keeps the already configured new GeeSome ledger and
+seed; no legacy ledger import or seed replacement is requested. Retain the old
+ledger/seed for recovery and reconcile any outstanding old obligations separately.
+Deployment and worker ownership require a current production audit.
+
+The retained MicrowaveGirls owner screens consume GeeSome through a restricted
+owner adapter. Owner invoice/refund lists now provide bounded resource-scoped
+tariff/provider/network, reader display name and period projections while
+preserving their array response. Google subjects/emails, wallet/signing snapshots
+and request keys remain outside those DTOs. The old envelope and route prefixes
+still require client adaptation. This API change does not deploy either app,
+stop old workers, change funds or activate new workers. The coordinated execution
+plan lives in MicrowaveGirls `docs/geesome-consolidation-cleanup-plan.md`.

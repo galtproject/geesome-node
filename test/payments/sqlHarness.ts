@@ -22,6 +22,7 @@ export async function createMembershipService({ sequelize, env, clock, cryptoObs
 			} } };
 	const payments = createPayments(app, saved.payments, { env, clock, observer: cryptoObserver, adapter: cryptoAdapter });
 	app.ms.payments = payments;
+	app.ms.googleAuthorization = {models: {Identity: saved.readers}};
 	const service = createMembership(app, saved.membership, { clock });
 	payments.configureLedger({ models: saved.membership, resource: service.resource, serial: service.serial, grantPaidInvoice: service.grantPaidInvoice, fail: siteProblem, clock });
 	return { ...service, async seedSites() {
