@@ -90,6 +90,9 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiSuccess {Number} [id] Existing operation-queue ID when queued.
      * @apiSuccess {Number} [asyncOperationId] Existing operation ID when assigned.
      * @apiSuccess {Object} [content] Saved optimized Content when already completed.
+     * @apiSuccess {Object} [timings] Opt-in GEESOME_IMAGE_RESAVE_TIMINGS=1 diagnostics for completed resaves; queued results expose execution timings in the ordinary operation output. Numeric elapsed spans with parent IDs, byte counters and explicit reuse, never CPU attribution.
+     * @apiSuccess {Number} [timings.totalMs] Elapsed operation time; nested/overlapping spans are not additive.
+     * @apiSuccess {Number} [timings.queueAgeMs] Queue age before this execution, including earlier attempts on resume; null for a direct cache hit.
      * @apiError content_resave_input_invalid Conflicting content/sourceContentId or missing optimization driver.
      * @apiGroup UserContent
      *

@@ -8,6 +8,7 @@
  */
 
 import sharp from 'sharp';
+import {imageResaveSpan, imageResaveCounter, startImageResaveWait} from '../../content/resaveTimings.js';
 import debug from 'debug';
 import {Readable, Transform, Writable, Duplex} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
@@ -34,8 +35,8 @@ export class ImagePreviewDriver extends AbstractDriver {
     log('ImagePreviewDriver.metadata queued');
     return this.withSlot(inputStream, async () => {
       log('ImagePreviewDriver.metadata start');
-      const bytes = await this.read(inputStream);
-      const metadata = await sharp(bytes, {limitInputPixels: imagePreviewPolicy.maxInputPixels, failOn: 'error'}).metadata();
+      const bytes = await imageResaveSpan('preview_read', () => this.read(inputStream));
+      const metadata = await imageResaveSpan('preview_metadata', () => sharp(bytes, {limitInputPixels: imagePreviewPolicy.maxInputPixels, failOn: 'error'}).metadata());
       if ((metadata.width || 0) * (metadata.height || 0) > imagePreviewPolicy.maxInputPixels) {
         throw new Error('image_preview_pixel_limit');
       }
@@ -53,7 +54,8 @@ export class ImagePreviewDriver extends AbstractDriver {
         .resize({width: edge, height: edge, fit: 'inside', withoutEnlargement: true})
         .webp({quality: imagePreviewPolicy.quality, effort: imagePreviewPolicy.effort})
         .timeout({seconds: Math.max(1, Math.ceil(this.timeoutMs / 1000))});
-      const bytes = await this.read(inputStream, encoder);
+      const bytes = await imageResaveSpan('preview_read_encode', () => this.read(inputStream, encoder));
+      imageResaveCounter('previewOutputBytes', bytes.length);
       log('ImagePreviewDriver.encode finish');
       return {stream: Readable.from([bytes]), type: 'image/webp', extension: 'webp'};
     });
@@ -77,6 +79,7 @@ export class ImagePreviewDriver extends AbstractDriver {
     } finally {
       clearTimeout(timer);
     }
+    imageResaveCounter('previewInputBytes', size);
     return Buffer.concat(chunks);
   }
 
@@ -84,14 +87,17 @@ export class ImagePreviewDriver extends AbstractDriver {
     let inputError;
     const rememberError = error => {inputError = error;};
     inputStream.on('error', rememberError);
+    const finishWait = startImageResaveWait('preview_queue');
     try {
       return await this.work.run(async () => {
+        finishWait();
         if (inputError) {
           throw inputError;
         }
         return action();
       });
     } finally {
+      finishWait('error');
       // Queued rejections never reach pipeline, so release their inputs too.
       // A filesystem open can still fail after a queued job was rejected.
       // Keep its error listener until close, including this late failure.

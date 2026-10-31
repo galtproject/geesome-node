@@ -53,6 +53,7 @@ can be used for the generated API page, this portal, and module docs.
 - [Creator membership migration: audited plan](./plans/creator-membership-migration.md)
 
 - [Debugging and logs](../DEBUG.md)
+- [Image resave stage measurements](./image-resave-timings.md)
 - [Runtime performance diagnostics](./runtime-performance-diagnostics.md)
 - [Code style](./code-style.md)
 - [Security review](./security-review.md)
