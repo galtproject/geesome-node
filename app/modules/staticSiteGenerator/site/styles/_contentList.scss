@@ -21,6 +21,22 @@
     &.image {
       padding-bottom: calc(20% - 40px/5);
     }
+    .gallery-image-error {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 10px;
+      text-align: center;
+      cursor: default;
+      button {
+        cursor: pointer;
+        min-height: 44px;
+      }
+    }
     img {
       max-width: 100%;
       opacity: 0;

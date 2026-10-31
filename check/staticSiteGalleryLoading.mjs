@@ -28,6 +28,9 @@ const held = [];
 let holdPreviews = true;
 let holdOriginals = true;
 let failFirstPreview = false;
+let failFirstOriginal = false;
+let failPreviewOnce = false;
+let previewFailedOnce = false;
 function release(kind, index) {
     const entry = held.find(entry => entry.kind === kind && entry.index === index);
     assert.ok(entry, `pending ${kind} ${index}`);
@@ -41,7 +44,12 @@ const server = createServer((request, response) => {
         const kind = media[1], index = Number(media[2]);
         requests.push({kind, index});
         const finish = () => {
-            if (failFirstPreview && kind === 'preview' && index === 1) {
+            if (kind === 'preview' && index === 1 && (failFirstPreview || (failPreviewOnce && !previewFailedOnce))) {
+                previewFailedOnce = true;
+                response.writeHead(503).end();
+                return;
+            }
+            if (failFirstOriginal && kind === 'content' && index === 1) {
                 response.writeHead(404).end();
                 return;
             }
@@ -145,13 +153,64 @@ try {
     await mobile.goto(url, {waitUntil: 'domcontentloaded'});
     await expect.poll(() => requested('content').length).toBe(2);
     assert.deepEqual(requested('content'), [1, 2], 'preview failure does not block visible original warming');
-    assert.ok(requested('preview').length < contents.length, 'mobile does not request offscreen previews');
-    await mobile.evaluate(() => document.querySelector('#app').__vue_app__.unmount());
+    assert.equal(requests.filter(request => request.kind === 'preview' && request.index === 1).length, 3, 'preview retries are bounded');
     release('content', 1);
-    release('content', 2);
+    await expect(mobile.getByTestId('gallery-card').first()).toHaveAttribute('style', /content\/1_original1.jpg/);
+    await capture(mobile, 'mobile-original-fallback.png', 'The first narrow gallery card displays the original after three failed preview attempts.');
+    assert.ok(requested('preview').length < contents.length, 'mobile does not request offscreen previews');
+    const warmingBeforeUnmount = requested('content').length;
+    await mobile.evaluate(() => document.querySelector('#app').__vue_app__.unmount());
+    for (const entry of [...held].filter(entry => entry.kind === 'content')) {
+        release('content', entry.index);
+    }
     await mobile.waitForTimeout(100);
-    assert.equal(requested('content').length, 2, 'unmount stops queued warming');
+    assert.equal(requested('content').length, warmingBeforeUnmount, 'unmount stops queued warming');
     await narrow.close();
+
+    requests.length = 0;
+    holdOriginals = false;
+    failFirstOriginal = true;
+    const recovery = await browser.newContext({viewport: {width: 1200, height: 650}});
+    const failed = await recovery.newPage();
+    observe(failed);
+    await failed.goto(url, {waitUntil: 'domcontentloaded'});
+    const retry = failed.getByTestId('gallery-retry-image');
+    await expect(retry).toBeVisible();
+    await capture(failed, 'desktop-image-error.png', 'The first gallery card shows Image could not load and a Retry image button after both renditions fail.');
+    await failed.setViewportSize({width: 390, height: 844});
+    await expect(retry).toBeVisible();
+    assert.equal(await failed.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'error state has no narrow overflow');
+    await capture(failed, 'mobile-image-error.png', 'The narrow gallery shows the first failed image with its visible Retry image button and no horizontal overflow.');
+    await failed.setViewportSize({width: 1200, height: 650});
+    await failed.waitForTimeout(600);
+    assert.equal(requests.filter(request => request.kind === 'preview' && request.index === 1).length, 3, 'permanent failure does not loop');
+    assert.equal(requests.filter(request => request.kind === 'content' && request.index === 1).length, 1, 'original failure does not loop');
+    failFirstPreview = false;
+    failFirstOriginal = false;
+    failPreviewOnce = true;
+    previewFailedOnce = false;
+    await retry.click();
+    await expect(retry).toHaveCount(0);
+    await expect(failed.getByTestId('gallery-card').first()).toHaveAttribute('style', /preview\/1_preview1.webp/);
+    assert.equal(requests.filter(request => request.kind === 'preview' && request.index === 1).length, 5, 'manual retry recovers after one transient failure');
+    assert.equal(await failed.locator('.image-modal').count(), 0, 'retry does not open the modal');
+    await capture(failed, 'desktop-image-recovered.png', 'The first gallery card displays its preview after Retry image and one transient request failure; the error control is gone.');
+    await failed.setViewportSize({width: 390, height: 844});
+    await capture(failed, 'mobile-image-recovered.png', 'The narrow gallery displays the recovered first preview without the error message or retry button.');
+    await recovery.close();
+    failPreviewOnce = false;
+
+    requests.length = 0;
+    failFirstPreview = true;
+    const cancelled = await browser.newContext({viewport: {width: 390, height: 844}});
+    const unmounted = await cancelled.newPage();
+    observe(unmounted);
+    await unmounted.goto(url, {waitUntil: 'domcontentloaded'});
+    await expect.poll(() => requests.filter(request => request.kind === 'preview' && request.index === 1).length).toBe(1);
+    await unmounted.evaluate(() => document.querySelector('#app').__vue_app__.unmount());
+    await unmounted.waitForTimeout(1800);
+    assert.equal(requests.filter(request => request.kind === 'preview' && request.index === 1).length, 1, 'unmount cancels scheduled retries');
+    await cancelled.close();
 
     await fs.mkdir(path.join(directory, 'public'));
     await fs.mkdir(path.join(directory, 'preview'));
