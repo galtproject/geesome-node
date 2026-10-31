@@ -9,6 +9,7 @@
     "node": ">=22.19 <25"
   },
   "scripts": {
+    "image:prepare-upload": "node --import tsx examples/prepared-image-upload.mjs",
     "start": "yarn --no-optional -W && ./node_modules/.bin/tsx --experimental-global-customevent ./index.ts",
     "in-docker-start": "bash bash/docker-runtime-start.sh",
     "recreate-database": "dropdb geesome_node && createdb geesome_node",

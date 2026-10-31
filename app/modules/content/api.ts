@@ -1,3 +1,6 @@
+import {savePreparedImage, preparedMultipartFiles} from './preparedImage.js';
+import {maxImageBytes} from '../drivers/convert/imageOptimize.js';
+import {ContentResave} from './resave.js';
 import {optimizationRequest} from '../drivers/convert/imageOptimize.js';
 import _ from 'lodash';
 import debug from 'debug';
@@ -78,6 +81,54 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
         };
         const asyncOperationRes = await app.ms.asyncOperation.asyncOperationWrapper('content', 'saveData', [req.user.id, files[0], files[0].filename, options], options);
         res.send(asyncOperationRes);
+    });
+
+    /**
+     * @api {post} /v1/user/save-prepared-image Upload prepared image and previews
+     * @apiName UserSavePreparedImage
+     * @apiGroup UserContent
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse UploadErrors
+     * @apiDescription Trusted owner-side encoder upload, bound to an owned source CID. Does not encode or publish. Decodes and checks dimensions/hashes before storing. JPEG quality and watermark pixels are client declarations, not independently verified. Reuses ordinary source policy receipts. No async multipart replay.
+     * @apiBody {String} manifest JSON contract 1, producer trusted-client, sourceContentId, sourceStorageId, imageOptimize JPEG95 driver, watermarkIdentity, codec and files SHA-256 map (file/small/medium/large).
+     * @apiBody {File} file Prepared JPEG95 image.
+     * @apiBody {File} small WebP85 preview, 512px bounding edge without enlargement.
+     * @apiBody {File} medium WebP85 preview, 1024px bounding edge without enlargement.
+     * @apiBody {File} large WebP85 preview, 2048px bounding edge without enlargement.
+     * @apiSuccess {String} status completed
+     * @apiSuccess {Boolean} reused True when the source already has a matching policy result.
+     * @apiSuccess {Object} content Saved owned Content with attached previews.
+     * @apiError prepared_image_manifest_invalid Invalid contract or policy.
+     * @apiError prepared_image_decode_failed Corrupt or unsupported image.
+     * @apiError image_optimization_source_changed Source CID no longer matches.
+     */
+    app.ms.api.onAuthorizedPost('user/save-prepared-image', async (req, res) => {
+        await new ContentResave(app).authorize(req.user.id, req.apiKey.id);
+        const quota = await app.getUserLimitRemained(req.user.id, UserLimitName.SaveContentSize);
+        const remaining = quota == null ? maxImageBytes : Math.max(0, Math.min(quota, maxImageBytes));
+        if (!remaining) {
+            throw new ApiProblemError(413, 'prepared_image_too_large', 'Upload quota exhausted');
+        }
+        const {files, fields} = await asyncBusboy(req.stream, {headers: req.headers,
+            // Busboy emits partsLimit upon reaching the count, so five allowed parts need six here.
+            limits: {files: 4, fields: 1, parts: 6, fieldSize: 8192, fileSize: remaining}});
+        try {
+            let manifest;
+            try {
+                manifest = JSON.parse(fields.manifest);
+            } catch {
+                throw new ApiProblemError(400, 'prepared_image_manifest_invalid', 'Invalid prepared image manifest');
+            }
+            const bytes = await preparedMultipartFiles(files, remaining);
+            res.send(await savePreparedImage(app, req.user.id, req.apiKey.id, manifest, bytes));
+        } finally {
+            for (const file of files) {
+                file.on('error', () => {});
+                file.destroy();
+                file.emitFinish();
+            }
+        }
     });
 
     /**

@@ -1,6 +1,8 @@
+import {preparedImageContract} from '../content/preparedImage.js';
 export default function (app, service) {
     /**
      * @api {get} /v1/user/image-optimization/capabilities Image saving and retirement capabilities
+     * @apiSuccess {Object} preparedImage Trusted-client multipart upload contract, slots and byte bounds.
      * @apiName ImageOptimizationCapabilities
      * @apiGroup StaticSiteGenerator
      * @apiUse ApiKey
@@ -13,7 +15,7 @@ export default function (app, service) {
      */
     app.ms.api.onAuthorizedGet('user/image-optimization/capabilities', async (req, res) => {
         await service.authorize(req.user.id, req.apiKey.id);
-        res.send(service.capabilities);
+        res.send({...service.capabilities, preparedImage: preparedImageContract});
     });
     /**
      * @api {post} /v1/user/site-replacements Prepare site replacement receipt

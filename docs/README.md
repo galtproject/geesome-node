@@ -63,3 +63,5 @@ can be used for the generated API page, this portal, and module docs.
 - [Reliable IPFS chat research](./ipfs-chat-reliability-research.md)
 - [Group chat E2EE protocol decision](./chat-group-e2ee-protocol-decision.md)
 - [Manifest examples](./manifests-example.md)
+
+- [Locally prepared images with previews](prepared-image-upload.md): source-bound trusted-client upload and local command.
