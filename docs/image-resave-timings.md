@@ -7,6 +7,7 @@
 - [Probe and verification](#probe-and-verification)
 - [Release boundary](#release-boundary)
 - [Read-only sample on 2026-10-31](#read-only-sample-on-2026-10-31)
+- [Live first-use probe](#live-first-use-probe)
 
 ## Scope
 
@@ -40,10 +41,9 @@ separately. Never substitute repeat/header-run speed for legacy throughput.
 
 ## Release boundary
 
-Backend work is on a feature branch for a dev-targeted PR. Agents never merge
-PRs. Production currently runs stable master; it must receive an approved merged
-release before deployment via the maintained docker-upgrade workflow. Do not
-change the server branch or hot-patch the live process to bypass this boundary.
+The timing feature was user-merged through PR #1506 into dev and promoted through
+PR #1507 to stable master. The user deployed the stable image before the live
+probe below. Agents never merge PRs or bypass the maintained release workflow.
 
 
 ## Read-only sample on 2026-10-31
@@ -88,9 +88,7 @@ Private manifests and raw reports are retained under the membership artifacts
 directory as `resave-timing-sources.json`, `resave-read-probe-*-hashes.json` and
 the original pre-hash runs. The checked-in report anonymizes the source identities.
 
-Detailed server spans are prepared in the backend change, with an opt-in flag
-and compatible membership collection/reporting. Production still needs the
-approved merged release before a first-use resave can measure IPFS/DB stages.
+Detailed server spans were subsequently measured in the live probe below.
 
 
 ### Output size finding
@@ -130,3 +128,64 @@ encoding probe, so subtracting one sample's CPU time from another's operation
 envelope would not establish precise IPFS/DB cost. Private raw proof is
 `resave-historical-queue-timings.json`. No new resave, publication or Patreon
 request was made by this historical check.
+
+
+## Live first-use probe
+
+After the user deployed master `722b90ae`, the same three sources were processed
+through the owner-authorized normal save-data resave API, then requested again to
+measure reuse. Each original source was verified to have no JPEG95 receipt before
+starting. All three operations succeeded; all repeat requests reused their
+results. Three optimized Content records and their previews were saved. No source
+was retired, and no Page, Post, generated site or Patreon link was changed.
+
+| Sample | Resave elapsed, ms | Queue age, ms | Reuse elapsed, ms |
+| --- | ---: | ---: | ---: |
+| 1 | 3110.174 | 1291 | 12.003 |
+| 2 | 1896.686 | 4372 | 10.934 |
+| 3 | 1905.520 | 6252 | 12.463 |
+
+Mean resave elapsed was **2304.1 ms**. Mean inclusive preview work was about
+**1499 ms (65%)**; main JPEG encoding was **177 ms (8%)**. Main-image storage
+write averaged **194 ms**, database add **193 ms**, and manifest work **96 ms**.
+These are wall-clock spans, not CPU measurements. Parent spans must not be added
+to their children. Queue age is additional waiting and overlaps across images.
+
+Coverage limit: the production path used preview file-path storage fallback.
+Its writes/stat/temp-file work is included in `preview_total`, but does not yet
+have individual storage spans. The approximately 194 ms `storage_write` average
+therefore describes the main JPEG only, not all IPFS or pinning work. Preview
+read-and-encode spans also include source retrieval, so their full duration must
+not be described as encoding CPU time.
+
+Diagnostics were enabled temporarily through the maintained Compose wrapper on
+the exact deployed image. A configuration comparison verified no other
+runtime-environment changes. No resaves were active before either restart.
+After the probe the ordinary wrapper restored the previous flag-off configuration;
+the image ID was unchanged and the API returned HTTP 200. Owner credentials stayed
+on the membership server. The private durable plan/journal are
+`resave-live-probe-plan.json` and `resave-live-probe-journal.json` in membership
+artifacts. No blind mutation retries were used.
+
+The probe exposed missing Compose forwarding for the opt-in flag. The follow-up
+adds `GEESOME_IMAGE_RESAVE_TIMINGS=${GEESOME_IMAGE_RESAVE_TIMINGS:-0}` so normal
+host configuration reaches the container. Default remains disabled.
+
+### Verification outcome
+
+The timing feature's focused tests passed (11). The final backend Docker suite
+reported **806 passing, 36 pending and 3 failing**. The same three failures were
+reproduced on pre-feature baseline `4c6b459d`: two encrypted-attachment chat
+reliability cases and one content-list eager-image assertion. The new real-image
+first-use/reuse timing test passed. This establishes no observed timing-feature
+regression; it does not claim the full backend suite is green. Compose image
+selection and real Compose integration checks also passed for the flag forwarding.
+
+### Consequence for optimization
+
+Moving only JPEG encoding to the Mac targets a small fraction of measured elapsed
+time. Moving previews too may help, but requires an explicit trusted preprocessed
+upload contract, avoiding duplicate preview work and accounting for transfer and
+storage costs. The separate encoding probe's 4.18× result is not an end-to-end
+speedup. Before a large run, evaluate the existing JPEG95 size expansion and
+measure an equivalent whole-pipeline canary for any proposed replacement policy.
