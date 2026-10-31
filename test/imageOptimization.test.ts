@@ -36,6 +36,37 @@ describe('persisted image saving and local site retirement', function () {
     });
     after(async () => { await app?.stop(); });
 
+    it('records opt-in first-use resave stages and distinguishes a later cached receipt', async () => {
+        const previous = process.env.GEESOME_IMAGE_RESAVE_TIMINGS;
+        try {
+            process.env.GEESOME_IMAGE_RESAVE_TIMINGS = '1';
+            const bytes = await sharp({create: {width: 47, height: 73, channels: 3, background: '#a76291'}}).png().toBuffer();
+            const source = await app.ms.content.saveData(user.id, bytes, 'timing-source.png', {driver: {raw: true}, waitForPin: true});
+            const accepted = await resave(user.id, source.id, null, null, 'publication-jpeg95-v1');
+            assert.equal(accepted.status, 'queued');
+            assert.equal(accepted.timings, undefined);
+            await app.ms.content.processResaveQueue();
+            const queue = await app.ms.asyncOperation.getUserOperationQueue(user.id, accepted.id);
+            const output = JSON.parse(queue.asyncOperation.output);
+            assert.equal(output.timings.reused, false);
+            assert.equal(output.timings.counters.inputBytes, bytes.length);
+            for (const name of ['source_open', 'input_read', 'encode', 'preview_total', 'storage_write', 'db_add', 'manifest', 'provenance_write']) {
+                assert.ok(output.timings.spans.some(span => span.name === name && span.outcome === 'ok'), name);
+            }
+            const repeat = await resave(user.id, source.id, null, null, 'publication-jpeg95-v1');
+            assert.equal(repeat.status, 'completed');
+            assert.equal(repeat.timings.reused, true);
+            assert.equal(repeat.content.id, output.content.id);
+            assert.ok(!repeat.timings.spans.some(span => span.name === 'encode'));
+        } finally {
+            if (previous === undefined) {
+                delete process.env.GEESOME_IMAGE_RESAVE_TIMINGS;
+            } else {
+                process.env.GEESOME_IMAGE_RESAVE_TIMINGS = previous;
+            }
+        }
+    });
+
     it('uploads raw site icons without previews and reuses the existing content on retry', async () => {
         const bytes = await sharp({create: {width: 24, height: 24, channels: 4, background: {r: 91, g: 20, b: 163, alpha: 0.4}}}).png().toBuffer();
         const render = app.ms.drivers.preview.image.processByStream;

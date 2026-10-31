@@ -1,3 +1,4 @@
+import {imageResaveSpan} from './resaveTimings.js';
 import {ImagePreviewDriver, imagePreviewEdge} from '../drivers/preview/image.js';
 import fs from "fs";
 import {watermarkIdentity, watermarkProperties} from '../drivers/convert/imageWatermarkHelpers.js';
@@ -557,7 +558,8 @@ function getModule(app: IGeesomeApp) {
 					// times. Reuse each effective bounding size within this set.
 					let sourceEdge = 0;
 					if (previewDriverName === 'image' && previewDriver instanceof ImagePreviewDriver) {
-						const input = storageFile.tempPath ? fs.createReadStream(storageFile.tempPath) : await this.getFileStream(storageFile.id);
+						const input = storageFile.tempPath ? fs.createReadStream(storageFile.tempPath)
+							: await imageResaveSpan('preview_source_open', () => this.getFileStream(storageFile.id));
 						try {
 							sourceEdge = await previewDriver.getSourceEdge(input);
 						} finally {
@@ -663,14 +665,14 @@ function getModule(app: IGeesomeApp) {
 
 		async getContentPreviewStorageFile(storageFile: IStorageFile, previewDriver, options): Promise<any> {
 			if (app.ms.storage.isStreamAddSupport()) {
-				const inputStream = await this.getFileStream(storageFile.id);
+				const inputStream = await imageResaveSpan('preview_source_open', () => this.getFileStream(storageFile.id));
 				options.onError = (err) => {
 					throw err;
 				};
 				log('getContentPreviewStorageFile stream', options);
 				const {stream: resultStream, type, extension} = await previewDriver.processByStream(inputStream, options);
 
-				const previewFile = await app.ms.storage.saveFileByData(resultStream);
+				const previewFile = await imageResaveSpan('storage_write', () => app.ms.storage.saveFileByData(resultStream));
 				log('getContentPreviewStorageFile stream storageFile', previewFile);
 
 				let properties;
@@ -782,12 +784,12 @@ function getModule(app: IGeesomeApp) {
 			contentData.userId = userId;
 			let content;
 			try {
-				content = await app.ms.database.addContentWithUserContentAction(contentData, {
+				content = await imageResaveSpan('db_add', () => app.ms.database.addContentWithUserContentAction(contentData, {
 					name: UserContentActionName.Upload,
 					userId: contentData.userId,
 					size: contentData.size,
 					userApiKeyId: options.userApiKeyId
-				}, UserLimitName.SaveContentSize);
+				}, UserLimitName.SaveContentSize));
 			} catch (e) {
 				if (!isUserStorageUniqueError(e, contentData)) {
 					throw e;
@@ -806,7 +808,7 @@ function getModule(app: IGeesomeApp) {
 			log('addUserContentAction');
 			if (!contentData.manifestStorageId) {
 				log('updateContentManifest');
-				return this.updateContentManifest(content);
+				return imageResaveSpan('manifest', () => this.updateContentManifest(content));
 			} else {
 				return content;
 			}
@@ -1016,7 +1018,7 @@ function getModule(app: IGeesomeApp) {
 				properties = resultProperties;
 			}
 
-			const existsContent = await app.ms.database.getContentByStorageAndUserId(storageFile.id, userId);
+			const existsContent = await imageResaveSpan('db_lookup', () => app.ms.database.getContentByStorageAndUserId(storageFile.id, userId));
 			if (existsContent) {
 				await this.updateExistsContentMetadata(userId, existsContent, options);
 				await app.callHook('content', 'existsContentAdding', [userId, existsContent, options]);
@@ -1070,7 +1072,7 @@ function getModule(app: IGeesomeApp) {
 						properties
 					} = await this.prepareStorageFileAndGetPreview(storageFile, contentData.extension, contentData.mimeType);
 					log('getPreview');
-					previewData = await this.getPreview(forPreviewStorageFile, forPreviewExtension, forPreviewFullType, source);
+					previewData = await imageResaveSpan('preview_total', () => this.getPreview(forPreviewStorageFile, forPreviewExtension, forPreviewFullType, source));
 					if (properties) {
 						contentData.propertiesJson = JSON.stringify(merge(
 							{},
@@ -1127,7 +1129,7 @@ function getModule(app: IGeesomeApp) {
 					recordMemorySnapshot('video:transcode:after', {mimeType, extension, processed: convertResult['processed']});
 				}
 
-				const sizeRemained = await app.getUserLimitRemained(userId, UserLimitName.SaveContentSize);
+				const sizeRemained = await imageResaveSpan('quota_lookup', () => app.getUserLimitRemained(userId, UserLimitName.SaveContentSize));
 
 				if (sizeRemained !== null) {
 					log('sizeRemained', sizeRemained);
@@ -1223,7 +1225,7 @@ function getModule(app: IGeesomeApp) {
 			} else {
 				log('app.ms.storage.isStreamAddSupport()', app.ms.storage.isStreamAddSupport());
 				if (app.ms.storage.isStreamAddSupport()) {
-					resultFile = await app.ms.storage.saveFileByData(stream, storageOptions);
+					resultFile = await imageResaveSpan('storage_write', () => app.ms.storage.saveFileByData(stream, storageOptions));
 				} else {
 					const uploadResult = await app.ms.drivers.upload['file'].processByStream(stream, {
 						extension,
@@ -1232,7 +1234,7 @@ function getModule(app: IGeesomeApp) {
 					});
 					log('saveFileByPath(uploadResult.tempPath)', uploadResult['tempPath']);
 					try {
-						resultFile = await app.ms.storage.saveFileByPath(uploadResult['tempPath'], storageOptions);
+						resultFile = await imageResaveSpan('storage_write', () => app.ms.storage.saveFileByPath(uploadResult['tempPath'], storageOptions));
 					} catch (e) {
 						if (uploadResult['emitFinish']) {
 							uploadResult['emitFinish']();
@@ -1247,7 +1249,7 @@ function getModule(app: IGeesomeApp) {
 			}
 
 			if (!resultFile.size) {
-				resultFile.size = await this.getFileSize(resultFile.id);
+				resultFile.size = await imageResaveSpan('storage_stat', () => this.getFileSize(resultFile.id));
 				log('resultFile.size', resultFile.size);
 			}
 
