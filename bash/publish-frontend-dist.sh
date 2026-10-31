@@ -47,7 +47,10 @@ build_frontend_dist() {
   # Run the launcher with the selected frontend Node, even if Yarn came from
   # the backend Node installation. No global-bin PATH lookup is required.
   node "$FRONTEND_YARN" --version
-  YARN_IGNORE_ENGINES=1 node "$FRONTEND_YARN" install --frozen-lockfile --force --network-concurrency 1
+  # Network concurrency does not serialize lifecycle scripts. Native addons
+  # share node-gyp's headers directory; parallel first installs can read headers
+  # while another installer overwrites them (nodejs/node-gyp#3165).
+  CHILD_CONCURRENCY=1 YARN_IGNORE_ENGINES=1 node "$FRONTEND_YARN" install --frozen-lockfile --force --network-concurrency 1
   rm -rf .parcel-cache ./dist
   PARCEL_WORKERS="$UI_PARCEL_WORKERS" node "--max-old-space-size=$UI_NODE_MAX_OLD_SPACE_SIZE" \
     ./node_modules/.bin/parcel build ./index.html --no-content-hash --no-optimize --dist-dir ./dist
