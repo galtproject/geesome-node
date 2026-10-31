@@ -447,11 +447,65 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		const decision = await request(`membership/admin/wave/refunds/${result.body.id}/decision`, { token: 'test-owner', body: { decision: 'approve', reason: 'Approved' } });
 		assert.equal(decision.body.status, 'action_required');
 		assert.equal((await membership.entitlement(waveReader.id, 'wave')).active, true);
+		const refunds = await request('membership/admin/wave/refunds', {token: 'test-owner'});
+		assert.equal(refunds.status, 200);
+		const refund = refunds.body.find(row => row.id === result.body.id);
+		assert.equal(refund.invoice.provider, 'direct');
+		assert.equal(refund.invoice.crypto.network, 'base');
+		assert.equal(refund.invoice.optionSnapshot.amountCents, 400);
+		assert.deepEqual(refund.reader, {id: waveReader.id, name: 'Buyer'});
+		assert.equal(refund.period.revoked, false);
+		assert.equal(refund.period.invoiceId, paidInvoice.id);
+		assert(!JSON.stringify(refunds.body).includes('buyer@example.test'));
+		assert(!JSON.stringify(refunds.body).includes('existing-google-reader'));
+		assert.equal((await request('membership/admin/wave/refunds', {cookie: waveCookie})).status, 401);
+		assert.equal((await request('membership/admin/wave/refunds', {token: 'test-other-owner'})).status, 403);
+		assert.equal((await request('membership/admin/meat/refunds', {token: 'test-owner'})).status, 403);
+		const invoices = await request('membership/admin/wave/invoices', {token: 'test-owner'});
+		assert.equal(invoices.body.find(row => row.id === paidInvoice.id).crypto.network, 'base');
 		const complete = await request(`membership/admin/wave/refunds/${result.body.id}/complete`, { token: 'test-owner', body: { txid: '0x' + 'f'.repeat(64) } });
 		assert.equal(complete.status, 200, JSON.stringify(complete.body));
 		assert.equal((await membership.entitlement(waveReader.id, 'wave')).active, false);
 		assert.equal((await request('membership/feed', { cookie: waveCookie })).body.posts[0].locked, true);
 		assert.equal(await paymentModels.crypto_transactions.count(), 0);
+	});
+	it('bounds owner lists, isolates related resources and tolerates missing historical records', async () => {
+		const createdAt = new Date(now.getTime() + 60000);
+		const orphanReader = randomUUID();
+		const records = Array.from({length: 52}, () => ({id: randomUUID(), resourceId: 'wave', readerId: orphanReader,
+			requestKey: randomUUID(), status: 'expired', providerId: null, createdAt,
+			optionSnapshot: {id: randomUUID(), label: 'Historical', amountCents: 400, currency: 'USD', period: 'month', secret: 'not-for-owner-dto'}}));
+		await paymentModels.invoices.bulkCreate(records);
+		const refundId = randomUUID();
+		// A corrupted historical relation must not pull a different site's invoice into an owner projection.
+		const foreign = await paymentModels.invoices.create({...records[0], id: randomUUID(), requestKey: randomUUID(), resourceId: 'meat'});
+		const refundRows = [
+			{id: refundId, invoiceId: foreign.id},
+			{id: randomUUID(), invoiceId: randomUUID()},
+			...records.map(row => ({id: randomUUID(), invoiceId: row.id}))
+		].map(row => ({...row, resourceId: 'wave', readerId: orphanReader, requestKey: randomUUID(), reason: 'Historical review', status: 'requested', createdAt}));
+		await paymentModels.refunds.bulkCreate(refundRows);
+		try {
+			const first = await request('membership/admin/wave/invoices', {token: 'test-owner'});
+			const second = await request('membership/admin/wave/invoices?offset=50', {token: 'test-owner'});
+			assert.equal(first.body.length, 50);
+			assert.equal(new Set([...first.body, ...second.body].map(row => row.id)).size, first.body.length + second.body.length);
+			assert(first.body.every(row => row.resourceId === 'wave' && row.provider === 'legacy' && row.reader === null && row.period === null));
+			assert(!JSON.stringify(first.body).includes('not-for-owner-dto'));
+			assert(!JSON.stringify(first.body).includes('requestKey'));
+			const refunds = [...(await request('membership/admin/wave/refunds', {token: 'test-owner'})).body,
+				...(await request('membership/admin/wave/refunds?offset=50', {token: 'test-owner'})).body];
+			const broken = refunds.find(row => row.id === refundId);
+			assert.equal(broken.invoice, null);
+			assert.equal(broken.period, null);
+			assert.equal(broken.reader, null);
+			assert(!JSON.stringify(refunds).includes('requestKey'));
+			assert.equal((await request('membership/admin/wave/invoices', {cookie: waveCookie})).status, 401);
+			assert.equal((await request('membership/admin/wave/invoices', {token: 'test-other-owner'})).status, 403);
+		} finally {
+			await paymentModels.refunds.destroy({where: {id: refundRows.map(row => row.id)}});
+			await paymentModels.invoices.destroy({where: {id: [...records.map(row => row.id), foreign.id]}});
+		}
 	});
 	it('allows only the authenticated creator to edit their own payout default', async () => {
 		assert.equal((await request('user/payments/payout', { cookie: waveCookie })).status, 401);

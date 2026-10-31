@@ -6,6 +6,7 @@ import registerApi from './api.js';
 import siteSettings from './siteSettings.js';
 import {createPublicationDelivery} from './publication.js';
 import registerPublicationApi from './publicationApi.js';
+import {ownerPayments} from './ownerPayments.js';
 export default async function (app) {
 	app.checkModules(['database', 'api', 'group', 'googleAuthorization', 'payments']);
 	const module = createMembership(app, await defineModels(app.ms.database.sequelize));
@@ -143,17 +144,6 @@ export function createMembership(app, models, dependencies: any = {}) {
 					status: invoice.status, paidAt: invoice.paidAt, createdAt: invoice.createdAt, provider: String(invoice.providerId).startsWith('direct:') ? 'direct' : 'legacy' })),
 				refunds: await M.refunds.findAll({ where, order: [['createdAt', 'DESC']], limit: 50, attributes: ['id', 'invoiceId', 'status', 'createdAt'] }) };
 		},
-		async ownerInvoices(id, input: any = {}) {
-			await resource(id);
-			return M.invoices.findAll({ where: { resourceId: id }, order: [['createdAt', 'DESC']], limit: 50,
-				offset: Math.max(0, Math.min(100000, Math.trunc(Number(input.offset) || 0))),
-				attributes: ['id', 'readerId', 'optionSnapshot', 'status', 'paidAt', 'createdAt'] });
-		},
-		async ownerRefunds(id, input: any = {}) {
-			await resource(id);
-			return M.refunds.findAll({ where: { resourceId: id }, order: [['createdAt', 'DESC']], limit: 50,
-				offset: Math.max(0, Math.min(100000, Math.trunc(Number(input.offset) || 0))) });
-		},
 		async saveOption(id, body) {
 			if (!Number.isInteger(body.amountCents) || body.amountCents < 100 || body.amountCents > 100000
 				|| !['month', 'halfyear', 'year'].includes(body.period) || typeof body.label !== 'string' || !body.label.trim()) {
@@ -176,9 +166,10 @@ export function createMembership(app, models, dependencies: any = {}) {
 		}
 	};
 	Object.assign(module, siteSettings(app, M, group, owner, publicBrand, (id, transaction) => module.invalidateGroup(id, transaction)));
+	Object.assign(module, ownerPayments(M, app.ms.googleAuthorization.models.Identity, resource));
 	Object.assign(module, createPublicationDelivery(app, M, module, dependencies));
 	Object.assign(module, refundMethods(M, serial, entitlement, clock));
-	return module as typeof module & ReturnType<typeof createPublicationDelivery> & ReturnType<typeof refundMethods> & ReturnType<typeof siteSettings>;
+	return module as typeof module & ReturnType<typeof createPublicationDelivery> & ReturnType<typeof refundMethods> & ReturnType<typeof siteSettings> & ReturnType<typeof ownerPayments>;
 }
 export function periodEnd(start: Date, period: string, anchorDay = start.getUTCDate()) {
 	if (!['month', 'halfyear', 'year'].includes(period)) {
