@@ -22,7 +22,7 @@ export function watermarkDriver(value) {
         || [p.color, p.background, p.font].some(v => v !== undefined && (typeof v !== 'string' || v.length > 100))) {
         throw new ApiProblemError(400, 'image_watermark_invalid', 'Invalid watermark parameters');
     }
-    return {name: 'imageWatermark', module: 'convert', params: {text: p.text, color: p.color || '#ffffff80',
+    return {name: 'imageWatermark' as const, module: 'convert' as const, params: {text: p.text, color: p.color || '#ffffff80',
         background: p.background || 'black', font: p.font || 'monospace', spacing: p.spacing ?? 50,
         sizeRatio: p.sizeRatio || 1 / 50}};
 }

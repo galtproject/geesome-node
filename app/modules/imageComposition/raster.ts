@@ -1,7 +1,8 @@
 import sharp from 'sharp';
 import debug from 'debug';
-import {IMAGE_COMPOSITION_LIMITS, ImageCompositionStickerInput} from './contract.js';
+import {IMAGE_COMPOSITION_LIMITS, ImageCompositionStickerInput, ImageCompositionRender} from './contract.js';
 import {ImageCompositionApiError} from './helpers.js';
+import {compositionSourceHeight} from './watermarkRemoval.js';
 
 const log = debug('geesome:app:image-composition:raster');
 
@@ -16,16 +17,16 @@ export interface BakedImageComposition {
   output: {width: number; height: number};
 }
 
-export async function bakeImageComposition(original: Buffer, stickers: RasterSticker[], render?: {maxDimension: number}): Promise<BakedImageComposition> {
+export async function bakeImageComposition(original: Buffer, stickers: RasterSticker[], render?: ImageCompositionRender, properties?): Promise<BakedImageComposition> {
   const release = await acquireRasterSlot();
   try {
-    return await bakeImageCompositionInternal(original, stickers, render);
+    return await bakeImageCompositionInternal(original, stickers, render, properties);
   } finally {
     release();
   }
 }
 
-async function bakeImageCompositionInternal(original: Buffer, stickers: RasterSticker[], render?: {maxDimension: number}): Promise<BakedImageComposition> {
+async function bakeImageCompositionInternal(original: Buffer, stickers: RasterSticker[], render?: ImageCompositionRender, properties?): Promise<BakedImageComposition> {
   if (!Buffer.isBuffer(original) || original.length === 0 || original.length > IMAGE_COMPOSITION_LIMITS.maxInputBytes) {
     throw limitError('originalBytes');
   }
@@ -48,15 +49,18 @@ async function bakeImageCompositionInternal(original: Buffer, stickers: RasterSt
     const sourceWidth = normalized.info.width;
     const sourceHeight = normalized.info.height;
     assertDimensions(sourceWidth, sourceHeight);
-    const scale = render?.maxDimension && Math.max(sourceWidth, sourceHeight) > render.maxDimension
-      ? render.maxDimension / Math.max(sourceWidth, sourceHeight)
+    const frameHeight = compositionSourceHeight(sourceWidth, sourceHeight, render, properties);
+    const frame = frameHeight === sourceHeight ? normalized.data
+      : await sharp(normalized.data).extract({left: 0, top: 0, width: sourceWidth, height: frameHeight}).png().toBuffer();
+    const scale = render?.maxDimension && Math.max(sourceWidth, frameHeight) > render.maxDimension
+      ? render.maxDimension / Math.max(sourceWidth, frameHeight)
       : 1;
     const width = Math.max(1, Math.round(sourceWidth * scale));
-    const height = Math.max(1, Math.round(sourceHeight * scale));
+    const height = Math.max(1, Math.round(frameHeight * scale));
     assertDimensions(width, height);
     const canvas = scale === 1
-      ? normalized.data
-      : await sharp(normalized.data).resize(width, height, {fit: 'fill'})
+      ? frame
+      : await sharp(frame).resize(width, height, {fit: 'fill'})
         .png({compressionLevel: 9, adaptiveFiltering: false, palette: false})
         .timeout({seconds: IMAGE_COMPOSITION_LIMITS.sharpTimeoutSeconds}).toBuffer();
 

@@ -43,6 +43,19 @@ function storedRecipe(overrides: any = {}) {
 }
 
 describe('image composition contract integration', function () {
+	it('normalizes watermark removal, includes it in replay matching, and rejects invalid recipes', () => {
+		const input = {idempotencyKey: 'retry', compositionId: 'clean', originalContentManifestId: 'source', stickers: [],
+			render: {maxDimension: 2000, removeWatermark: {name: 'imageWatermark', module: 'convert', params: {text: 'eraofwave.com'}}}};
+		const normalized = normalizeImageCompositionContentCreateInput(input);
+		assert.equal(normalized.render.removeWatermark.params.sizeRatio, .02);
+		const recipe = storedRecipe({...normalized});
+		assert(doesRecipeMatchCreate(recipe, normalized));
+		assert(!doesRecipeMatchCreate(recipe, {...normalized, render: {maxDimension: 2000}}));
+		for (const removeWatermark of [null, false, {}, {name: 'other'}, {...input.render.removeWatermark, params: {text: 'x', sizeRatio: .5}}]) {
+			assert.throws(() => normalizeImageCompositionContentCreateInput({...input, render: {...input.render, removeWatermark}}), ImageCompositionApiError);
+		}
+	});
+
 	it('normalizes content inputs, allows empty stickers, and rejects client output geometry', function () {
 		const contentCreate = normalizeImageCompositionContentCreateInput({
 			idempotencyKey: 'create-key',

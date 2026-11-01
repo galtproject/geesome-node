@@ -36,11 +36,12 @@ export default function registerImageCompositionApi(app: IGeesomeApp, module: IG
 	 * @apiBody {String} originalContentManifestId Original raster Content manifest id.
 	 * @apiBody {Number} [folderId] Optional owned file-catalog folder for placing the composite.
 	 * @apiBody {Object} [render] Optional bounded server render hint.
-	 * @apiBody {Number} [render.maxDimension] Maximum output width or height.
+	 * @apiBody {Number} [render.maxDimension] Maximum output width or height; required when render is present.
+	 * @apiBody {Object} [render.removeWatermark] Optional imageWatermark convert driver. Its normalized identity must match the original Content imageWatermark version-1 metadata. Removes only the appended bottom band before sizing and placing stickers; mismatches fail with composition_invalid. Original Content stays unchanged.
 	 * @apiBody {Object[]} stickers Complete client-rendered SVG sticker list with normalized geometry; may be empty.
 	 * @apiBody {String} stickers.svg Self-contained, allowlisted SVG with no scripts, styles, or external resources.
 	 * @apiBody {Object} [stickers.editorData] Bounded opaque client metadata used to reconstruct editor controls.
-	 * @apiSuccess {Object} composition Resolved composite and dependencies; fileCatalogItemId is present only for catalog-placed content.
+	 * @apiSuccess {Object} composition Resolved composite, applied render recipe and dependencies; fileCatalogItemId is present only for catalog-placed content.
 	 * @apiExample {curl} Create content-only composition
 	 *   curl -X POST http://localhost:2052/v1/user/image-compositions -H "Authorization: Bearer geesome-api-key" -H "Content-Type: application/json" -d '{"idempotencyKey":"request-1","compositionId":"card-1","originalContentManifestId":"manifest-cid","stickers":[]}'
 	 */
