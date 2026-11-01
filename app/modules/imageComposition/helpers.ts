@@ -1,5 +1,6 @@
 import {createHash} from 'node:crypto';
 import type {IContent} from '../database/interface.js';
+import {watermarkDriver} from '../drivers/convert/imageWatermarkHelpers.js';
 import {
   IMAGE_COMPOSITION_LIMITS,
   IMAGE_COMPOSITION_TYPE,
@@ -105,7 +106,7 @@ export function doesRecipeMatchCreate(recipe: StoredImageComposition, input: Ima
   return recipe.revision === 1
     && recipe.compositionId === input.compositionId
     && recipe.originalContentManifestId === input.originalContentManifestId
-    && (recipe.render?.maxDimension ?? null) === (input.render?.maxDimension ?? null)
+    && canonicalizeImageCompositionRequest(recipe.render ?? null) === canonicalizeImageCompositionRequest(input.render ?? null)
     && stickersEqual(recipe.stickers, input.stickers);
 }
 
@@ -130,6 +131,7 @@ export function buildResolvedImageComposition(
     updatedAt: new Date(fileCatalogItem?.updatedAt || composite.updatedAt).toISOString(),
     composite: contentProjection(composite, recipe.output, true),
     original: contentProjection(original, recipe.source, false),
+    ...(recipe.render ? {render: recipe.render} : {}),
     stickers: recipe.stickers.map(sticker => {
       const content = stickersByManifest.get(sticker.contentManifestId);
       if (!content) {
@@ -267,12 +269,23 @@ function requireObject(value: unknown): Record<string, any> {
 
 function normalizeRender(value: unknown) {
   const render = requireObject(value);
-  if (Object.keys(render).some(key => key !== 'maxDimension')) {
+  if (Object.keys(render).some(key => key !== 'maxDimension' && key !== 'removeWatermark')) {
     throw invalid('render');
   }
   const maxDimension = requirePositiveInteger(render.maxDimension, 'render.maxDimension');
   if (maxDimension > IMAGE_COMPOSITION_LIMITS.maxExportDimension) throw invalid('render.maxDimension');
-  return {maxDimension};
+  let removeWatermark;
+  if (render.removeWatermark !== undefined) {
+    try {
+      removeWatermark = watermarkDriver(render.removeWatermark);
+    } catch (_error) {
+      throw invalid('render.removeWatermark');
+    }
+    if (!removeWatermark) {
+      throw invalid('render.removeWatermark');
+    }
+  }
+  return {maxDimension, ...(removeWatermark ? {removeWatermark} : {})};
 }
 
 function requireIdentifier(value: unknown, field: string): string {
@@ -332,10 +345,12 @@ function isDimensions(value: any): value is {width: number; height: number} {
     && value.width * value.height <= IMAGE_COMPOSITION_LIMITS.maxExportPixels;
 }
 
-function isRender(value: any): value is {maxDimension: number} {
-  return value && isPositiveInteger(value.maxDimension)
-    && value.maxDimension <= IMAGE_COMPOSITION_LIMITS.maxExportDimension
-    && Object.keys(value).every(key => key === 'maxDimension');
+function isRender(value: any): boolean {
+  try {
+    return canonicalizeImageCompositionRequest(normalizeRender(value)) === canonicalizeImageCompositionRequest(value);
+  } catch (_error) {
+    return false;
+  }
 }
 
 function isSha256(value: unknown): value is string {

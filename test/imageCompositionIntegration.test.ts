@@ -1,3 +1,4 @@
+import {addWatermark, watermarkDriver, watermarkProperties} from '../app/modules/drivers/convert/imageWatermarkHelpers.js';
 import assert from 'node:assert';
 import {randomUUID} from 'node:crypto';
 import sharp from 'sharp';
@@ -45,6 +46,27 @@ describe('image composition content persistence', function () {
 			mimeType: 'image/png', view: ContentView.Media, driver: {raw: true}, skipFileCatalog: true,
 		});
 		catalogFolder = await app.ms.fileCatalog.createUserFolder(owner.id, null, 'Compositions');
+	});
+
+	it('persists verified band removal across retries and revisions without modifying the original', async () => {
+		const driver = watermarkDriver({name: 'imageWatermark', module: 'convert', params: {text: 'eraofwave.com'}});
+		const marked = await addWatermark(originalPng, driver);
+		const source = await app.ms.content.saveData(owner.id, marked, 'marked.png', {driver: {raw: true}, mimeType: 'image/png',
+			view: ContentView.Media, properties: watermarkProperties(driver), skipFileCatalog: true});
+		const storedOriginal = Buffer.from(await app.ms.storage.getFileData(source.storageId));
+		const input = createInput({originalContentManifestId: source.manifestStorageId, render: {maxDimension: 160, removeWatermark: driver}, stickers: []});
+		const created = await app.ms.imageComposition.createImageCompositionContent(owner.id, input);
+		assert.equal(created.original.height, 106);
+		assert.equal(created.composite.height, 100);
+		assert.deepEqual(created.render, input.render);
+		assert.deepEqual((await app.ms.imageComposition.createImageCompositionContent(owner.id, input)).composite, created.composite);
+		const updated = await app.ms.imageComposition.createImageCompositionContentRevision(owner.id, created.composite.contentManifestId,
+			{idempotencyKey: randomUUID(), expectedRevision: 1, stickers: []});
+		assert.equal(updated.composite.height, 100);
+		assert.deepEqual(updated.render, created.render);
+		assert.deepEqual(Buffer.from(await app.ms.storage.getFileData(source.storageId)), storedOriginal);
+		await assert.rejects(() => app.ms.imageComposition.createImageCompositionContent(owner.id, createInput({
+			render: input.render, stickers: []})), (e: ImageCompositionApiError) => e.details?.reason === 'watermark_identity_mismatch');
 	});
 
 	it('does not require file-catalog permission for standalone composition Content', async () => {

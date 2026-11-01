@@ -12,6 +12,27 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Verified watermark-band removal in compositions (#1519)
+
+Content-only compositions accept `render.removeWatermark`, a normalized
+`imageWatermark` convert driver. The server requires matching version-1
+`imageWatermark.identity` on the permitted original Content, recovers the unique
+pre-band height from the driver formula, and crops only that appended strip
+before output sizing and SVG sticker placement. Unknown identities, unsupported
+metadata and impossible geometry fail without modifying the original.
+
+The render option is persisted in the hashed recipe and retry identity, returned
+in receipts, and reused on revisions. Existing compositions without the option
+retain their previous behavior. This is not general crop or inpainting: old
+files without trustworthy metadata need an independently reviewed crop. The
+consumer must be updated after the server; older servers reject the new render
+field instead of silently ignoring removal.
+
+Verification: focused contract/raster tests, including exact source-pixel
+preservation and identity mismatch; real Content persistence/replay/revision
+coverage runs against disposable PostgreSQL/IPFS. Consumer UI download/publish
+coverage lives in Microwave Girls #809.
+
 ## Gallery image failure recovery (#1508)
 
 Visible gallery previews now get up to three attempts with short delays. A

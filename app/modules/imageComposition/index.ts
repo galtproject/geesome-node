@@ -335,8 +335,8 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
         throw new ImageCompositionApiError('composition_render_limit', 422, {field: 'originalBytes'});
       }
       const originalBytes = await app.ms.storage.getFileData(original.storageId);
-      const render = previous ? {maxDimension: Math.max(previous.recipe.output.width, previous.recipe.output.height)} : input.render;
-      const baked = await bakeImageComposition(toBuffer(originalBytes), rasterStickers, render);
+      const render = previous ? previous.recipe.render || {maxDimension: Math.max(previous.recipe.output.width, previous.recipe.output.height)} : input.render;
+      const baked = await bakeImageComposition(toBuffer(originalBytes), rasterStickers, render, original.propertiesJson);
       if (previous && (baked.output.width !== previous.recipe.output.width || baked.output.height !== previous.recipe.output.height)) {
         throw new ImageCompositionApiError('composition_invalid', 422, {field: 'output'});
       }
