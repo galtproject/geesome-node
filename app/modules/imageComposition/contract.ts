@@ -52,12 +52,21 @@ export interface ImageCompositionStickerInput {
   zIndex: number;
 }
 
+export interface ImageCompositionRender {
+  maxDimension: number;
+  removeWatermark?: {
+    name: 'imageWatermark';
+    module: 'convert';
+    params: {text: string; color: string; background: string; font: string; spacing: number; sizeRatio: number};
+  };
+}
+
 export interface ImageCompositionContentCreateInput {
   idempotencyKey: string;
   compositionId: string;
   originalContentManifestId: string;
   folderId?: number;
-  render?: {maxDimension: number};
+  render?: ImageCompositionRender;
   stickers: ImageCompositionStickerInput[];
 }
 
@@ -79,7 +88,7 @@ export interface StoredImageComposition {
   revision: number;
   previousCompositeContentManifestId?: string;
   originalContentManifestId: string;
-  render?: {maxDimension: number};
+  render?: ImageCompositionRender;
   source: ImageCompositionOutput;
   output: ImageCompositionOutput;
   renderer: typeof IMAGE_COMPOSITION_RENDERER;
@@ -113,6 +122,7 @@ export interface ResolvedImageComposition {
     width: number;
     height: number;
   };
+  render?: ImageCompositionRender;
   stickers: ResolvedImageCompositionSticker[];
 }
 
