@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { chromium } from '/work/node_modules/playwright/index.mjs';
 const root = '/evidence', captures = [], comparisons = [];
 const paginationOnly = process.argv.includes('--pagination');
+const checkoutOnly = process.argv.includes('--checkout');
 const reference = JSON.parse(await fs.readFile(root + '/reference-state.json', 'utf8'));
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.txt': 'text/plain', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp' };
 const server = http.createServer(async (req, res) => {
@@ -37,7 +38,7 @@ async function settleCover(page) {
 }
 const origin = `http://127.0.0.1:${server.address().port}`, browser = await chromium.launch({ headless: true });
 try {
-    for (const viewport of paginationOnly ? [] : [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+    for (const viewport of paginationOnly || checkoutOnly ? [] : [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
         const states = [];
         for (const version of ['reference', 'public']) {
             const context = await browser.newContext({ viewport });
@@ -209,7 +210,7 @@ try {
             await context.close();
         }
     }
-    for (const viewport of paginationOnly ? [] : [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+    for (const viewport of paginationOnly || checkoutOnly ? [] : [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
         for (const id of ['meat', 'newsite']) {
             for (const version of ['reference', 'public']) {
                 const page = await browser.newPage({ viewport });
@@ -230,7 +231,7 @@ try {
             }
         }
     }
-    for (const viewport of [{width:1280,height:900},{width:390,height:844}]) {
+    for (const viewport of checkoutOnly ? [] : [{width:1280,height:900},{width:390,height:844}]) {
         for (const javaScriptEnabled of [true,false]) {
             const context = await browser.newContext({viewport,javaScriptEnabled});
             const page = await context.newPage(), errors = [];
@@ -466,26 +467,27 @@ try {
             {id:'btc-bitcoin',currency:'BTC',network:'bitcoin',networkLabel:'Bitcoin',available:false},
         ];
         const assets = [];
-        let resumed = false;
+        let resumed = false, paymentState = {}, lastAsset = 'usdt-ethereum';
         const quote = assetId => ({id:'invoice',provider:'direct',status:'pending',assetId,
             currency:assetId === 'usdc-base' ? 'USDC' : 'USDT',network:assetId === 'usdc-base' ? 'base' : 'ethereum',
             amount:'4',received:'0',address:'0x1111111111111111111111111111111111111111',expiresAt:'2030-01-01T00:00:00Z',
-            priceUsd:4,period:'month',optionLabel:'1 month'});
+            priceUsd:4,period:'month',optionLabel:'1 month',...paymentState});
         await page.route('**/api/**', async route => {
             const pathname = new URL(route.request().url()).pathname;
             let data;
             if (pathname.endsWith('/resource')) {
                 data = {...reference.resource,cryptoMethods:methods};
             } else if (pathname.endsWith('/account')) {
-                data = {reader:{id:'reader',name:'Test reader'},active:false,invoices:resumed ? [{id:'invoice',provider:'direct',status:'pending',createdAt:'2026-10-28T00:00:00Z',optionSnapshot:reference.resource.options[0]}] : [],refunds:[]};
+                data = {reader:{id:'reader',name:'Test reader'},active:paymentState.status === 'paid',expiresAt:paymentState.credit?.endsAt,invoices:resumed ? [{id:'invoice',provider:'direct',status:'pending',createdAt:'2026-10-28T00:00:00Z',optionSnapshot:reference.resource.options[0]}] : [],refunds:[]};
             } else if (pathname.endsWith('/feed')) {
                 data = {posts:reference.posts,hasMore:false};
             } else if (pathname.endsWith('/invoices')) {
                 const assetId = route.request().postDataJSON().assetId;
                 assets.push(assetId);
+                lastAsset = assetId;
                 data = quote(assetId);
             } else if (pathname.endsWith('/invoices/invoice')) {
-                data = quote('usdc-base');
+                data = quote(resumed ? 'usdc-base' : lastAsset);
             } else {
                 throw Error('Unexpected checkout API ' + pathname);
             }
@@ -537,6 +539,18 @@ try {
         await page.getByTestId('crypto-status-control').scrollIntoViewIfNeeded();
         await captureCheckout('checkout-status-alignment','Payment status dot and Waiting for payment label share a vertically centred flex row on desktop and narrow screens.');
         assert(!(await page.locator('.crypto-checkout').textContent()).includes('Automatic monitoring ends:'));
+        assert((await page.getByTestId('crypto-payment-policy').textContent()).includes('pay in parts'));
+        paymentState = {status:'underpaid',received:'1',pending:'0'};
+        await page.getByTestId('crypto-check').click();
+        await page.waitForFunction(() => document.querySelector('[data-testid="crypto-remaining"]')?.textContent.includes('3 USDT'));
+        await captureCheckout('checkout-partial','A confirmed partial payment shows 1 USDT received, 3 USDT remaining, a copy-remainder action and the explanation of split payments and excess time.');
+        paymentState = {status:'confirming',received:'1',pending:'2'};
+        await page.getByTestId('crypto-check').click();
+        await page.getByTestId('crypto-pending').waitFor();
+        assert.equal(await page.getByTestId('crypto-copy-remaining').count(),0);
+        await captureCheckout('checkout-confirming-partial','Detected unfinalized funds are separate from confirmed funds; the remaining-to-confirm message asks readers to wait and does not offer copying a potentially duplicate payment.');
+        paymentState = {};
+        await page.getByTestId('crypto-check').click();
         const general = page.getByTestId('crypto-help-general'), us = page.getByTestId('crypto-help-us');
         assert.deepEqual(await general.locator('strong').allTextContents(), ['Coinbase','MoonPay','Ramp Network','Peer']);
         assert.deepEqual(await us.locator('strong').allTextContents(), ['PayPal','Cash App','Venmo']);
@@ -566,6 +580,14 @@ try {
         assert.equal(await page.getByTestId('html-shell').locator('.membership-modal').count(),0);
         assert((await page.getByTestId('crypto-address').textContent()).includes('0x1111111111111111111111111111111111111111'));
         await captureCheckout('html-shell-crypto','An editable HTML shell retains the trusted checkout outside owner markup, with server invoice address, QR and the USDT Ethereum default.');
+        await page.getByTestId('membership-close').click();
+        paymentState = {status:'paid',received:'22',pending:'0',credit:{optionId:'halfyear',optionLabel:'6 months',period:'halfyear',startsAt:'2026-11-03T12:00:00Z',endsAt:'2027-05-21T12:00:00Z',extraDays:18}};
+        await page.goto(`${origin}/full/account.html`);
+        await page.getByTestId('crypto-resume-invoice').click();
+        await page.getByTestId('crypto-credit').waitFor();
+        await page.getByTestId('crypto-check').click();
+        await captureCheckout('checkout-credit','A paid subscriber views the settled payment receipt from account history: six-month tariff, resulting access deadline and 18 extra days, with the paid confirmation status.');
+
         await page.close();
     }
     const compare = await browser.newPage();

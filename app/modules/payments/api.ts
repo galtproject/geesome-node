@@ -48,6 +48,8 @@ export default function (app, module) {
 	* @apiSuccess {String} status Current invoice status.
 	* @apiSuccess {String} amount Required display amount.
 	* @apiSuccess {String} received Confirmed display amount.
+	* @apiSuccess {String} pending Detected amount awaiting network finality; never grants access.
+	* @apiSuccess {Object} [credit] Settled optionId, optionLabel, period, startsAt, endsAt and fractional extraDays, or null. Frozen eligible tariffs and verified excess determine access; paid invoices are terminal.
 	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.
 	* @apiError (403) Forbidden Origin or owner/permission mismatch.
 	*/

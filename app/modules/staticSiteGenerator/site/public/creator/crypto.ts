@@ -22,6 +22,8 @@ export interface CryptoInvoice {
     network: string;
     lastError?: string | null;
     monitoringUntil?: string;
+    pending?: string;
+    credit?: {optionId: string; optionLabel: string; period: string; startsAt: string; endsAt: string; extraDays: number} | null;
 }
 export const cryptoStatusText: Record<string, string> = { refunded: 'Refund completed. Access from this payment has been revoked.', pending: 'Waiting for payment', confirming: 'Payment detected — waiting for network finality', paid: 'Payment confirmed. Your archive access is ready.', underpaid: 'Partial payment received. Send the remaining amount before expiry.', expired: 'Quote expired. Do not send another payment. Received funds need author review.', late_payment: 'Late payment received. The author must review it before granting access.' };
 // The QR carries the exact receiving address. Amount and network remain explicit beside it;

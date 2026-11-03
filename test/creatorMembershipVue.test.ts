@@ -12,7 +12,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 
 // Exercise the actual composable with Vue's mount/unmount lifecycle, without a
 // browser or a payment provider. DOM/SSR/hydration parity is covered separately.
-function mountCheckout(input: Parameters<typeof useCryptoCheckout>[0] = props) {
+function mountCheckout(input: Parameters<typeof useCryptoCheckout>[0] = props, confirmed: () => void | Promise<void> = () => {}) {
     let state: ReturnType<typeof useCryptoCheckout>;
     const renderer = createRenderer({
         createComment: () => ({}), createText: () => ({}), createElement: () => ({}),
@@ -20,7 +20,7 @@ function mountCheckout(input: Parameters<typeof useCryptoCheckout>[0] = props) {
         parentNode: () => null, nextSibling: () => null,
     });
     const app = renderer.createApp(defineComponent({setup() {
-        state = useCryptoCheckout(input, () => {});
+        state = useCryptoCheckout(input, confirmed);
         return () => null;
     }}));
     app.mount({});
@@ -146,6 +146,32 @@ describe('creator Vue checkout controller', () => {
         await flush(); await flush();
         assert.notEqual(keys[1], keys[2]);
         assert.equal(checkout.state.invoice.value?.assetId, 'usdc-ethereum');
+    });
+    it('keeps polling a paid invoice until access refresh succeeds', async () => {
+        const timers = new Set<ReturnType<typeof setInterval>>();
+        globalThis.setInterval = ((handler, delay) => {
+            const timer = originalSetInterval(handler, delay);
+            timers.add(timer);
+            return timer;
+        }) as typeof setInterval;
+        globalThis.clearInterval = timer => {
+            timers.delete(timer as ReturnType<typeof setInterval>);
+            originalClearInterval(timer);
+        };
+        globalThis.fetch = async () => Response.json({...invoice, status: 'paid'});
+        let attempts = 0;
+        checkout = mountCheckout({...props, resume: invoice}, async () => {
+            if (++attempts === 1) {
+                throw Error('account unavailable');
+            }
+        });
+        await checkout.state.refresh();
+        assert.equal(timers.size, 1);
+        assert.match(checkout.state.error.value, /account unavailable/);
+        await checkout.state.refresh();
+        assert.equal(attempts, 2);
+        assert.equal(timers.size, 0);
+        assert.equal(checkout.state.error.value, '');
     });
     it('ignores an invoice creation response received after unmount', async () => {
         let resolve!: (response: Response) => void;

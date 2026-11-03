@@ -145,3 +145,14 @@ Explicit `DIRECT_CRYPTO_*_RPC` settings retain their existing bypass behavior;
 remove an explicit override to use automatic selection. Request timeouts, scan
 budgets, wrong-chain rejection and outgoing transaction journaling are unchanged.
 No new environment variable, schema migration or money-worker setting is required.
+
+## Verified excess and checkout progress (#1530)
+
+New invoices freeze the enabled tariff prices. At settlement, verified excess
+selects the affordable tariff yielding the most access time and grants a
+proportional remainder with calendar anchors. Old pending snapshots use only
+the original tariff; already-paid periods remain unchanged. The invoice DTO
+adds unfinalized `pending` and a settled `credit` receipt. Partial payments are
+supported before settlement/expiry; paid invoices remain terminal and another
+payment requires a fresh invoice. See the [audit, credit policy and no-funds
+verification procedure](../../../../docs/plans/crypto-checkout-verification.md).

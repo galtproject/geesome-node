@@ -423,6 +423,40 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert.equal((await membership.entitlement(waveReader.id, 'wave')).active, true);
 		assert.equal((await membership.entitlement(waveReader.id, 'meat')).active, false);
 	});
+	it('shows unfinalized partial funds and credits a frozen longer tariff plus excess time over HTTP', async () => {
+		const buyer = await login('wave', {sub: 'overpayment-reader'});
+		const option = await membershipModels.options.findOne({where: {resourceId: 'wave', period: 'month'}});
+		const halfyear = await membershipModels.options.findOne({where: {resourceId: 'wave', period: 'halfyear'}});
+		const created = await request('payments/crypto/invoices', {cookie: buyer.cookie, body: {optionId: option.id, assetId: 'usdc-base', idempotencyKey: 'overpayment'}});
+		assert.equal(created.status, 200, JSON.stringify(created.body));
+		const invoice = created.body;
+		await halfyear.update({amountCents: 3000});
+		const transfer = {key: 'base:overpayment', txid: '0x' + 'd'.repeat(64), atomic: '1000000', confirmed: false, timestamp: now.getTime() + 1000};
+		transfers.set(invoice.address, [transfer]);
+		now = new Date(now.getTime() + 31000);
+		await payments.engine.run();
+		let read = await request(`payments/crypto/invoices/${invoice.id}`, {cookie: buyer.cookie});
+		assert.equal(read.body.status, 'confirming');
+		assert.equal(read.body.pending, '1');
+		assert.equal(read.body.received, '0');
+		assert.equal((await request('membership/account', {cookie: buyer.cookie})).body.active, false);
+		transfers.set(invoice.address, [{...transfer, atomic: '22000000', confirmed: true}]);
+		now = new Date(now.getTime() + 31000);
+		await Promise.all([payments.engine.run(), payments.engine.run()]);
+		read = await request(`payments/crypto/invoices/${invoice.id}`, {cookie: buyer.cookie});
+		assert.equal(read.body.status, 'paid');
+		assert.equal(read.body.received, '22');
+		assert.equal(read.body.pending, '0');
+		assert.equal(read.body.credit.optionId, halfyear.id, 'uses the $20 frozen tariff, not the edited $30 price');
+		assert(read.body.credit.extraDays > 16 && read.body.credit.extraDays < 20);
+		const account = await request('membership/account', {cookie: buyer.cookie});
+		assert.equal(account.body.active, true);
+		assert.equal(account.body.expiresAt, read.body.credit.endsAt);
+		await payments.engine.rescan('wave', invoice.id);
+		assert.equal(await membershipModels.periods.count({where: {invoiceId: invoice.id}}), 1);
+		assert.equal((await membershipModels.periods.findOne({where: {invoiceId: invoice.id}})).endsAt.toISOString(), account.body.expiresAt);
+		await halfyear.update({amountCents: 2000});
+	});
 	it('projects real group posts without leaking full URLs or arbitrary properties to guests', async () => {
 		const row = await membership.resource('wave');
 		const post = await models.Post.create({ groupId: Number(row.groupId), userId: owner.id, status: 'published', publishedAt: now, localId: 1,

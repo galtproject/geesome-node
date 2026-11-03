@@ -12,6 +12,24 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Verified crypto excess and receipt visibility (#1530)
+
+Invoices freeze eligible tariff prices; verified settlement awards the best
+affordable duration and proportional excess time in the same transaction as
+access. Calendar anchors remain correct for renewal after a fractional period.
+The generated checkout distinguishes unfinalized funds, explains partial/excess
+payments, displays credited time and retries a failed account refresh after paid.
+Paid invoices remain terminal; another payment requires a fresh invoice.
+
+Validation: 82 creator membership tests and 61 payments tests with disposable
+PostgreSQL/test Kubo/fake chain passed, including HTTP settlement, concurrent late
+approval, old snapshots and fractional renewal. Creator Vue types, route inventory
+and apiDoc generation passed. Focused Docker checkout browser passed with 20 mapped
+desktop/narrow captures; changed partial/confirming/credit states were inspected.
+The broader legacy-reference browser parity path stops on a crypto-help control
+order mismatch outside these changes. See the [audit and verification
+procedure](plans/crypto-checkout-verification.md) for limits and deployment.
+
 ## Verified watermark-band removal in compositions (#1519)
 
 Content-only compositions accept `render.removeWatermark`, a normalized

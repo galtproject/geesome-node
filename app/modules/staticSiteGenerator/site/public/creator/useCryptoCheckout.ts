@@ -7,8 +7,9 @@ export interface CheckoutProps {
     option: MembershipOption;
     methods: CryptoMethod[];
     resume: CryptoInvoice | null;
+    confirmed?: () => Promise<void>;
 }
-export function useCryptoCheckout(props: CheckoutProps, paid: () => void) {
+export function useCryptoCheckout(props: CheckoutProps, paid: () => void | Promise<void>) {
     const availableMethods = computed(() => props.methods.filter(m => m.available));
     const initial = availableMethods.value.find(m => m.id === 'usdt-ethereum') || availableMethods.value[0];
     const invoice = ref<CryptoInvoice | null>(props.resume);
@@ -83,11 +84,14 @@ export function useCryptoCheckout(props: CheckoutProps, paid: () => void) {
             }
             error.value = '';
             if (invoice.value?.status === 'paid') {
+                await paid();
+                if (!alive || rev !== revision) {
+                    return;
+                }
                 if (timer) {
                     clearInterval(timer);
                 }
                 timer = null;
-                paid();
             }
         }
         catch (e: any) {

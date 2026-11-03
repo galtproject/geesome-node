@@ -12,7 +12,7 @@ const monitoringLifetimeMs = 14 * 86400000;
 
 export function createDirectCrypto({ M, sequelize, serial, resource, grantPaidInvoice, fail, clock, env, adapter, observer = createCryptoObserver(env) }: any) {
 	const treasury = createCryptoTreasury({ M, sequelize, resource, fail, clock, env, observer, adapter });
-	const dto = (c: any, address: any) => ({ id: c.id, provider: 'direct', status: c.status, lastError: c.lastError || null, monitoringUntil: new Date(new Date(c.createdAt).getTime() + monitoringLifetimeMs), assetId: c.assetId, address: address.address, amount: displayAtomic(c.snapshot.amountAtomic, c.snapshot.decimals), received: displayAtomic(c.receivedAtomic, c.snapshot.decimals), expiresAt: c.expiresAt, priceUsd: c.snapshot.amountCents / 100, optionLabel: c.snapshot.optionLabel, period: c.snapshot.period, currency: c.snapshot.currency, network: c.snapshot.network, decimals: c.snapshot.decimals, contract: c.snapshot.contract });
+	const dto = (c: any, address: any) => ({ id: c.id, provider: 'direct', status: c.status, lastError: c.lastError || null, monitoringUntil: new Date(new Date(c.createdAt).getTime() + monitoringLifetimeMs), assetId: c.assetId, address: address.address, amount: displayAtomic(c.snapshot.amountAtomic, c.snapshot.decimals), received: displayAtomic(c.receivedAtomic, c.snapshot.decimals), expiresAt: c.expiresAt, priceUsd: c.snapshot.amountCents / 100, optionLabel: c.snapshot.optionLabel, period: c.snapshot.period, currency: c.snapshot.currency, network: c.snapshot.network, decimals: c.snapshot.decimals, contract: c.snapshot.contract, pending: c.snapshot.observedPending || '0', credit: c.snapshot.credit || null });
 	const hash = (s: string) => createHash('sha256').update(s).digest('hex');
 	const balanceJournalWhere = (network: string, address: string) => ({ network, [Op.or]: [{ sender: address }, { 'data.request.to': address }, { 'data.proof.to': address }] });
 	async function capacity(w: any) {
@@ -248,7 +248,9 @@ export function createDirectCrypto({ M, sequelize, serial, resource, grantPaidIn
 					}
 			}
 			const payoutDestination = managed ? await treasury.destination(id, t) : undefined;
-			const snapshot = { ...(managed ? { payoutDestination } : {}), ...(managed ? { managedIndex, managedFingerprint: treasury.wallet!.fingerprint } : {}), assetId: asset!.id, currency: asset!.currency, network: asset!.network, contract: asset!.contract, decimals: asset!.decimals, amountAtomic, rateUsd: rate!, amountCents: option.amountCents, optionId: option.id, optionLabel: option.label, period: option.period, createdAt: now.getTime(), ...(startBlock ? { startBlock } : {}) };
+			const creditOptions = (await M.options.findAll({ where: { resourceId: id, enabled: true, currency: 'USD' }, transaction: t }))
+				.filter(value => value.id !== option.id).concat([option]).map(value => ({ id: value.id, label: value.label, period: value.period, amountAtomic: atomicQuote(value.amountCents, rate!, asset!.decimals) }));
+			const snapshot = { creditOptions, ...(managed ? { payoutDestination } : {}), ...(managed ? { managedIndex, managedFingerprint: treasury.wallet!.fingerprint } : {}), assetId: asset!.id, currency: asset!.currency, network: asset!.network, contract: asset!.contract, decimals: asset!.decimals, amountAtomic, rateUsd: rate!, amountCents: option.amountCents, optionId: option.id, optionLabel: option.label, period: option.period, createdAt: now.getTime(), ...(startBlock ? { startBlock } : {}) };
 			await M.invoices.create({ id: uuid, resourceId: id, readerId, requestKey: hash('direct:' + requestKey), optionSnapshot: option.toJSON(), providerId: 'direct:' + uuid, checkoutUrl: `https://${r.domain}/account/payments?cryptoInvoice=${uuid}`, status: 'pending' }, { transaction: t });
 			return M.crypto_invoices.create({ id: uuid, resourceId: id, readerId, invoiceId: uuid, requestKey, assetId: asset!.id, addressId: addressRow.id, snapshot, status: 'pending', expiresAt: new Date(now.getTime() + quoteLifetimeMs), nextCheckAt: now, receivedAtomic: '0' }, { transaction: t });
 		});
@@ -345,9 +347,10 @@ export function createDirectCrypto({ M, sequelize, serial, resource, grantPaidIn
 					}
 				}
 				const due = BigInt(c.snapshot.amountAtomic), expired = now > new Date(c.expiresAt);
-				let status = onTime >= due ? 'paid' : received >= due ? 'late_payment' : expired ? 'expired' : pending + received >= due ? 'confirming' : received > 0n ? 'underpaid' : 'pending';
+				const status = onTime >= due ? 'paid' : received >= due ? 'late_payment' : expired ? 'expired' : pending > 0n ? 'confirming' : received > 0n ? 'underpaid' : 'pending';
+				let credit = current.snapshot.credit;
 				if (status === 'paid') {
-					await grantPaidInvoice(c.invoiceId, t);
+					credit = await grantPaidInvoice(c.invoiceId, t, creditPayment(current.snapshot, onTime));
 				}
 				else {
 					await M.invoices.update({ status: status === 'expired' ? 'expired' : 'pending' }, { where: { id: c.invoiceId, status: { [Op.ne]: 'paid' } }, transaction: t });
@@ -367,7 +370,7 @@ export function createDirectCrypto({ M, sequelize, serial, resource, grantPaidIn
 						}
 					}
 				}
-				await current.update({ status, receivedAtomic: received.toString(), lastError: null, scanLease: null, scanLeaseUntil: null, nextCheckAt: new Date(now.getTime() + (expired ? 3600000 : 15000)) }, { transaction: t });
+				await current.update({ snapshot: {...current.snapshot, observedPending: displayAtomic(pending.toString(), c.snapshot.decimals), ...(credit ? {credit} : {})}, status, receivedAtomic: received.toString(), lastError: null, scanLease: null, scanLeaseUntil: null, nextCheckAt: new Date(now.getTime() + (expired ? 3600000 : 15000)) }, { transaction: t });
 			});
 		}
 		catch (error) {
@@ -393,8 +396,8 @@ export function createDirectCrypto({ M, sequelize, serial, resource, grantPaidIn
 			if (c.status !== 'late_payment' || BigInt(c.receivedAtomic) < BigInt(c.snapshot.amountAtomic)) {
 				fail(409, 'crypto_payment_not_confirmed');
 			}
-			await grantPaidInvoice(c.invoiceId, t);
-			await c.update({ status: 'paid' }, { transaction: t });
+			const credit = await grantPaidInvoice(c.invoiceId, t, creditPayment(c.snapshot, BigInt(c.receivedAtomic)));
+			await c.update({ status: 'paid', snapshot: {...c.snapshot, ...(credit ? {credit} : {})} }, { transaction: t });
 			return { ok: true };
 		});
 	}
@@ -410,4 +413,8 @@ export function createDirectCrypto({ M, sequelize, serial, resource, grantPaidIn
 	}
 	async function reviews(id: string) { const rows = await M.crypto_invoices.findAll({ where: { resourceId: id, [Op.or]: [{ status: 'late_payment' }, { status: 'expired', receivedAtomic: { [Op.ne]: '0' } }, { status: { [Op.in]: ['pending', 'underpaid', 'confirming', 'expired'] }, createdAt: { [Op.lte]: new Date(clock().getTime() - monitoringLifetimeMs) } }] }, order: [['createdAt', 'DESC']], limit: 100 }); return { invoices: await Promise.all(rows.map(async (c) => dto(c, await M.crypto_addresses.findByPk(c.addressId)))) }; }
 	return { settings, methods, save, test, invoice, read, run, review, reviews, rescan, treasury };
+}
+
+function creditPayment(snapshot, received: bigint) {
+	return {amountAtomic: received.toString(), options: snapshot.creditOptions || [{id: snapshot.optionId, label: snapshot.optionLabel, period: snapshot.period, amountAtomic: snapshot.amountAtomic}]};
 }
