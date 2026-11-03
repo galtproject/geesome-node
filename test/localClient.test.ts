@@ -174,7 +174,18 @@ describe('local publication queue', function () {
 		content = [{type: 'file', storageId: 'bafyvalid'}];
 		await assert.rejects(module.createJob(1, request()), {status: 400});
 		content = [{type: 'image', storageId: 'bafyvalid', mimeType: 'image/jpeg', name: 'image'}];
-		assert.deepEqual((await module.createJob(1, request())).payload.attachments, [{url: 'https://node.example/ipfs/bafyvalid', mimeType: 'image/jpeg', name: 'image'}]);
+		assert.deepEqual((await module.createJob(1, request())).payload.attachments, [{storageId: 'bafyvalid', size: 0, url: 'https://node.example/ipfs/bafyvalid', mimeType: 'image/jpeg', name: 'image'}]);
+	});
+	it('adds compose metadata to an existing unreleased job table without dropping jobs', async () => {
+		const job = await module.createJob(1, request());
+		const table = models.PublicationJob.getTableName();
+		for (const column of ['composeIndex', 'composeHash', 'composeKey']) {
+			await sequelize.getQueryInterface().removeColumn(table, column);
+		}
+		await createModels(sequelize);
+		const preserved = await models.PublicationJob.findByPk(job.id);
+		assert.equal(preserved.get('status'), 'queued');
+		assert.equal(preserved.get('composeKey'), null);
 	});
 	it('projects HTML to text and validates model indexes', async () => {
 		content = [{type: 'text', mimeType: 'text/html', text: '<p>Hello <strong>world</strong></p>'}];
@@ -185,7 +196,7 @@ describe('local publication queue', function () {
 		assert.deepEqual(unique.fields.map(field => field.attribute), ['userId', 'requestKey']);
 	});
 	it('bounds lists and rejects unsafe input/secret fields/remote URLs', async () => {
-		assert.equal(normalizeRequest(request({postId: '1', target: {kind: 'link'}})).postId, 1);
+		assert.equal(normalizeRequest(request({postId: '1', target: {kind: 'image'}})).postId, 1);
 		assert.throws(() => normalizeRequest(request({target: {kind: 'invalid'}})), {status: 400});
 		assert.throws(() => normalizeRequest(request({accessToken: 'secret'})), {status: 400});
 		assert.throws(() => normalizeRequest(request({target: {accessToken: 'secret'}})), {status: 400});
@@ -201,19 +212,19 @@ describe('local publication queue', function () {
 });
 
 describe('local publication API authorization', () => {
-	it('requires publishing scope and user group permission on all five operations', async () => {
+	it('requires publishing scope and user group permission on all operations', async () => {
 		const routes = new Map(), calls = [];
-		const module = Object.fromEntries(['createJob','listJobs','claimJob','reportResult','cancelJob'].map(name => [name, async (...args) => {calls.push(args); return null;} ]));
+		const module = Object.fromEntries(['createJob','listJobs','claimJob','reportResult','cancelJob','compose','getOutbox'].map(name => [name, async (...args) => {calls.push(args); return null;} ]));
 		let permission = true;
 		registerApi({ms: {api: {
 			onAuthorizedPost: (path, handler) => routes.set(`POST ${path}`, handler),
 			onAuthorizedGet: (path, handler) => routes.set(`GET ${path}`, handler)
 		}}, checkUserCan: async (userId, name) => {assert.equal(name, CorePermissionName.UserGroupManagement); if (!permission) {throw new Error('not_permitted');}}} as any, module as any);
-		assert.equal(routes.size, 5);
+		assert.equal(routes.size, 7);
 		for (const handler of routes.values()) {
 			const req = {user: {id: 7}, apiKey: {scopes: ['assets:write']}, body: {}, query: {}, params: {jobId: 1}};
 			await assert.rejects(handler(req, {send() {}}), {code: 'insufficient_scope'});
-			req.apiKey.scopes = ['publishing:local'];
+			req.apiKey.scopes = ['publishing:local', 'assets:write'];
 			permission = false;
 			await assert.rejects(handler(req, {send() {}}), /not_permitted/);
 			permission = true;

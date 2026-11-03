@@ -43,3 +43,16 @@ restricted to a group participant or the Content owner. Known immutable byte CID
 and intentionally public Pages/media are outside this ACL boundary.
 
 See [delivery and rollout notes](../../../../docs/private-group-read-acl-delivery.md).
+
+
+## Trusted composition callbacks
+
+Internal createPost callers may supply afterPersist(post, transaction) to write
+prepared dependent rows atomically with native post/contents/events. The callback
+must use the provided transaction and must not invoke storage or group APIs that
+open another pooled connection. Throwing rolls back the new source. This is not
+a JSON API parameter. localClient uses it for private-outbox jobs.
+
+Internal createGroup reuseOwnedStaticAccount supports recovery of caller-owned
+static accounts left by an interrupted outbox initialization; foreign ownership
+is rejected. Normal API group creation retains its existing behavior.

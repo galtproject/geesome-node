@@ -524,3 +524,15 @@ owner/status/scheduledAt/id and owner/createdAt/id indexes. Lists cap page size
 at 100 and offset at one million. Claims lock one row at a time with SKIP LOCKED
 and examine at most 20 invalid sources per request. History is retained; no
 unbounded background scan or automatic retry loop is introduced.
+
+
+### Private outbox composition
+
+PublicationJob adds owner/composeKey/index uniqueness and a postId history index.
+New source and all destination jobs share native createPost's transaction through
+a prepared-write callback; no storage call or second pooled query is opened in
+that callback. Draft activation locks its source and checks history/identity on
+the same connection. Bounded draft listing excludes any delivery history with an
+indexed NOT EXISTS lookup, with unsupported items isolated per row. Existing
+Group/Post schemas remain unchanged; PublicationJob is unreleased additive
+model-sync state. Isolated one-connection tests include old-job preservation.

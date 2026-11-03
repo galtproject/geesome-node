@@ -7,12 +7,13 @@ import {ApiProblemError} from '../api/problem.js';
 import {getPublicApiContext} from '../api/publicUrls.js';
 import {PostStatus} from '../group/interface.js';
 import ILocalClientModule from './interface.js';
+import {getOutboxMethods, isManagedOutbox} from './outbox.js';
 
 const networks = ['threads', 'instagram', 'reddit'];
 const statuses = ['queued', 'processing', 'posted', 'failed', 'needs_review', 'cancelled'];
 
 export default async function localClient(app: IGeesomeApp) {
-	app.checkModules(['api', 'database', 'group']);
+	app.checkModules(['api', 'database', 'group', 'asset']);
 	const models = await (await import('./models.js')).default(app.ms.database.sequelize);
 	const module = getModule(app, models);
 	(await import('./api.js')).default(app, module);
@@ -22,6 +23,7 @@ export default async function localClient(app: IGeesomeApp) {
 export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClientModule {
 	const sequelize = PublicationJob.sequelize;
 	return {
+		...getOutboxMethods(app, PublicationJob, {normalizeRequest, snapshot, plain, problem, boundedInteger}),
 		async flushDatabase() {
 			await PublicationJob.destroy({where: {}});
 		},
@@ -148,7 +150,8 @@ async function assertSource(app: IGeesomeApp, userId: number, postId: number) {
 		}
 		throw error;
 	}
-	if (!post || post.status !== PostStatus.Published || post.isDeleted || post.isEncrypted || post.isRemote || post.source || !post.group?.isPublic || post.group.isEncrypted) {
+	const outbox = post && isManagedOutbox(post.group, userId) && Number(post.userId) === Number(userId);
+	if (!post || (post.status !== PostStatus.Published && !(outbox && post.status === PostStatus.Draft)) || post.isDeleted || post.isEncrypted || post.isRemote || post.source || (!post.group?.isPublic && !outbox) || post.group.isEncrypted) {
 		throw problem(403, 'local_publication_source_forbidden');
 	}
 	if (!await app.ms.group.canEditPostInGroup(userId, post.groupId, post.id)) {
@@ -163,7 +166,7 @@ async function snapshot(app: IGeesomeApp, post: any) {
 	const texts = [];
 	const attachments = [];
 	for (const content of contents) {
-		if ((content as any).isPrivate) {
+		if ((content as any).isPrivate && !isManagedOutbox(post.group, post.userId)) {
 			throw problem(400, 'local_publication_private_attachment');
 		}
 		if (content.type === 'text') {
@@ -175,10 +178,10 @@ async function snapshot(app: IGeesomeApp, post: any) {
 				throw problem(400, 'local_publication_media_invalid');
 			}
 			const origin = new URL(publicUrl);
-			if (origin.protocol !== 'https:' || isIP(origin.hostname) || !origin.hostname.includes('.') || /(?:^|\.)(?:localhost|local|internal)$/.test(origin.hostname)) {
+			if (!isManagedOutbox(post.group, post.userId) && (origin.protocol !== 'https:' || isIP(origin.hostname) || !origin.hostname.includes('.') || /(?:^|\.)(?:localhost|local|internal)$/.test(origin.hostname))) {
 				throw problem(400, 'local_publication_public_media_url_required');
 			}
-			attachments.push({url: `${publicUrl}/ipfs/${content.storageId}`, mimeType: String(content.mimeType || ''), name: String(content.name || '').slice(0, 200)});
+			attachments.push({storageId: content.storageId, size: Number(content.size || 0), url: `${publicUrl}/ipfs/${content.storageId}`, mimeType: String(content.mimeType || ''), name: String(content.name || '').slice(0, 200)});
 		} else {
 			throw problem(400, 'local_publication_attachment_unsupported');
 		}
@@ -210,7 +213,7 @@ export function normalizeRequest(input: any) {
 			normalizedTarget[key] = textField(target[key], key === 'title' ? 300 : 100);
 		}
 	}
-	if (target.kind !== undefined && !['self', 'link'].includes(target.kind)) {
+	if (target.kind !== undefined && !['self', 'link', 'image'].includes(target.kind)) {
 		throw problem(400, 'local_publication_target_invalid');
 	}
 	return {requestKey, postId, network, localAccountId, scheduledAt: new Date(input.scheduledAt).toISOString(), target: normalizedTarget};
@@ -264,6 +267,7 @@ function matchRequest(job, hash) {
 function plain(job) {
 	const value = job.toJSON();
 	delete value.requestHash;
+	delete value.composeHash;
 	delete value.userId;
 	return value;
 }

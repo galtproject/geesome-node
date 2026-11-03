@@ -1075,3 +1075,48 @@ the existing lazy-load SSR contract, preserving original-media checks; their six
 unit cases and the focused content-list integration case pass. The monolithic
 command was not rerun after these test-only corrections. Real provider smoke
 remains an explicit release gate.
+
+
+## Native Private Outbox Composition (#1524; client #4)
+
+The node composer now accepts new text and caller-owned uploaded image storage
+IDs, explicit multiple destinations and optional delayed time. Omitted time means
+now with stable replay identity. A designated ordinary closed native channel is
+created lazily with deterministic owner/marker checks; the experimental encrypted
+private-group protocol is not required. Native static-account reuse and partial
+initialization recovery preserve one owned group across retries. Foreign name
+collisions are rejected rather than adopted.
+
+One native source post and all destination jobs commit atomically using a trusted
+internal createPost callback on its own transaction. Storage and native-group
+operations occur outside the transaction; the callback only writes prepared jobs.
+Compose identity/hash/index use the existing unreleased PublicationJob table,
+with non-dropping additive model sync. No new Group/Post schema is introduced.
+
+Read-only outbox listing shows owned local unencrypted sources without any jobs
+as unscheduled drafts. It never assigns accounts/time or resurrects cancelled
+history. Unsupported sources are unavailable per item. Explicit draft activation
+locks the source, rejects unsaved text/image edits, verifies content identity and
+creates jobs once. Other private/encrypted/imported/foreign sources remain blocked.
+Payload image metadata includes storageId and size; native plaintext CID privacy
+is retained. Managed outbox URLs may be local HTTP, with provider-specific public
+URL requirements enforced separately. Compose needs publishing:local and
+assets:write, which supply native group and save-data permissions.
+
+Verification: 24 checks passed in an isolated Node22/PostgreSQL/Kubo fixture with
+DATABASE_POOL_MAX=1: 17 queue/model/auth checks, one existing real HTTP post flow,
+and six real outbox scenarios. Evidence covers actual multipart upload/replay,
+parallel same-key multi-destination composition with one source/two jobs, frozen
+replay after source edits, private claims, explicit draft activation/races, job
+failure rolling back source creation, unsupported item isolation, native account
+recovery, foreign namespace/assets, required scopes, and additive model sync
+preserving old jobs. API docs and security/scalability inventories were regenerated
+and checked. No credentialed provider publication is claimed by these tests.
+
+Final private-outbox integration: another 62 native group/private-group/bootstrap/
+API regression checks passed in isolated PostgreSQL/Kubo. The dependent client
+passes 55 host and Node22 Docker checks. Actual-node browser verification covers
+image upload, closed source persistence, lost-response replay without duplication,
+multi-network batching, delayed jobs, unassigned native drafts and cancellation.
+The default minute worker first claimed after 60,006 ms. Desktop/mobile captures
+were reviewed. Provider endpoints were injected; real-account smoke remains open.

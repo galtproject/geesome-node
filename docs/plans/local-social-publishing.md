@@ -1,7 +1,8 @@
 # Local Social Publishing Plan
 
-Status: existing queue/adapters are implemented on feature branches; the private
-outbox composer and two-page UI below are planned, not implemented.
+Status: node queue, private outbox compose/draft APIs and provider adapters are
+implemented together with the Settings/Posting UI on feature branches. Actual-node
+browser verification is complete; authorized live-provider testing remains open.
 
 Trackers: [node foundation #1524](https://github.com/galtproject/geesome-node/issues/1524),
 [client outbox/UI #4](https://github.com/galtproject/geesome-client/issues/4).
@@ -82,13 +83,13 @@ user column/table solely to remember the group ID.
 
 Upload pictures through existing owner-scoped asset/content operations, preserving
 upload idempotency. Files may finish uploading before compose; do not hold a DB
-transaction open during storage/network operations. Reuse returned content IDs
-on retry rather than uploading or linking arbitrary foreign content again.
+transaction open during storage/network operations. Reuse returned asset storage IDs
+on retry; node resolves their owner-owned Content records before linking them.
 Document the required upload and publishing key scopes accurately.
 
 ### Compose and draft listing
 
-Add one composed operation accepting a request key, text, owned content IDs,
+Add one composed operation accepting a request key, text, owned image asset storage IDs,
 explicit destinations and timing; optionally identify an existing owned outbox
 source draft internally. Agree the request/response contract in the client docs
 before implementing node handlers.
@@ -189,5 +190,47 @@ lease renewal and a second local queue. Hub registration is separate maintenance
 
 2026-11-03: implemented foundation has one job table, five operations and local
 provider adapters. Subsequent user corrections select a private-group text/image
-composer and explicitly unassigned group drafts. This document plans that next
-iteration; existing implementation evidence does not claim it is already shipped.
+composer and explicitly unassigned group drafts. That iteration is implemented
+and verified on the linked feature branches; production deployment is separate.
+
+
+## Private outbox node implementation notes
+
+- Compose persists a native ordinary closed channel with owner/marker checks,
+  one native source post and one queued job per explicitly selected destination.
+  No native encrypted-group feature flag or new outbox table is required.
+- POST compose requires publishing:local plus assets:write; these map to existing
+  group management/save-data permissions. Extra broad keys are not required.
+- Immediate requests hash a stable omitted-time sentinel. Compose metadata lives
+  on PublicationJob; source and all jobs commit in native createPost's transaction
+  through an internal callback. Storage/native-group APIs run before that callback.
+- GET outbox never creates state. It lists only own local unencrypted unscheduled
+  sources, excludes any delivery history, and marks unsupported individual drafts
+  unavailable without breaking supported entries. Draft activation rejects content
+  edits explicitly and locks the source to prevent competing activations.
+- Attachments include owned storageId/size. Managed private outbox media can use
+  local HTTP; public-source HTTPS validation and provider-specific requirements
+  remain independent. The native ordinary group's unencrypted CID privacy model
+  is preserved, not represented as encrypted storage.
+- Runtime source stable; isolated Node22/PostgreSQL/Kubo checks passed for real
+  multipart upload/replay, parallel multi-destination compose, frozen replay after
+  source edits, private claim, read-only drafts, activation races, rollback and
+  source/asset ownership. Final exact check counts are in implemented.md.
+
+- Final node gate: 24 isolated Node22/PostgreSQL/Kubo checks passed with a
+  one-connection pool, including actual upload/compose, two destinations,
+  concurrent retries/activation, rollback and unreleased model-sync preservation.
+  API docs, security/scalability inventories and diff checks passed. These are
+  node/mock-execution proofs, not credentialed social publication evidence.
+
+## Final integration evidence
+
+The client passes 55 checks on host and Node22 Docker. Node passes 24 focused
+queue/outbox checks plus 62 native group, private-group, bootstrap and API
+regression checks against PostgreSQL/Kubo. Actual-node Playwright verification
+covered image upload, closed group persistence before sending, lost-response
+replay without duplicates, multiple destinations, delayed jobs, direct-group
+drafts and cancellation. The default minute worker claimed after 60,006 ms and
+drained a serial batch using injected Reddit/Threads endpoints. Desktop/mobile
+UI captures were reviewed. No real provider publication is claimed. Deploy node
+before client; authorized live-account smoke remains a release gate.

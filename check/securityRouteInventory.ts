@@ -125,7 +125,7 @@ function notesFor(route: RouteRow, block: string): string[] {
     notes.add('service checks actor ownership and content:write; deletion/finalization also verifies storage:retire when selected, exact publication and consumer receipts');
   }
   if (route.moduleName === 'localClient') {
-    notes.add('publishing:local scope and UserGroupManagement; owner-scoped jobs; current public-source edit permission at create/claim; claim token required for results');
+    notes.add('publishing:local and UserGroupManagement; compose also requires assets:write; owner-scoped jobs; public-source edit permission or designated owned closed outbox at create/claim; original claim token for results');
   }
   if (route.moduleName === 'imageComposition') {
     notes.add('module enforces actor-owned catalog Content and dependency authorization');

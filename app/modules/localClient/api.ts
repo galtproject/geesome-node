@@ -9,19 +9,61 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
 	}
 	/**
+	 * @api {post} /v1/user/local-publications/compose Compose and schedule a private outbox post
+	 * @apiName LocalPublicationCompose
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Requires publishing:local and assets:write. Creates a native ordinary closed owner outbox lazily. Source post and all destination jobs commit atomically before provider calls. Omitted schedule means now on first creation; identical request retries return the same source/jobs. Existing draft edits are rejected explicitly. No social credentials accepted.
+	 * @apiBody {String} requestKey Owner-scoped compose idempotency key.
+	 * @apiBody {String} text New text (maximum 40000 characters).
+	 * @apiBody {String[]} imageStorageIds Owner uploaded asset storage IDs (maximum 20).
+	 * @apiBody {Object[]} destinations Explicit network/localAccountId/target selections (1–20).
+	 * @apiBody {String} [scheduledAt] ISO instant with timezone; omit to send now.
+	 * @apiBody {Number} [postId] Internal source reference for an unchanged owned outbox draft.
+	 * @apiSuccess {Object} group Owned ordinary closed outbox identity.
+	 * @apiSuccess {Number} postId Persisted source post.
+	 * @apiSuccess {Object[]} jobs Independent scheduled jobs per destination.
+	 * @apiError (409) LocalPublicationRequestConflict Compose key already used with different input.
+	 * @apiError (409) LocalPublicationDraftChanged Draft text or image selection differs from stored source.
+	 */
+	app.ms.api.onAuthorizedPost('user/local-publications/compose', async (req, res) => {
+		await authorize(req);
+		requireIntegrationScopes(req.apiKey, ['assets:write']);
+		res.send(await module.compose(req.user.id, req.body));
+	});
+	/**
+	 * @api {get} /v1/user/local-publications/outbox List unscheduled private outbox sources
+	 * @apiName LocalPublicationOutbox
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Requires publishing:local. Read-only: never creates a group or jobs. Lists owned direct outbox posts with no delivery history, destinations or send time. Historical/cancelled sources never reappear as new drafts.
+	 * @apiQuery {Number{1-100}} [limit=20] Bounded draft page size.
+	 * @apiQuery {Number{0-1000000}} [offset=0] Page offset.
+	 * @apiSuccess {Object|null} group Existing owned outbox identity, or null before first composition.
+	 * @apiSuccess {Object[]} drafts Source postId, text, attachments and creation time.
+	 */
+	app.ms.api.onAuthorizedGet('user/local-publications/outbox', async (req, res) => {
+		await authorize(req);
+		res.send(await module.getOutbox(req.user.id, req.query));
+	});
+	/**
 	 * @api {post} /v1/user/local-publications Schedule local social publication
 	 * @apiName LocalPublicationCreate
 	 * @apiGroup LocalPublications
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 * @apiUse ValidationErrors
-	 * @apiDescription Requires publishing:local scope and permission to edit a published public local post. Social credentials stay on the client. Repeated requestKey returns the original snapshot; conflicting input returns 409.
+	 * @apiDescription Requires publishing:local scope and permission to edit a public local post or an owned designated private-outbox source. Social credentials stay on the client. Repeated requestKey returns the original snapshot; conflicting input returns 409.
 	 * @apiBody {String} requestKey Owner-scoped idempotency key (1–128 identifier characters).
 	 * @apiBody {Number} postId Existing public locally authored post.
 	 * @apiBody {String="threads","instagram","reddit"} network Destination network.
 	 * @apiBody {String} localAccountId Account identifier configured on the local client.
 	 * @apiBody {String} scheduledAt ISO 8601 instant with timezone.
-	 * @apiBody {Object} [target] Provider target options (subreddit, title, flairId, kind=self|link).
+	 * @apiBody {Object} [target] Provider target options (subreddit, title, flairId, kind=self|link|image).
 	 * @apiSuccess {Object} job Frozen scheduled job with text/media payload.
 	 * @apiError (409) LocalPublicationRequestConflict Request key was already used with different input.
 	 * @apiSuccessExample {json} Scheduled
