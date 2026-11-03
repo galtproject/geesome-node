@@ -455,6 +455,11 @@ Plan: [Local social publishing](./plans/local-social-publishing.md).
 
 Remaining work:
 
+- Implement the private-group text/image composer and split Settings/Posting UI
+  in the linked plan. Group posts appear as unassigned publication drafts;
+  only explicit destination/timing confirmation creates jobs. No auto-routing.
+- Add idempotent first-group/compose behavior and bounded draft listing while
+  retaining the single server queue and existing no-resend rules.
 - Verify an explicitly authorized real-account scheduled post for Threads,
   Instagram and Reddit, including account/app eligibility and public media access.
 - Keep hub registration and automatic source routes as separate work.
