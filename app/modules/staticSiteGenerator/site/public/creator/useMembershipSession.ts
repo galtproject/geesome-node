@@ -243,6 +243,9 @@ export function useMembershipSession(initialState: PublicState) {
         paymentMethod.value = 'plans';
         cryptoResume.value = null;
     }
+    async function confirmPayment() {
+        await updateAccess();
+    }
     function refreshAccess() {
         return run(updateAccess);
     }
@@ -253,5 +256,5 @@ export function useMembershipSession(initialState: PublicState) {
         selectedOption, options, paymentMethod, cryptoMethods, cryptoResume, refundReason, shareStatus,
         resourceId, active, expired, activeUntil, enabled, accountPath, publicPath,
         closeModal, login, loginModal, checkout, logout, more, showGallery, sharePost,
-        requestRefund, submitRefund, resumePayment, backToPlans, refreshAccess, openAccount };
+        requestRefund, submitRefund, resumePayment, backToPlans, refreshAccess, confirmPayment, openAccount };
 }

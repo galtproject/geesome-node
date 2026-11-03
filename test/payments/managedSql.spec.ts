@@ -350,7 +350,7 @@ test('Sequelize collection filters skip completed history before the batch limit
 	await f.tick();
 	assert.equal(await f.M.crypto_transactions.count(), 1, 'JSON null must restore immediate eligibility');
 }));
-test('managed balance SQL: durable observations, concurrent scans, collections, reused invoice windows and stale boundary recovery', { skip: !url }, async () => {
+test('managed balance SQL: lifetime observations, concurrent scans, collections, carried credit and stale boundary recovery', { skip: !url }, async () => {
 	assert.equal(new URL(url!).pathname, '/geesome_membership_test');
 	const { createCryptoBalanceObserver } = await import('../../app/modules/payments/cryptoBalanceObserver.js');
 	const { quantity } = await import('../../app/modules/payments/cryptoRpcValues.js');
@@ -413,8 +413,9 @@ test('managed balance SQL: durable observations, concurrent scans, collections, 
 		now = new Date(epoch + 5000);
 		await Promise.all([s.directCrypto.run(), s.directCrypto.rescan('wave', one.id)]);
 		assert.equal((await s.directCrypto.read('wave', reader, one.id)).received, '2');
-		assert.equal(await M.crypto_transfers.count({ where: { cryptoInvoiceId: one.id } }), 1);
-		assert.equal((await M.crypto_runtime.findByPk('balance:' + one.id)).data.received, '2000000');
+		const accountId = (await M.crypto_invoices.findByPk(one.id)).snapshot.accountLedgerId;
+		assert.equal(await M.crypto_deposits.count({where: {accountId}}), 1);
+		assert.equal((await M.crypto_accounts.findByPk(accountId)).receivedAtomic, '2000000');
 		s = await start();
 		balances.set(106n, 55000000n);
 		latest = 108n;
@@ -428,9 +429,9 @@ test('managed balance SQL: durable observations, concurrent scans, collections, 
 		await Promise.all([s.directCrypto.rescan('wave', one.id), s.directCrypto.run()]);
 		assert.equal((await s.directCrypto.read('wave', reader, one.id)).status, 'paid');
 		assert.equal(await M.periods.count({ where: { invoiceId: one.id } }), 1);
-		assert.equal(await M.crypto_transfers.count({ where: { cryptoInvoiceId: one.id } }), 2);
-		const records = await M.crypto_transfers.findAll({ where: { cryptoInvoiceId: one.id } });
-		assert.ok(records.every(row => row.data.txid === '' && row.data.balanceProof));
+		assert.equal(await M.crypto_deposits.count({where: {accountId}}), 2);
+		const records = await M.crypto_deposits.findAll({where: {accountId}});
+		assert.ok(records.every(row => row.proof.base && row.proof.confirmed));
 		// Even an old boundary captured before a slow allocation cannot reuse already credited blocks.
 		boundary = 100n;
 		const two = await create('wave', 'balance-two');
@@ -462,7 +463,7 @@ test('managed balance SQL: durable observations, concurrent scans, collections, 
 		finalized = 120n;
 		now = new Date(epoch + 31 * 60000 + 5000);
 		await s.directCrypto.rescan('wave', three.id);
-		assert.equal((await s.directCrypto.read('wave', reader, three.id)).received, '3');
+		assert.equal((await s.directCrypto.read('wave', reader, three.id)).received, '5', 'expired partial funds are applied to the fresh quote');
 		balances.set(122n, 57000000n);
 		latest = 125n;
 		finalized = 125n;
@@ -483,22 +484,21 @@ test('managed balance SQL: durable observations, concurrent scans, collections, 
 		latest = 132n;
 		finalized = 132n;
 		now = new Date(epoch + 31 * 60000 + 20000);
-		await M.crypto_invoices.update({ scanLease: randomUUID(), scanLeaseUntil: new Date(now.getTime() + 10000) }, { where: { id: four.id } });
+		await M.crypto_accounts.update({scanLease: randomUUID(), scanLeaseUntil: new Date(now.getTime() + 10000)}, {where: {id: accountId}});
 		await s.directCrypto.rescan('wave', four.id);
-		assert.equal((await s.directCrypto.read('wave', reader, four.id)).status, 'pending');
-		await M.crypto_invoices.update({ scanLeaseUntil: new Date(now.getTime() - 1) }, { where: { id: four.id } });
-		const runtime = s.models.crypto_runtime, upsert = runtime.upsert;
-		runtime.upsert = async function (values: any, options: any) { if (values.id === 'balance:' + four.id) {
-			throw Error('injected_checkpoint_write_failure');
-		} return upsert.call(this, values, options); };
+		assert.equal((await s.directCrypto.read('wave', reader, four.id)).status, 'underpaid');
+		await M.crypto_accounts.update({scanLeaseUntil: new Date(now.getTime() - 1)}, {where: {id: accountId}});
+		const deposits = M.crypto_deposits, createDeposit = deposits.create;
+		const priorCount = await deposits.count({where: {accountId}});
+		deposits.create = async () => {throw Error('injected_observation_write_failure');};
 		try {
 			await s.directCrypto.rescan('wave', four.id);
 		}
 		finally {
-			runtime.upsert = upsert;
+			deposits.create = createDeposit;
 		}
-		assert.equal((await s.directCrypto.read('wave', reader, four.id)).received, '0');
-		assert.equal(await M.crypto_transfers.count({ where: { cryptoInvoiceId: four.id } }), 0);
+		assert.equal((await s.directCrypto.read('wave', reader, four.id)).received, '2');
+		assert.equal(await deposits.count({where: {accountId}}), priorCount);
 		assert.equal(await M.periods.count({ where: { invoiceId: four.id } }), 0);
 		await s.directCrypto.rescan('wave', four.id);
 		assert.equal((await s.directCrypto.read('wave', reader, four.id)).status, 'paid');

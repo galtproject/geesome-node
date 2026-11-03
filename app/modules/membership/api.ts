@@ -133,6 +133,7 @@ export default function (app, module) {
 	* @apiSuccess {Boolean} active Current entitlement.
 	* @apiSuccess {String} expiresAt Access expiry or null.
 	* @apiSuccess {Object[]} invoices Bounded invoice history.
+	* @apiSuccess {Object[]} paymentBalances At most 50 own resource-scoped managed asset balances: assetId, currency, network, availableCredit, pending and lastInvoiceAt. Never wallet keys or another reader's balance.
 	* @apiSuccess {Object[]} refunds Bounded refund statuses.
 	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.
 	* @apiError (403) Forbidden Origin or owner/permission mismatch.
