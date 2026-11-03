@@ -12,6 +12,45 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Reusable managed-address deposits (#1530)
+
+Managed EVM gross deposits and invoice consumption now have independent accounting.
+Reopening checkout applies unused confirmed funds from earlier paid/expired quotes,
+with partial remainder, affordable longer tariffs and proportional excess time.
+Already used funds cannot be granted again, including after collection or restart.
+Paid collection amounts stay frozen; a later subscription gets its own job.
+
+The generated checkout selects a known asset with retained funds, refreshes stale
+method availability and automatically applies unused funds through a fresh quote.
+Expiry labels/manual apply controls are removed, and the remainder uses the
+quoted amount's bordered copy row. Reconciliation is bounded and site-authenticated.
+Historical paid/refunded amounts bootstrap consumed credit; ambiguous historical
+records back off without blocking other payments. Independent review identified
+and fixed an old in-flight scan/bootstrap race; deterministic SQL covers it.
+
+Validation: 89 membership/controller/HTTP tests and 70 payment tests passed with
+disposable PostgreSQL/Kubo and fake chains. The focused browser flow passed with
+26 mapped desktop/narrow captures; changed states were visually inspected.
+See [architecture and final verification](plans/crypto-address-credit.md).
+
+## Verified crypto excess and receipt visibility (#1530)
+
+Invoices freeze eligible tariff prices; verified settlement awards the best
+affordable duration and proportional excess time in the same transaction as
+access. Calendar anchors remain correct for renewal after a fractional period.
+The generated checkout distinguishes unfinalized funds, explains partial/excess
+payments, displays credited time and retries a failed account refresh after paid.
+Paid receipts remain immutable; managed EVM addresses retain unused deposits for a fresh quote, including after paid/expiry.
+
+Validation: 82 creator membership tests and 61 payments tests with disposable
+PostgreSQL/test Kubo/fake chain passed, including HTTP settlement, concurrent late
+approval, old snapshots and fractional renewal. Creator Vue types, route inventory
+and apiDoc generation passed. Focused Docker checkout browser passed with 20 mapped
+desktop/narrow captures; changed partial/confirming/credit states were inspected.
+The broader legacy-reference browser parity path stops on a crypto-help control
+order mismatch outside these changes. See the [audit and verification
+procedure](plans/crypto-checkout-verification.md) for limits and deployment.
+
 ## Verified watermark-band removal in compositions (#1519)
 
 Content-only compositions accept `render.removeWatermark`, a normalized

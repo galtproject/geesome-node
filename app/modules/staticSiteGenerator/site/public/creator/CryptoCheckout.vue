@@ -9,7 +9,8 @@ import CryptoHelp from './CryptoHelp.vue';
 const props = withDefaults(defineProps<CheckoutProps & {presentation?: SitePresentation}>(), {methods: () => [], resume: null});
 const emit = defineEmits<{paid: []; back: []}>();
 const {invoice, currency, asset, busy, previousQr, creating, error, notice, detailsElement, reservedHeight,
-    networks, currencies, remaining, chosen, networkLabel, qr, selectCurrency, selectAsset, refresh, create, copy} = useCryptoCheckout(props, () => emit('paid'));
+    networks, currencies, remaining, chosen, networkLabel, qr, selectCurrency, selectAsset, refresh, create, copy} = useCryptoCheckout(props, () => props.confirmed ? props.confirmed() : emit('paid'));
+const statusText = computed(() => invoice.value?.reusableAddress && invoice.value.status === 'underpaid' ? 'Partial payment received. Send the remaining amount.' : cryptoStatusText[invoice.value?.status || ''] || invoice.value?.status);
 const amount = computed(() => invoice.value ? paymentAmount(invoice.value.amount, invoice.value.currency) : '');
 const verificationWarning = computed(() => ['crypto_balance_outgoing_untracked', 'crypto_balance_regressed', 'crypto_balance_reorg', 'crypto_balance_finality_regressed'].includes(invoice.value?.lastError || '')
     ? 'Payment verification needs an author review. Your invoice and confirmed payments are preserved.'
@@ -42,15 +43,22 @@ function changeNetwork(event: Event) {
                 </template>
                 <template v-else>
                     <div class="crypto-scan"><img class="crypto-qr" :src="qr" :alt="`Receiving address QR for ${invoice.currency} on ${networkLabel}`" data-testid="crypto-qr"><p class="crypto-scan-caption">Scan to pay <strong>{{ `${invoice.currency} on ${networkLabel}` }}</strong></p></div>
-                    <div class="crypto-detail"><span class="crypto-detail-title">Exact amount</span><div class="crypto-copy-row"><code data-testid="crypto-amount">{{ `${amount} ${invoice.currency}` }}</code><button type="button" data-testid="crypto-copy-amount" @click="copy(amount)">Copy amount</button></div></div>
+                    <div class="crypto-detail"><span class="crypto-detail-title">Amount for selected plan</span><div class="crypto-copy-row"><code data-testid="crypto-amount">{{ `${amount} ${invoice.currency}` }}</code><button type="button" data-testid="crypto-copy-amount" @click="copy(amount)">Copy amount</button></div></div>
                     <div class="crypto-detail"><div class="crypto-detail-title">Receiving address<span class="crypto-network-badge">{{ networkLabel }}</span></div><div class="crypto-copy-row crypto-copy-row--address"><code data-testid="crypto-address">{{ invoice.address }}</code><button type="button" data-testid="crypto-copy-address" @click="copy(invoice.address)">Copy address</button></div></div>
-                    <p class="crypto-transfer-note">{{ `Send only ${invoice.currency} on ${networkLabel}. Add wallet fees separately so the exact amount arrives.` }}</p>
+                    <p class="crypto-transfer-note">{{ `Send only ${invoice.currency} on ${networkLabel}. Add wallet fees separately.` }}</p>
+                    <p class="crypto-transfer-note" data-testid="crypto-payment-policy">You can pay in parts. Extra funds add subscription days.</p>
                     <p v-if="invoice.lastError" role="status">{{ verificationWarning }}</p>
                     <div class="crypto-progress">
+                        <p v-if="invoice.reusableAddress" data-testid="crypto-available-credit">{{ `Unused confirmed funds: ${invoice.availableCredit || '0'} ${invoice.currency}` }}</p>
                         <p>{{ `Confirmed received: ${invoice.received} ${invoice.currency}` }}</p>
-                        <div v-if="invoice.status === 'underpaid'" class="crypto-detail">Remaining to send<code data-testid="crypto-remaining">{{ `${remaining} ${invoice.currency}` }}</code><button type="button" data-testid="crypto-copy-remaining" @click="copy(remaining)">Copy remaining amount</button></div>
-                        <p>{{ `Quote expires: ${new Date(invoice.expiresAt).toLocaleString('en-US')}` }}</p>
-                        <div class="crypto-status-control" data-testid="crypto-status-control"><p :class="`crypto-status crypto-status--${invoice.status}`" role="status" aria-live="polite" data-testid="crypto-status">{{ cryptoStatusText[invoice.status] || invoice.status }}</p><button type="button" :disabled="busy || creating" data-testid="crypto-check" @click="refresh(true)">{{ busy ? 'Checking…' : 'Check payment status' }}</button></div>
+                        <p v-if="invoice.pending && invoice.pending !== '0'" data-testid="crypto-pending">{{ `Detected, awaiting network finality: ${invoice.pending} ${invoice.currency}. Access starts after enough funds are finalized.` }}</p>
+                        <p v-if="invoice.credit" data-testid="crypto-credit">{{ `${invoice.credit.optionLabel}: access credited until ${new Date(invoice.credit.endsAt).toLocaleString('en-US')}${invoice.credit.extraDays > 0 ? `, including ${invoice.credit.extraDays.toFixed(2)} extra days` : ''}.` }}</p>
+                        <div v-if="invoice.status === 'underpaid' || (invoice.status === 'confirming' && invoice.received !== '0')" class="crypto-detail">
+                            <span class="crypto-detail-title">{{ invoice.status === 'underpaid' ? 'Remaining to send' : 'Remaining to confirm' }}</span>
+                            <div class="crypto-copy-row"><code data-testid="crypto-remaining">{{ `${remaining} ${invoice.currency}` }}</code><button v-if="invoice.status === 'underpaid'" type="button" data-testid="crypto-copy-remaining" @click="copy(remaining)">Copy amount</button></div>
+                            <p v-if="invoice.status === 'confirming'" class="crypto-transfer-note">Wait for confirmation before sending again.</p>
+                        </div>
+                        <div class="crypto-status-control" data-testid="crypto-status-control"><p :class="`crypto-status crypto-status--${invoice.status}`" role="status" aria-live="polite" data-testid="crypto-status">{{ statusText }}</p><button type="button" :disabled="busy || creating" data-testid="crypto-check" @click="refresh(true)">{{ busy ? 'Checking…' : 'Check payment status' }}</button></div>
                     </div>
                 </template>
             </div>
@@ -59,7 +67,7 @@ function changeNetwork(event: Event) {
         </div>
         <div class="crypto-sidebar">
             <aside class="crypto-plan" data-testid="crypto-benefits">
-                <span class="crypto-eyebrow">Your membership</span>
+                <span class="crypto-eyebrow">{{ invoice?.credit ? 'Original quote' : 'Your membership' }}</span>
                 <h3>{{ invoice?.optionLabel || props.option.label || 'Membership' }}</h3>
                 <div class="crypto-price"><strong>{{ price }}</strong><span>{{ ` / ${period}` }}</span></div>
                 <p class="crypto-plan-intro">One payment. The whole author archive.</p>

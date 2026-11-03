@@ -7,6 +7,8 @@ import siteSettings from './siteSettings.js';
 import {createPublicationDelivery} from './publication.js';
 import registerPublicationApi from './publicationApi.js';
 import {ownerPayments} from './ownerPayments.js';
+import {paymentCredit} from './paymentCredit.js';
+export {periodEnd} from './paymentCredit.js';
 export default async function (app) {
 	app.checkModules(['database', 'api', 'group', 'googleAuthorization', 'payments']);
 	const module = createMembership(app, await defineModels(app.ms.database.sequelize));
@@ -55,7 +57,7 @@ export function createMembership(app, models, dependencies: any = {}) {
 		}
 		return { active: Boolean(end), expiresAt: end };
 	}
-	async function grantPaidInvoice(invoiceId, transaction) {
+	async function grantPaidInvoice(invoiceId, transaction, payment?) {
 		const invoice = await M.invoices.findByPk(invoiceId, { transaction, lock: transaction.LOCK.UPDATE });
 		if (!invoice) {
 			siteProblem(404, 'invoice_not_found');
@@ -67,9 +69,11 @@ export function createMembership(app, models, dependencies: any = {}) {
 		const continuing = prior.length && new Date(prior[0].endsAt) > clock();
 		const start = continuing ? new Date(prior[0].endsAt) : clock();
 		const anchorDay = continuing ? prior[0].anchorDay : start.getUTCDate();
+		const {renewalAnchorDay, ...credit} = paymentCredit(start, anchorDay, invoice.optionSnapshot, payment);
 		await M.periods.create({ id: randomUUID(), resourceId: invoice.resourceId, readerId: invoice.readerId, invoiceId,
-			anchorDay, startsAt: start, endsAt: periodEnd(start, invoice.optionSnapshot.period, anchorDay), revoked: false }, { transaction });
+			anchorDay: renewalAnchorDay, startsAt: start, endsAt: credit.endsAt, revoked: false }, { transaction });
 		await invoice.update({ status: 'paid', paidAt: clock() }, { transaction });
+		return {...credit, startsAt: start};
 	}
 	async function owner(userId, id, existingRow?) {
 		await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
@@ -136,11 +140,11 @@ export function createMembership(app, models, dependencies: any = {}) {
 		async account(id, reader, offset = 0) {
 			await resource(id);
 			if (!reader) {
-				return { reader: null, active: false, expiresAt: null, invoices: [], refunds: [] };
+				return { reader: null, active: false, expiresAt: null, invoices: [], refunds: [], paymentBalances: [] };
 			}
 			const where = { resourceId: id, readerId: reader.id };
 			const invoices = await M.invoices.findAll({ where, order: [['createdAt', 'DESC']], limit: 50, offset: Math.max(0, Math.min(100000, Math.trunc(Number(offset) || 0))) });
-			return { reader, ...await entitlement(reader.id, id), invoices: invoices.map(invoice => ({ id: invoice.id, optionSnapshot: invoice.optionSnapshot,
+			return { reader, ...await entitlement(reader.id, id), paymentBalances: await app.ms.payments.engine.balances(id, reader.id), invoices: invoices.map(invoice => ({ id: invoice.id, optionSnapshot: invoice.optionSnapshot,
 					status: invoice.status, paidAt: invoice.paidAt, createdAt: invoice.createdAt, provider: String(invoice.providerId).startsWith('direct:') ? 'direct' : 'legacy' })),
 				refunds: await M.refunds.findAll({ where, order: [['createdAt', 'DESC']], limit: 50, attributes: ['id', 'invoiceId', 'status', 'createdAt'] }) };
 		},
@@ -170,16 +174,6 @@ export function createMembership(app, models, dependencies: any = {}) {
 	Object.assign(module, createPublicationDelivery(app, M, module, dependencies));
 	Object.assign(module, refundMethods(M, serial, entitlement, clock));
 	return module as typeof module & ReturnType<typeof createPublicationDelivery> & ReturnType<typeof refundMethods> & ReturnType<typeof siteSettings> & ReturnType<typeof ownerPayments>;
-}
-export function periodEnd(start: Date, period: string, anchorDay = start.getUTCDate()) {
-	if (!['month', 'halfyear', 'year'].includes(period)) {
-		siteProblem(409, 'payment_period_invalid');
-	}
-	const date = new Date(start);
-	date.setUTCDate(1);
-	date.setUTCMonth(date.getUTCMonth() + (period === 'year' ? 12 : period === 'halfyear' ? 6 : 1));
-	date.setUTCDate(Math.min(anchorDay, new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate()));
-	return date;
 }
 function publicBrand(value = {}) {
 	return Object.fromEntries(['displayTitle', 'displayDescription', 'presentation', 'seo', 'coverUrl', 'avatarUrl', 'links', 'patreonUrl', 'legalLinks'].filter(key => value[key] !== undefined).map(key => [key, value[key]]));

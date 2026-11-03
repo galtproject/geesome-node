@@ -34,7 +34,7 @@ These instructions are repo-specific. Follow them when working inside `/Users/mi
 
 - Branch policy: `dev` is the integration/default branch for normal PRs and merges. `master` is the stable release branch; update it only when cutting or promoting a tested release, then tag the release.
 - Use `yarn install` for dependency setup.
-- For targeted work, run the narrow test file first when one maps directly to the touched module.
+- For targeted work, run the narrow test file first when one maps directly to the touched module. For crypto SQL checks, `npm run test:creator-membership:docker -- --payments-only test/payments/<name>.spec.ts` creates disposable PostgreSQL without the unrelated Kubo/browser publication checks; omit the file to run all payment vectors.
 - Prefer `npm run test:docker` as the main full-suite verification path. It runs the suite in Docker with Postgres, IPFS, Node 22, and ffmpeg available, and is optimized for warm reruns after source-only changes by reusing dependency and service caches while still rebuilding the source snapshot.
 - For frontend publisher/cache changes, run `npm run test:frontend-dist-publish` and `npm run test:frontend-cache:docker`; the latter verifies BuildKit artifact reuse after layer invalidation, source-change compilation, and immutable image output reuse across fresh containers with a persistent publication volume.
 - Keep Docker test dependency installation in the image build. Runtime test scripts should use `bash/test-run.sh` after model sync and migrations instead of calling `yarn test`, so source-only reruns stay quiet and do not replay package-manager warnings.

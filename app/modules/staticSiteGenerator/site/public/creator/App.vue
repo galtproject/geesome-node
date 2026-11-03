@@ -28,7 +28,7 @@ const {resource, posts, nextOffset, account, checked, busy, error, modal, galler
     selectedOption, options, paymentMethod, cryptoMethods, cryptoResume, refundReason, shareStatus,
     resourceId, active, expired, activeUntil, enabled, accountPath, publicPath,
     closeModal, login, loginModal, checkout, logout, more, showGallery, sharePost,
-    requestRefund, submitRefund, resumePayment, backToPlans, refreshAccess, openAccount} = useMembershipSession(props.initialState);
+    requestRefund, submitRefund, resumePayment, backToPlans, refreshAccess, confirmPayment, openAccount} = useMembershipSession(props.initialState);
 const polished = computed(() => Boolean(props.initialState.snapshot.canonicalPath));
 const presentation = computed(() => normalizeSitePresentation(resource.value.presentation));
 const presentedResource = computed(() => ({...resource.value,presentation:presentation.value}));
@@ -123,7 +123,7 @@ function join() {
             </template>
             <template v-else-if="paymentMethod === 'direct'">
                 <h2 id="membership-dialog-title">Direct crypto payment</h2>
-                <CryptoCheckout :presentation="presentation" :resource="resourceId" :option="selected" :methods="cryptoMethods" :resume="cryptoResume" @back="backToPlans" @paid="refreshAccess" />
+                <CryptoCheckout :presentation="presentation" :resource="resourceId" :option="selected" :methods="cryptoMethods" :resume="cryptoResume" :confirmed="confirmPayment" @back="backToPlans" @paid="refreshAccess" />
             </template>
             <MembershipPlans v-else :polished="polished" v-model="selectedOption" :title="resource.title" :options="options" :direct-ready="cryptoMethods.some(method => method.available)" :busy="busy" @continue="paymentMethod = 'direct'" />
         </MembershipModal>
