@@ -445,6 +445,29 @@ Verification:
 - Production-like dry runs that do not require live credentials in CI.
 <!-- /todo-section -->
 
+<!-- todo-section: local-social-publishing -->
+## Local Social Publishing
+
+Goal: keep scheduled jobs in the node while social accounts and execution stay
+on the user's local client. Target Threads, Instagram and Reddit.
+
+Plan: [Local social publishing](./plans/local-social-publishing.md).
+
+Remaining work:
+
+- Agree the node/client contract and register the client correctly in the hub.
+- Implement owner-scoped scheduled jobs with atomic claim, lease, result
+  acknowledgement, cancellation and uncertain-outcome recovery.
+- Deliver one scheduled Threads text post through the local worker first.
+- Add media, Instagram/Reddit adapters, then explicit source routes.
+
+Verification:
+
+- Concurrency, permissions, offline/restart, lost ack, edit/cancel and dedupe.
+- Provider mocks plus authorized account smoke before claiming real delivery.
+- API documentation, security inventory and relevant database checks.
+<!-- /todo-section -->
+
 <!-- todo-section: production-storage-database-tuning -->
 ## Production Storage And Database Tuning
 
