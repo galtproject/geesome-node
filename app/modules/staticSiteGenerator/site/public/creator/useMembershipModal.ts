@@ -19,7 +19,7 @@ export function useMembershipModal(error: Ref<string>) {
         error.value = '';
         document.body.style.overflow = 'hidden';
         await nextTick();
-        (document.querySelector('.membership-modal button, .membership-modal input') as HTMLElement)?.focus();
+        (document.querySelector(name === 'activated' ? '[data-testid="activation-continue"]' : '.membership-modal button, .membership-modal input') as HTMLElement)?.focus();
     }
     function keydown(event: KeyboardEvent) {
         if (!modal.value) {
