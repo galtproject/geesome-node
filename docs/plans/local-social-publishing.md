@@ -2,6 +2,8 @@
 
 Status: proposed; no publishing queue or client worker is delivered by this document.
 
+Planning tracker: [#1522](https://github.com/galtproject/geesome-node/issues/1522).
+
 ## Contents
 
 - [Source of truth](#source-of-truth)
