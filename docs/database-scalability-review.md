@@ -515,3 +515,12 @@ transaction, and historical winning MFS roots remain untouched. Operators should
 monitor failure rates/table growth; destructive retention requires a separately
 proved remote-operation quiescence policy. No production table/schema migration
 is introduced, and no existing Post/Group query contract changes.
+
+
+## Local publishing queue (2026-11-03)
+
+PublicationJob is separate from Post lifecycle and has owner/request unique,
+owner/status/scheduledAt/id and owner/createdAt/id indexes. Lists cap page size
+at 100 and offset at one million. Claims lock one row at a time with SKIP LOCKED
+and examine at most 20 invalid sources per request. History is retained; no
+unbounded background scan or automatic retry loop is introduced.

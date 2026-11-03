@@ -124,6 +124,9 @@ function notesFor(route: RouteRow, block: string): string[] {
   if (routeLower.includes('/site-replacements') || routeLower.includes('/image-optimization/capabilities')) {
     notes.add('service checks actor ownership and content:write; deletion/finalization also verifies storage:retire when selected, exact publication and consumer receipts');
   }
+  if (route.moduleName === 'localClient') {
+    notes.add('publishing:local scope and UserGroupManagement; owner-scoped jobs; current public-source edit permission at create/claim; claim token required for results');
+  }
   if (route.moduleName === 'imageComposition') {
     notes.add('module enforces actor-owned catalog Content and dependency authorization');
     if (routeLower.endsWith('/image-compositions') && route.method === 'GET') {

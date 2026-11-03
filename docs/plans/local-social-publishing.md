@@ -1,6 +1,8 @@
 # Local Social Publishing Plan
 
-Status: proposed; documentation only. Planning tracker: [#1522](https://github.com/galtproject/geesome-node/issues/1522).
+Status: implemented on feature branches; real-provider verification remains open.
+Implementation tracker: [#1524](https://github.com/galtproject/geesome-node/issues/1524).
+Planning tracker: [#1522](https://github.com/galtproject/geesome-node/issues/1522).
 
 ## Contents
 
@@ -156,8 +158,7 @@ lost result response. Verify no automatic requeue and no leaked credentials.
 Inspect the small UI's queued, posted, failed and manual-review states.
 
 Follow AGENTS.md for targeted tests, Docker-backed integration checks, route docs,
-security inventory and applicable DB checks when implementing. This document-only
-change needs link/section/diff checks. Deploy the node API before the new client.
+security inventory and applicable DB checks. Deploy the node API before the new client.
 Do not merge PRs; hand them to the user.
 
 ## Deferred work and review notes
@@ -174,3 +175,26 @@ Do not merge PRs; hand them to the user.
 - 2026-11-03 review: reduced the initial four-record design to one table and five
   operations. Manual review replaces automatic recovery of uncertain sends;
   this is an intentional MVP tradeoff, not a claim of full automation.
+
+- Node implementation: one PublicationJob model and five operations now exist
+  under app/modules/localClient; publishing:local is mapped to existing group
+  management permission. New table uses model sync. Sixteen disposable-Postgres
+  checks passed; full-app HTTP projection/auth test is added for integration.
+  Real-provider delivery is not verified by these checks.
+- Client implementation: [client PR #2](https://github.com/galtproject/geesome-client/pull/2)
+  implements polling, operational UI, local secret storage and three provider
+  functions. All 29 client/provider tests pass, including in Node 22 Docker.
+  Browser fixtures verify schedule/cancel, offline catch-up, lost acknowledgement
+  with one provider send, manual resolution and desktop/mobile rendering.
+- Accepted provider boundaries: one image/video for Threads, JPEG/Reels for
+  Instagram, Reddit self/link posts with public media links (no native upload).
+  Credentialed provider smoke and account/app approval remain release gates.
+
+- Claim ownership commits before source ACL queries, avoiding nested connections
+  under pool saturation. Invalid-source failure updates are conditional on the
+  original processing state/token. A transient ACL lookup error leaves the claim
+  for review. Focused tests run with a one-connection pool and real ACL DB reads.
+
+- Claim verification also holds the earliest due row locked using an independent
+  Sequelize connection; the worker immediately claims the next due row and leaves
+  the locked one queued. The one-connection-pool ACL check remains in place.

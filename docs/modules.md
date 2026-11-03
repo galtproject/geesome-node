@@ -6,6 +6,8 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 
 ## Documented Modules
 
+- `localClient`: [scheduled local social publishing](../app/modules/localClient/docs/overview.md)
+
 - `googleAuthorization`: [private reader login and sessions](../app/modules/googleAuthorization/docs/overview.md)
 - `payments`: [direct cryptocurrency ledger and workers](../app/modules/payments/docs/overview.md)
 - `membership`: [creator sites and group access](../app/modules/membership/docs/overview.md)

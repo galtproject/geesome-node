@@ -1043,3 +1043,25 @@ real Kubo, including settings omission/clearing, automatic rebuild and rendered
 HTML with independent SEO. All 57 payment checks passed. API docs generated and
 security route inventory verified unchanged. The dependent cabinet's desktop and
 narrow settings workflow passed with 16 reviewed screenshot captures.
+
+
+## Scheduled Local Publishing: Node Queue (#1524)
+
+The localClient module stores one PublicationJob per social account destination.
+Five owner-scoped operations schedule/list/claim/report/cancel frozen public local
+post snapshots. Existing API keys require publishing:local and user group rights;
+provider credentials never enter node job records. Claims lock due rows with
+SKIP LOCKED, recheck source access and never requeue processing work.
+
+Owner/request identity is unique; repeated create and identical result reports
+are idempotent. Only queued jobs cancel. Ambiguous results remain needs_review
+or processing for explicit owner resolution with the original claim token.
+Media snapshots contain immutable public HTTPS IPFS references; private or
+unsupported attachments are rejected instead of silently omitted.
+
+Verification: 16 focused checks passed against disposable PostgreSQL, covering
+concurrent create/claim, skipping an independently locked row, owner/source
+authorization, snapshot replay after edits,
+result conflicts, cancellation and crash/no-requeue behavior. A real-app HTTP
+projection/auth test is included for Docker integration verification. Provider
+smoke and client delivery remain separate evidence, not established by node tests.

@@ -9,7 +9,7 @@
 
 //TODO: move communicator and fileCatalog to improve
 const modulePacks = {
-  'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'staticId', 'asyncOperation', 'asset', 'privateGroup', 'group', 'chat', 'fileCatalog', 'entityJsonManifest', 'imageComposition', 'remoteGroup'],
+  'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'staticId', 'asyncOperation', 'asset', 'privateGroup', 'group', 'localClient', 'chat', 'fileCatalog', 'entityJsonManifest', 'imageComposition', 'remoteGroup'],
   'improve': ['groupCategory', 'invite', 'staticSiteGenerator', 'archive', 'rss', 'activityPub', 'autoActions', 'pin', 'foreignAccounts', 'ethereumAuthorization', 'storageSpace', 'gateway', 'googleAuthorization', 'payments', 'membership'],
   'socNet': ['socNetAccount', 'socNetImport', 'bluesky', 'telegramClient', 'twitterClient', 'tgContentBot']
 };
