@@ -1,6 +1,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { membershipRequest, newRequestKey } from './api.ts';
 import { useMembershipModal } from './useMembershipModal.ts';
+import {rememberActivation, takeActivation} from './activationNotice.ts';
 import { normalizeAccount } from './presentation.ts';
 import type { CryptoMethod, CryptoInvoice } from './crypto.ts';
 import type { PublicState, MembershipAccount, MembershipOption, MembershipInvoice, PreviewMedia } from './types.ts';
@@ -13,6 +14,7 @@ export function useMembershipSession(initialState: PublicState) {
     const refundInvoice = ref<MembershipInvoice | null>(null), refundReason = ref(''), loginIntent = ref(''), shareStatus = ref('');
     let refresh: ReturnType<typeof setInterval> | null = null;
     let refundKey = '';
+    const announcedPayments = new Set<string>();
     let expiryTimer: ReturnType<typeof setTimeout> | null = null;
     function clearPremium() { posts.value = posts.value.map(post => post.free ? post : { ...post, pageUrl: undefined, locked: true }); }
     const resourceId = computed(() => resource.value.id);
@@ -92,10 +94,29 @@ export function useMembershipSession(initialState: PublicState) {
     }
     async function updateAccess() {
         try {
+            const previous = account.value, hadAccount = checked.value;
             await checkAccount();
+            const newlyPaid = hadAccount && previous?.reader.id === account.value?.reader.id && active.value
+                ? account.value?.invoices.find(invoice => invoice.status === 'paid' && !previous?.invoices.some(old => old.id === invoice.id && old.status === 'paid') && !announcedPayments.has(invoice.id)) : null;
+            if (newlyPaid && account.value?.reader.id) {
+                announcedPayments.add(newlyPaid.id);
+                if (!initialState.snapshot.full) {
+                    rememberActivation(resourceId.value, account.value.reader.id, newlyPaid.id);
+                }
+                else {
+                    await openModal('activated');
+                }
+            }
             if (active.value && !initialState.snapshot.full) {
                 location.assign(selectionPath());
                 return;
+            }
+            if (initialState.snapshot.full && account.value?.active) {
+                const invoice = takeActivation(resourceId.value, account.value);
+                if (invoice && !announcedPayments.has(invoice)) {
+                    announcedPayments.add(invoice);
+                    await openModal('activated');
+                }
             }
         }
         catch (e) {

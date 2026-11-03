@@ -6,6 +6,7 @@ import { chromium } from '/work/node_modules/playwright/index.mjs';
 const root = '/evidence', captures = [], comparisons = [];
 const paginationOnly = process.argv.includes('--pagination');
 const checkoutOnly = process.argv.includes('--checkout');
+const activationOnly = process.argv.includes('--activation');
 const reference = JSON.parse(await fs.readFile(root + '/reference-state.json', 'utf8'));
 const types = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.txt': 'text/plain', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp' };
 const server = http.createServer(async (req, res) => {
@@ -38,7 +39,7 @@ async function settleCover(page) {
 }
 const origin = `http://127.0.0.1:${server.address().port}`, browser = await chromium.launch({ headless: true });
 try {
-    for (const viewport of paginationOnly || checkoutOnly ? [] : [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+    for (const viewport of paginationOnly || checkoutOnly || activationOnly ? [] : [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
         const states = [];
         for (const version of ['reference', 'public']) {
             const context = await browser.newContext({ viewport });
@@ -210,7 +211,7 @@ try {
             await context.close();
         }
     }
-    for (const viewport of paginationOnly || checkoutOnly ? [] : [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+    for (const viewport of paginationOnly || checkoutOnly || activationOnly ? [] : [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
         for (const id of ['meat', 'newsite']) {
             for (const version of ['reference', 'public']) {
                 const page = await browser.newPage({ viewport });
@@ -231,7 +232,7 @@ try {
             }
         }
     }
-    for (const viewport of checkoutOnly ? [] : [{width:1280,height:900},{width:390,height:844}]) {
+    for (const viewport of checkoutOnly || activationOnly ? [] : [{width:1280,height:900},{width:390,height:844}]) {
         for (const javaScriptEnabled of [true,false]) {
             const context = await browser.newContext({viewport,javaScriptEnabled});
             const page = await context.newPage(), errors = [];
@@ -456,7 +457,7 @@ try {
         }
     }
     // New checkout behavior intentionally differs from the legacy reference.
-    for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+    for (const viewport of activationOnly ? [] : [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
         const page = await browser.newPage({ viewport });
         const methods = [
             {id:'eth-ethereum',currency:'ETH',network:'ethereum',networkLabel:'Ethereum',available:true},
@@ -607,6 +608,9 @@ try {
         await captureCheckout('checkout-carried-partial','A fresh quote automatically applies retained 3 USDC and asks for 1 USDC in the same bordered amount/copy row as the original payment. The policy is short; expiry dates and manual apply actions are absent.');
         paymentState = {id:'reopened',reusableAddress:true,status:'paid',received:'6',availableCredit:'0',credit:{optionId:'monthly',optionLabel:'1 month',period:'month',startsAt:'2026-11-03T12:00:00Z',endsAt:'2026-12-18T12:00:00Z',extraDays:15}};
         await page.getByTestId('crypto-check').click();
+        await page.getByTestId('subscription-activated').waitFor();
+        await page.getByTestId('activation-continue').click();
+        await page.getByTestId('crypto-resume-invoice').click();
         await page.getByTestId('crypto-credit').waitFor();
         await page.getByTestId('crypto-credit').scrollIntoViewIfNeeded();
         await captureCheckout('checkout-automatic-credit','Confirmed funds are automatically credited with extra subscription days. The receipt shows zero unused funds, paid status and no manual apply control or expiry date.');
@@ -619,6 +623,11 @@ try {
         // the real Extend/Renew control, which obtains a new quote.
         await page.getByRole('button',{name:'Renew membership',exact:true}).click();
         await page.getByTestId('direct-crypto-payment').click();
+        await page.getByTestId('crypto-qr').waitFor();
+        await page.getByTestId('crypto-check').click();
+        await page.getByTestId('subscription-activated').waitFor();
+        await page.getByTestId('activation-continue').click();
+        await page.getByTestId('crypto-resume-invoice').click();
         await page.getByTestId('crypto-credit').waitFor();
         await page.getByTestId('crypto-credit').scrollIntoViewIfNeeded();
         await captureCheckout('checkout-recovered-expired','Reopening checkout after an expired quote applies the retained 20 USDC to a fresh paid quote, shows the six-month credited tariff and leaves zero unused funds.');
@@ -628,6 +637,107 @@ try {
     }
     const compare = await browser.newPage();
     await compare.goto(`${origin}/reference/style.css`);
+
+    // Verify payment celebration through the real public/full selector navigation.
+    for (const viewport of paginationOnly || checkoutOnly ? [] : [{width:1280,height:900},{width:390,height:844}]) {
+        for (const reduced of [false,true]) {
+            const context = await browser.newContext({viewport,reducedMotion:reduced?'reduce':'no-preference'});
+            const page = await context.newPage(), errors = [];
+            page.on('pageerror', error => errors.push(error.message));
+            let paid = false, renewing = false, renewalCreated = false, renewed = false, selections = 0;
+            const expiry = () => renewed ? '2030-02-01T00:00:00Z' : '2030-01-01T00:00:00Z';
+            const invoice = () => ({id:renewalCreated?'renewal-payment':'celebration-payment',provider:'direct',status:(renewalCreated?renewed:paid)?'paid':'pending',assetId:'usdc-base',currency:'USDC',network:'base',address:'0x1111111111111111111111111111111111111111',amount:'4',received:(renewalCreated?renewed:paid)?'4':'0',priceUsd:4,period:'month',optionLabel:'1 month',expiresAt:'2030-03-01T00:00:00Z'});
+            await page.route('**/api/**', async route => {
+                const pathname = new URL(route.request().url()).pathname;
+                if (pathname.endsWith('/membership/site/') || pathname.endsWith('/membership/site')) {
+                    selections++;
+                    return route.fulfill({status:302,headers:{location:`${origin}/full/index.html`}});
+                }
+                let data;
+                if (pathname.endsWith('/resource')) {
+                    data = {...reference.resource,cryptoMethods:[{id:'usdc-base',currency:'USDC',network:'base',networkLabel:'Base',available:true}]};
+                } else if (pathname.endsWith('/account')) {
+                    const history = [{id:'celebration-payment',provider:'direct',status:paid?'paid':'pending',optionSnapshot:reference.resource.options[0]}];
+                    if (renewalCreated) {
+                        history.unshift({id:'renewal-payment',provider:'direct',status:renewed?'paid':'pending',optionSnapshot:reference.resource.options[0]});
+                    }
+                    data = {reader:{id:'celebrating-reader',name:'Reader'},active:paid,expiresAt:paid?expiry():null,invoices:history,refunds:[]};
+                } else if (pathname.endsWith('/invoices')) {
+                    renewalCreated = renewing;
+                    data = invoice();
+                } else if (pathname.includes('/invoices/')) {
+                    data = invoice();
+                } else if (pathname.endsWith('/feed')) {
+                    data = {posts:reference.posts,hasMore:false};
+                } else {
+                    throw Error('Unexpected activation API ' + pathname);
+                }
+                return route.fulfill({contentType:'application/json',body:JSON.stringify(data)});
+            });
+            async function capture(name,description) {
+                assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+                assert.equal(await page.locator('img:visible').evaluateAll(images=>images.some(i=>!i.complete||!i.naturalWidth)),false);
+                const file=`${viewport.width}-${name}.png`;
+                await page.screenshot({path:path.join(root,file),fullPage:false});
+                captures.push({file,description,viewport,state:name});
+            }
+            await page.goto(`${origin}/public/index.html`);
+            await page.getByTestId('account-link').waitFor();
+            await page.getByTestId('join-membership').click();
+            await page.getByTestId('direct-crypto-payment').click();
+            await page.getByTestId('crypto-qr').waitFor();
+            paid = true;
+            await page.getByTestId('crypto-check').click();
+            await page.waitForURL(url=>url.pathname==='/full/index.html');
+            await page.getByTestId('subscription-activated').waitFor();
+            assert.equal(selections,1);
+            assert.equal(await page.locator('#membership-dialog-title').textContent(),'Subscription activated');
+            assert((await page.locator('.activation-until').textContent()).includes('Jan 1, 2030'));
+            assert(await page.getByTestId('activation-continue').evaluate(element=>element===document.activeElement));
+            await page.keyboard.press('Tab');
+            assert(await page.getByTestId('membership-close').evaluate(element=>element===document.activeElement));
+            await page.keyboard.press('Shift+Tab');
+            assert(await page.getByTestId('activation-continue').evaluate(element=>element===document.activeElement));
+            if (reduced) {
+                await page.waitForTimeout(750);
+                assert.equal(await page.locator('.activation-confetti i').count(),0);
+                await capture('activation-reduced-motion','Subscription activated uses the existing purple payment-dialog style, access deadline and Continue control; reduced motion produces no confetti particles.');
+            } else {
+                await page.waitForFunction(()=>document.querySelectorAll('.activation-confetti i').length===84);
+                await capture('activation-confetti','After real selector navigation, the compact subscription activation dialog shows the archive message and access deadline with three brief confetti bursts around it.');
+                await page.waitForFunction(()=>document.querySelectorAll('.activation-confetti i').length===0);
+                await capture('activation-settled','The confetti finishes automatically, leaving a compact readable activation dialog with a checkmark, access deadline and Continue button.');
+            }
+            await page.getByTestId('activation-continue').click();
+            assert.equal(await page.getByTestId('modal-activated').count(),0);
+            assert.equal(await page.evaluate(()=>document.body.style.overflow),'');
+            const accountResponse = page.waitForResponse(response=>new URL(response.url()).pathname.endsWith('/account'));
+            await page.reload(); await accountResponse;
+            await page.getByTestId('account-link').waitFor();
+            assert.equal(await page.getByTestId('subscription-activated').count(),0,'a reload must not replay the celebration');
+            if (!reduced) {
+                await page.goto(`${origin}/full/account.html`);
+                await page.getByRole('button',{name:'Extend membership',exact:true}).waitFor();
+                renewing = true;
+                await page.getByRole('button',{name:'Extend membership',exact:true}).click();
+                await page.getByTestId('direct-crypto-payment').click();
+                await page.getByTestId('crypto-qr').waitFor();
+                renewed = true;
+                await page.getByTestId('crypto-check').click();
+                await page.getByTestId('subscription-activated').waitFor();
+                assert.equal(selections,1,'an existing full snapshot needs no second selector navigation');
+                assert((await page.locator('.activation-until').textContent()).includes('Feb 1, 2030'));
+                await capture('activation-renewal','A newly paid renewal celebrates in place on the full website, using the updated access deadline and the same compact dialog without another page reload.');
+                await page.emulateMedia({reducedMotion:'reduce'});
+                await page.waitForFunction(()=>document.querySelectorAll('.activation-confetti i').length===0);
+                await page.keyboard.press('Escape');
+                await page.waitForTimeout(800);
+                assert.equal(await page.locator('.activation-confetti').count(),0,'closing cancels the pending bursts');
+            }
+            assert.deepEqual(errors,[]);
+            await context.close();
+        }
+    }
     for (const item of comparisons) {
         const result = await compare.evaluate(async ({ reference, actual }) => {
             const load = src => new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = src; });

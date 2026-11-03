@@ -12,6 +12,26 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Subscription activation celebration (#1534)
+
+Newly paid invoices observed for the current signed-in reader show a compact
+“Subscription activated” dialog with the access deadline and three short confetti
+bursts in the payment dialog's purple style. Public-to-full snapshot navigation
+carries a five-minute, resource/reader/payment-bound session notice; the full page
+verifies active access and paid history before consuming it once. Renewals celebrate
+in place. Ordinary sign-in, initial page load and reload do not replay the notice.
+
+The existing dialog supplies focus trapping, Escape/backdrop dismissal and scroll
+restoration; Continue receives focus. Confetti is decorative, stops after 2.8 seconds,
+cancels on close and respects reduced-motion changes. Storage restrictions do not
+block the access transition. No payment ledger, API or money-worker changes.
+
+Verification: creator Vue types and focused unit/session checks passed. Docker
+`test:ssg-membership-browser -- --activation` covers the real selector redirect,
+once-only display, same-page renewal, dismissal cleanup and reduced motion with
+8 mapped desktop/narrow screenshots; all rendered states were visually inspected.
+Deploy the node and regenerate creator snapshots to deliver the new browser bundle.
+
 ## Reusable managed-address deposits (#1530)
 
 Managed EVM gross deposits and invoice consumption now have independent accounting.
