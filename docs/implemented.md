@@ -1062,6 +1062,16 @@ unsupported attachments are rejected instead of silently omitted.
 Verification: 16 focused checks passed against disposable PostgreSQL, covering
 concurrent create/claim, skipping an independently locked row, owner/source
 authorization, snapshot replay after edits,
-result conflicts, cancellation and crash/no-requeue behavior. A real-app HTTP
-projection/auth test is included for Docker integration verification. Provider
-smoke and client delivery remain separate evidence, not established by node tests.
+result conflicts, cancellation and crash/no-requeue behavior. All 17 local
+publishing tests, including a real-post HTTP scoped/disabled-key flow, passed in
+isolated Node 22/PostgreSQL/IPFS Docker. Client PR #2 adds 30 passing tests and
+browser checks for scheduling, cancellation, lost acknowledgements and review.
+
+Broad Docker validation was completed in segments: 602 successful checks before
+an existing gallery fixture exception; the remaining 47 files produced 236
+passes, 8 pending tests and one stale SSR assertion. Both gallery failures were
+reproduced on clean origin/dev. The fixtures now use component initial state and
+the existing lazy-load SSR contract, preserving original-media checks; their six
+unit cases and the focused content-list integration case pass. The monolithic
+command was not rerun after these test-only corrections. Real provider smoke
+remains an explicit release gate.

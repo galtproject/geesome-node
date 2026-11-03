@@ -181,9 +181,13 @@ Do not merge PRs; hand them to the user.
   management permission. New table uses model sync. Sixteen disposable-Postgres
   checks passed; full-app HTTP projection/auth test is added for integration.
   Real-provider delivery is not verified by these checks.
+- Integration evidence: all 17 local-publishing tests pass in isolated Node 22,
+  PostgreSQL and IPFS, including real-post HTTP projection and scoped/disabled keys.
+  Broad-suite results and two reproduced baseline gallery fixture corrections
+  are recorded in [implemented work](../implemented.md#scheduled-local-publishing-node-queue-1524).
 - Client implementation: [client PR #2](https://github.com/galtproject/geesome-client/pull/2)
   implements polling, operational UI, local secret storage and three provider
-  functions. All 29 client/provider tests pass, including in Node 22 Docker.
+  functions. All 30 client/provider tests pass, including in Node 22 Docker.
   Browser fixtures verify schedule/cancel, offline catch-up, lost acknowledgement
   with one provider send, manual resolution and desktop/mobile rendering.
 - Accepted provider boundaries: one image/video for Threads, JPEG/Reels for
