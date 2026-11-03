@@ -9,7 +9,7 @@ import {PostStatus} from '../group/interface.js';
 import ILocalClientModule from './interface.js';
 import {getOutboxMethods, isManagedOutbox} from './outbox.js';
 
-const networks = ['threads', 'instagram', 'reddit'];
+const networks = ['threads', 'instagram', 'reddit', 'twitter', 'rule34xxx'];
 const statuses = ['queued', 'processing', 'posted', 'failed', 'needs_review', 'cancelled'];
 
 export default async function localClient(app: IGeesomeApp) {
@@ -50,6 +50,19 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 			const limit = boundedInteger(query.limit ?? 20, 1, 100);
 			const offset = boundedInteger(query.offset ?? 0, 0, 1000000);
 			const where: any = {userId};
+			if (query.composeKey !== undefined) {
+				where.composeKey = identifier(query.composeKey, 128);
+			}
+			if (query.ids !== undefined) {
+				if (typeof query.ids !== 'string') {
+					throw problem(400, 'local_publication_ids_invalid');
+				}
+				const ids = query.ids.split(',').map(id => boundedInteger(id, 1, Number.MAX_SAFE_INTEGER));
+				if (!ids.length || ids.length > 100 || new Set(ids).size !== ids.length) {
+					throw problem(400, 'local_publication_ids_invalid');
+				}
+				where.id = {[Op.in]: ids};
+			}
 			if (query.status !== undefined) {
 				if (!statuses.includes(query.status)) {
 					throw problem(400, 'local_publication_status_invalid');
@@ -99,9 +112,9 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 			return null;
 		},
 		async reportResult(userId, jobId, input) {
-			const result = normalizeResult(input);
 			return sequelize.transaction(async transaction => {
 				const job = await getOwnedJob(userId, jobId, transaction);
+				const result = normalizeResult(input, job.network);
 				if (!job.claimToken || job.claimToken !== input.claimToken) {
 					throw problem(409, 'local_publication_claim_invalid');
 				}
@@ -207,6 +220,31 @@ export function normalizeRequest(input: any) {
 		throw problem(400, 'local_publication_schedule_invalid');
 	}
 	const target = input.target ?? {};
+	if (network === 'twitter') {
+		assertKeys(target, ['sensitive']);
+		if (target.sensitive !== undefined && typeof target.sensitive !== 'boolean') {
+			throw problem(400, 'local_publication_target_invalid');
+		}
+		return {requestKey, postId, network, localAccountId, scheduledAt: new Date(input.scheduledAt).toISOString(), target: target.sensitive === undefined ? {} : {sensitive: target.sensitive}};
+	}
+	if (network === 'rule34xxx') {
+		assertKeys(target, ['tags', 'source', 'rating']);
+		const tags = textField(target.tags, 10000);
+		const source = textField(target.source, 2000);
+		if (!['s', 'q', 'e'].includes(target.rating)) {
+			throw problem(400, 'local_publication_target_invalid');
+		}
+		let url;
+		try {
+			url = new URL(source);
+		} catch {
+			throw problem(400, 'local_publication_target_invalid');
+		}
+		if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || [...url.searchParams.keys()].some(key => /token|authorization|api.?key|secret/i.test(key))) {
+			throw problem(400, 'local_publication_target_invalid');
+		}
+		return {requestKey, postId, network, localAccountId, scheduledAt: new Date(input.scheduledAt).toISOString(), target: {tags, source, rating: target.rating}};
+	}
 	assertKeys(target, ['subreddit', 'title', 'flairId', 'kind']);
 	const normalizedTarget = {};
 	for (const key of ['subreddit', 'title', 'flairId', 'kind']) {
@@ -234,7 +272,7 @@ function normalizeAccounts(input) {
 	});
 }
 
-function normalizeResult(input) {
+function normalizeResult(input, network) {
 	assertKeys(input, ['claimToken', 'status', 'remoteId', 'remoteUrl', 'error']);
 	identifier(input.claimToken, 64);
 	if (!['posted', 'failed', 'needs_review'].includes(input.status)) {
@@ -249,7 +287,10 @@ function normalizeResult(input) {
 		} catch {
 			throw problem(400, 'local_publication_remote_url_invalid');
 		}
-		if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
+		const rule34Link = network === 'rule34xxx' && url.hostname === 'rule34.xxx' && url.port === '' && url.pathname === '/index.php' &&
+			[...url.searchParams.keys()].sort().join(',') === 'id,page,s' && url.searchParams.get('page') === 'post' &&
+			url.searchParams.get('s') === 'view' && /^[1-9][0-9]*$/.test(remoteId || '') && url.searchParams.get('id') === remoteId;
+		if (url.protocol !== 'https:' || url.username || url.password || (url.search && !rule34Link) || url.hash) {
 			throw problem(400, 'local_publication_remote_url_invalid');
 		}
 	}

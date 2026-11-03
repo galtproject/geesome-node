@@ -3,6 +3,7 @@ import {Op, literal} from 'sequelize';
 import {GroupType, PostStatus} from '../group/interface.js';
 import {IGeesomeApp} from '../../interface.js';
 import {getPublicApiContext} from '../api/publicUrls.js';
+import {publicationDigest} from './producer.js';
 
 const marker = 'local-publications-v1';
 export function outboxName(userId) {
@@ -92,7 +93,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 		return records;
 	}
 	function normalize(input) {
-		if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['requestKey', 'text', 'imageStorageIds', 'destinations', 'scheduledAt', 'postId'].includes(key))) {
+		if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['requestKey', 'text', 'imageStorageIds', 'destinations', 'scheduledAt', 'postId', 'producer'].includes(key))) {
 			throw problem(400, 'local_publication_input_invalid');
 		}
 		if (typeof input.text !== 'string' || input.text.length > 40000 || /\u0000/.test(input.text) || !Array.isArray(input.imageStorageIds) || input.imageStorageIds.length > 20 || input.imageStorageIds.some(id => typeof id !== 'string' || !/^[A-Za-z0-9]+$/.test(id)) || new Set(input.imageStorageIds).size !== input.imageStorageIds.length) {
@@ -103,6 +104,13 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 		}
 		if (!Array.isArray(input.destinations) || !input.destinations.length || input.destinations.length > 20) {
 			throw problem(400, 'local_publication_destinations_required');
+		}
+		let producer;
+		if (input.producer !== undefined) {
+			if (!input.producer || typeof input.producer !== 'object' || Array.isArray(input.producer) || Object.keys(input.producer).some(key => !['type', 'postId'].includes(key)) || input.producer.type !== 'microwave-girls' || input.destinations.length !== 1) {
+				throw problem(400, 'local_publication_producer_invalid');
+			}
+			producer = {type: 'microwave-girls', postId: boundedInteger(input.producer.postId, 1, Number.MAX_SAFE_INTEGER)};
 		}
 		const destinations = input.destinations.map(destination => {
 			if (!destination || Object.keys(destination).some(key => !['network', 'localAccountId', 'target'].includes(key))) {
@@ -116,7 +124,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 		}
 		const normalized = normalizeRequest({requestKey: input.requestKey, postId: input.postId ?? 1, ...destinations[0], scheduledAt: input.scheduledAt === undefined ? '2000-01-01T00:00:00Z' : input.scheduledAt});
 		return {requestKey: normalized.requestKey, text: input.text, imageStorageIds: input.imageStorageIds, destinations,
-			scheduledAt: input.scheduledAt === undefined ? null : normalized.scheduledAt, postId: input.postId === undefined ? null : normalized.postId};
+			scheduledAt: input.scheduledAt === undefined ? null : normalized.scheduledAt, postId: input.postId === undefined ? null : normalized.postId, ...(producer ? {producer} : {})};
 	}
 	return {
 		async compose(userId, input) {
@@ -134,7 +142,8 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 				jobs = await Job.bulkCreate(request.destinations.map((destination, index) => ({
 					userId, postId: post.id, ...destination, payload, scheduledAt, status: 'queued',
 					requestKey: `compose:${createHash('sha256').update(request.requestKey).digest('hex')}:${index}`,
-					requestHash: hash, composeKey: request.requestKey, composeHash: hash, composeIndex: index
+					requestHash: hash, composeKey: request.requestKey, composeHash: hash, composeIndex: index,
+					...(request.producer ? {producer: {...request.producer, digest: publicationDigest(destination.network, destination.localAccountId, payload, destination.target)}} : {})
 				})), {transaction, returning: true});
 			}
 			try {
@@ -190,7 +199,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			const offset = boundedInteger(query.offset ?? 0, 0, 1000000);
 			const group = await getGroup(userId);
 			if (!group) {
-				return {group: null, drafts: []};
+				return {ownerId: Number(userId), group: null, drafts: []};
 			}
 			if (!isManagedOutbox(group, userId)) {
 				throw problem(409, 'local_publication_outbox_conflict');
@@ -215,7 +224,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 					drafts.push({postId: post.id, text: '', attachments: [], createdAt: post.createdAt, unavailable: true, error: 'This draft contains unsupported content. Edit it in GeeSome before scheduling.'});
 				}
 			}
-			return {group: groupView(group), drafts};
+			return {ownerId: Number(userId), group: groupView(group), drafts};
 		}
 	};
 }

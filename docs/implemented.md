@@ -1127,3 +1127,30 @@ serializes the manual action with automatic work and permits it while paused.
 Verification: 18 queue/auth Node22/PostgreSQL tests, including concurrent immediate
 claims, future/foreign/wrong-account restrictions and no fallback to another job;
 58 client tests and reviewed desktop/mobile browser click flow with mocks.
+
+## Microwave Girls queue contract (#1526)
+
+The local publication queue accepts Twitter and Rule34 destinations. Twitter
+sensitivity is an optional strict boolean (false remains explicit); Rule34 has
+required typed tags/source/rating metadata. Compose-only producer references
+identify one Girls receipt and one destination, with a server-computed canonical
+SHA-256 digest binding frozen text, ordered storageId/MIME, network/account and
+sorted target fields. Producer metadata is nullable additive unreleased model-
+sync state; existing jobs and non-producer compose replay hashes are preserved.
+
+Outbox GET returns authenticated ownerId without extra scopes. Owner-intersecting
+job lookup supports at most 100 distinct IDs and exact composeKey recovery under
+normal pagination/indexes. Rule34 result URLs allow only the fixed canonical
+post-view query matching the confirmed numeric remote ID and Rule34 network;
+other result URLs retain their credential/query/fragment restrictions.
+
+Verification: 31 checks passed in a fresh isolated Node22/PostgreSQL/Kubo stack
+with a one-connection pool: 23 queue/model/auth checks, one real HTTP post flow
+and seven outbox scenarios. Checks cover producer replay/conflicts/digest,
+explicit false sensitivity, strict Rule34 metadata/result URLs, owner-isolated
+ID/composeKey lookup, additive producer-column preservation, old compose hashes,
+real upload, claims/results, private group rules and transaction rollback. API
+docs generated; security route and database scalability inventories checked.
+A prior warm-fixture rerun hit the existing 60-second HTTP test timeout; a fresh
+fixture passed without relaxing timeouts. No live Twitter/Rule34 publication is
+claimed, and the broader unrelated full suite was not rerun for this slice.

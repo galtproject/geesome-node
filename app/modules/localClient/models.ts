@@ -9,6 +9,7 @@ export default async function createModels(sequelize: Sequelize) {
 		composeKey: {type: DataTypes.STRING(128)},
 		composeHash: {type: DataTypes.STRING(64)},
 		composeIndex: {type: DataTypes.INTEGER},
+		producer: {type: DataTypes.JSONB},
 		network: {type: DataTypes.STRING(20), allowNull: false},
 		localAccountId: {type: DataTypes.STRING(200), allowNull: false},
 		target: {type: DataTypes.JSONB, allowNull: false},

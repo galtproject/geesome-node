@@ -234,3 +234,16 @@ drafts and cancellation. The default minute worker claimed after 60,006 ms and
 drained a serial batch using injected Reddit/Threads endpoints. Desktop/mobile
 UI captures were reviewed. No real provider publication is claimed. Deploy node
 before client; authorized live-account smoke remains a release gate.
+
+## Microwave Girls node contract extension (#1526)
+
+Node implementation adds Twitter/Rule34 network values, required typed Rule34
+metadata, bounded owner-intersecting job-ID lookup and authenticated outbox
+ownerId. A compose-only producer reference identifies one Girls receipt and
+single destination; server-computed canonical digest binds exact immutable
+payload/account/target fields. Nullable producer JSONB is additive on the
+unreleased queue model. Non-producer normalized compose hashes are unchanged,
+so existing request-key replay stays compatible. No source/group schema change,
+provider credential or outgoing social request is introduced. Consumer policy
+preflight, execution-mode cutover and UI belong to the dependent client/Girls
+workstreams. Focused verification counts are recorded in implemented.md.

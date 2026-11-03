@@ -32,7 +32,7 @@ describe('private local publication outbox integration', function () {
 		await app?.stop();
 	});
 	it('keeps GET read-only, uploads an owned picture and composes one private source with multiple jobs', async () => {
-		assert.deepEqual(await successful(await call('/outbox')), {group: null, drafts: []});
+		assert.deepEqual(await successful(await call('/outbox')), {ownerId: user.id, group: null, drafts: []});
 		const image = await sharp({create: {width: 600, height: 400, channels: 3, background: '#998877'}}).jpeg().toBuffer();
 		const uploadKey = randomUUID();
 		async function upload() {
@@ -52,6 +52,11 @@ describe('private local publication outbox integration', function () {
 		const result = results[0];
 		assert.equal(new Set(results.map(value => value.postId)).size, 1);
 		assert.equal(result.jobs.length, 2);
+		const legacyNormalized = {requestKey: input.requestKey, text: input.text, imageStorageIds: input.imageStorageIds,
+			destinations: input.destinations.map(item => ({network: item.network, localAccountId: item.localAccountId, target: 'target' in item ? item.target : {}})), scheduledAt: null, postId: null};
+		const stored = await app.ms.database.sequelize.models.publicationJob.findByPk(result.jobs[0].id);
+		assert.equal(stored.get('composeHash'), createHash('sha256').update(JSON.stringify(legacyNormalized)).digest('hex'));
+		assert.equal(result.jobs[0].producer, null);
 		assert.deepEqual(results.map(value => value.jobs.map(job => job.id)), [result.jobs.map(job => job.id), result.jobs.map(job => job.id), result.jobs.map(job => job.id)]);
 		groupId = result.group.id;
 		const group = await app.ms.group.getGroup(groupId);
@@ -80,6 +85,27 @@ describe('private local publication outbox integration', function () {
 			await successful(await call(`/${claimed.id}/result`, {claimToken: claimed.claimToken, status: 'posted', remoteId: 'test-confirmed'}));
 		}
 		assert.deepEqual((await successful(await call('/outbox'))).drafts, []);
+	});
+	it('freezes producer identity and digest on owned compose replay and bounded HTTP lookup', async () => {
+		const input = composeInput({producer: {type: 'microwave-girls', postId: 123}, destinations: [{network: 'twitter', localAccountId: 'twitter_local', target: {sensitive: false}}]});
+		const result = await successful(await call('/compose', input));
+		const job = result.jobs[0];
+		const expected = createHash('sha256').update(JSON.stringify({network: 'twitter', localAccountId: 'twitter_local', text: input.text,
+			attachments: [{storageId: imageStorageId, mimeType: 'image/jpeg'}], target: {sensitive: false}})).digest('hex');
+		assert.deepEqual(job.producer, {type: 'microwave-girls', postId: 123, digest: expected});
+		assert.equal((await successful(await call('/compose', input))).jobs[0].id, job.id);
+		assert.equal((await call('/compose', {...input, producer: {...input.producer, postId: 124}})).status, 409);
+		assert.equal((await call('/compose', composeInput({producer: {...input.producer, cookie: 'secret'}}))).status, 400);
+		assert.equal((await call('/compose', composeInput({producer: input.producer, destinations: [destination, {network: 'twitter', localAccountId: 'other'}]}))).status, 400);
+		const found = await successful(await call(`?ids=${job.id}`));
+		assert.equal(found.jobs.length, 1);
+		assert.deepEqual(found.jobs[0].producer, job.producer);
+		assert.equal((await successful(await call(`?composeKey=${input.requestKey}`))).jobs[0].id, job.id);
+		assert.equal((await successful(await call('/outbox'))).ownerId, user.id);
+		const claimed = await successful(await call('/claim', {jobId: job.id, accounts: [{network: 'twitter', localAccountId: 'twitter_local'}]}));
+		assert.deepEqual(claimed.job.producer, job.producer);
+		const reported = await successful(await call(`/${job.id}/result`, {claimToken: claimed.job.claimToken, status: 'posted', remoteId: '12345', remoteUrl: 'https://x.com/local/status/12345'}));
+		assert.equal(reported.job.status, 'posted');
 	});
 	it('lists direct outbox posts as unassigned drafts and activates one explicitly', async () => {
 		const text = await app.ms.content.saveData(user.id, 'Direct draft', 'draft.txt');

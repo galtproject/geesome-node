@@ -7,6 +7,7 @@ import registerApi from '../app/modules/localClient/api.js';
 import databaseConfig from '../app/modules/database/config.js';
 import {CorePermissionName} from '../app/modules/database/interface.js';
 import {PostStatus} from '../app/modules/group/interface.js';
+import {publicationDigest} from '../app/modules/localClient/producer.js';
 
 describe('local publication queue', function () {
 	this.timeout(30000);
@@ -191,13 +192,14 @@ describe('local publication queue', function () {
 	it('adds compose metadata to an existing unreleased job table without dropping jobs', async () => {
 		const job = await module.createJob(1, request());
 		const table = models.PublicationJob.getTableName();
-		for (const column of ['composeIndex', 'composeHash', 'composeKey']) {
+		for (const column of ['composeIndex', 'composeHash', 'composeKey', 'producer']) {
 			await sequelize.getQueryInterface().removeColumn(table, column);
 		}
 		await createModels(sequelize);
 		const preserved = await models.PublicationJob.findByPk(job.id);
 		assert.equal(preserved.get('status'), 'queued');
 		assert.equal(preserved.get('composeKey'), null);
+		assert.equal(preserved.get('producer'), null);
 	});
 	it('projects HTML to text and validates model indexes', async () => {
 		content = [{type: 'text', mimeType: 'text/html', text: '<p>Hello <strong>world</strong></p>'}];
@@ -206,6 +208,69 @@ describe('local publication queue', function () {
 		const unique = (indexes as any[]).find(index => index.name === 'publication_jobs_owner_request_unique');
 		assert.equal(unique.unique, true);
 		assert.deepEqual(unique.fields.map(field => field.attribute), ['userId', 'requestKey']);
+	});
+	it('filters requested job IDs by owner and status and bounds their list', async () => {
+		const own = await module.createJob(1, request());
+		const foreign = await module.createJob(2, request());
+		const unrelated = await module.createJob(1, request());
+		await models.PublicationJob.update({composeKey: 'girls.intent.1'}, {where: {id: [own.id, foreign.id]}});
+		assert.deepEqual((await module.listJobs(1, {composeKey: 'girls.intent.1'})).map(job => job.id), [own.id]);
+		assert.deepEqual(await module.listJobs(1, {composeKey: 'girls.intent.1', ids: String(unrelated.id)}), []);
+		for (const composeKey of ['', 'x'.repeat(129), 'invalid key', ['girls.intent.1']]) {
+			await assert.rejects(module.listJobs(1, {composeKey}), {status: 400});
+		}
+		assert.deepEqual((await module.listJobs(1, {ids: `${own.id},${foreign.id}`})).map(job => job.id), [own.id]);
+		await module.cancelJob(1, own.id);
+		assert.deepEqual(await module.listJobs(1, {ids: String(own.id), status: 'queued'}), []);
+		assert.equal((await module.listJobs(1, {ids: String(own.id), status: 'cancelled'}))[0].id, own.id);
+		for (const ids of ['', '0', '-1', '1,1', '1,,2', '1.0', '9007199254740992', ['1'], Array.from({length: 101}, (_, index) => index + 1).join(',')]) {
+			await assert.rejects(module.listJobs(1, {ids}), {status: 400});
+		}
+	});
+	it('validates Rule34 metadata without accepting credentials or extra settings', async () => {
+		const target = {tags: 'artist_name original', source: 'https://example.com/gallery', rating: 'e'};
+		const input = request({network: 'rule34xxx', target});
+		assert.deepEqual(normalizeRequest(input).target, target);
+		assert.equal((await module.createJob(1, input)).network, 'rule34xxx');
+		assert.equal((await module.createJob(1, request({network: 'twitter'}))).network, 'twitter');
+		for (const invalid of [{}, {...target, cookie: 'secret'}, {...target, tags: 'a\nb'}, {...target, tags: 'x'.repeat(10001)}, {...target, source: 'https://user:secret@example.com/'}, {...target, source: 'https://example.com/?api_key=secret'}, {...target, source: 'javascript:alert(1)'}, {...target, rating: 'explicit'}]) {
+			assert.throws(() => normalizeRequest({...input, target: invalid}), {status: 400});
+		}
+		assert.throws(() => normalizeRequest(request({network: 'twitter', target})), {status: 400});
+		const claimed = await module.claimJob(1, {accounts: [{network: 'rule34xxx', localAccountId: account.localAccountId}]});
+		assert.equal(claimed.network, 'rule34xxx');
+	});
+	it('preserves explicit Twitter sensitivity booleans and rejects them on other networks', async () => {
+		for (const sensitive of [true, false]) {
+			const job = await module.createJob(1, request({network: 'twitter', target: {sensitive}}));
+			assert.deepEqual(job.target, {sensitive});
+		}
+		for (const sensitive of ['false', 0, null]) {
+			assert.throws(() => normalizeRequest(request({network: 'twitter', target: {sensitive}})), {status: 400});
+		}
+		assert.throws(() => normalizeRequest(request({target: {sensitive: false}})), {status: 400});
+	});
+	it('accepts only the canonical Rule34 result query for its confirmed ID and network', async () => {
+		const rule34 = await module.createJob(1, request({network: 'rule34xxx', target: {tags: 'artist original', source: 'https://example.com', rating: 'e'}}));
+		const claimed = await module.claimJob(1, {accounts: [{network: 'rule34xxx', localAccountId: account.localAccountId}]});
+		const remoteUrl = 'https://rule34.xxx/index.php?page=post&s=view&id=123';
+		const result = {claimToken: claimed.claimToken, status: 'posted', remoteId: '123', remoteUrl};
+		for (const badUrl of [remoteUrl + '&token=secret', remoteUrl + '&id=123', remoteUrl.replace('id=123', 'id=124'), remoteUrl.replace('s=view', 's=add'), remoteUrl.replace('rule34.xxx', 'evil.example'), remoteUrl.replace('/index.php', '/other.php'), remoteUrl.replace('https:', 'http:')]) {
+			await assert.rejects(module.reportResult(1, rule34.id, {...result, remoteUrl: badUrl}), {status: 400});
+		}
+		assert.equal((await module.reportResult(1, rule34.id, result)).remoteUrl, remoteUrl);
+		assert.equal((await module.reportResult(1, rule34.id, result)).status, 'posted');
+		await module.createJob(1, request());
+		const other = await claim();
+		await assert.rejects(module.reportResult(1, other.id, {...result, claimToken: other.claimToken}), {status: 400});
+	});
+	it('binds producer digest to exact text, ordered media and sorted target fields', () => {
+		const payload = {text: 'Hello ☀', attachments: [{storageId: 'bafy1', mimeType: 'image/jpeg', url: 'https://ignored.example/'}]};
+		const digest = publicationDigest('rule34xxx', 'main', payload, {source: 'https://example.com', tags: 'artist original', rating: 'e'});
+		assert.equal(digest, '27ffa5f86218d37e326034ad92f386dedac2d39c4543c86fe2246cc3a8dd6e7d');
+		assert.equal(publicationDigest('rule34xxx', 'main', {...payload, attachments: [{...payload.attachments[0], url: 'https://changed.example/'}]}, {rating: 'e', tags: 'artist original', source: 'https://example.com'}), digest);
+		assert.notEqual(publicationDigest('rule34xxx', 'other', payload, {source: 'https://example.com', tags: 'artist original', rating: 'e'}), digest);
+		assert.notEqual(publicationDigest('rule34xxx', 'main', {...payload, text: 'Changed'}, {source: 'https://example.com', tags: 'artist original', rating: 'e'}), digest);
 	});
 	it('bounds lists and rejects unsafe input/secret fields/remote URLs', async () => {
 		assert.equal(normalizeRequest(request({postId: '1', target: {kind: 'image'}})).postId, 1);

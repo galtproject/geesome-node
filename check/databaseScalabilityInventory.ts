@@ -260,7 +260,7 @@ function modelRows(): ModelRow[] {
       source: 'app/modules/localClient/models.ts',
       model: 'publicationJobs',
       indexes: ['userId,requestKey unique', 'userId,composeKey,composeIndex unique', 'postId', 'userId,status,scheduledAt,id', 'userId,createdAt,id'],
-      notes: ['owner-filtered jobs/drafts capped at 100 rows and bounded offset; draft exclusion uses indexed NOT EXISTS on postId', 'claim locks one due row with SKIP LOCKED then checks source outside the short transaction; invalid-source checks capped at 20 rows per request', 'processing rows never automatically requeue; retained history has no implicit pruning'],
+      notes: ['owner-filtered jobs/drafts capped at 100 rows and bounded offset; optional ids filter caps at 100 and composeKey lookup uses owner/compose unique index; draft exclusion uses indexed NOT EXISTS on postId', 'claim locks one due row with SKIP LOCKED then checks source outside the short transaction; invalid-source checks capped at 20 rows per request', 'processing rows never automatically requeue; retained history has no implicit pruning'],
     },
     {
       area: 'Creator site configuration',

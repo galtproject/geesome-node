@@ -56,3 +56,36 @@ Explicit immediate delivery uses optional `jobId` in claim. Only that owner's
 queued job for a supplied configured account may be claimed; its schedule is
 bypassed, while source eligibility and atomic single-claim checks stay intact.
 Other queued jobs and completed/processing statuses are never selected instead.
+
+## Microwave Girls producer bridge (#1526)
+
+Queue account filters and create/compose targets now accept `twitter` and
+`rule34xxx`. Rule34 requires only explicit tags (1–10000 characters), credential-
+free HTTP(S) source (up to 2000) and rating s/q/e. These Rule34 fields are rejected
+for other destinations. Twitter accepts only optional target.sensitive boolean;
+explicit false is retained in snapshots and digest, not treated as omitted.
+The node still performs no social-provider requests.
+
+Authorized outbox GET exposes numeric ownerId even before group creation. Job
+listing accepts a bounded comma-separated `ids` filter (1–100 distinct positive
+safe integers), always intersected with owner/status and normal limit/offset.
+Use limit=100 when resolving a complete 100-ID reconciliation batch. An exact
+owner-scoped composeKey filter (1–128 identifier characters) supports read-only
+recovery after compose committed but the producer lost its returned job IDs.
+It intersects owner/status/ids and normal pagination; it never composes again.
+
+Compose accepts producer `{type:"microwave-girls",postId:number}` for exactly one
+destination. It freezes that reference and a server-computed SHA-256 digest in
+nullable PublicationJob.producer JSONB. The digest uses exact text, ordered
+storageId/MIME pairs, network/account and lexicographically sorted target keys.
+Download URLs, names and schedule are not digest fields. New producer references
+are part of compose replay identity; ordinary compose requests retain their old
+normalized hash representation and replay compatibility. Producer metadata has
+no origin URL, headers or credentials; the local executor owns policy preflight.
+
+The unreleased job table uses additive non-dropping model sync, including this
+nullable field. Existing jobs have producer=null. Existing Group/Post schema and
+integration scopes are unchanged. Rule34 confirmed URLs may use only the exact
+rule34.xxx/index.php?page=post&s=view&id=remoteId query shape for Rule34 jobs;
+other result URLs keep their no-query rule. Deploy node support before the new client and
+Girls consumers; protocol extensions alone do not establish live-provider support.

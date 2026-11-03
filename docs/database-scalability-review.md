@@ -536,3 +536,12 @@ the same connection. Bounded draft listing excludes any delivery history with an
 indexed NOT EXISTS lookup, with unsupported items isolated per row. Existing
 Group/Post schemas remain unchanged; PublicationJob is unreleased additive
 model-sync state. Isolated one-connection tests include old-job preservation.
+
+### Microwave Girls receipt lookup (#1526)
+
+Job-ID reconciliation accepts 1–100 distinct positive IDs and always intersects
+owner and optional status. Exact composeKey recovery uses the existing unique
+owner/composeKey/index prefix. Both use normal page/offset caps and return job
+rows only; they do not call source storage or compose. Nullable producer JSONB
+is bounded typed metadata, never a scan key; no extra queue/index or unbounded
+reconciliation query is introduced.
