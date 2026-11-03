@@ -38,7 +38,7 @@ export function imageFormat(value) {
 export const maxImageBytes = 64 * 1024 * 1024;
 export const maxImagePixels = 40 * 1000 * 1000;
 
-export async function encodePublicationImage(stream: Readable, watermark = null, watermarkApplied = false, selectedPolicy = policy) {
+export async function encodePublicationImage(stream: Readable, watermark = null, watermarkApplied = false, selectedPolicy = policy, maxEdge = null) {
     const chunks: Buffer[] = [];
     let size = 0;
     await imageResaveSpan('input_read', async () => {
@@ -63,6 +63,9 @@ export async function encodePublicationImage(stream: Readable, watermark = null,
     }
     const input = watermark && !watermarkApplied ? await imageResaveSpan('watermark', () => addWatermark(bytes, watermark)) : bytes;
     const image = sharp(input, options).rotate();
+    if (maxEdge) {
+        image.resize({width: maxEdge, height: maxEdge, fit: 'inside', withoutEnlargement: true});
+    }
     const encoder = imagePolicy(selectedPolicy) === policy
         ? image.flatten({background: 'white'}).jpeg({quality: 95, chromaSubsampling: '4:4:4'})
         : image.webp({quality: 95, effort: 6});

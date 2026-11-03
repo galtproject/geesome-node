@@ -5,6 +5,7 @@ import {IGeesomeApp} from '../../interface.js';
 import {getPublicApiContext} from '../api/publicUrls.js';
 import {publicationDigest} from './producer.js';
 import {isOwnedQueueGroup} from './sources.js';
+import {createImagePreparation, socialImagePolicy, imageLimit, validatePreparedPublication, preparedMediaDigest} from './imagePreparation.js';
 
 const marker = 'local-publications-v1';
 export function outboxName(userId) {
@@ -24,6 +25,7 @@ export function isManagedOutbox(group, userId) {
 export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 	const {normalizeRequest, snapshot, plain, problem, boundedInteger, groupIds, jobViews} = helpers;
 	const sequelize = Job.sequelize;
+	const prepareImages = createImagePreparation(app);
 	const groupInitializations = new Map<number, Promise<any>>();
 	const getGroup = userId => app.ms.group.getGroupByParams({name: outboxName(userId), isCollateral: false});
 	const groupView = group => ({id: group.id, name: group.name, title: group.title});
@@ -94,8 +96,11 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 		return records;
 	}
 	function normalize(input) {
-		if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['requestKey', 'text', 'imageStorageIds', 'destinations', 'scheduledAt', 'postId', 'producer', 'groupId'].includes(key))) {
+		if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['requestKey', 'text', 'imageStorageIds', 'destinations', 'scheduledAt', 'postId', 'producer', 'groupId', 'mediaPolicy'].includes(key))) {
 			throw problem(400, 'local_publication_input_invalid');
+		}
+		if (input.mediaPolicy !== undefined && input.mediaPolicy !== socialImagePolicy) {
+			throw problem(400, 'local_publication_media_policy_invalid');
 		}
 		if (typeof input.text !== 'string' || input.text.length > 40000 || /\u0000/.test(input.text) || !Array.isArray(input.imageStorageIds) || input.imageStorageIds.length > 20 || input.imageStorageIds.some(id => typeof id !== 'string' || !/^[A-Za-z0-9]+$/.test(id)) || new Set(input.imageStorageIds).size !== input.imageStorageIds.length) {
 			throw problem(400, 'local_publication_payload_invalid');
@@ -125,7 +130,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 		}
 		const normalized = normalizeRequest({requestKey: input.requestKey, postId: input.postId ?? 1, ...destinations[0], scheduledAt: input.scheduledAt === undefined ? '2000-01-01T00:00:00Z' : input.scheduledAt}, input.groupId !== undefined);
 		return {requestKey: normalized.requestKey, text: input.text, imageStorageIds: input.imageStorageIds, destinations,
-			scheduledAt: input.scheduledAt === undefined ? null : normalized.scheduledAt, postId: input.postId === undefined ? null : normalized.postId, ...(producer ? {producer} : {}), ...(input.groupId === undefined ? {} : {groupId: boundedInteger(input.groupId, 1, Number.MAX_SAFE_INTEGER)})};
+			scheduledAt: input.scheduledAt === undefined ? null : normalized.scheduledAt, postId: input.postId === undefined ? null : normalized.postId, ...(producer ? {producer} : {}), ...(input.groupId === undefined ? {} : {groupId: boundedInteger(input.groupId, 1, Number.MAX_SAFE_INTEGER)}), ...(input.mediaPolicy === undefined ? {} : {mediaPolicy: input.mediaPolicy})};
 	}
 	return {
 		async compose(userId, input) {
@@ -135,33 +140,60 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			if (previous) {
 				return previous;
 			}
+			if (request.mediaPolicy) {
+				validatePreparedPublication(request);
+			}
 			const imageContents = await images(userId, request.imageStorageIds, Boolean(request.postId));
 			const group = request.groupId ? await app.ms.group.getGroup(request.groupId) : await ensureGroup(userId);
 			if (!isOwnedQueueGroup(group, userId)) {
 				throw problem(403, 'local_publication_source_forbidden');
 			}
+			let existingPost;
+			let originalPayload = {text: request.text, attachments: imageContents.map(content => imageAttachment(app, content))};
+			if (request.postId) {
+				existingPost = await app.ms.group.getPost(userId, request.postId);
+				if (existingPost.groupId !== group.id || Number(existingPost.userId) !== Number(userId) || !isOwnedQueueGroup(existingPost.group, userId) || existingPost.isDeleted || existingPost.isEncrypted || existingPost.isRemote || existingPost.source) {
+					throw problem(403, 'local_publication_source_forbidden');
+				}
+				if (request.mediaPolicy && await Job.count({where: {postId: existingPost.id}})) {
+					throw problem(409, 'local_publication_draft_already_assigned');
+				}
+				originalPayload = await snapshot(app, existingPost);
+				if (originalPayload.text !== request.text || JSON.stringify(originalPayload.attachments.map(item => item.storageId)) !== JSON.stringify(request.imageStorageIds)) {
+					throw problem(409, 'local_publication_draft_changed');
+				}
+			}
+			// Every destination and rendition must be ready before a source or job transaction starts.
+			const prepared = request.mediaPolicy ? await prepareImages(userId, imageContents, request.destinations) : null;
 			const scheduledAt = request.scheduledAt || new Date().toISOString();
 			let jobs;
+			async function assertPrivateGroup(transaction) {
+				if (request.mediaPolicy) {
+					const current = await app.ms.database.models.Group.findByPk(group.id, {transaction, lock: transaction.LOCK.UPDATE});
+					if (!isOwnedQueueGroup(current, userId)) {
+						throw problem(403, 'local_publication_source_forbidden');
+					}
+				}
+			}
 			async function insertJobs(post, transaction, payload) {
-				jobs = await Job.bulkCreate(request.destinations.map((destination, index) => ({
-					userId, postId: post.id, ...destination, payload, scheduledAt, status: 'queued',
-					requestKey: `compose:${createHash('sha256').update(request.requestKey).digest('hex')}:${index}`,
-					requestHash: hash, composeKey: request.requestKey, composeHash: hash, composeIndex: index,
-					...(request.producer ? {producer: {...request.producer, digest: publicationDigest(destination.network, destination.localAccountId, payload, destination.target)}} : {})
-				})), {transaction, returning: true});
+				await assertPrivateGroup(transaction);
+				jobs = await Job.bulkCreate(request.destinations.map((destination, index) => {
+					const attachments = prepared ? prepared.get(imageLimit(destination.network)).map(content => imageAttachment(app, content)) : payload.attachments;
+					const preparedPayload = prepared ? {text: payload.text, attachments, mediaPreparation: {policy: socialImagePolicy,
+						sourceAttachments: payload.attachments, digest: preparedMediaDigest(destination.network, payload.attachments, attachments)}} : payload;
+					return {userId, postId: post.id, ...destination, payload: preparedPayload, scheduledAt, status: 'queued',
+						requestKey: `compose:${createHash('sha256').update(request.requestKey).digest('hex')}:${index}`,
+						requestHash: hash, composeKey: request.requestKey, composeHash: hash, composeIndex: index,
+						...(request.producer ? {producer: {...request.producer, digest: publicationDigest(destination.network, destination.localAccountId, payload, destination.target)}} : {})};
+				}), {transaction, returning: true});
 			}
 			try {
 				let post;
 				if (request.postId) {
-					post = await app.ms.group.getPost(userId, request.postId);
-					if (post.groupId !== group.id || Number(post.userId) !== Number(userId) || !isOwnedQueueGroup(post.group, userId) || post.isDeleted || post.isEncrypted || post.isRemote || post.source) {
-						throw problem(403, 'local_publication_source_forbidden');
-					}
-					const payload = await snapshot(app, post);
-					if (payload.text !== request.text || JSON.stringify(payload.attachments.map(item => item.storageId)) !== JSON.stringify(request.imageStorageIds)) {
-						throw problem(409, 'local_publication_draft_changed');
-					}
+					post = existingPost;
+					const payload = originalPayload;
 					await sequelize.transaction(async transaction => {
+						await assertPrivateGroup(transaction);
 						const locked = await app.ms.database.models.Post.findByPk(post.id, {transaction, lock: transaction.LOCK.UPDATE});
 						if (!locked || locked.isDeleted || Number(locked.userId) !== Number(userId) || locked.groupId !== group.id || Number(new Date(locked.updatedAt)) !== Number(new Date(post.updatedAt))) {
 							throw problem(409, 'local_publication_draft_changed');
@@ -178,7 +210,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 				} else {
 					const textContent = request.text ? await app.ms.content.saveData(userId, request.text, 'publication.txt', {mimeType: 'text/plain', skipFileCatalog: true, driver: {raw: true}}) : null;
 					// Build from owned immutable Content records without storage calls in the transaction.
-					const payload = {text: request.text, attachments: imageContents.map(content => imageAttachment(app, content))};
+					const payload = originalPayload;
 					post = await app.ms.group.createPost(userId, {groupId: group.id, status: PostStatus.Published,
 						contents: [...(textContent ? [{id: textContent.id}] : []), ...imageContents.map(content => ({id: content.id}))]}, {
 						afterPersist: (created, transaction) => insertJobs(created, transaction, payload)

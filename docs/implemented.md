@@ -1200,3 +1200,41 @@ target/SFW precedence, source drafts, route disable/mismatch, source revocation
 and single claim across concurrent consumers. API documentation generation and
 security/scalability inventory checks pass. Deployment order remains node first,
 then the matching producer and local executor. No live social posts were sent.
+
+## Provider-ready social images before queue acceptance (#1529)
+
+Opted-in compose intents freeze `mediaPolicy:"social-images-v1"`. Owned original
+JPEG/PNG/WebP files stay in the ordinary private source post; independent jobs
+receive prepared JPEG refs. Node preparation validates every destination text and
+image count first, then decodes/auto-orients/flattens white and fits a bounded
+4096-edge quality/resize ladder to Bluesky 2,000,000 bytes, Discord 8 MiB or the
+other current adapter 10 MiB caps. Input is bounded to 64 MiB/40 million pixels;
+animation, format mismatch and damaged images fail before source/job acceptance.
+Original files are never replaced and no background conversion scheduler exists.
+
+The completed-only owner/source/profile cache reuses existing Asset and asset
+idempotency tables with a server-only namespace. It verifies owned, undeleted
+Content and valid JPEG/byte metadata; deterministic bytes/CID uniqueness handle
+concurrent requests. No pending reservation or schema change is needed. Cached
+foreign assets are rejected and repaired through owned derivation. Source group
+privacy is rechecked under a row lock inside the final post/jobs transaction so
+privacy changes during preparation roll back the complete acceptance.
+
+Prepared manifests freeze policy, original refs and a canonical prepared-media
+digest. Producer digests retain the original authored intent, allowing Girls to
+verify original uploads and prepared refs independently. Old compose requests and
+receipt retries omit the policy and preserve their exact old hashes and media
+semantics. Completed compose replay returns original jobs before media work.
+
+Verification: 51 queue/auth/image/HTTP/outbox tests pass against Node22, fresh
+PostgreSQL and offline Kubo (`/tmp/geesome-social-images-node-51.log`). Fourteen
+existing imageOptimizationUnit/imageWatermark/preparedImage checks also pass
+with default encoder behavior (`/tmp/geesome-social-images-default-compat.log`).
+Coverage includes real PNG/WebP/transparency/orientation/dimension/noise-cap
+fixtures, all eight destination limits, deterministic manifest/encoder checks,
+and PostgreSQL/Kubo source preservation, durable profile reuse, atomic compose
+replay/races, original-draft activation, no partial jobs on media/text failure,
+producer/route digest preservation, foreign cache rejection and privacy-race
+rollback. API docs and security/scalability inventories are aligned. Live provider
+compatibility remains a separate account-level check; no social publication was
+performed by these tests.

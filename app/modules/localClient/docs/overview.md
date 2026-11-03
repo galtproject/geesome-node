@@ -148,3 +148,59 @@ account and authored target), not the effective claim route. It is never rewritt
 at claim. Producer receipts reconcile through node IDs/key/group/digest without
 a direct local-executor request to Girls. Deploy this node contract before the
 matching Girls/client versions. No social credentials are stored in groups/jobs.
+
+## Provider-ready images before queue acceptance (#1529)
+
+Compose may explicitly request `mediaPolicy:"social-images-v1"`. The opt-in is
+part of compose identity; omission keeps the exact previous normalized request
+hashes, source/job refs and producer digest semantics. Do not add it during a
+retry of an older intent. Unknown policy strings are rejected.
+
+The ordinary private source post keeps its original owned JPEG/PNG/WebP files.
+Before creating any source post or job, all destination text/count requirements
+are checked and every required rendition is prepared. Sources are authorized
+before conversion/cache lookup. Bounded storage reads accept at most 64 MiB and
+Sharp accepts at most 40 million pixels. Still-image decoding is complete and
+strict; format mismatch, truncated bytes and animation are rejected. There is no
+frame extraction, cropping, enlargement or background preparation worker.
+
+All current destinations receive JPEG, with auto-orientation and transparency
+flattened on white. First encoding reuses publication-jpeg95-v1 at quality95,
+4:4:4 chroma and a maximum edge of 4096. If its bytes exceed the network limit,
+the finite (quality, edge-scale) ladder is (90,1), (85,1), (80,.85), (75,.7),
+(70,.55), (65,.4), (60,.25), (60,.125), always from the original image. Each
+resize fits inside both dimensions without changing composition. The byte caps
+are Bluesky 2,000,000, Discord 8 MiB and other current adapters 10 MiB. These are
+the local adapters' supported limits, not a claim of live-provider acceptance.
+
+A server-only completed cache uses the existing assetIdempotencyKey namespace
+local-social-images-v1, keyed by owner/source CID+MIME/policy/byte-cap/max-edge.
+Renditions with the same profile reuse one cache across networks. Only completed
+results are recorded after owned Content and Asset persistence. There is no new
+table, pending reservation, retry scheduler or crash-stuck cache claim. Cache
+hits recheck owner, Content/Asset CID/type/deletion/byte metadata. Existing
+owner/CID Asset uniqueness and deterministic bytes handle concurrent conversion;
+compose uniqueness still rolls back duplicate source/jobs. Source authorization
+is repeated before lookup, and user-controlled Content properties do not choose
+the cached rendition. Failed preparation may leave reusable owned uploads/cache
+assets, but accepts no partial source/jobs.
+
+Prepared jobs freeze payload `{text,attachments,mediaPreparation}`; attachments
+are the prepared media refs. mediaPreparation is exactly
+`{policy,sourceAttachments,digest}` with original safe refs. Its SHA-256 digest
+uses UTF-8 JSON.stringify of ordered `{policy,network,sourceAttachments,attachments}`,
+projecting both arrays to ordered `[{storageId,mimeType}]`. This binds source and
+prepared renditions independently of derived URL/name/size metadata.
+
+Producer.digest continues to represent original authored intent: original
+attachments, original local account selection and authored target. It is never
+replaced with a prepared-media hash and is not rewritten at route binding. Existing
+draft activation compares stored original refs and text before preparing images;
+it retains the same source post. Replay returns frozen jobs before any encoding.
+
+Controlled validation errors are local_publication_media_policy_invalid,
+local_publication_image_count_invalid, local_publication_text_too_long,
+local_publication_image_input_invalid, local_publication_image_decode_failed,
+local_publication_image_too_large (413) and local_publication_image_cannot_fit
+(413). Reddit target/title checks retain typed target errors. Sharp/storage
+internal error text is never exposed through these validation responses.

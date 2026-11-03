@@ -52,6 +52,7 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiUse AuthErrors
 	 * @apiUse ValidationErrors
 	 * @apiDescription Requires publishing:local and assets:write. Creates a native ordinary closed owner outbox lazily, or uses an explicitly chosen owned ordinary closed channel. Source post and all destination jobs commit atomically before provider calls. Omitted schedule means now on first creation; identical request retries return the same source/jobs. Existing draft edits are rejected explicitly. No social credentials accepted.
+	 * @apiBody {String="social-images-v1"} [mediaPolicy] Prepare provider-ready JPEG images before source/job acceptance. Original refs stay in the private source post; per-job payload.mediaPreparation binds original refs and prepared refs. Omit for exact legacy behavior.
 	 * @apiBody {String} requestKey Owner-scoped compose idempotency key.
 	 * @apiBody {String} text New text (maximum 40000 characters).
 	 * @apiBody {String[]} imageStorageIds Owner uploaded asset storage IDs (maximum 20).
@@ -64,7 +65,7 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiBody {Number} [postId] Internal source reference for an unchanged owned outbox draft.
 	 * @apiSuccess {Object} group Owned ordinary closed outbox identity.
 	 * @apiSuccess {Number} postId Persisted source post.
-	 * @apiSuccess {Object[]} jobs Independent scheduled jobs per destination, each including its source groupId. Producer jobs include type/postId/digest and composeKey for owner-scoped reconciliation.
+	 * @apiSuccess {Object[]} jobs Independent scheduled jobs per destination, each including its source groupId. With mediaPolicy, attachments are prepared JPEGs and mediaPreparation contains policy/sourceAttachments/digest. Original producer.digest remains bound to authored originals. Producer jobs include type/postId/digest and composeKey for owner-scoped reconciliation.
 	 * @apiError (409) LocalPublicationRequestConflict Compose key already used with different input.
 	 * @apiError (409) LocalPublicationDraftChanged Draft text or image selection differs from stored source.
 	 */
