@@ -455,15 +455,17 @@ Plan: [Local social publishing](./plans/local-social-publishing.md).
 
 Remaining work:
 
-- Agree the node/client contract and register the client correctly in the hub.
-- Implement owner-scoped scheduled jobs with atomic claim, lease, result
-  acknowledgement, cancellation and uncertain-outcome recovery.
+- Agree a minimal node/client contract: one job table and five operations.
+- Implement owner-scoped scheduling, atomic claim, idempotent results and
+  queued cancellation; leave uncertain sends for manual review.
 - Deliver one scheduled Threads text post through the local worker first.
-- Add media, Instagram/Reddit adapters, then explicit source routes.
+- Add media and Instagram/Reddit adapters. Keep hub registration and automatic
+  source routes as separate work.
 
 Verification:
 
-- Concurrency, permissions, offline/restart, lost ack, edit/cancel and dedupe.
+- Concurrency, permissions, offline/restart, lost ack, cancel and request dedupe;
+  no automatic requeue after an uncertain send.
 - Provider mocks plus authorized account smoke before claiming real delivery.
 - API documentation, security inventory and relevant database checks.
 <!-- /todo-section -->

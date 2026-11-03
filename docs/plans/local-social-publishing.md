@@ -1,221 +1,176 @@
 # Local Social Publishing Plan
 
-Status: proposed; no publishing queue or client worker is delivered by this document.
-
-Planning tracker: [#1522](https://github.com/galtproject/geesome-node/issues/1522).
+Status: proposed; documentation only. Planning tracker: [#1522](https://github.com/galtproject/geesome-node/issues/1522).
 
 ## Contents
 
 - [Source of truth](#source-of-truth)
-- [Existing foundations](#existing-foundations)
-- [Proposed contract and policies](#proposed-contract-and-policies)
-- [Delivery sequence](#delivery-sequence)
-- [Execution workstreams](#execution-workstreams)
-- [Verification and release](#verification-and-release)
-- [Implementation notes and backlog](#implementation-notes-and-backlog)
+- [Minimal design](#minimal-design)
+- [Failure and editing rules](#failure-and-editing-rules)
+- [Delivery steps](#delivery-steps)
+- [Workstreams and verification](#workstreams-and-verification)
+- [Deferred work and review notes](#deferred-work-and-review-notes)
 
 ## Source of truth
 
-User requirements:
+- GeeSome Node stores scheduled jobs marked for local publication.
+- GeeSome Client polls the node and publishes due jobs from the user's local
+  accounts. Target networks are Instagram, Threads and Reddit.
+- Social credentials stay on the user's machine, whether the node runs locally
+  or on a remote server.
 
-- GeeSome Node stores scheduled publications marked for local execution.
-- GeeSome Client polls the node and publishes due jobs using the user's local
-  social accounts. Target networks are Instagram, Threads, and Reddit.
-- Social credentials and sessions remain on the user's machine.
-- A node may run locally or on an always-on server; its deployment location
-  does not change responsibility for local social execution.
+Recommendation: deliver scheduled Threads text first, then media and the other
+networks. For the first slice, explicitly select an existing, locally authored
+public GeeSome post. Its visibility in GeeSome does not change when a job runs.
+Draft/private publication and imported-source relay are separate follow-ups.
 
-Proposed implementation choices below are recommendations, not additional user
-requirements. The first delivery is one scheduled Threads text post, with
-failure recovery, before media and additional providers. Planning alone does
-not authorize live social posts. Do not rewrite user requirements to match an
-adapter's limitations.
+## Minimal design
 
-Non-goals for the first slice: scheduled visibility inside GeeSome, automatic
-channel routes, imported-source relay, social deletion/edit synchronization,
-and encrypted/private-source publication. These remain explicit follow-ups.
+Use a small `localClient` node module with **one new table: PublicationJob**.
+Do not reuse social account tables that store provider credentials on the node.
+Use the existing API key authentication and ownership checks; add only the
+publishing permission/scope required by that mechanism. No new pairing protocol,
+client registry, destination registry or capability negotiation in the MVP.
 
-## Existing foundations
+Each row contains:
 
-- [Post](../../app/modules/group/models/post.ts) has `publishOn` and status,
-  but the reviewed code has no scheduler executing `publishOn`.
-- [autoActions](../../app/modules/autoActions/models.ts) demonstrates durable
-  due actions and atomic database claims with expiry.
-- [ActivityPub deliveries](../../app/modules/activityPub/models.ts) demonstrate
-  per-destination jobs, deduplication, claim leases, and retry state. Reuse the
-  design patterns, not the ActivityPub-specific table or signing worker.
-- API keys already have ownership, permissions, expiry, and revocation.
-  Add narrow publishing scopes rather than handing a client a full user key.
-- [socNetAccount](../../app/modules/socNetAccount/models.ts) stores node-side
-  secrets and is not the destination model for local-only credentials.
-- Group lifecycle events can support later source routing; best-effort hooks
-  alone cannot guarantee enqueueing.
+- ID, authenticated owner, source post ID;
+- network and opaque local account ID, plus provider-specific target settings;
+- frozen payload (text first; authorized media references later), scheduled UTC time;
+- status: queued, processing, posted, failed, needs_review or cancelled;
+- unique owner-scoped request key to make schedule retries idempotent;
+- claim token and processing start time;
+- remote post ID/URL or a sanitized error.
 
-Review baseline: `cbb12a3f`; documentation prepared on `32b1d717` from origin/dev.
-Before implementation, recheck the relevant modules and TODO context.
+One post for three accounts creates three rows. The UI sends one request per
+row, each with its own request key. No parent publication entity or all-or-nothing
+multi-network transaction is needed. The local account ID is a reference, never
+a provider credential; account configuration remains in the client.
 
-## Proposed contract and policies
+Five API operations, relative to the discovered node API base:
 
-Use a dedicated `localClient` module on the node. Keep delivery state separate
-from `Post.status`: publishing to Threads must not publish a draft in GeeSome.
+1. Create a job: validate source ownership/edit permission, build its snapshot,
+   store the schedule. Repeating a request key returns the existing row; reject
+   a different payload under the same key. The server builds the snapshot only
+   on first creation, so a later source edit does not break a lost-response retry.
+2. List the owner's jobs with bounded pagination and optional status filtering.
+   Include the claim token for processing/needs_review jobs in this authenticated
+   owner-only response so manual resolution remains possible after a restart.
+3. Claim one job: atomically change the earliest eligible queued row to processing
+   and return its payload and claim token. Filter by authenticated owner and the
+   networks/account IDs configured in the polling client; use node time and
+   recheck source permissions. Invalid/deleted sources become failed, not sent.
+4. Report a result: require ownership and the matching claim token. Accept posted,
+   failed or needs_review; repeated identical results are harmless. Never silently
+   overwrite a terminal result with a conflicting report.
+5. Cancel a queued job: retain its row and request key, set cancelled. Processing
+   jobs cannot be cancelled or automatically reassigned.
 
-Proposed records:
+Account filters are not authorization. Every operation derives the owner from
+its API key. Two concurrent claims must not return the same job; use the existing
+DB claim pattern rather than find-then-update in application code.
 
-- Local client: owner, revocable credential binding, capabilities, last seen.
-- Destination: owner, bound client/local account ID, network, safe display
-  metadata and target settings; no provider access tokens or session cookies.
-- Job: source post, immutable content snapshot/revision, destination,
-  `executionMode: local`, `scheduledAt`, optional `expiresAt`, retry time,
-  status, dedupe identity, attempt count, claim token/expiry, remote ID/URL.
-- Attempt: durable identity and sanitized outcome for audit and reconciliation.
+Client loop: claim one job, call the selected network adapter, report the result,
+then continue. Only one send at a time per client; wait between empty/error polls.
+No server-side timer is needed to start jobs: the claim query selects due work.
 
-One post targeting three networks creates three jobs. A unique identity per
-publication request and destination prevents duplicate enqueueing; intentional
-reposts get a new publication identity. Scheduling and enqueueing must commit
-atomically. Discover the API base URL instead of hardcoding `/api/v1`.
+## Failure and editing rules
 
-API capabilities to specify before code:
+- Offline: jobs stay queued and are sent after reconnect, even if overdue. No
+  expiry policy in the first version; expose scheduled time in the status list.
+- Edit: cancel a queued job and create another with a new request key. No payload
+  revisions or in-place editing. Editing the source does not mutate its snapshot;
+  deleting it or losing permission prevents a later claim.
+- Known failure: mark failed and show the reason. A user may explicitly create
+  another job after correcting the problem; no automatic retry scheduler.
+- Timeout after sending: mark needs_review. A client crash may leave processing
+  unchanged; show old processing jobs as requiring review, using processing time.
+  Neither case is ever automatically returned to queued, even after a restart.
+- Lost acknowledgement: the running client can retry the same result report
+  without sending again. After a crash, manual verification may be required;
+  automatic recovery and a durable local journal are intentionally deferred.
+- Manual review: inspect the provider, then report the confirmed result through
+  the same result operation using the original claim token. Permit this explicit
+  resolution for needs_review or still-processing jobs, but preserve final posted,
+  failed and cancelled outcomes. Only after verification may the user schedule
+  another send. Stop the old executor and establish that its send has finished
+  before doing so; if the outcome is still uncertain, leave it for review.
+  Show this limitation clearly in the UI.
 
-1. Pair/revoke clients and register/update their secret-free destinations.
-2. Owner-scoped create/list/update/cancel scheduled publications.
-3. `POST jobs/claim`: bounded atomic selection of eligible due jobs using node
-   time, destination ownership, capabilities, and current source permissions.
-4. Renew a lease and report results with an attempt identity and claim token.
-5. Inspect status and resolve uncertain outcomes. Read-only GET never claims.
+A claim token prevents stale/conflicting reports; it is not a renewable lease.
+This design avoids automatic duplicate sends by leaving ambiguous work for human
+review. It does not promise exactly-once external publication or unattended recovery.
 
-Recommended defaults, to be confirmed in the implementation contract:
+## Delivery steps
 
-- Store UTC instants; show the user's timezone in the UI.
-- An offline client leaves work queued. On reconnect, deliver overdue work
-  unless its optional expiry has passed; show that delivery is late.
-- Freeze the payload when scheduling. Before claim, edits explicitly replace
-  the snapshot and increment its revision. Block ordinary mutation once claimed.
-- Recheck permissions at claim and before renewing an expired authorization;
-  revocation prevents further claims. A request already sent to a provider
-  cannot be recalled by changing node state.
-- Pending cancellation is immediate. In-flight cancellation is a request and
-  cannot promise to prevent or remove an external publication.
-- A lease prevents simultaneous ownership, not duplicate external effects.
-  Persist a local attempt journal before sending and persist the remote result
-  before ack. Retry ack idempotently after reconnect.
-- A crash or timeout after sending is `unknown` until reconciled. Do not blindly
-  resend after lease expiry or promise exactly-once delivery across providers.
-- Retry known safe failures with bounded backoff; distinguish rate limits,
-  expired authorization, permanent payload errors, and ambiguous outcomes.
+### 1. Queue and a simulated client
 
-The first slice accepts explicitly selected, locally authored public GeeSome
-posts. Supporting drafts/private posts or imported Telegram sources requires
-an explicit export policy and permission tests, not just read access to a channel.
+Keep a short request/response contract aligned with the client docs. Implement
+one table, the five operations, and tests with a fake provider. Reuse patterns
+from [ActivityPub claims](../../app/modules/activityPub/models.ts) and
+[autoActions](../../app/modules/autoActions/models.ts), not their module-specific
+tables or workers. `Post.publishOn` is not an existing scheduler to reuse.
 
-## Delivery sequence
+Done: a due job is claimed once, future/foreign jobs are excluded, results are
+idempotent, queued cancellation works, and a crash never causes automatic resend.
 
-### 0. Align contracts and prerequisites
+### 2. One scheduled Threads text post
 
-Update `geesome-client/docs/threads-client-plan.md` Source Of Truth and
-`docs/geesome-node-contract.md` with scheduling, claims, revisions, recovery,
-and Reddit. Confirm the defaults above. Research current official provider
-requirements before promising account eligibility, media delivery or localhost
-OAuth support. Record unresolved provider requirements as release blockers.
+Fix the client's network exposure/secret-bearing config API, native environment
+loading and node API discovery. Use existing local Threads account configuration;
+add the simple polling loop and a minimal job list with schedule, cancel and
+result/manual-review controls. Keep provider calls in small functions, without
+building a plugin framework. Validate the supported Threads authorization and
+publishing flow against current official docs before a credentialed smoke.
 
-Register `geesome-client` correctly in the hub: gitlink, `.gitmodules`, manifest,
-routing, and verification commands. Its current untracked local folder is not
-a reproducible submodule checkout. Keep this hub work separate from product PRs.
-
-Done: versioned contract examples and acceptance scenarios agreed; fresh hub
-checkout can obtain the client. No production credentials are needed.
-
-### 1. Node queue with a simulated client
-
-Implement models, scoped pairing/destinations, schedule API, atomic claim,
-lease renewal, idempotent ack, cancellation, safe retries and unknown outcomes.
-Create jobs through an explicit schedule operation, not a manifest hook.
-Expose minimal list/detail status APIs for the operational client UI.
-
-Done: a fake client can schedule, claim and complete work; two clients cannot
-hold the same valid lease; future/foreign/revoked jobs cannot be claimed;
-restart and ambiguous outcomes preserve correct state without provider calls.
-
-### 2. Threads text end to end
-
-First fix local service exposure and secret-bearing config responses, native
-environment loading and API discovery. Add pairing, polling with backoff,
-durable journal, recovery, provider auth lifecycle and queue/status UI.
-Use the existing Threads text implementation behind an adapter boundary.
-
-Done: a scheduled text is sent from the local machine, node status records its
-remote ID, offline catch-up works, and lost ack does not cause a second send.
-Use mocks first; actual provider publication needs an explicitly authorized
-test account and post. Node storage/logs contain no social credentials.
+Done: schedule text, leave the client offline, reconnect, publish from the local
+machine, record the remote ID. Lost ack and restart follow the rules above.
+Node APIs and logs never contain provider credentials.
 
 ### 3. Media, Instagram and Reddit
 
-Define attachment snapshots: immutable content identity, MIME/size and authorized
-download path. Keep provider tokens out of node requests and media URLs.
-Handle provider-side media retrieval explicitly; never silently expose private
-files. Add Threads media, then Instagram and Reddit adapters with researched
-capabilities, destination settings and provider-specific validation.
+Add media references and authorized downloads, then implement the provider
+functions one at a time. Research each provider's current account, target and
+media requirements when taking that provider's slice. Keep its validation local
+to the adapter. Do not build a universal capability schema in advance.
 
-Done per adapter: supported post types and account requirements are documented;
-mocked lifecycle/error tests pass, plus an authorized real-account smoke before
-claiming provider delivery complete. Providers may proceed independently after
-the shared media and adapter contracts stabilize.
+Done per provider: supported post types documented, mocked success/failure tests,
+and an explicitly authorized real-account smoke before declaring it working.
 
-### 4. Automatic source routes
+## Workstreams and verification
 
-Add channel/source-to-destination routes on top of the same jobs. Persist
-source-event/outbox identity transactionally and enqueue idempotently with
-bounded recovery scans. Define imported-content authorization, attribution,
-moderation and edit/delete semantics before enabling Telegram relay.
-
-Done: repeated events and node restarts enqueue once per intended destination;
-permission changes and deleted sources are handled by an explicit policy.
-
-## Execution workstreams
-
-The coordinating agent owns contract integration, plan updates, verification
-evidence, final push and PR handoff. Agents do not merge PRs. Implementers must
-update this plan with findings, decisions, remaining risks and delivered evidence.
-
-| Workstream | Inputs and write scope | Outputs / completion | Dependencies and verification |
+| Workstream | Inputs / write scope | Output and completion check | Dependency |
 | --- | --- | --- | --- |
-| Contract | User requirements, reviewed code; node plan and client contract docs | Agreed payloads, states, examples and policy decisions | First; review all acceptance scenarios |
-| Hub registration | Client remote/base policy; hub registration/docs only | Reproducible client checkout, helpers know its commands | Can run alongside contract; helper checks and fresh checkout |
-| Node queue | Frozen contract; new node module, auth integration, tests/docs | Stage 1 API and durable job lifecycle | After contract; DB-backed concurrency/ACL/recovery tests |
-| Client safety and worker | Frozen contract; client server/UI/adapters/tests/docs | Stage 2 worker, local journal and status UI | Safety work and mocked worker can parallel node; joint end-to-end gate |
-| Providers | Stable adapter/media contracts; separate client adapters | Stage 3 supported provider flows | After shared contracts; provider-specific tests and authorized smoke |
-| Source routing | Stable queue and source policy; node routes/event integration | Stage 4 reliable enqueue from source events | After queue; transactional restart/dedupe tests |
+| Node queue | Agreed five-operation contract; node module/auth/tests/docs | Step 1 passes DB-backed ownership, concurrency and failure tests | First |
+| Client | Same contract; client server/UI/provider functions/docs | Step 2 passes fake-provider tests and authorized smoke | Safety work and mocked loop can parallel node; integrate after step 1 |
+| Providers | Working loop/media contract; client provider code/tests | Step 3 per-provider validation | After Threads text; providers can proceed independently if useful |
 
-Do not let parallel workers edit shared schemas/contracts independently.
-Node implementation precedes client integration; no shared-library change is
-assumed. Add `geesome-libs`/`geesome-ui` dependencies only if inspection requires
-them, following hub dependency order.
+The coordinator owns shared-contract changes, integration and final handoff.
+Implementers update this plan with findings and evidence. Separate worker inputs,
+outputs and write scopes above; do not edit a shared contract independently.
 
-## Verification and release
+Required scenarios: two concurrent claims; future/foreign jobs; disabled key;
+source permission loss/deletion; repeated create/result; queued cancel;
+offline catch-up; known failure; provider timeout; crash before/after send;
+lost result response. Verify no automatic requeue and no leaked credentials.
+Inspect the small UI's queued, posted, failed and manual-review states.
 
-- Targeted tests: concurrent claim, stale token, lease expiry during send, lost
-  ack, repeated ack, retries, revocation, clock boundaries, edits/cancel, expiry,
-  permission loss, pagination and node/client restart.
-- Verify source/destination ownership and no secret leakage in APIs or logs.
-- UI evidence: scheduled, offline/late, in-progress, success, blocked/unknown,
-  failure/retry and cancellation states.
-- Node route changes require apiDoc generation, security route inventory, and
-  applicable database scalability/migration checks per AGENTS.md. New tables
-  use model sync; deployed-schema changes require the release migration flow.
-- Run targeted module tests first, then the required Docker-backed node suite
-  for implementation. Documentation-only changes need link/section/diff checks.
-- Roll out node capability/API first, then compatible clients. Old clients must
-  not receive jobs they cannot execute. Disable new claims for rollback; retain
-  jobs and attempt evidence, and reconcile in-flight/unknown work before retry.
-- Stop after pushing PRs and reporting readiness; merge remains user-owned.
+Follow AGENTS.md for targeted tests, Docker-backed integration checks, route docs,
+security inventory and applicable DB checks when implementing. This document-only
+change needs link/section/diff checks. Deploy the node API before the new client.
+Do not merge PRs; hand them to the user.
 
-## Implementation notes and backlog
+## Deferred work and review notes
 
-- 2026-11-03: read-only feasibility review found reusable queue patterns, but
-  no local publishing worker or executing `publishOn` scheduler. No runtime
-  delivery is implemented by this plan.
-- Pending contract decisions: overdue default/expiry, snapshot UX, unknown-result
-  reconciliation, authorization for draft/private/imported content.
-- Separate backlog: scheduled publication inside GeeSome; social edit/delete
-  synchronization; secure OS credential storage; additional providers.
-- Provider feasibility is not established by the repository analysis. Confirm
-  it from current official documentation and authorized tests during stage 0.
+- Separate maintenance: register geesome-client correctly in the hub. This is
+  needed for reproducible checkout, but does not block a queue prototype.
+- Later, only with a demonstrated need: automatic retries, lease renewal,
+  attempt-history table, durable client journal, automatic reconciliation,
+  client/destination registries, expiry and in-flight cancellation.
+- Separate features: automatic channel/Telegram routes, scheduled visibility
+  inside GeeSome, private/imported-source export and social edit/delete sync.
+- Keep the existing client plan/contract aligned when implementation starts;
+  do not maintain two competing full specifications.
+- 2026-11-03 review: reduced the initial four-record design to one table and five
+  operations. Manual review replaces automatic recovery of uncertain sends;
+  this is an intentional MVP tradeoff, not a claim of full automation.
