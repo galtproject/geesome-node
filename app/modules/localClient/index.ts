@@ -1,13 +1,14 @@
 import {createHash, randomBytes} from 'node:crypto';
 import {isIP} from 'node:net';
 import {contentTextToRichText, richTextToPlainText} from '../../richText.js';
-import {Op} from 'sequelize';
+import {Op, literal} from 'sequelize';
 import {IGeesomeApp} from '../../interface.js';
 import {ApiProblemError} from '../api/problem.js';
 import {getPublicApiContext} from '../api/publicUrls.js';
 import {PostStatus} from '../group/interface.js';
 import ILocalClientModule from './interface.js';
-import {getOutboxMethods, isManagedOutbox} from './outbox.js';
+import {getOutboxMethods} from './outbox.js';
+import {getSourceMethods, isOwnedQueueGroup} from './sources.js';
 
 const networks = ['threads', 'instagram', 'reddit', 'twitter', 'rule34xxx', 'bluesky', 'discord', 'telegram'];
 const statuses = ['queued', 'processing', 'posted', 'failed', 'needs_review', 'cancelled'];
@@ -23,7 +24,8 @@ export default async function localClient(app: IGeesomeApp) {
 export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClientModule {
 	const sequelize = PublicationJob.sequelize;
 	return {
-		...getOutboxMethods(app, PublicationJob, {normalizeRequest, snapshot, plain, problem, boundedInteger}),
+		...getOutboxMethods(app, PublicationJob, {normalizeRequest, snapshot, plain, problem, boundedInteger, groupIds: normalizeGroupIds, jobViews}),
+		...getSourceMethods(app, {problem, boundedInteger}),
 		async flushDatabase() {
 			await PublicationJob.destroy({where: {}});
 		},
@@ -33,23 +35,26 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 			const where = {userId, requestKey: request.requestKey};
 			const existing = await PublicationJob.findOne({where});
 			if (existing) {
-				return matchRequest(existing, requestHash);
+				return matchOwnedRequest(existing, requestHash);
 			}
 			const post = await assertSource(app, userId, request.postId);
 			const payload = await snapshot(app, post);
 			try {
-				return plain(await PublicationJob.create({...request, userId, requestHash, payload, status: 'queued'}));
+				return {...plain(await PublicationJob.create({...request, userId, requestHash, payload, status: 'queued'})), groupId: post.groupId};
 			} catch (error) {
 				if (error.name !== 'SequelizeUniqueConstraintError') {
 					throw error;
 				}
-				return matchRequest(await PublicationJob.findOne({where}), requestHash);
+				return matchOwnedRequest(await PublicationJob.findOne({where}), requestHash);
 			}
 		},
 		async listJobs(userId, query = {}) {
 			const limit = boundedInteger(query.limit ?? 20, 1, 100);
 			const offset = boundedInteger(query.offset ?? 0, 0, 1000000);
 			const where: any = {userId};
+			if (query.groupIds !== undefined) {
+				where.postId = postsInGroups(normalizeGroupIds(query.groupIds));
+			}
 			if (query.composeKey !== undefined) {
 				where.composeKey = identifier(query.composeKey, 128);
 			}
@@ -69,10 +74,12 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 				}
 				where.status = query.status;
 			}
-			return (await PublicationJob.findAll({where, limit, offset, order: [['createdAt', 'DESC'], ['id', 'DESC']]})).map(plain);
+			return jobViews(await PublicationJob.findAll({where, limit, offset, order: [['createdAt', 'DESC'], ['id', 'DESC']]}));
 		},
 		async claimJob(userId, input) {
 			const accounts = normalizeAccounts(input);
+			const groupIds = input.groupIds === undefined ? null : normalizeGroupIds(input.groupIds);
+			const routes = normalizeRoutes(input.routes ?? [], accounts);
 			const jobId = input.jobId === undefined ? null : boundedInteger(input.jobId, 1, Number.MAX_SAFE_INTEGER);
 			if (!accounts.length) {
 				return null;
@@ -82,14 +89,40 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 			for (let checked = 0; checked < 20; checked++) {
 				const job = await sequelize.transaction(async transaction => {
 					const candidate = await PublicationJob.findOne({
-						where: {userId, status: 'queued', ...(jobId ? {id: jobId} : {scheduledAt: {[Op.lte]: new Date()}}), [Op.or]: accounts},
+						where: {userId, status: 'queued', ...(jobId ? {id: jobId} : {scheduledAt: {[Op.lte]: new Date()}}),
+							...(groupIds ? {postId: postsInGroups(groupIds)} : {}),
+							[Op.or]: input.routes === undefined ? accounts : routes.map(route => ({network: route.network,
+								localAccountId: {[Op.in]: ['', route.localAccountId]}, postId: postsInGroups([route.groupId])}))},
 						order: [['scheduledAt', 'ASC'], ['id', 'ASC']],
 						transaction, lock: transaction.LOCK.UPDATE, skipLocked: true
 					});
 					if (!candidate) {
 						return null;
 					}
-					await candidate.update({status: 'processing', processingAt: new Date(), claimToken: randomBytes(32).toString('hex')}, {transaction});
+					let binding = {};
+					if (candidate.localAccountId === '') {
+						const source = await app.ms.database.models.Post.findByPk(candidate.postId, {attributes: ['groupId'], transaction});
+						const route = routes.find(route => route.groupId === Number(source?.groupId) && route.network === candidate.network);
+						if (!route) {
+							return null;
+						}
+						const fallback = {...route.target};
+						if (candidate.target.sensitive === false) {
+							if (fallback.sfwChannelId) {
+								fallback.channelId = fallback.sfwChannelId;
+							}
+							if (fallback.sfwChatId) {
+								fallback.chatId = fallback.sfwChatId;
+							}
+						}
+						delete fallback.sfwChannelId;
+						delete fallback.sfwChatId;
+						const target = {...fallback, ...candidate.target};
+						const normalized = normalizeRequest({requestKey: candidate.requestKey, postId: candidate.postId,
+							network: candidate.network, localAccountId: route.localAccountId, target, scheduledAt: new Date(candidate.scheduledAt).toISOString()});
+						binding = {localAccountId: normalized.localAccountId, target: normalized.target};
+					}
+					await candidate.update({...binding, status: 'processing', processingAt: new Date(), claimToken: randomBytes(32).toString('hex')}, {transaction});
 					return candidate;
 				});
 				if (!job) {
@@ -97,7 +130,10 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 				}
 				const claimWhere = {id: job.id, userId, status: 'processing', claimToken: job.claimToken};
 				try {
-					await assertSource(app, userId, job.postId);
+					const source = await assertSource(app, userId, job.postId);
+					if ((groupIds || input.routes !== undefined) && !isOwnedQueueGroup(source.group, userId)) {
+						throw problem(403, 'local_publication_source_forbidden');
+					}
 				} catch (error) {
 					if (!(error instanceof ApiProblemError)) {
 						// A crash/transient authorization lookup failure leaves manual review.
@@ -107,7 +143,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 					continue;
 				}
 				const current = await PublicationJob.findOne({where: claimWhere});
-				return current ? plain(current) : null;
+				return current ? (await jobViews([current]))[0] : null;
 			}
 			return null;
 		},
@@ -145,10 +181,30 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 			});
 		}
 	};
+	async function matchOwnedRequest(job, hash) {
+		matchRequest(job, hash);
+		return (await jobViews([job]))[0];
+	}
+	function postsInGroups(ids) {
+		const table = sequelize.getQueryInterface().queryGenerator.quoteTable(app.ms.database.models.Post.getTableName());
+		return {[Op.in]: literal(`(SELECT "id" FROM ${table} WHERE "groupId" IN (${ids.length ? ids.join(',') : 'NULL'}))`)};
+	}
+	async function jobViews(jobs) {
+		if (!jobs.length || !app.ms.database?.models?.Post) {
+			return jobs.map(plain);
+		}
+		const posts = await app.ms.database.models.Post.findAll({attributes: ['id', 'groupId'], where: {id: {[Op.in]: [...new Set(jobs.map(job => job.postId))]}}});
+		const groups = new Map(posts.map(post => [Number(post.id), Number(post.groupId)]));
+		return jobs.map(job => ({...plain(job), groupId: groups.get(Number(job.postId)) || null}));
+	}
 	async function getOwnedJob(userId, id, transaction) {
 		const job = await PublicationJob.findOne({where: {id: boundedInteger(id, 1, Number.MAX_SAFE_INTEGER), userId}, transaction, lock: transaction.LOCK.UPDATE});
 		if (!job) {
 			throw problem(404, 'local_publication_not_found');
+		}
+		if (app.ms.database?.models?.Post) {
+			const source = await app.ms.database.models.Post.findByPk(job.postId, {attributes: ['groupId'], transaction});
+			job.setDataValue('groupId', source?.groupId || null);
 		}
 		return job;
 	}
@@ -164,7 +220,7 @@ async function assertSource(app: IGeesomeApp, userId: number, postId: number) {
 		}
 		throw error;
 	}
-	const outbox = post && isManagedOutbox(post.group, userId) && Number(post.userId) === Number(userId);
+	const outbox = post && isOwnedQueueGroup(post.group, userId) && Number(post.userId) === Number(userId);
 	if (!post || (post.status !== PostStatus.Published && !(outbox && post.status === PostStatus.Draft)) || post.isDeleted || post.isEncrypted || post.isRemote || post.source || (!post.group?.isPublic && !outbox) || post.group.isEncrypted) {
 		throw problem(403, 'local_publication_source_forbidden');
 	}
@@ -180,7 +236,7 @@ async function snapshot(app: IGeesomeApp, post: any) {
 	const texts = [];
 	const attachments = [];
 	for (const content of contents) {
-		if ((content as any).isPrivate && !isManagedOutbox(post.group, post.userId)) {
+		if ((content as any).isPrivate && !isOwnedQueueGroup(post.group, post.userId)) {
 			throw problem(400, 'local_publication_private_attachment');
 		}
 		if (content.type === 'text') {
@@ -192,7 +248,7 @@ async function snapshot(app: IGeesomeApp, post: any) {
 				throw problem(400, 'local_publication_media_invalid');
 			}
 			const origin = new URL(publicUrl);
-			if (!isManagedOutbox(post.group, post.userId) && (origin.protocol !== 'https:' || isIP(origin.hostname) || !origin.hostname.includes('.') || /(?:^|\.)(?:localhost|local|internal)$/.test(origin.hostname))) {
+			if (!isOwnedQueueGroup(post.group, post.userId) && (origin.protocol !== 'https:' || isIP(origin.hostname) || !origin.hostname.includes('.') || /(?:^|\.)(?:localhost|local|internal)$/.test(origin.hostname))) {
 				throw problem(400, 'local_publication_public_media_url_required');
 			}
 			attachments.push({storageId: content.storageId, size: Number(content.size || 0), url: `${publicUrl}/ipfs/${content.storageId}`, mimeType: String(content.mimeType || ''), name: String(content.name || '').slice(0, 200)});
@@ -207,7 +263,7 @@ async function snapshot(app: IGeesomeApp, post: any) {
 	return {text, attachments};
 }
 
-export function normalizeRequest(input: any) {
+export function normalizeRequest(input: any, allowUnbound = false) {
 	assertKeys(input, ['requestKey', 'postId', 'network', 'localAccountId', 'scheduledAt', 'target']);
 	const requestKey = identifier(input.requestKey, 128);
 	const postId = boundedInteger(input.postId, 1, Number.MAX_SAFE_INTEGER);
@@ -215,7 +271,7 @@ export function normalizeRequest(input: any) {
 	if (!networks.includes(network)) {
 		throw problem(400, 'local_publication_network_invalid');
 	}
-	const localAccountId = identifier(input.localAccountId, 200);
+	const localAccountId = allowUnbound && (input.localAccountId === undefined || input.localAccountId === '') ? '' : identifier(input.localAccountId, 200);
 	if (typeof input.scheduledAt !== 'string' || !/T.*(?:Z|[+-]\d\d:\d\d)$/.test(input.scheduledAt) || !Number.isFinite(Date.parse(input.scheduledAt))) {
 		throw problem(400, 'local_publication_schedule_invalid');
 	}
@@ -229,21 +285,21 @@ export function normalizeRequest(input: any) {
 	}
 	if (network === 'discord') {
 		assertKeys(target, ['channelId', 'guildId', 'sensitive']);
-		if (typeof target.channelId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(target.channelId) || (target.sensitive !== undefined && typeof target.sensitive !== 'boolean') ||
+		if ((!(allowUnbound && !localAccountId && target.channelId === undefined) && (typeof target.channelId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(target.channelId))) || (target.sensitive !== undefined && typeof target.sensitive !== 'boolean') ||
 			(target.guildId !== undefined && (typeof target.guildId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(target.guildId)))) {
 			throw problem(400, 'local_publication_target_invalid');
 		}
 		return {requestKey, postId, network, localAccountId, scheduledAt: new Date(input.scheduledAt).toISOString(), target: {
-			channelId: target.channelId, ...(target.guildId === undefined ? {} : {guildId: target.guildId}), ...(target.sensitive === undefined ? {} : {sensitive: target.sensitive})}};
+			...(target.channelId === undefined ? {} : {channelId: target.channelId}), ...(target.guildId === undefined ? {} : {guildId: target.guildId}), ...(target.sensitive === undefined ? {} : {sensitive: target.sensitive})}};
 	}
 	if (network === 'telegram') {
 		assertKeys(target, ['chatId', 'sensitive']);
-		if (typeof target.chatId !== 'string' || !/^(?:-?[1-9][0-9]{0,19}|@[A-Za-z][A-Za-z0-9_]{4,31})$/.test(target.chatId) ||
+		if ((!(allowUnbound && !localAccountId && target.chatId === undefined) && (typeof target.chatId !== 'string' || !/^(?:-?[1-9][0-9]{0,19}|@[A-Za-z][A-Za-z0-9_]{4,31})$/.test(target.chatId))) ||
 			(target.sensitive !== undefined && typeof target.sensitive !== 'boolean')) {
 			throw problem(400, 'local_publication_target_invalid');
 		}
 		return {requestKey, postId, network, localAccountId, scheduledAt: new Date(input.scheduledAt).toISOString(), target: {
-			chatId: target.chatId, ...(target.sensitive === undefined ? {} : {sensitive: target.sensitive})}};
+			...(target.chatId === undefined ? {} : {chatId: target.chatId}), ...(target.sensitive === undefined ? {} : {sensitive: target.sensitive})}};
 	}
 	if (network === 'rule34xxx') {
 		assertKeys(target, ['tags', 'source', 'rating']);
@@ -277,7 +333,7 @@ export function normalizeRequest(input: any) {
 }
 
 function normalizeAccounts(input) {
-	assertKeys(input, ['accounts', 'jobId']);
+	assertKeys(input, ['accounts', 'jobId', 'groupIds', 'routes']);
 	if (!Array.isArray(input.accounts) || input.accounts.length > 100) {
 		throw problem(400, 'local_publication_accounts_invalid');
 	}
@@ -288,6 +344,46 @@ function normalizeAccounts(input) {
 		}
 		return {network: account.network, localAccountId: identifier(account.localAccountId, 200)};
 	});
+}
+
+function normalizeGroupIds(value) {
+	const values = typeof value === 'string' ? (value ? value.split(',') : []) : value;
+	if (!Array.isArray(values) || values.length > 100) {
+		throw problem(400, 'local_publication_groups_invalid');
+	}
+	const ids = values.map(id => boundedInteger(id, 1, Number.MAX_SAFE_INTEGER));
+	if (new Set(ids).size !== ids.length) {
+		throw problem(400, 'local_publication_groups_invalid');
+	}
+	return ids;
+}
+function normalizeRoutes(value, accounts) {
+	if (!Array.isArray(value) || value.length > 100) {
+		throw problem(400, 'local_publication_routes_invalid');
+	}
+	const routes = value.map(route => {
+		assertKeys(route, ['groupId', 'network', 'localAccountId', 'target']);
+		const groupId = boundedInteger(route.groupId, 1, Number.MAX_SAFE_INTEGER);
+		const localAccountId = identifier(route.localAccountId, 200);
+		if (!accounts.some(account => account.network === route.network && account.localAccountId === localAccountId)) {
+			throw problem(400, 'local_publication_routes_invalid');
+		}
+		const target = route.target ?? {};
+		assertKeys(target, route.network === 'discord' ? ['channelId', 'guildId', 'sfwChannelId'] : route.network === 'telegram' ? ['chatId', 'sfwChatId'] : []);
+		if (Object.keys(target).length) {
+			const {sfwChannelId, sfwChatId, ...primary} = target;
+			normalizeRequest({requestKey: 'route', postId: 1, network: route.network, localAccountId, scheduledAt: '2000-01-01T00:00:00Z', target: primary});
+			if (sfwChannelId !== undefined || sfwChatId !== undefined) {
+				normalizeRequest({requestKey: 'route', postId: 1, network: route.network, localAccountId, scheduledAt: '2000-01-01T00:00:00Z',
+					target: {...primary, ...(sfwChannelId === undefined ? {} : {channelId: sfwChannelId}), ...(sfwChatId === undefined ? {} : {chatId: sfwChatId})}});
+			}
+		}
+		return {groupId, network: route.network, localAccountId, target};
+	});
+	if (new Set(routes.map(route => `${route.groupId}:${route.network}`)).size !== routes.length) {
+		throw problem(400, 'local_publication_routes_invalid');
+	}
+	return routes;
 }
 
 function normalizeResult(input, network) {

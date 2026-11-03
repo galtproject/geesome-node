@@ -343,13 +343,13 @@ describe('local publication queue', function () {
 describe('local publication API authorization', () => {
 	it('requires publishing scope and user group permission on all operations', async () => {
 		const routes = new Map(), calls = [];
-		const module = Object.fromEntries(['createJob','listJobs','claimJob','reportResult','cancelJob','compose','getOutbox'].map(name => [name, async (...args) => {calls.push(args); return null;} ]));
+		const module = Object.fromEntries(['createJob','listJobs','claimJob','reportResult','cancelJob','compose','getOutbox','listSources','createSource'].map(name => [name, async (...args) => {calls.push(args); return null;} ]));
 		let permission = true;
 		registerApi({ms: {api: {
 			onAuthorizedPost: (path, handler) => routes.set(`POST ${path}`, handler),
 			onAuthorizedGet: (path, handler) => routes.set(`GET ${path}`, handler)
 		}}, checkUserCan: async (userId, name) => {assert.equal(name, CorePermissionName.UserGroupManagement); if (!permission) {throw new Error('not_permitted');}}} as any, module as any);
-		assert.equal(routes.size, 7);
+		assert.equal(routes.size, 9);
 		for (const handler of routes.values()) {
 			const req = {user: {id: 7}, apiKey: {scopes: ['assets:write']}, body: {}, query: {}, params: {jobId: 1}};
 			await assert.rejects(handler(req, {send() {}}), {code: 'insufficient_scope'});

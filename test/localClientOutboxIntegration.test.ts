@@ -4,6 +4,8 @@ import sharp from 'sharp';
 import {IGeesomeApp} from '../app/interface.js';
 import {CorePermissionName} from '../app/modules/database/interface.js';
 import {PostStatus} from '../app/modules/group/interface.js';
+import {preparedMediaDigest, imageLimit} from '../app/modules/localClient/imagePreparation.js';
+import {publicationDigest} from '../app/modules/localClient/producer.js';
 
 describe('private local publication outbox integration', function () {
 	this.timeout(90000);
@@ -192,7 +194,7 @@ describe('private local publication outbox integration', function () {
 		const victimToken = await app.generateUserApiKey(victim.id, {scopes: ['publishing:local', 'assets:write']});
 		assert.equal((await call('/compose', composeInput({text: 'Must not adopt foreign group', imageStorageIds: []}), victimToken)).status, 409);
 	});
-	it('rejects foreign assets, unmarked private sources and missing upload scope', async () => {
+	it('rejects foreign assets, nonchannel private sources and missing upload scope', async () => {
 		const other = await app.registerUser({email: 'other-outbox@example.com', name: 'other-outbox', permissions: [CorePermissionName.UserAll]});
 		const otherToken = await app.generateUserApiKey(other.id, {scopes: ['publishing:local', 'assets:write']});
 		assert.equal((await call('/compose', composeInput(), otherToken)).status, 403);
@@ -203,4 +205,295 @@ describe('private local publication outbox integration', function () {
 		const narrow = await app.generateUserApiKey(user.id, {scopes: ['publishing:local']});
 		assert.equal((await call('/compose', composeInput({imageStorageIds: []}), narrow)).status, 403);
 	});
+	it('creates an idempotent source and lists only eligible owned private groups including empty sources', async () => {
+		const requestKey = randomUUID();
+		const sourceInput = {requestKey, title: 'Girls queue'};
+		const created = await Promise.all(Array.from({length: 3}, () => call('/sources', sourceInput).then(successful)));
+		const queue = created[0].group;
+		assert.equal(new Set(created.map(item => item.group.id)).size, 1);
+		assert.equal(queue.lastPostAt, null);
+		assert.equal((await call('/sources', {...sourceInput, title: 'Different'})).status, 409);
+		assert.equal(await app.ms.database.models.Group.count({where: {name: queue.name}}), 1);
+		assert.equal(await app.ms.database.models.Post.count({where: {groupId: queue.id}}), 0);
+		const sources = await successful(await call(`/sources?ids=${queue.id}`));
+		assert.equal(sources.ownerId, user.id);
+		assert.deepEqual(sources.groups.map(group => group.id), [queue.id]);
+		assert.equal(sources.groups[0].lastPostAt, null);
+		for (const invalid of ['0', '1,1', '1,,2', 'x']) {
+			assert.equal((await call(`/sources?ids=${invalid}`)).status, 400);
+		}
+		const foreign = await app.registerUser({email: 'source-foreign@example.com', name: 'source-foreign', permissions: [CorePermissionName.UserAll]});
+		const foreignKey = await app.generateUserApiKey(foreign.id, {scopes: ['publishing:local', 'assets:write']});
+		assert.deepEqual((await successful(await call(`/sources?ids=${queue.id}`, undefined, foreignKey))).groups, []);
+		assert.equal((await call('/compose', composeInput({groupId: queue.id, imageStorageIds: []}), foreignKey)).status, 403);
+		const model = await app.ms.database.models.Group.findByPk(queue.id);
+		for (const mutation of [{isPublic: true}, {isEncrypted: true}, {isOpen: true}, {isRemote: true}, {isDeleted: true}, {isCollateral: true}]) {
+			await model.update(mutation);
+			assert.deepEqual((await successful(await call(`/sources?ids=${queue.id}`))).groups, []);
+			await model.update(Object.fromEntries(Object.keys(mutation).map(key => [key, false])));
+		}
+		const text = await app.ms.content.saveData(user.id, 'Source date', 'source-date.txt', {driver: {raw: true}});
+		const post = await app.ms.group.createPost(user.id, {groupId: queue.id, status: PostStatus.Published, contents: [{id: text.id}]});
+		const populated = (await successful(await call(`/sources?ids=${queue.id}`))).groups[0];
+		assert(populated.lastPostAt);
+		const replayed = await successful(await call('/sources', sourceInput));
+		assert.equal(replayed.group.id, queue.id);
+		assert.equal(replayed.group.lastPostAt, populated.lastPostAt);
+		assert.equal(await app.ms.database.models.Post.count({where: {groupId: queue.id}}), 1);
+		assert.equal(await app.ms.database.sequelize.models.publicationJob.count({where: {postId: post.id}}), 0);
+		await post.update({isDeleted: true});
+		assert.equal((await successful(await call('/sources', sourceInput))).group.lastPostAt, null);
+		assert.equal((await successful(await call(`/sources?ids=${queue.id}`))).groups[0].lastPostAt, null);
+	});
+	it('routes network-only jobs once within selected groups and preserves the authored producer digest', async () => {
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Routed source'}));
+		const input = composeInput({groupId: group.id, producer: {type: 'microwave-girls', postId: 501}, destinations: [{network: 'discord', target: {sensitive: false}}]});
+		const composed = await successful(await call('/compose', input));
+		const original = composed.jobs[0];
+		assert.equal(original.groupId, group.id);
+		assert.equal(original.localAccountId, '');
+		assert.deepEqual(original.target, {sensitive: false});
+		assert.equal((await call('/compose', {...input, groupId: undefined})).status, 400);
+		assert.equal((await successful(await call(`/sources?ids=${group.id}`))).groups[0].lastPostAt !== null, true);
+		const accounts = [{network: 'discord', localAccountId: 'discord_local'}];
+		const routes = [{groupId: group.id, ...accounts[0], target: {channelId: '100', sfwChannelId: '200', guildId: '300'}}];
+		assert.equal((await successful(await call('/claim', {accounts, groupIds: [], routes}))).job, null);
+		assert.equal((await successful(await call('/claim', {accounts, groupIds: [groupId], routes}))).job, null);
+		assert.equal((await successful(await call('/claim', {accounts, groupIds: [group.id]}))).job, null);
+		assert.equal((await successful(await call(`?groupIds=${group.id}`))).jobs[0].id, original.id);
+		assert.deepEqual((await successful(await call('?groupIds='))).jobs, []);
+		const raced = await Promise.all(Array.from({length: 4}, () => call('/claim', {accounts, groupIds: [group.id], routes}).then(successful)));
+		const claimed = raced.map(value => value.job).filter(Boolean);
+		assert.equal(claimed.length, 1);
+		assert.equal(claimed[0].localAccountId, 'discord_local');
+		assert.deepEqual(claimed[0].target, {sensitive: false, channelId: '200', guildId: '300'});
+		assert.deepEqual(claimed[0].producer, original.producer);
+		const replay = await successful(await call('/compose', input));
+		assert.equal(replay.jobs[0].id, original.id);
+		assert.equal(replay.jobs[0].localAccountId, 'discord_local');
+		assert.deepEqual(replay.jobs[0].producer, original.producer);
+		assert.equal((await successful(await call('/claim', {jobId: original.id, accounts, groupIds: [group.id], routes}))).job, null);
+	});
+	it('preserves authored channels, rejects unsafe routes, and leaves direct group posts as drafts', async () => {
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Draft source'}));
+		const text = await app.ms.content.saveData(user.id, 'Direct group draft', 'draft.txt');
+		const draft = await app.ms.group.createPost(user.id, {groupId: group.id, status: PostStatus.Published, contents: [{id: text.id}]});
+		const accounts = [{network: 'telegram', localAccountId: 'telegram_local'}];
+		const routes = [{groupId: group.id, ...accounts[0], target: {chatId: '-100', sfwChatId: '-200'}}];
+		assert.equal((await successful(await call('/claim', {accounts, groupIds: [group.id], routes}))).job, null);
+		const listed = await successful(await call(`/outbox?groupIds=${group.id}`));
+		assert.equal(listed.drafts[0].postId, draft.id);
+		assert.equal(listed.drafts[0].groupId, group.id);
+		assert.deepEqual((await successful(await call('/outbox?groupIds='))).drafts, []);
+		const input = composeInput({groupId: group.id, postId: draft.id, text: 'Direct group draft', imageStorageIds: [], destinations: [{network: 'telegram', target: {chatId: '-300', sensitive: false}}]});
+		const assigned = await successful(await call('/compose', input));
+		for (const extra of [{target: {chatId: '-100', sensitive: true}}, {target: {chatId: '-100', cookie: 'secret'}}, {localAccountId: 'missing'}]) {
+			assert.equal((await call('/claim', {accounts, groupIds: [group.id], routes: [{...routes[0], ...extra}]})).status, 400);
+		}
+		const claimed = (await successful(await call('/claim', {accounts, groupIds: [group.id], routes}))).job;
+		assert.equal(claimed.id, assigned.jobs[0].id);
+		assert.deepEqual(claimed.target, {chatId: '-300', sensitive: false});
+		assert.deepEqual((await successful(await call(`/outbox?groupIds=${group.id}`))).drafts, []);
+	});
+	it('fails selected source jobs if their private group becomes public before claim', async () => {
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Revoked source'}));
+		const composed = await successful(await call('/compose', composeInput({groupId: group.id, destinations: [{network: 'threads', localAccountId: destination.localAccountId}]})));
+		await app.ms.database.models.Group.update({isPublic: true}, {where: {id: group.id}});
+		assert.equal((await successful(await call('/claim', {accounts: [destination], groupIds: [group.id]}))).job, null);
+		assert.equal((await successful(await call(`?ids=${composed.jobs[0].id}`))).jobs[0].status, 'failed');
+	});
+
+	it('treats supplied routes as authoritative for bound jobs and rejects malformed group selections', async () => {
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Bound source'}));
+		const composed = await successful(await call('/compose', composeInput({groupId: group.id, imageStorageIds: [], destinations: [destination]})));
+		const input = {accounts: [destination, {...destination, localAccountId: 'other'}], groupIds: [group.id]};
+		assert.equal((await successful(await call('/claim', {...input, routes: []}))).job, null);
+		assert.equal((await successful(await call('/claim', {...input, routes: [{groupId: group.id, network: destination.network, localAccountId: 'other'}]}))).job, null);
+		assert.equal((await successful(await call('/claim', {...input, routes: [{groupId, ...destination}]}))).job, null);
+		for (const invalid of [[0], [group.id, group.id], '1);DROP TABLE posts', null]) {
+			assert.equal((await call('/claim', {...input, groupIds: invalid})).status, 400);
+		}
+		const claimed = (await successful(await call('/claim', {...input, routes: [{groupId: group.id, ...destination}]}))).job;
+		assert.equal(claimed.id, composed.jobs[0].id);
+		assert.equal(claimed.groupId, group.id);
+		assert.equal(claimed.localAccountId, destination.localAccountId);
+	});
+
+	async function uploadPreparationImage(bytes, mimeType, key = token) {
+		const form = new FormData();
+		form.append('file', new Blob([bytes], {type: mimeType}), `original.${mimeType.split('/')[1]}`);
+		form.append('expectedSha256', createHash('sha256').update(bytes).digest('hex'));
+		form.append('previewPolicy', 'none');
+		const response = await fetch(`${base}/assets`, {method: 'POST', headers: {Authorization: `Bearer ${key}`, 'Idempotency-Key': randomUUID()}, body: form});
+		const result = await response.json() as any;
+		assert.equal(response.status, 201, JSON.stringify(result));
+		return result;
+	}
+	it('prepares immutable JPEG jobs before acceptance and keeps originals in the private source post', async () => {
+		const bytes = await sharp({create: {width: 640, height: 480, channels: 4, background: {r: 10, g: 80, b: 150, alpha: .5}}}).png().toBuffer();
+		const uploaded = await uploadPreparationImage(bytes, 'image/png');
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Prepared media source'}));
+		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', imageStorageIds: [uploaded.storageId],
+			destinations: [{network: 'bluesky', target: {sensitive: false}}, {network: 'twitter'}, {network: 'threads'}, {network: 'discord', target: {sensitive: false}}]});
+		const composed = await successful(await call('/compose', input));
+		assert.equal(composed.jobs.length, 4);
+		const post = await app.ms.group.getPost(user.id, composed.postId);
+		assert.equal(post.groupId, group.id);
+		assert.equal(post.group.isPublic, false);
+		assert.deepEqual(post.contents.filter(content => content.mimeType?.startsWith('image/')).map(content => content.storageId), [uploaded.storageId]);
+		for (const job of composed.jobs) {
+			const prepared = job.payload.attachments[0];
+			assert.equal(prepared.mimeType, 'image/jpeg');
+			assert.notEqual(prepared.storageId, uploaded.storageId);
+			const chunks = [];
+			for await (const chunk of await app.ms.storage.getFileStream(prepared.storageId)) {
+				chunks.push(Buffer.from(chunk));
+			}
+			const actual = Buffer.concat(chunks);
+			assert.equal(actual.length, prepared.size);
+			assert(actual.length <= imageLimit(job.network));
+			assert.equal((await sharp(actual).metadata()).format, 'jpeg');
+			assert.equal(job.payload.mediaPreparation.policy, 'social-images-v1');
+			assert.equal(job.payload.mediaPreparation.sourceAttachments[0].storageId, uploaded.storageId);
+			assert.equal(job.payload.mediaPreparation.sourceAttachments[0].mimeType, 'image/png');
+			assert.equal(job.payload.mediaPreparation.digest, preparedMediaDigest(job.network, job.payload.mediaPreparation.sourceAttachments, job.payload.attachments));
+		}
+		const keyModel = app.ms.database.sequelize.models.assetIdempotencyKey;
+		const count = await keyModel.count({where: {userId: user.id, namespace: 'local-social-images-v1'}});
+		assert.equal(count, 3); // Twitter and Threads share the same cap/profile.
+		const read = app.ms.storage.getFileStream;
+		let sourceReads = 0;
+		app.ms.storage.getFileStream = async (...args) => {if (args[0] === uploaded.storageId) {sourceReads++;} return read.apply(app.ms.storage, args);};
+		try {
+			const replay = await successful(await call('/compose', input));
+			assert.equal(replay.postId, composed.postId);
+			assert.deepEqual(replay.jobs.map(job => job.id), composed.jobs.map(job => job.id));
+			const next = await successful(await call('/compose', {...input, requestKey: randomUUID()}));
+			assert.deepEqual(next.jobs.map(job => job.payload.attachments[0].storageId), composed.jobs.map(job => job.payload.attachments[0].storageId));
+			assert.equal(sourceReads, 0); // Durable trusted cache works beyond a single request.
+		} finally {
+			app.ms.storage.getFileStream = read;
+		}
+		assert.equal(await keyModel.count({where: {userId: user.id, namespace: 'local-social-images-v1'}}), count);
+		assert.equal((await call('/compose', {...input, mediaPolicy: undefined})).status, 409);
+	});
+	it('preserves original producer digest through preparation, routing and replay', async () => {
+		const bytes = await sharp({create: {width: 300, height: 200, channels: 3, background: '#b68261'}}).webp().toBuffer();
+		const uploaded = await uploadPreparationImage(bytes, 'image/webp');
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Prepared producer source'}));
+		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', imageStorageIds: [uploaded.storageId], producer: {type: 'microwave-girls', postId: 900}, destinations: [{network: 'telegram', target: {sensitive: false}}]});
+		const result = await successful(await call('/compose', input));
+		const job = result.jobs[0];
+		const expected = publicationDigest('telegram', '', {text: input.text, attachments: [{storageId: uploaded.storageId, mimeType: 'image/webp'}]}, {sensitive: false});
+		assert.equal(job.producer.digest, expected);
+		assert.notEqual(job.producer.digest, publicationDigest('telegram', '', job.payload, job.target));
+		const account = {network: 'telegram', localAccountId: 'telegram_prepared'};
+		const claimed = (await successful(await call('/claim', {jobId: job.id, groupIds: [group.id], accounts: [account], routes: [{groupId: group.id, ...account, target: {chatId: '-100', sfwChatId: '-200'}}]}))).job;
+		assert.equal(claimed.producer.digest, expected);
+		assert.equal(claimed.target.chatId, '-200');
+		assert.deepEqual(claimed.payload, job.payload);
+		const replayed = (await successful(await call('/compose', input))).jobs[0];
+		assert.equal(replayed.producer.digest, expected);
+		assert.equal(replayed.localAccountId, account.localAccountId);
+	});
+	it('keeps every destination unqueued when media or a later destination is invalid', async () => {
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'All-or-nothing preparation'}));
+		const before = await app.ms.database.models.Post.count({where: {groupId: group.id}});
+		const jobs = app.ms.database.sequelize.models.publicationJob;
+		const invalidText = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', text: 'x'.repeat(301), destinations: [{network: 'threads'}, {network: 'bluesky'}]});
+		const rejectedText = await call('/compose', invalidText);
+		assert.equal(rejectedText.status, 400);
+		assert.equal((await rejectedText.json() as any).code, 'local_publication_text_too_long');
+		assert.equal(await jobs.count({where: {composeKey: invalidText.requestKey}}), 0);
+		// Simulate malformed image metadata left by a legacy import. Binary upload
+		// avoids exercising the unrelated legacy metadata decoder in this fixture.
+		const malformed = await uploadPreparationImage(Buffer.from('legacy malformed image bytes'), 'application/octet-stream');
+		const malformedAsset = await app.ms.database.sequelize.models.asset.findOne({where: {userId: user.id, storageId: malformed.storageId}});
+		await app.ms.database.models.Content.update({mimeType: 'image/jpeg'}, {where: {id: malformedAsset.contentId}});
+		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', imageStorageIds: [malformed.storageId], destinations: [{network: 'twitter'}, {network: 'bluesky'}]});
+		const rejected = await call('/compose', input);
+		assert.equal(rejected.status, 400);
+		assert.equal((await rejected.json() as any).code, 'local_publication_image_decode_failed');
+		assert.equal(await jobs.count({where: {composeKey: input.requestKey}}), 0);
+		assert.equal(await app.ms.database.models.Post.count({where: {groupId: group.id}}), before);
+		assert.equal((await call('/compose', {...input, mediaPolicy: 'unknown'})).status, 400);
+	});
+	it('deduplicates concurrent prepared compose and activates drafts against original refs', async () => {
+		const bytes = await sharp({create: {width: 100, height: 160, channels: 3, background: '#6a8b94'}}).png().toBuffer();
+		const uploaded = await uploadPreparationImage(bytes, 'image/png');
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Prepared draft source'}));
+		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', text: 'Race', imageStorageIds: [uploaded.storageId], destinations: [{network: 'twitter'}]});
+		const raced = await Promise.all(Array.from({length: 3}, () => call('/compose', input).then(successful)));
+		assert.equal(new Set(raced.map(result => result.postId)).size, 1);
+		assert.equal(new Set(raced.map(result => result.jobs[0].id)).size, 1);
+		const content = await app.ms.database.getContentByStorageAndUserId(uploaded.storageId, user.id);
+		const text = await app.ms.content.saveData(user.id, 'Original draft', 'draft.txt', {driver: {raw: true}});
+		const source = await app.ms.group.createPost(user.id, {groupId: group.id, status: PostStatus.Published, contents: [{id: text.id}, {id: content.id}]});
+		const activated = await successful(await call('/compose', {...input, requestKey: randomUUID(), postId: source.id, text: 'Original draft'}));
+		assert.equal(activated.postId, source.id);
+		assert.notEqual(activated.jobs[0].payload.attachments[0].storageId, uploaded.storageId);
+		assert.equal(activated.jobs[0].payload.mediaPreparation.sourceAttachments[0].storageId, uploaded.storageId);
+	});
+
+	it('selects network byte profiles and refuses a foreign cached asset reference', async () => {
+		const raw = Buffer.alloc(1800 * 1800 * 3);
+		let random = 987654321;
+		for (let index = 0; index < raw.length; index++) {
+			random = (Math.imul(random, 1664525) + 1013904223) >>> 0;
+			raw[index] = random >>> 24;
+		}
+		const original = await sharp(raw, {raw: {width: 1800, height: 1800, channels: 3}}).png().toBuffer();
+		const uploaded = await uploadPreparationImage(original, 'image/png');
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Network profile source'}));
+		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', imageStorageIds: [uploaded.storageId], destinations: [{network: 'bluesky'}, {network: 'twitter'}]});
+		const result = await successful(await call('/compose', input));
+		const bsky = result.jobs.find(job => job.network === 'bluesky').payload.attachments[0];
+		const twitter = result.jobs.find(job => job.network === 'twitter').payload.attachments[0];
+		assert(bsky.size <= 2000000);
+		assert(twitter.size <= 10 * 1024 * 1024);
+		assert.notEqual(bsky.storageId, twitter.storageId);
+		const keyModel = app.ms.database.sequelize.models.assetIdempotencyKey;
+		const assetModel = app.ms.database.sequelize.models.asset;
+		const asset = await assetModel.findOne({where: {userId: user.id, storageId: bsky.storageId}});
+		const record = await keyModel.findOne({where: {userId: user.id, namespace: 'local-social-images-v1', assetId: asset.id}});
+		const foreign = await app.registerUser({email: 'prepared-foreign@example.com', name: 'prepared-foreign', permissions: [CorePermissionName.UserAll]});
+		const foreignKey = await app.generateUserApiKey(foreign.id, {scopes: ['publishing:local', 'assets:write']});
+		const foreignBytes = await sharp({create: {width: 50, height: 50, channels: 3, background: '#ff0000'}}).jpeg().toBuffer();
+		const foreignUpload = await uploadPreparationImage(foreignBytes, 'image/jpeg', foreignKey);
+		const foreignAsset = await assetModel.findOne({where: {userId: foreign.id, storageId: foreignUpload.storageId}});
+		await record.update({assetId: foreignAsset.id});
+		const retried = await successful(await call('/compose', {...input, requestKey: randomUUID(), destinations: [{network: 'bluesky'}]}));
+		assert.equal(retried.jobs[0].payload.attachments[0].storageId, bsky.storageId);
+		assert.notEqual(retried.jobs[0].payload.attachments[0].storageId, foreignUpload.storageId);
+		await record.reload();
+		assert.equal(record.assetId, asset.id);
+		assert.equal((await call('/compose', {...input, requestKey: randomUUID(), imageStorageIds: [foreignUpload.storageId]})).status, 403);
+	});
+
+	it('rolls back the source and all jobs if group privacy changes during preparation', async () => {
+		const bytes = await sharp({create: {width: 107, height: 163, channels: 3, background: '#bed715'}}).png().toBuffer();
+		const uploaded = await uploadPreparationImage(bytes, 'image/png');
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Privacy race source'}));
+		const read = app.ms.storage.getFileStream;
+		let changed = false;
+		app.ms.storage.getFileStream = async (...args) => {
+			if (!changed && args[0] === uploaded.storageId) {
+				changed = true;
+				await app.ms.database.models.Group.update({isPublic: true}, {where: {id: group.id}});
+			}
+			return read.apply(app.ms.storage, args);
+		};
+		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', imageStorageIds: [uploaded.storageId], destinations: [{network: 'twitter'}, {network: 'bluesky'}]});
+		try {
+			const response = await call('/compose', input);
+			assert.equal(response.status, 403);
+			assert.equal((await response.json() as any).code, 'local_publication_source_forbidden');
+		} finally {
+			app.ms.storage.getFileStream = read;
+		}
+		assert.equal(changed, true);
+		assert.equal(await app.ms.database.models.Post.count({where: {groupId: group.id}}), 0);
+		assert.equal(await app.ms.database.sequelize.models.publicationJob.count({where: {composeKey: input.requestKey}}), 0);
+	});
+
 });
