@@ -26,6 +26,8 @@ import defineIdentities from '../app/modules/googleAuthorization/models.js';
 import definePayments from '../app/modules/payments/models.js';
 import defineMembership from '../app/modules/membership/models.js';
 import { createGoogleAuthorization } from '../app/modules/googleAuthorization/index.js';
+import {createCryptoBalanceObserver} from '../app/modules/payments/cryptoBalanceObserver.js';
+import {quantity} from '../app/modules/payments/cryptoRpcValues.js';
 import { createPayments } from '../app/modules/payments/index.js';
 import { createMembership, periodEnd } from '../app/modules/membership/index.js';
 import registerGoogle from '../app/modules/googleAuthorization/api.js';
@@ -48,7 +50,24 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 	const cert = publicKey.export({ type: 'spki', format: 'pem' }).toString();
 	const verifier = new OAuth2Client();
 	let waveReader, waveCookie, meatCookie, paidInvoice;
+	let managedHeight = 100n, managedEpoch = 0;
+	const managedBalances = new Map<bigint, bigint>([[100n, 0n]]);
+	const managedObserver = createCryptoBalanceObserver(async (_network, method, params) => {
+		const at = (height) => [...managedBalances].filter(([key]) => key <= height).sort((a, b) => a[0] < b[0] ? 1 : -1)[0]?.[1] || 0n;
+		if (method === 'eth_getBlockByNumber') {
+			const height = ['latest', 'finalized'].includes(params[0]) ? managedHeight : BigInt(params[0]);
+			return {number: quantity(height), hash: '0x' + height.toString(16).padStart(64, '0'), timestamp: quantity(BigInt(Math.floor(managedEpoch / 1000)) + height - 100n)};
+		}
+		if (method === 'eth_call') {
+			return quantity(at(BigInt(params[1])));
+		}
+		if (method === 'eth_getTransactionCount') {
+			return '0x0';
+		}
+		throw Error('Unexpected managed HTTP fixture RPC ' + method);
+	}, async () => true);
 	const observer = {
+		scanBalances: managedObserver.scan,
 		quote: async () => '1000',
 		check: async () => true,
 		scan: async (_snapshot, address) => {
@@ -556,6 +575,42 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert.equal(setting.body.automation.payout, payout);
 		assert.equal(setting.body.automation.payoutSource, 'owner');
 		assert.equal((await request('payments/admin/meat/treasury', { token: 'test-owner', body: { inherit: true, version: 0 } })).status, 403);
+	});
+	it('reopens checkout over HTTP with unconsumed paid/expired deposits and bounds reader reconciliation', async () => {
+		const buyer = await login('wave', {sub: 'reusable-address-reader'});
+		managedEpoch = now.getTime();
+		(observer as any).boundary = async () => ({height: String(managedHeight)});
+		const option = await membershipModels.options.findOne({where: {resourceId: 'wave', period: 'month'}});
+		const create = () => request('payments/crypto/invoices', {cookie: buyer.cookie, body: {optionId: option.id, assetId: 'usdc-base', idempotencyKey: randomUUID()}});
+		const first = await create();
+		assert.equal(first.status, 200, JSON.stringify(first.body));
+		assert.equal(first.body.reusableAddress, true);
+		managedHeight += 20n; now = new Date(now.getTime() + 20000);
+		managedBalances.set(managedHeight, BigInt(option.amountCents) * 10000n);
+		const reconcile = id => request(`payments/crypto/invoices/${id}/reconcile`, {cookie: buyer.cookie, body: {}});
+		assert.equal((await reconcile(first.body.id)).body.status, 'paid');
+		managedHeight += 20n; now = new Date(now.getTime() + 20000);
+		managedBalances.set(managedHeight, BigInt(option.amountCents) * 10000n + 3000000n);
+		assert.equal((await reconcile(first.body.id)).body.availableCredit, '3');
+		const balanceList = (await request('membership/account', {cookie: buyer.cookie})).body.paymentBalances;
+		assert.deepEqual(balanceList.map(value => [value.assetId, value.availableCredit]), [['usdc-base', '3']]);
+		assert.equal((await request('membership/account', {cookie: waveCookie})).body.paymentBalances.length, 0);
+		assert(!JSON.stringify(balanceList).includes(first.body.address));
+		const second = await create();
+		assert.equal(second.body.address, first.body.address);
+		assert.equal(second.body.status, 'underpaid');
+		assert.equal(second.body.received, '3');
+		assert.equal((await request(`payments/crypto/invoices/${second.body.id}/reconcile`, {cookie: waveCookie, body: {}})).status, 404);
+		assert.equal((await request(`payments/crypto/invoices/${second.body.id}/reconcile`, {cookie: buyer.cookie, body: {}, headers: {Origin: ''}})).status, 403);
+		now = new Date(now.getTime() + 8 * 86400000); managedHeight += 8n * 86400n;
+		managedBalances.set(managedHeight, BigInt(option.amountCents) * 10000n + 20000000n);
+		const third = await create();
+		assert.equal(third.status, 200, JSON.stringify(third.body));
+		assert.equal(third.body.status, 'paid');
+		assert.equal(third.body.received, '20');
+		assert.equal(third.body.credit.period, 'halfyear');
+		assert.equal((await reconcile(third.body.id)).body.availableCredit, '0');
+		assert.equal(await membershipModels.periods.count({where: {readerId: buyer.body.reader.id, resourceId: 'wave'}}), 2);
 	});
 	it('expires access and sessions, supports logout, and preserves calendar anchors', async () => {
 		const future = new Date(now.getTime() + 60000);

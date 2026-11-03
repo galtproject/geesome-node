@@ -26,7 +26,7 @@ export default function (app, module) {
 	* @apiBody {String} idempotencyKey Stable request key.
 	* @apiSuccess {String} id Invoice id.
 	* @apiSuccess {String} address Receiving address.
-	* @apiSuccess {String} amount Required atomic-safe display amount.
+	* @apiSuccess {String} amount Required atomic-safe display amount. Existing unused managed-address funds are applied after verification.
 	* @apiSuccess {String} status Current invoice status.
 	* @apiSuccess {String} expiresAt Persisted quote expiry; new quotes last seven days. Existing quotes retain their saved deadline.
 	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.
@@ -49,7 +49,9 @@ export default function (app, module) {
 	* @apiSuccess {String} amount Required display amount.
 	* @apiSuccess {String} received Confirmed display amount.
 	* @apiSuccess {String} pending Detected amount awaiting network finality; never grants access.
-	* @apiSuccess {Object} [credit] Settled optionId, optionLabel, period, startsAt, endsAt and fractional extraDays, or null. Frozen eligible tariffs and verified excess determine access; paid invoices are terminal.
+	* @apiSuccess {Boolean} [reusableAddress] Managed-address deposit accounting is active.
+	* @apiSuccess {String} [availableCredit] Confirmed unused funds for this reader/resource/asset, including deposits after earlier quotes closed.
+	* @apiSuccess {Object} [credit] Settled optionId, optionLabel, period, startsAt, endsAt and fractional extraDays, or null. Frozen eligible tariffs and verified excess determine access. Paid invoices retain their receipt; unused managed-address deposits can fund a fresh quote.
 	* @apiError (401) reader_login_required Missing or expired session; owner routes require bearer credentials.
 	* @apiError (403) Forbidden Origin or owner/permission mismatch.
 	*/
@@ -58,6 +60,25 @@ export default function (app, module) {
 		const reader = await app.ms.googleAuthorization.reader(req, site, true);
 		res.send(await module.engine.read(site.id, reader.id, req.params.id));
 	}));
+	/**
+	* @api {post} /v1/payments/crypto/invoices/:id/reconcile Refresh own reusable-address credit
+	* @apiName PaymentsReconcile
+	* @apiGroup Payments
+	* @apiHeader {String} Host Configured creator-site host.
+	* @apiHeader {String} Origin Exact configured HTTPS site origin.
+	* @apiHeader {String} Cookie Site-bound __Host-geesome_session.
+	* @apiParam {String} id Own invoice UUID.
+	* @apiSuccess {String} status Invoice state after bounded account verification.
+	* @apiSuccess {String} availableCredit Unconsumed confirmed amount for managed addresses.
+	* @apiSuccess {Boolean} reusableAddress Whether unused deposits survive invoice closure.
+	* @apiError (401) reader_login_required Missing or expired site session.
+	* @apiError (404) invoice_not_found Invoice belongs to another reader or site.
+	*/
+	app.ms.api.onPost('payments/crypto/invoices/:id/reconcile', creatorSiteEndpoint(async (req, res) => {
+		const site = await configuredSite(app, req, true);
+		const reader = await app.ms.googleAuthorization.reader(req, site, true);
+		res.send(await module.engine.reconcile(site.id, reader.id, req.params.id));
+	}), {storageReadOnly: true});
 	/**
 	* @api {get} /v1/payments/admin/:resource/settings Read owner payment settings
 	* @apiName Payments3

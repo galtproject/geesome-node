@@ -14,6 +14,14 @@ for attempt in {1..30}; do
 done
 port=$(docker port "$name" 5432 | sed 's/.*://')
 export CREATOR_MEMBERSHIP_TEST_DATABASE_URL="postgres://geesome:geesome@127.0.0.1:${port}/geesome_membership_test"
+if [[ "${1:-}" == "--payments-only" ]]; then
+  shift
+  if [[ "$#" -eq 0 ]]; then
+    set -- test/payments/*.spec.ts
+  fi
+  node --import tsx --test --test-concurrency=1 "$@"
+  exit
+fi
 docker run --detach --name "$ipfs_name" --publish 127.0.0.1::5001   --env IPFS_PROFILE=test ipfs/kubo:v0.42.0 >/dev/null
 ipfs_port=""
 for attempt in {1..30}; do

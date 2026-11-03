@@ -140,11 +140,11 @@ export function createMembership(app, models, dependencies: any = {}) {
 		async account(id, reader, offset = 0) {
 			await resource(id);
 			if (!reader) {
-				return { reader: null, active: false, expiresAt: null, invoices: [], refunds: [] };
+				return { reader: null, active: false, expiresAt: null, invoices: [], refunds: [], paymentBalances: [] };
 			}
 			const where = { resourceId: id, readerId: reader.id };
 			const invoices = await M.invoices.findAll({ where, order: [['createdAt', 'DESC']], limit: 50, offset: Math.max(0, Math.min(100000, Math.trunc(Number(offset) || 0))) });
-			return { reader, ...await entitlement(reader.id, id), invoices: invoices.map(invoice => ({ id: invoice.id, optionSnapshot: invoice.optionSnapshot,
+			return { reader, ...await entitlement(reader.id, id), paymentBalances: await app.ms.payments.engine.balances(id, reader.id), invoices: invoices.map(invoice => ({ id: invoice.id, optionSnapshot: invoice.optionSnapshot,
 					status: invoice.status, paidAt: invoice.paidAt, createdAt: invoice.createdAt, provider: String(invoice.providerId).startsWith('direct:') ? 'direct' : 'legacy' })),
 				refunds: await M.refunds.findAll({ where, order: [['createdAt', 'DESC']], limit: 50, attributes: ['id', 'invoiceId', 'status', 'createdAt'] }) };
 		},

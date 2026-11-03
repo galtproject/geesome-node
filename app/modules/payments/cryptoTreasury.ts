@@ -407,7 +407,7 @@ export function createCryptoTreasury({ M, sequelize, resource, fail, clock, env,
 							assetId: s.assetId,
 							index: s.managedIndex,
 							fingerprint: s.managedFingerprint,
-							amount: invoice.receivedAtomic,
+							amount: s.collectionAtomic || invoice.receivedAtomic,
 						},
 					},
 				});

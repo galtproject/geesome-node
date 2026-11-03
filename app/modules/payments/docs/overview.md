@@ -125,8 +125,9 @@ Rollback refuses once a reader has multiple assignments, because the old unique
 constraint and allocator cannot safely represent them. Preserve the current
 ledger and fix forward. This migration operates on GeeSome's payments tables;
 it does not import the separate MicrowaveGirls ledger or its Google identities.
-A permanent deposit address still requires a fresh invoice before each payment;
-an unsolicited transfer does not automatically choose a tariff or renew access.
+A permanent managed EVM address retains unused confirmed deposits independently of
+invoice closure. A fresh invoice applies those funds at its quoted price; a transfer
+alone does not choose a tariff or renew access. See the address-credit section below.
 
 ## Working RPC preference (#1456)
 
@@ -153,6 +154,35 @@ selects the affordable tariff yielding the most access time and grants a
 proportional remainder with calendar anchors. Old pending snapshots use only
 the original tariff; already-paid periods remain unchanged. The invoice DTO
 adds unfinalized `pending` and a settled `credit` receipt. Partial payments are
-supported before settlement/expiry; paid invoices remain terminal and another
-payment requires a fresh invoice. See the [audit, credit policy and no-funds
+supported before settlement/expiry. Paid invoice receipts remain immutable; unused
+managed-address deposits can be applied to a fresh quote. See the [audit, credit policy and no-funds
 verification procedure](../../../../docs/plans/crypto-checkout-verification.md).
+
+## Reusable managed EVM address credit (#1530)
+
+`payments_crypto_accounts` holds cumulative verified gross external deposits,
+consumption and a canonical checkpoint for each reader/resource/address/asset.
+`payments_crypto_deposits` records append-only observation increments and proofs;
+`payments_crypto_credits` has a unique invoice consumption. Available credit is
+received minus consumed, independently of current on-chain balance and quote expiry.
+No chain state, operator-entered amount or arbitrary paid flag bypasses finality.
+
+The existing observer starts from the first known invoice boundary and corrects
+all journaled collection/funding flows and actual fees. New quotes consume only
+unused funds and freeze `collectionAtomic`; the treasury keeps one immutable job
+per paid invoice, so later topups never enlarge an earlier planned/signed job.
+Historical paid/refunded invoice amounts initialize consumption once. Unsupported
+or ambiguous historical proof fails closed, with isolated bootstrap backoff.
+Legacy externally controlled/BTC/TRON receipt invoices keep their original flow.
+
+Current quotes are observed every 15 seconds; inactive/expired accounts hourly.
+A fresh checkout reconciles immediately. The site-cookie/Origin-protected
+`POST /v1/payments/crypto/invoices/:id/reconcile` is bounded by an atomic account
+lease and 15-second interactive spacing, preserving 30-second provider-error retry.
+Account history adds a scoped `paymentBalances` projection for choosing the asset
+with retained credit; new quote pricing always comes from current server tariffs.
+
+Stop all old money workers before this accounting upgrade. Three new tables use
+normal model sync, with no modification of old financial tables or signed jobs.
+After consumption records exist, do not roll back to invoice-only money workers.
+See [architecture, tests and rollout](../../../../docs/plans/crypto-address-credit.md).

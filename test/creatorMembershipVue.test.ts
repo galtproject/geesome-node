@@ -173,6 +173,125 @@ describe('creator Vue checkout controller', () => {
         assert.equal(timers.size, 0);
         assert.equal(checkout.state.error.value, '');
     });
+    it('replaces an expired reusable quote and applies saved credit without reusing the expired id', async () => {
+        const routes: string[] = [];
+        globalThis.fetch = async (url, init) => {
+            routes.push(`${init?.method || 'GET'} ${url}`);
+            if (String(url).includes('/resource')) {
+                return Response.json({cryptoMethods: props.methods});
+            }
+            if (init?.method === 'POST') {
+                return Response.json({...invoice, id: 'replacement', reusableAddress: true, availableCredit: '1', received: '1', status: 'underpaid'});
+            }
+            return Response.json({invoices: [{id: 'expired', provider: 'direct', status: 'expired', optionSnapshot: props.option}]});
+        };
+        checkout = mountCheckout({...props, resume: {...invoice, id: 'expired', reusableAddress: true, status: 'expired', expiresAt: '2020-01-01T00:00:00Z'}});
+        await flush(); await flush();
+        assert.equal(checkout.state.invoice.value?.id, 'replacement');
+        assert.equal(checkout.state.remaining.value, '3');
+        assert.deepEqual(routes, ['GET /api/v1/membership/resource', 'GET /api/v1/membership/account', 'POST /api/v1/payments/crypto/invoices']);
+    });
+    it('uses the authenticated bounded reconciliation action for a reusable-address check', async () => {
+        const calls: any[] = [];
+        globalThis.fetch = async (url, init) => {
+            calls.push([String(url), init?.method]);
+            return Response.json({...invoice, reusableAddress: true, received: '2', availableCredit: '2', status: 'underpaid'});
+        };
+        checkout = mountCheckout({...props, resume: {...invoice, reusableAddress: true}});
+        await checkout.state.refresh(true);
+        assert.deepEqual(calls, [['/api/v1/payments/crypto/invoices/invoice/reconcile', 'POST']]);
+        assert.equal(checkout.state.remaining.value, '2');
+    });
+    it('prefers retained funds once, preserving the asset/key on retry and respecting later manual selection', async () => {
+        const attempts: {assetId: string; idempotencyKey: string}[] = [];
+        globalThis.fetch = async (_url, init) => {
+            if (init?.method !== 'POST') {
+                return Response.json({invoices: [], paymentBalances: [{assetId: 'usdc-base', availableCredit: '3', pending: '0'}]});
+            }
+            const body = JSON.parse(String(init.body)); attempts.push(body);
+            if (attempts.length === 1) {
+                throw Error('response lost');
+            }
+            return Response.json({...invoice, assetId: body.assetId});
+        };
+        checkout = mountCheckout({...props, methods: [...props.methods, {id: 'usdt-ethereum', currency: 'USDT', network: 'ethereum', networkLabel: 'Ethereum', available: true}]});
+        await flush(); await flush();
+        await checkout.state.create();
+        assert.deepEqual(attempts.map(value => value.assetId), ['usdc-base', 'usdc-base']);
+        assert.equal(attempts[0].idempotencyKey, attempts[1].idempotencyKey);
+        checkout.state.selectAsset('usdc-ethereum');
+        await flush(); await flush();
+        assert.equal(attempts[2].assetId, 'usdc-ethereum');
+        assert.notEqual(attempts[1].idempotencyKey, attempts[2].idempotencyKey);
+    });
+    it('automatically applies unused funds from a paid reusable invoice to a fresh quote', async () => {
+        const posts: string[] = [];
+        globalThis.fetch = async (url, init) => {
+            if (String(url).includes('/resource')) {
+                return Response.json({cryptoMethods: props.methods});
+            }
+            if (init?.method === 'POST') {
+                posts.push(String(url));
+                return Response.json({...invoice, id: 'automatic', reusableAddress: true, received: '3', availableCredit: '3', status: 'underpaid'});
+            }
+            return Response.json({invoices: [{id: 'invoice', provider: 'direct', status: 'paid', optionSnapshot: props.option}]});
+        };
+        checkout = mountCheckout({...props, resume: {...invoice, status: 'paid', reusableAddress: true, availableCredit: '3'}});
+        await flush(); await flush(); await flush();
+        assert.equal(checkout.state.invoice.value?.id, 'automatic');
+        assert.equal(checkout.state.remaining.value, '1');
+        assert.deepEqual(posts, ['/api/v1/payments/crypto/invoices']);
+    });
+    it('keeps reusable paid checkout polling and automatically consumes a later balance once', async () => {
+        let available = '0', created = false, grants = 0, quotes = 0;
+        const timers = new Set<number>();
+        let sequence = 0;
+        globalThis.setInterval = ((_handler, _delay) => {const id = ++sequence; timers.add(id); return id;}) as any;
+        globalThis.clearInterval = (id => {timers.delete(Number(id));}) as any;
+        globalThis.fetch = async (url, init) => {
+            const path = String(url);
+            if (path.includes('/resource')) {
+                return Response.json({cryptoMethods: props.methods});
+            }
+            if (path.endsWith('/account')) {
+                return Response.json({invoices: [{id: 'invoice', provider: 'direct', status: 'paid', optionSnapshot: props.option}]});
+            }
+            if (path.endsWith('/invoices') && init?.method === 'POST') {
+                quotes++; created = true; available = '0';
+            }
+            return Response.json({...invoice, id: created ? 'automatic-next' : 'invoice', reusableAddress: true, status: 'paid', availableCredit: available});
+        };
+        checkout = mountCheckout({...props, resume: {...invoice, reusableAddress: true}}, async () => {grants++;});
+        await checkout.state.refresh(); await checkout.state.refresh();
+        assert.equal(grants, 1);
+        assert.equal(timers.size, 1);
+        available = '4';
+        await checkout.state.refresh();
+        assert.equal(quotes, 1);
+        assert.equal(checkout.state.invoice.value?.id, 'automatic-next');
+        await checkout.state.refresh(); await checkout.state.refresh();
+        assert.equal(grants, 2);
+        assert.equal(quotes, 1);
+        assert.equal(timers.size, 1);
+    });
+    it('automatically refreshes an expired reusable quote even with no saved funds', async () => {
+        globalThis.fetch = async (url, init) => {
+            const path = String(url);
+            if (path.includes('/resource')) {
+                return Response.json({cryptoMethods: props.methods});
+            }
+            if (path.endsWith('/account')) {
+                return Response.json({invoices: []});
+            }
+            return Response.json(path.endsWith('/reconcile')
+                ? {...invoice, reusableAddress: true, status: 'expired', availableCredit: '0'}
+                : {...invoice, id: 'renewed-empty', reusableAddress: true});
+        };
+        checkout = mountCheckout({...props, resume: {...invoice, reusableAddress: true}});
+        await checkout.state.refresh();
+        assert.equal(checkout.state.invoice.value?.id, 'renewed-empty');
+        assert.equal(checkout.state.invoice.value?.status, 'pending');
+    });
     it('ignores an invoice creation response received after unmount', async () => {
         let resolve!: (response: Response) => void;
         globalThis.fetch = async (_url, init) => init?.method === 'POST'
