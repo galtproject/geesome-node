@@ -67,6 +67,18 @@ describe('local publication queue', function () {
 		assert.equal(jobs[0].claimToken.length, 64);
 		assert.equal(await claim(), null);
 	});
+	it('explicit claim ignores schedule only for the selected owned queued account job', async () => {
+		const future = await module.createJob(1, request({scheduledAt: '2099-01-01T00:00:00Z'}));
+		const due = await module.createJob(1, request());
+		assert.equal(await module.claimJob(2, {accounts: [account], jobId: future.id}), null);
+		assert.equal(await module.claimJob(1, {accounts: [{...account, localAccountId: 'other'}], jobId: future.id}), null);
+		const results = await Promise.all(Array.from({length: 4}, () => module.claimJob(1, {accounts: [account], jobId: future.id})));
+		assert.equal(results.filter(Boolean).length, 1);
+		assert.equal(results.find(Boolean).id, future.id);
+		assert.equal(await module.claimJob(1, {accounts: [account], jobId: future.id}), null);
+		assert.equal((await claim()).id, due.id);
+		await assert.rejects(module.claimJob(1, {accounts: [account], jobId: 0}), {status: 400});
+	});
 	it('skips a due row locked by an independent database connection', async () => {
 		const first = await module.createJob(1, request());
 		const second = await module.createJob(1, request({scheduledAt: '2021-01-01T00:00:00Z'}));

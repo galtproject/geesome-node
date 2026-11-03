@@ -51,3 +51,8 @@ No social token/cookie appears in node properties, payloads or job records.
 PublicationJob is unreleased model-synced state; additive compose columns/indexes
 use non-dropping model sync. Existing Group/Post table schemas are unchanged.
 See the [delivery plan](../../../../docs/plans/local-social-publishing.md).
+
+Explicit immediate delivery uses optional `jobId` in claim. Only that owner's
+queued job for a supplied configured account may be claimed; its schedule is
+bypassed, while source eligibility and atomic single-claim checks stay intact.
+Other queued jobs and completed/processing statuses are never selected instead.

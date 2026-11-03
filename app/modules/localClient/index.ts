@@ -60,6 +60,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 		},
 		async claimJob(userId, input) {
 			const accounts = normalizeAccounts(input);
+			const jobId = input.jobId === undefined ? null : boundedInteger(input.jobId, 1, Number.MAX_SAFE_INTEGER);
 			if (!accounts.length) {
 				return null;
 			}
@@ -68,7 +69,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 			for (let checked = 0; checked < 20; checked++) {
 				const job = await sequelize.transaction(async transaction => {
 					const candidate = await PublicationJob.findOne({
-						where: {userId, status: 'queued', scheduledAt: {[Op.lte]: new Date()}, [Op.or]: accounts},
+						where: {userId, status: 'queued', ...(jobId ? {id: jobId} : {scheduledAt: {[Op.lte]: new Date()}}), [Op.or]: accounts},
 						order: [['scheduledAt', 'ASC'], ['id', 'ASC']],
 						transaction, lock: transaction.LOCK.UPDATE, skipLocked: true
 					});
@@ -220,7 +221,7 @@ export function normalizeRequest(input: any) {
 }
 
 function normalizeAccounts(input) {
-	assertKeys(input, ['accounts']);
+	assertKeys(input, ['accounts', 'jobId']);
 	if (!Array.isArray(input.accounts) || input.accounts.length > 100) {
 		throw problem(400, 'local_publication_accounts_invalid');
 	}

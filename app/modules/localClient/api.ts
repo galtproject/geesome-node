@@ -98,6 +98,7 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiUse AuthErrors
 	 * @apiUse ValidationErrors
 	 * @apiDescription Requires publishing:local. Atomically claims one eligible owner job using node time, rechecking source permissions. Account filters do not grant permissions. No lease expiry or automatic resend.
+	 * @apiBody {Number} [jobId] Explicitly claim only this queued job now, ignoring its schedule. Ownership and account filters still apply.
 	 * @apiBody {Object[]} accounts Configured local accounts (maximum 100).
 	 * @apiBody {String="threads","instagram","reddit"} accounts.network Network.
 	 * @apiBody {String} accounts.localAccountId Local account identifier.

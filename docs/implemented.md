@@ -1120,3 +1120,10 @@ image upload, closed source persistence, lost-response replay without duplicatio
 multi-network batching, delayed jobs, unassigned native drafts and cancellation.
 The default minute worker first claimed after 60,006 ms. Desktop/mobile captures
 were reviewed. Provider endpoints were injected; real-account smoke remains open.
+
+Queued jobs also support explicit immediate claim by jobId, preserving ownership,
+account and source checks while bypassing only that job's schedule. The client
+serializes the manual action with automatic work and permits it while paused.
+Verification: 18 queue/auth Node22/PostgreSQL tests, including concurrent immediate
+claims, future/foreign/wrong-account restrictions and no fallback to another job;
+58 client tests and reviewed desktop/mobile browser click flow with mocks.
