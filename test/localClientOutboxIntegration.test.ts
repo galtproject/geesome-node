@@ -192,7 +192,7 @@ describe('private local publication outbox integration', function () {
 		const victimToken = await app.generateUserApiKey(victim.id, {scopes: ['publishing:local', 'assets:write']});
 		assert.equal((await call('/compose', composeInput({text: 'Must not adopt foreign group', imageStorageIds: []}), victimToken)).status, 409);
 	});
-	it('rejects foreign assets, unmarked private sources and missing upload scope', async () => {
+	it('rejects foreign assets, nonchannel private sources and missing upload scope', async () => {
 		const other = await app.registerUser({email: 'other-outbox@example.com', name: 'other-outbox', permissions: [CorePermissionName.UserAll]});
 		const otherToken = await app.generateUserApiKey(other.id, {scopes: ['publishing:local', 'assets:write']});
 		assert.equal((await call('/compose', composeInput(), otherToken)).status, 403);
@@ -203,4 +203,106 @@ describe('private local publication outbox integration', function () {
 		const narrow = await app.generateUserApiKey(user.id, {scopes: ['publishing:local']});
 		assert.equal((await call('/compose', composeInput({imageStorageIds: []}), narrow)).status, 403);
 	});
+	it('creates an idempotent source and lists only eligible owned private groups including empty sources', async () => {
+		const requestKey = randomUUID();
+		const sourceInput = {requestKey, title: 'Girls queue'};
+		const created = await Promise.all(Array.from({length: 3}, () => call('/sources', sourceInput).then(successful)));
+		const queue = created[0].group;
+		assert.equal(new Set(created.map(item => item.group.id)).size, 1);
+		assert.equal(queue.lastPostAt, null);
+		assert.equal((await call('/sources', {...sourceInput, title: 'Different'})).status, 409);
+		assert.equal(await app.ms.database.models.Group.count({where: {name: queue.name}}), 1);
+		assert.equal(await app.ms.database.models.Post.count({where: {groupId: queue.id}}), 0);
+		const sources = await successful(await call(`/sources?ids=${queue.id}`));
+		assert.equal(sources.ownerId, user.id);
+		assert.deepEqual(sources.groups.map(group => group.id), [queue.id]);
+		assert.equal(sources.groups[0].lastPostAt, null);
+		for (const invalid of ['0', '1,1', '1,,2', 'x']) {
+			assert.equal((await call(`/sources?ids=${invalid}`)).status, 400);
+		}
+		const foreign = await app.registerUser({email: 'source-foreign@example.com', name: 'source-foreign', permissions: [CorePermissionName.UserAll]});
+		const foreignKey = await app.generateUserApiKey(foreign.id, {scopes: ['publishing:local', 'assets:write']});
+		assert.deepEqual((await successful(await call(`/sources?ids=${queue.id}`, undefined, foreignKey))).groups, []);
+		assert.equal((await call('/compose', composeInput({groupId: queue.id, imageStorageIds: []}), foreignKey)).status, 403);
+		const model = await app.ms.database.models.Group.findByPk(queue.id);
+		for (const mutation of [{isPublic: true}, {isEncrypted: true}, {isOpen: true}, {isRemote: true}, {isDeleted: true}, {isCollateral: true}]) {
+			await model.update(mutation);
+			assert.deepEqual((await successful(await call(`/sources?ids=${queue.id}`))).groups, []);
+			await model.update(Object.fromEntries(Object.keys(mutation).map(key => [key, false])));
+		}
+	});
+	it('routes network-only jobs once within selected groups and preserves the authored producer digest', async () => {
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Routed source'}));
+		const input = composeInput({groupId: group.id, producer: {type: 'microwave-girls', postId: 501}, destinations: [{network: 'discord', target: {sensitive: false}}]});
+		const composed = await successful(await call('/compose', input));
+		const original = composed.jobs[0];
+		assert.equal(original.groupId, group.id);
+		assert.equal(original.localAccountId, '');
+		assert.deepEqual(original.target, {sensitive: false});
+		assert.equal((await call('/compose', {...input, groupId: undefined})).status, 400);
+		assert.equal((await successful(await call(`/sources?ids=${group.id}`))).groups[0].lastPostAt !== null, true);
+		const accounts = [{network: 'discord', localAccountId: 'discord_local'}];
+		const routes = [{groupId: group.id, ...accounts[0], target: {channelId: '100', sfwChannelId: '200', guildId: '300'}}];
+		assert.equal((await successful(await call('/claim', {accounts, groupIds: [], routes}))).job, null);
+		assert.equal((await successful(await call('/claim', {accounts, groupIds: [groupId], routes}))).job, null);
+		assert.equal((await successful(await call('/claim', {accounts, groupIds: [group.id]}))).job, null);
+		assert.equal((await successful(await call(`?groupIds=${group.id}`))).jobs[0].id, original.id);
+		assert.deepEqual((await successful(await call('?groupIds='))).jobs, []);
+		const raced = await Promise.all(Array.from({length: 4}, () => call('/claim', {accounts, groupIds: [group.id], routes}).then(successful)));
+		const claimed = raced.map(value => value.job).filter(Boolean);
+		assert.equal(claimed.length, 1);
+		assert.equal(claimed[0].localAccountId, 'discord_local');
+		assert.deepEqual(claimed[0].target, {sensitive: false, channelId: '200', guildId: '300'});
+		assert.deepEqual(claimed[0].producer, original.producer);
+		const replay = await successful(await call('/compose', input));
+		assert.equal(replay.jobs[0].id, original.id);
+		assert.equal(replay.jobs[0].localAccountId, 'discord_local');
+		assert.deepEqual(replay.jobs[0].producer, original.producer);
+		assert.equal((await successful(await call('/claim', {jobId: original.id, accounts, groupIds: [group.id], routes}))).job, null);
+	});
+	it('preserves authored channels, rejects unsafe routes, and leaves direct group posts as drafts', async () => {
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Draft source'}));
+		const text = await app.ms.content.saveData(user.id, 'Direct group draft', 'draft.txt');
+		const draft = await app.ms.group.createPost(user.id, {groupId: group.id, status: PostStatus.Published, contents: [{id: text.id}]});
+		const accounts = [{network: 'telegram', localAccountId: 'telegram_local'}];
+		const routes = [{groupId: group.id, ...accounts[0], target: {chatId: '-100', sfwChatId: '-200'}}];
+		assert.equal((await successful(await call('/claim', {accounts, groupIds: [group.id], routes}))).job, null);
+		const listed = await successful(await call(`/outbox?groupIds=${group.id}`));
+		assert.equal(listed.drafts[0].postId, draft.id);
+		assert.equal(listed.drafts[0].groupId, group.id);
+		assert.deepEqual((await successful(await call('/outbox?groupIds='))).drafts, []);
+		const input = composeInput({groupId: group.id, postId: draft.id, text: 'Direct group draft', imageStorageIds: [], destinations: [{network: 'telegram', target: {chatId: '-300', sensitive: false}}]});
+		const assigned = await successful(await call('/compose', input));
+		for (const extra of [{target: {chatId: '-100', sensitive: true}}, {target: {chatId: '-100', cookie: 'secret'}}, {localAccountId: 'missing'}]) {
+			assert.equal((await call('/claim', {accounts, groupIds: [group.id], routes: [{...routes[0], ...extra}]})).status, 400);
+		}
+		const claimed = (await successful(await call('/claim', {accounts, groupIds: [group.id], routes}))).job;
+		assert.equal(claimed.id, assigned.jobs[0].id);
+		assert.deepEqual(claimed.target, {chatId: '-300', sensitive: false});
+		assert.deepEqual((await successful(await call(`/outbox?groupIds=${group.id}`))).drafts, []);
+	});
+	it('fails selected source jobs if their private group becomes public before claim', async () => {
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Revoked source'}));
+		const composed = await successful(await call('/compose', composeInput({groupId: group.id, destinations: [{network: 'threads', localAccountId: destination.localAccountId}]})));
+		await app.ms.database.models.Group.update({isPublic: true}, {where: {id: group.id}});
+		assert.equal((await successful(await call('/claim', {accounts: [destination], groupIds: [group.id]}))).job, null);
+		assert.equal((await successful(await call(`?ids=${composed.jobs[0].id}`))).jobs[0].status, 'failed');
+	});
+
+	it('treats supplied routes as authoritative for bound jobs and rejects malformed group selections', async () => {
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Bound source'}));
+		const composed = await successful(await call('/compose', composeInput({groupId: group.id, imageStorageIds: [], destinations: [destination]})));
+		const input = {accounts: [destination, {...destination, localAccountId: 'other'}], groupIds: [group.id]};
+		assert.equal((await successful(await call('/claim', {...input, routes: []}))).job, null);
+		assert.equal((await successful(await call('/claim', {...input, routes: [{groupId: group.id, network: destination.network, localAccountId: 'other'}]}))).job, null);
+		assert.equal((await successful(await call('/claim', {...input, routes: [{groupId, ...destination}]}))).job, null);
+		for (const invalid of [[0], [group.id, group.id], '1);DROP TABLE posts', null]) {
+			assert.equal((await call('/claim', {...input, groupIds: invalid})).status, 400);
+		}
+		const claimed = (await successful(await call('/claim', {...input, routes: [{groupId: group.id, ...destination}]}))).job;
+		assert.equal(claimed.id, composed.jobs[0].id);
+		assert.equal(claimed.groupId, group.id);
+		assert.equal(claimed.localAccountId, destination.localAccountId);
+	});
+
 });

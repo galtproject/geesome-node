@@ -1172,3 +1172,31 @@ result flow, valid/invalid typed IDs, owner filters, false sensitivity, AT URI a
 API docs generated, security/scalability inventories and diff checks passed.
 No live provider sends were made. Existing schema and payload compatibility are
 preserved; broader unrelated tests were not rerun for this contract-only slice.
+
+
+## Selected private group queue sources (#1528)
+
+GeeSome is the sole queue boundary between producer applications and local social
+executors. Owner-authorized sources GET lists ordinary closed local channels
+(including empty groups) with latest nondeleted post time. Stable source POST
+creates one native channel per owner/request key and recovers retries. Compose
+may explicitly select such a group and enqueue network-only destinations without
+local account IDs; direct posts remain unassigned drafts.
+
+The client selects group/network/account routes. Bounded group filters apply to
+job/draft reads and atomic claims. Supplied routes are authoritative even for
+already bound jobs; disabled or mismatched routes cannot dispatch them. Only
+unbound jobs resolve missing account and Discord/Telegram channel/chat defaults
+under the claim lock, preserving authored values and SFW intent. Source privacy
+and edit authorization are rechecked before any claim is returned. Original
+producer intent digests never change; providers and Girls callbacks are not called
+by the node. Results remain in the existing owner/claim-token job table; there is
+no second queue, automatic replay or additional schema migration.
+
+Verification: 39 focused queue/auth + real HTTP/outbox tests pass with Node22,
+PostgreSQL and Kubo (`/tmp/geesome-group-sources-node-39.log`). They cover source ownership/private eligibility, empty groups/date listing, source
+idempotency/concurrency, selected group filtering, network-only binding, authored
+target/SFW precedence, source drafts, route disable/mismatch, source revocation
+and single claim across concurrent consumers. API documentation generation and
+security/scalability inventory checks pass. Deployment order remains node first,
+then the matching producer and local executor. No live social posts were sent.
