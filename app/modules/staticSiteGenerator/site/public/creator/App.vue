@@ -7,6 +7,7 @@ import AccountPanel from './AccountPanel.vue';
 import SocialLinks from './SocialLinks.vue';
 import MembershipChoice from './MembershipChoice.vue';
 import PreviewGallery from './PreviewGallery.vue';
+import SubscriptionActivated from './SubscriptionActivated.vue';
 import MembershipModal from './MembershipModal.vue';
 import MembershipPlans from './MembershipPlans.vue';
 import CryptoCheckout from './CryptoCheckout.vue';
@@ -109,6 +110,7 @@ function join() {
         </CreatorLayout>
         <MembershipModal v-if="modal" :name="modal" :direct="paymentMethod === 'direct'" :error="error" @close="closeModal">
             <PreviewGallery v-if="modal === 'gallery'" v-model:index="imageIndex" :images="gallery" />
+            <SubscriptionActivated v-else-if="modal === 'activated'" :expires-at="activeUntil" @continue="closeModal" />
             <template v-else-if="modal === 'login'">
                 <h2 id="membership-dialog-title">{{ polished ? 'Sign in to join this site' : 'Sign in or create an account' }}</h2>
                 <p>{{ polished ? 'Continue with Google to manage your membership on this site.' : 'Continue with Google to manage your membership.' }}</p>
