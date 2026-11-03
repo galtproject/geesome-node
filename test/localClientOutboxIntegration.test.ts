@@ -232,6 +232,18 @@ describe('private local publication outbox integration', function () {
 			assert.deepEqual((await successful(await call(`/sources?ids=${queue.id}`))).groups, []);
 			await model.update(Object.fromEntries(Object.keys(mutation).map(key => [key, false])));
 		}
+		const text = await app.ms.content.saveData(user.id, 'Source date', 'source-date.txt', {driver: {raw: true}});
+		const post = await app.ms.group.createPost(user.id, {groupId: queue.id, status: PostStatus.Published, contents: [{id: text.id}]});
+		const populated = (await successful(await call(`/sources?ids=${queue.id}`))).groups[0];
+		assert(populated.lastPostAt);
+		const replayed = await successful(await call('/sources', sourceInput));
+		assert.equal(replayed.group.id, queue.id);
+		assert.equal(replayed.group.lastPostAt, populated.lastPostAt);
+		assert.equal(await app.ms.database.models.Post.count({where: {groupId: queue.id}}), 1);
+		assert.equal(await app.ms.database.sequelize.models.publicationJob.count({where: {postId: post.id}}), 0);
+		await post.update({isDeleted: true});
+		assert.equal((await successful(await call('/sources', sourceInput))).group.lastPostAt, null);
+		assert.equal((await successful(await call(`/sources?ids=${queue.id}`))).groups[0].lastPostAt, null);
 	});
 	it('routes network-only jobs once within selected groups and preserves the authored producer digest', async () => {
 		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Routed source'}));

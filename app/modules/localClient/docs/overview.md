@@ -117,7 +117,9 @@ for only the bounded group page (limit 1–100, offset <=1000000). Optional `ids
 accepts 1–100 distinct positive IDs intersected with owner/eligibility filters.
 POST the same path with stable `{requestKey,title?}` creates a native private
 channel deterministically; identical retries recover the group and changed
-title under the same key conflicts. This does not create posts/jobs.
+title under the same key conflicts. Successful creation/replay returns the current
+lastPostAt using the same nondeleted-post definition as GET, including null for
+empty groups. This does not create posts/jobs.
 
 Compose accepts explicit `groupId`; its identity is included in replay hashing
 only when present, preserving old requests. Only with groupId may a destination

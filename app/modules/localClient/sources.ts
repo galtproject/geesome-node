@@ -80,10 +80,11 @@ export function getSourceMethods(app, helpers) {
 				const result = await initializations.get(name);
 				// Concurrent reuse of a key with a different title must still conflict.
 				const group = await find();
-				if (JSON.parse(group.propertiesJson || '{}').localPublishingSource !== intent) {
+				if (!isOwnedQueueGroup(group, userId) || JSON.parse(group.propertiesJson || '{}').localPublishingSource !== intent) {
 					throw problem(409, 'local_publication_source_conflict');
 				}
-				return result;
+				const lastPostAt = await Post.max('createdAt', {where: {groupId: group.id, isDeleted: false}});
+				return {...result, group: sourceView(group, lastPostAt || null)};
 			} finally {
 				initializations.delete(name);
 			}
