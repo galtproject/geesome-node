@@ -81,7 +81,7 @@ export default interface IGeesomeGroupModule {
 
 	deletePostsPure(userId, postIds, options?): Promise<any>;
 
-	createGroup(userId, groupData): Promise<IGroup>;
+	createGroup(userId, groupData, options?: {reuseOwnedStaticAccount?: boolean}): Promise<IGroup>;
 
 	createGroupByObject(userId, groupObject): Promise<IGroup>;
 

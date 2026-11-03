@@ -2,6 +2,7 @@ import {CorePermissionName, IUserApiKey} from '../database/interface.js';
 import {ApiProblemError} from './problem.js';
 
 const SCOPE_PERMISSION_MAP = {
+	'publishing:local': CorePermissionName.UserGroupManagement,
 	'assets:write': CorePermissionName.UserSaveData,
 	'assets:read-private': CorePermissionName.UserSaveData,
 	'content:write': CorePermissionName.UserSaveData,

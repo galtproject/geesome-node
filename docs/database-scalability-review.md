@@ -515,3 +515,33 @@ transaction, and historical winning MFS roots remain untouched. Operators should
 monitor failure rates/table growth; destructive retention requires a separately
 proved remote-operation quiescence policy. No production table/schema migration
 is introduced, and no existing Post/Group query contract changes.
+
+
+## Local publishing queue (2026-11-03)
+
+PublicationJob is separate from Post lifecycle and has owner/request unique,
+owner/status/scheduledAt/id and owner/createdAt/id indexes. Lists cap page size
+at 100 and offset at one million. Claims lock one row at a time with SKIP LOCKED
+and examine at most 20 invalid sources per request. History is retained; no
+unbounded background scan or automatic retry loop is introduced.
+
+
+### Private outbox composition
+
+PublicationJob adds owner/composeKey/index uniqueness and a postId history index.
+New source and all destination jobs share native createPost's transaction through
+a prepared-write callback; no storage call or second pooled query is opened in
+that callback. Draft activation locks its source and checks history/identity on
+the same connection. Bounded draft listing excludes any delivery history with an
+indexed NOT EXISTS lookup, with unsupported items isolated per row. Existing
+Group/Post schemas remain unchanged; PublicationJob is unreleased additive
+model-sync state. Isolated one-connection tests include old-job preservation.
+
+### Microwave Girls receipt lookup (#1526)
+
+Job-ID reconciliation accepts 1–100 distinct positive IDs and always intersects
+owner and optional status. Exact composeKey recovery uses the existing unique
+owner/composeKey/index prefix. Both use normal page/offset caps and return job
+rows only; they do not call source storage or compose. Nullable producer JSONB
+is bounded typed metadata, never a scan key; no extra queue/index or unbounded
+reconciliation query is introduced.

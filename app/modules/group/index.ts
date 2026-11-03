@@ -242,7 +242,7 @@ export function getModule(app: IGeesomeApp, models) {
 	}
 
 	class GroupModule implements IGeesomeGroupModule {
-		async createGroup(userId, groupData) {
+		async createGroup(userId, groupData, options: {reuseOwnedStaticAccount?: boolean} = {}) {
 			groupData = normalizePrivateGroupData(app, groupData);
 			log('groupData', groupData);
 			await app.checkUserCan(userId, CorePermissionName.UserGroupManagement);
@@ -256,7 +256,15 @@ export function getModule(app: IGeesomeApp, models) {
 			}
 
 			groupData.creatorId = userId;
-			groupData.manifestStaticStorageId = await app.ms.staticId.createStaticAccountId(userId, groupData['name']);
+			if (options.reuseOwnedStaticAccount) {
+				const account = await app.ms.accountStorage.getLocalAccountByName(groupData.name);
+				if (account && Number(account.userId) !== Number(userId)) {
+					throw new Error('not_permitted');
+				}
+				groupData.manifestStaticStorageId = account?.staticId || await app.ms.staticId.createStaticAccountId(userId, groupData.name);
+			} else {
+				groupData.manifestStaticStorageId = await app.ms.staticId.createStaticAccountId(userId, groupData.name);
+			}
 			if (groupData.type !== GroupType.PersonalChat) {
 				groupData.staticStorageId = groupData.manifestStaticStorageId;
 			}
@@ -1207,6 +1215,11 @@ export function getModule(app: IGeesomeApp, models) {
 
 				if (post.status === PostStatus.Published && !post.isDeleted) {
 					await this.incrementGroupCounters(post.groupId, {sizeDelta: size || 0, availableDelta: 1}, {transaction});
+				}
+				// Internal trusted callers may persist dependent rows atomically with the post.
+				// The callback must use this transaction and must not call storage/group APIs.
+				if (options.afterPersist) {
+					await options.afterPersist(post, transaction);
 				}
 			});
 			post = await this.getPostPure(post.id);

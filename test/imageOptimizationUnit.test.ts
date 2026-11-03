@@ -82,7 +82,7 @@ describe('image optimization saving policy', function () {
         const requested: string[] = [];
         let opened;
         const vm: any = {contents: [{type: 'image', storageId: 'original', previewStorageId: 'preview', extension: 'png', previewExtension: 'webp'}],
-            previewRoot: './preview/', contentRoot: './content/', previewSources: {},
+            previewRoot: './preview/', contentRoot: './content/', ...Gallery.data(),
             $refs: {gallery: {querySelectorAll: () => [{dataset: {galleryIndex: '0'}}]}},
             $root: {$modal: {open: value => {opened = value;}}}};
         vm.originalUrl = (content, index) => Gallery.methods.originalUrl.call(vm, content, index);
