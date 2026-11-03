@@ -58,6 +58,19 @@ describe('multipart upload byte preservation', () => {
 		const {request, options} = multipart([Buffer.alloc(2048)]);
 		await assert.rejects(asyncBusboy(request, {...options, limits: {fileSize: 1024}}), {code: 'Request_file_size_limit', status: 413});
 	});
+	it('rejects a field storm at the default field count instead of growing the heap', async () => {
+		const boundary = 'regression-field-boundary';
+		const parts = [Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="path"\r\n\r\n/images\r\n`)];
+		for (let i = 0; i < 200; i++) {
+			parts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="f${i}[0][0][0]"\r\n\r\n1\r\n`));
+		}
+		parts.push(Buffer.from(`--${boundary}--\r\n`));
+		const request = Readable.from(Buffer.concat(parts));
+		await assert.rejects(
+			asyncBusboy(request, {headers: {'content-type': `multipart/form-data; boundary=${boundary}`}}),
+			{code: 'Request_fields_limit', status: 413},
+		);
+	});
 });
 
 

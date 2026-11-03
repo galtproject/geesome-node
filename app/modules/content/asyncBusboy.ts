@@ -187,6 +187,13 @@ const reconcile = (obj, target) => {
 export default function (request, options): Promise<any> {
   options = options || {}
   options.headers = options.headers || request.headers
+  // busboy leaves fields, files and parts at Infinity unless a caller sets
+  // them. Every field is kept in the `fields` object above, and a bracketed
+  // name builds one object or array per [key] segment (objectFromBluePrint),
+  // so an unbounded field count is unbounded heap. Bound all three axes here,
+  // in the one place every multipart route goes through; a callsite with a
+  // legitimate reason for other numbers still overrides them.
+  options.limits = {fields: 100, files: 10, parts: 111, ...(options.limits || {})}
   const customOnFile = typeof options.onFile === 'function' ? options.onFile : false
   delete options.onFile
   const bb = busboy(options)

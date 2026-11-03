@@ -1211,3 +1211,69 @@ result flow, valid/invalid typed IDs, owner filters, false sensitivity, AT URI a
 API docs generated, security/scalability inventories and diff checks passed.
 No live provider sends were made. Existing schema and payload compatibility are
 preserved; broader unrelated tests were not rerun for this contract-only slice.
+
+
+## Selected private group queue sources (#1528)
+
+GeeSome is the sole queue boundary between producer applications and local social
+executors. Owner-authorized sources GET lists ordinary closed local channels
+(including empty groups) with latest nondeleted post time. Stable source POST
+creates one native channel per owner/request key and recovers retries. Compose
+may explicitly select such a group and enqueue network-only destinations without
+local account IDs; direct posts remain unassigned drafts.
+
+The client selects group/network/account routes. Bounded group filters apply to
+job/draft reads and atomic claims. Supplied routes are authoritative even for
+already bound jobs; disabled or mismatched routes cannot dispatch them. Only
+unbound jobs resolve missing account and Discord/Telegram channel/chat defaults
+under the claim lock, preserving authored values and SFW intent. Source privacy
+and edit authorization are rechecked before any claim is returned. Original
+producer intent digests never change; providers and Girls callbacks are not called
+by the node. Results remain in the existing owner/claim-token job table; there is
+no second queue, automatic replay or additional schema migration.
+
+Verification: 39 focused queue/auth + real HTTP/outbox tests pass with Node22,
+PostgreSQL and Kubo (`/tmp/geesome-group-sources-node-39.log`). They cover source ownership/private eligibility, empty groups/date listing, source
+idempotency/concurrency, selected group filtering, network-only binding, authored
+target/SFW precedence, source drafts, route disable/mismatch, source revocation
+and single claim across concurrent consumers. API documentation generation and
+security/scalability inventory checks pass. Deployment order remains node first,
+then the matching producer and local executor. No live social posts were sent.
+
+## Provider-ready social images before queue acceptance (#1529)
+
+Opted-in compose intents freeze `mediaPolicy:"social-images-v1"`. Owned original
+JPEG/PNG/WebP files stay in the ordinary private source post; independent jobs
+receive prepared JPEG refs. Node preparation validates every destination text and
+image count first, then decodes/auto-orients/flattens white and fits a bounded
+4096-edge quality/resize ladder to Bluesky 2,000,000 bytes, Discord 8 MiB or the
+other current adapter 10 MiB caps. Input is bounded to 64 MiB/40 million pixels;
+animation, format mismatch and damaged images fail before source/job acceptance.
+Original files are never replaced and no background conversion scheduler exists.
+
+The completed-only owner/source/profile cache reuses existing Asset and asset
+idempotency tables with a server-only namespace. It verifies owned, undeleted
+Content and valid JPEG/byte metadata; deterministic bytes/CID uniqueness handle
+concurrent requests. No pending reservation or schema change is needed. Cached
+foreign assets are rejected and repaired through owned derivation. Source group
+privacy is rechecked under a row lock inside the final post/jobs transaction so
+privacy changes during preparation roll back the complete acceptance.
+
+Prepared manifests freeze policy, original refs and a canonical prepared-media
+digest. Producer digests retain the original authored intent, allowing Girls to
+verify original uploads and prepared refs independently. Old compose requests and
+receipt retries omit the policy and preserve their exact old hashes and media
+semantics. Completed compose replay returns original jobs before media work.
+
+Verification: 51 queue/auth/image/HTTP/outbox tests pass against Node22, fresh
+PostgreSQL and offline Kubo (`/tmp/geesome-social-images-node-51.log`). Fourteen
+existing imageOptimizationUnit/imageWatermark/preparedImage checks also pass
+with default encoder behavior (`/tmp/geesome-social-images-default-compat.log`).
+Coverage includes real PNG/WebP/transparency/orientation/dimension/noise-cap
+fixtures, all eight destination limits, deterministic manifest/encoder checks,
+and PostgreSQL/Kubo source preservation, durable profile reuse, atomic compose
+replay/races, original-draft activation, no partial jobs on media/text failure,
+producer/route digest preservation, foreign cache rejection and privacy-race
+rollback. API docs and security/scalability inventories are aligned. Live provider
+compatibility remains a separate account-level check; no social publication was
+performed by these tests.
