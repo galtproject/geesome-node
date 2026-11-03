@@ -18,6 +18,8 @@ API reference output with handwritten architecture, operations, and module notes
   executable Node upload/verification workflow.
 - [API problem codes](./api-problems.md): stable error codes and client behavior.
 - [Active TODO](./todo.md): unfinished deterministic implementation sections.
+- [Local social publishing plan](./plans/local-social-publishing.md): scheduled
+  node jobs executed by a local client for Threads, Instagram and Reddit.
 - [Implemented work](./implemented.md): delivered foundations and verification
   history previously mixed into the TODO.
 - [Concurrent client upload audit](./multi-client-upload-audit.md): bounded shared capacity, read-only polling and cancellable client waiting.

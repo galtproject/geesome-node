@@ -1043,3 +1043,132 @@ real Kubo, including settings omission/clearing, automatic rebuild and rendered
 HTML with independent SEO. All 57 payment checks passed. API docs generated and
 security route inventory verified unchanged. The dependent cabinet's desktop and
 narrow settings workflow passed with 16 reviewed screenshot captures.
+
+
+## Scheduled Local Publishing: Node Queue (#1524)
+
+The localClient module stores one PublicationJob per social account destination.
+Five owner-scoped operations schedule/list/claim/report/cancel frozen public local
+post snapshots. Existing API keys require publishing:local and user group rights;
+provider credentials never enter node job records. Claims lock due rows with
+SKIP LOCKED, recheck source access and never requeue processing work.
+
+Owner/request identity is unique; repeated create and identical result reports
+are idempotent. Only queued jobs cancel. Ambiguous results remain needs_review
+or processing for explicit owner resolution with the original claim token.
+Media snapshots contain immutable public HTTPS IPFS references; private or
+unsupported attachments are rejected instead of silently omitted.
+
+Verification: 16 focused checks passed against disposable PostgreSQL, covering
+concurrent create/claim, skipping an independently locked row, owner/source
+authorization, snapshot replay after edits,
+result conflicts, cancellation and crash/no-requeue behavior. All 17 local
+publishing tests, including a real-post HTTP scoped/disabled-key flow, passed in
+isolated Node 22/PostgreSQL/IPFS Docker. Client PR #2 adds 30 passing tests and
+browser checks for scheduling, cancellation, lost acknowledgements and review.
+
+Broad Docker validation was completed in segments: 602 successful checks before
+an existing gallery fixture exception; the remaining 47 files produced 236
+passes, 8 pending tests and one stale SSR assertion. Both gallery failures were
+reproduced on clean origin/dev. The fixtures now use component initial state and
+the existing lazy-load SSR contract, preserving original-media checks; their six
+unit cases and the focused content-list integration case pass. The monolithic
+command was not rerun after these test-only corrections. Real provider smoke
+remains an explicit release gate.
+
+
+## Native Private Outbox Composition (#1524; client #4)
+
+The node composer now accepts new text and caller-owned uploaded image storage
+IDs, explicit multiple destinations and optional delayed time. Omitted time means
+now with stable replay identity. A designated ordinary closed native channel is
+created lazily with deterministic owner/marker checks; the experimental encrypted
+private-group protocol is not required. Native static-account reuse and partial
+initialization recovery preserve one owned group across retries. Foreign name
+collisions are rejected rather than adopted.
+
+One native source post and all destination jobs commit atomically using a trusted
+internal createPost callback on its own transaction. Storage and native-group
+operations occur outside the transaction; the callback only writes prepared jobs.
+Compose identity/hash/index use the existing unreleased PublicationJob table,
+with non-dropping additive model sync. No new Group/Post schema is introduced.
+
+Read-only outbox listing shows owned local unencrypted sources without any jobs
+as unscheduled drafts. It never assigns accounts/time or resurrects cancelled
+history. Unsupported sources are unavailable per item. Explicit draft activation
+locks the source, rejects unsaved text/image edits, verifies content identity and
+creates jobs once. Other private/encrypted/imported/foreign sources remain blocked.
+Payload image metadata includes storageId and size; native plaintext CID privacy
+is retained. Managed outbox URLs may be local HTTP, with provider-specific public
+URL requirements enforced separately. Compose needs publishing:local and
+assets:write, which supply native group and save-data permissions.
+
+Verification: 24 checks passed in an isolated Node22/PostgreSQL/Kubo fixture with
+DATABASE_POOL_MAX=1: 17 queue/model/auth checks, one existing real HTTP post flow,
+and six real outbox scenarios. Evidence covers actual multipart upload/replay,
+parallel same-key multi-destination composition with one source/two jobs, frozen
+replay after source edits, private claims, explicit draft activation/races, job
+failure rolling back source creation, unsupported item isolation, native account
+recovery, foreign namespace/assets, required scopes, and additive model sync
+preserving old jobs. API docs and security/scalability inventories were regenerated
+and checked. No credentialed provider publication is claimed by these tests.
+
+Final private-outbox integration: another 62 native group/private-group/bootstrap/
+API regression checks passed in isolated PostgreSQL/Kubo. The dependent client
+passes 55 host and Node22 Docker checks. Actual-node browser verification covers
+image upload, closed source persistence, lost-response replay without duplication,
+multi-network batching, delayed jobs, unassigned native drafts and cancellation.
+The default minute worker first claimed after 60,006 ms. Desktop/mobile captures
+were reviewed. Provider endpoints were injected; real-account smoke remains open.
+
+Queued jobs also support explicit immediate claim by jobId, preserving ownership,
+account and source checks while bypassing only that job's schedule. The client
+serializes the manual action with automatic work and permits it while paused.
+Verification: 18 queue/auth Node22/PostgreSQL tests, including concurrent immediate
+claims, future/foreign/wrong-account restrictions and no fallback to another job;
+58 client tests and reviewed desktop/mobile browser click flow with mocks.
+
+## Microwave Girls queue contract (#1526)
+
+The local publication queue accepts Twitter and Rule34 destinations. Twitter
+sensitivity is an optional strict boolean (false remains explicit); Rule34 has
+required typed tags/source/rating metadata. Compose-only producer references
+identify one Girls receipt and one destination, with a server-computed canonical
+SHA-256 digest binding frozen text, ordered storageId/MIME, network/account and
+sorted target fields. Producer metadata is nullable additive unreleased model-
+sync state; existing jobs and non-producer compose replay hashes are preserved.
+
+Outbox GET returns authenticated ownerId without extra scopes. Owner-intersecting
+job lookup supports at most 100 distinct IDs and exact composeKey recovery under
+normal pagination/indexes. Rule34 result URLs allow only the fixed canonical
+post-view query matching the confirmed numeric remote ID and Rule34 network;
+other result URLs retain their credential/query/fragment restrictions.
+
+Verification: 31 checks passed in a fresh isolated Node22/PostgreSQL/Kubo stack
+with a one-connection pool: 23 queue/model/auth checks, one real HTTP post flow
+and seven outbox scenarios. Checks cover producer replay/conflicts/digest,
+explicit false sensitivity, strict Rule34 metadata/result URLs, owner-isolated
+ID/composeKey lookup, additive producer-column preservation, old compose hashes,
+real upload, claims/results, private group rules and transaction rollback. API
+docs generated; security route and database scalability inventories checked.
+A prior warm-fixture rerun hit the existing 60-second HTTP test timeout; a fresh
+fixture passed without relaxing timeouts. No live Twitter/Rule34 publication is
+claimed, and the broader unrelated full suite was not rerun for this slice.
+
+### Expanded Girls networks
+
+The same node contract now supports Bluesky, Discord and Telegram. Typed targets
+freeze optional sensitive boolean plus Discord channel/guild snowflakes or
+Telegram signed chat ID/@username. IDs remain strings and explicit false remains
+part of the payload/digest. Credentials, extra fields and arbitrary target URLs
+are rejected. Ordinary Bluesky AT URIs use the existing opaque 500-character
+remoteId; no model/schema widening or new result-query allowance is introduced.
+
+Verification: 34 checks passed against Node22/PostgreSQL/Kubo with pool max 1
+(25 queue/model/auth, one existing HTTP flow, eight private-outbox scenarios).
+Added coverage exercises each new network's narrow-scope compose/replay/claim/
+result flow, valid/invalid typed IDs, owner filters, false sensitivity, AT URI and
+500-character result boundaries and unchanged credential/query restrictions.
+API docs generated, security/scalability inventories and diff checks passed.
+No live provider sends were made. Existing schema and payload compatibility are
+preserved; broader unrelated tests were not rerun for this contract-only slice.

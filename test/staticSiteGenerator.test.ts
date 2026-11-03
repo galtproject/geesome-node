@@ -580,7 +580,16 @@ describe("staticSiteGenerator", function () {
 		assert.match(indexHtmlContent, /Powered by.+https:\/\/github.com\/galtproject\/geesome-node/);
 		assert.equal(indexHtmlContent.includes('class="content-item'), true);
 		assert.match(indexHtmlContent, /<link rel="stylesheet" href="\.\/style\.css"\/?>/);
-		assert.match(indexHtmlContent, /<img[^>]+src="\.\/content\/\d+_bafk/);
+		// The gallery assigns image URLs only after mounting and visibility detection.
+		assert.equal((indexHtmlContent.match(/<img\b/g) || []).length, contentIds.length);
+		assert.equal(/<img[^>]+src=|background-image:url/.test(indexHtmlContent), false,
+			'SSR must not start eager gallery downloads');
+		const siteData = JSON.parse(indexHtmlContent.match(/<script id="site-data" type="application\/json">([\s\S]*?)<\/script>/)[1]);
+		assert.deepEqual(siteData.contents.map(content => content.id), contentIds,
+			'all requested images remain available to the mounted gallery');
+		const firstContent = siteData.contents[0];
+		const firstImage = await app.ms.storage.getFileData(`${directoryStorageId}/content/1_${firstContent.storageId}.${firstContent.extension}`);
+		assert(firstImage.length > 0, 'the lazy gallery original is included in the generated site');
 		console.log('indexHtmlContent', indexHtmlContent);
 	});
 });
