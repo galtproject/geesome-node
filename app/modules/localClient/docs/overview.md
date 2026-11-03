@@ -89,3 +89,20 @@ integration scopes are unchanged. Rule34 confirmed URLs may use only the exact
 rule34.xxx/index.php?page=post&s=view&id=remoteId query shape for Rule34 jobs;
 other result URLs keep their no-query rule. Deploy node support before the new client and
 Girls consumers; protocol extensions alone do not establish live-provider support.
+
+### Expanded migrated networks
+
+The same contract additionally accepts Bluesky, Discord and Telegram. Bluesky
+allows only optional sensitive boolean. Discord freezes required channelId and
+optional guildId/sensitive; snowflakes are nonzero decimal strings of at most 20
+digits, never JSON numbers. Telegram freezes required chatId (signed nonzero
+at-most-20-digit string or validated @username) and optional sensitive boolean.
+Unknown fields, bot credentials and destination URLs are rejected. Explicit false
+is retained exactly, including in producer digest and request replay identity.
+No target is resolved from mutable local account defaults by the node.
+
+Bluesky confirmed AT URIs fit the existing opaque remoteId limit of 500; no
+column/type expansion is needed. Result URLs retain the existing HTTPS/no-query
+rule and previously documented strict Rule34 exception. Tumblr was never a
+supported node queue network and remains unsupported. Existing queue payloads,
+source schema, ownership checks, indexes and non-producer hashes are unchanged.

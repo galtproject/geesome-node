@@ -247,3 +247,13 @@ so existing request-key replay stays compatible. No source/group schema change,
 provider credential or outgoing social request is introduced. Consumer policy
 preflight, execution-mode cutover and UI belong to the dependent client/Girls
 workstreams. Focused verification counts are recorded in implemented.md.
+
+### Expanded Girls migration node slice
+
+Per user correction, the node now also accepts Bluesky, Discord and Telegram
+with typed frozen targets and strict non-secret IDs. Each shares existing
+compose/claim/result scopes and producer digest behavior. Discord/Telegram IDs
+are strings to avoid numeric precision loss, and optional sensitivity retains
+false. Ordinary Bluesky AT URIs use the existing 500-character opaque remoteId;
+no extra database column alteration or broader result-URL allowance is introduced.
+The client/Girls own provider execution and removal of legacy/Tumblr publishers.

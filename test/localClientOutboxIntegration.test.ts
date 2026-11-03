@@ -107,6 +107,25 @@ describe('private local publication outbox integration', function () {
 		const reported = await successful(await call(`/${job.id}/result`, {claimToken: claimed.job.claimToken, status: 'posted', remoteId: '12345', remoteUrl: 'https://x.com/local/status/12345'}));
 		assert.equal(reported.job.status, 'posted');
 	});
+	it('composes and reports Bluesky, Discord and Telegram with narrow scopes and frozen metadata', async () => {
+		const cases = [
+			{network: 'bluesky', target: {sensitive: false}, remoteId: 'at://did:plc:example/app.bsky.feed.post/record', remoteUrl: 'https://bsky.app/profile/example.bsky.social/post/record'},
+			{network: 'discord', target: {channelId: '123456789012345678', guildId: '234567890123456789', sensitive: true}, remoteId: '345678901234567890', remoteUrl: 'https://discord.com/channels/234567890123456789/123456789012345678/345678901234567890'},
+			{network: 'telegram', target: {chatId: '-1001234567890', sensitive: true}, remoteId: '123', remoteUrl: 'https://t.me/c/1234567890/123'},
+		];
+		for (const [index, value] of cases.entries()) {
+			const localAccountId = `${value.network}_local`;
+			const input = composeInput({producer: {type: 'microwave-girls', postId: 200 + index}, destinations: [{network: value.network, localAccountId, target: value.target}]});
+			const result = await successful(await call('/compose', input));
+			const job = result.jobs[0];
+			assert.deepEqual(job.target, value.target);
+			assert.equal((await successful(await call('/compose', input))).jobs[0].id, job.id);
+			const claimed = await successful(await call('/claim', {jobId: job.id, accounts: [{network: value.network, localAccountId}]}));
+			assert.deepEqual(claimed.job.producer, job.producer);
+			const reported = await successful(await call(`/${job.id}/result`, {claimToken: claimed.job.claimToken, status: 'posted', remoteId: value.remoteId, remoteUrl: value.remoteUrl}));
+			assert.equal(reported.job.remoteId, value.remoteId);
+		}
+	});
 	it('lists direct outbox posts as unassigned drafts and activates one explicitly', async () => {
 		const text = await app.ms.content.saveData(user.id, 'Direct draft', 'draft.txt');
 		const content = await app.ms.database.getContentByStorageAndUserId(imageStorageId, user.id);

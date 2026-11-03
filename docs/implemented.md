@@ -1154,3 +1154,21 @@ docs generated; security route and database scalability inventories checked.
 A prior warm-fixture rerun hit the existing 60-second HTTP test timeout; a fresh
 fixture passed without relaxing timeouts. No live Twitter/Rule34 publication is
 claimed, and the broader unrelated full suite was not rerun for this slice.
+
+### Expanded Girls networks
+
+The same node contract now supports Bluesky, Discord and Telegram. Typed targets
+freeze optional sensitive boolean plus Discord channel/guild snowflakes or
+Telegram signed chat ID/@username. IDs remain strings and explicit false remains
+part of the payload/digest. Credentials, extra fields and arbitrary target URLs
+are rejected. Ordinary Bluesky AT URIs use the existing opaque 500-character
+remoteId; no model/schema widening or new result-query allowance is introduced.
+
+Verification: 34 checks passed against Node22/PostgreSQL/Kubo with pool max 1
+(25 queue/model/auth, one existing HTTP flow, eight private-outbox scenarios).
+Added coverage exercises each new network's narrow-scope compose/replay/claim/
+result flow, valid/invalid typed IDs, owner filters, false sensitivity, AT URI and
+500-character result boundaries and unchanged credential/query restrictions.
+API docs generated, security/scalability inventories and diff checks passed.
+No live provider sends were made. Existing schema and payload compatibility are
+preserved; broader unrelated tests were not rerun for this contract-only slice.

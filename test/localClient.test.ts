@@ -250,6 +250,58 @@ describe('local publication queue', function () {
 		}
 		assert.throws(() => normalizeRequest(request({target: {sensitive: false}})), {status: 400});
 	});
+	it('validates frozen Bluesky, Discord and Telegram targets and claim filters', async () => {
+		const cases = [
+			{network: 'bluesky', target: {sensitive: false}},
+			{network: 'discord', target: {channelId: '12345678901234567890', guildId: '1', sensitive: false}},
+			{network: 'telegram', target: {chatId: '-1001234567890', sensitive: false}},
+		];
+		for (const value of cases) {
+			const created = await module.createJob(1, request(value));
+			assert.deepEqual(created.target, value.target);
+			const claimed = await module.claimJob(1, {accounts: [{network: value.network, localAccountId: account.localAccountId}]});
+			assert.equal(claimed.id, created.id);
+			assert.equal(await module.claimJob(2, {accounts: [{network: value.network, localAccountId: account.localAccountId}]}), null);
+		}
+		assert.deepEqual(normalizeRequest(request({network: 'discord', target: {channelId: '1'}})).target, {channelId: '1'});
+		assert.deepEqual(normalizeRequest(request({network: 'telegram', target: {chatId: '@valid_name'}})).target, {chatId: '@valid_name'});
+		for (const value of [
+			{network: 'bluesky', target: {sensitive: 'false'}},
+			{network: 'bluesky', target: {appPassword: 'secret'}},
+			{network: 'bluesky', target: {channelId: '1'}},
+			{network: 'discord', target: {}},
+			{network: 'discord', target: {channelId: 123}},
+			{network: 'discord', target: {channelId: '0'}},
+			{network: 'discord', target: {channelId: '1'.repeat(21)}},
+			{network: 'discord', target: {channelId: '1', guildId: '-2'}},
+			{network: 'discord', target: {channelId: '1', sensitive: null}},
+			{network: 'discord', target: {channelId: '1', botToken: 'secret'}},
+			{network: 'telegram', target: {}},
+			{network: 'telegram', target: {chatId: '0'}},
+			{network: 'telegram', target: {chatId: '-0'}},
+			{network: 'telegram', target: {chatId: '1'.repeat(21)}},
+			{network: 'telegram', target: {chatId: '@12345'}},
+			{network: 'telegram', target: {chatId: '@abcd'}},
+			{network: 'telegram', target: {chatId: 'https://api.telegram.org'}},
+			{network: 'telegram', target: {chatId: '1', sensitive: 'true'}},
+			{network: 'telegram', target: {chatId: '1', botToken: 'secret'}},
+		]) {
+			assert.throws(() => normalizeRequest(request(value)), {status: 400});
+		}
+		assert.throws(() => normalizeRequest(request({target: {chatId: '1'}})), {status: 400});
+	});
+	it('persists the existing 500-character remote ID and AT URI without widening result URL policy', async () => {
+		await module.createJob(1, request({network: 'bluesky'}));
+		const job = await module.claimJob(1, {accounts: [{network: 'bluesky', localAccountId: account.localAccountId}]});
+		const atUri = 'at://did:plc:example/app.bsky.feed.post/record';
+		const result = {claimToken: job.claimToken, status: 'posted', remoteId: atUri, remoteUrl: 'https://bsky.app/profile/example.bsky.social/post/record'};
+		await assert.rejects(module.reportResult(1, job.id, {...result, remoteId: 'a'.repeat(501)}), {status: 400});
+		await assert.rejects(module.reportResult(1, job.id, {...result, remoteUrl: result.remoteUrl + '?token=secret'}), {status: 400});
+		assert.equal((await module.reportResult(1, job.id, result)).remoteId, atUri);
+		await module.createJob(1, request());
+		const max = await claim();
+		assert.equal((await module.reportResult(1, max.id, {claimToken: max.claimToken, status: 'posted', remoteId: 'a'.repeat(500)})).remoteId.length, 500);
+	});
 	it('accepts only the canonical Rule34 result query for its confirmed ID and network', async () => {
 		const rule34 = await module.createJob(1, request({network: 'rule34xxx', target: {tags: 'artist original', source: 'https://example.com', rating: 'e'}}));
 		const claimed = await module.claimJob(1, {accounts: [{network: 'rule34xxx', localAccountId: account.localAccountId}]});

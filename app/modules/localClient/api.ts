@@ -64,10 +64,10 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiDescription Requires publishing:local scope and permission to edit a public local post or an owned designated private-outbox source. Social credentials stay on the client. Repeated requestKey returns the original snapshot; conflicting input returns 409.
 	 * @apiBody {String} requestKey Owner-scoped idempotency key (1–128 identifier characters).
 	 * @apiBody {Number} postId Existing public locally authored post.
-	 * @apiBody {String="threads","instagram","reddit","twitter","rule34xxx"} network Destination network.
+	 * @apiBody {String="threads","instagram","reddit","twitter","rule34xxx","bluesky","discord","telegram"} network Destination network.
 	 * @apiBody {String} localAccountId Account identifier configured on the local client.
 	 * @apiBody {String} scheduledAt ISO 8601 instant with timezone.
-	 * @apiBody {Object} [target] Provider target options: Reddit subreddit/title/flairId/kind; Twitter sensitive boolean; or required Rule34 tags/source/rating=s|q|e.
+	 * @apiBody {Object} [target] Typed targets: Reddit subreddit/title/flairId/kind; Twitter/Bluesky optional sensitive boolean; Discord channelId plus optional guildId/sensitive boolean; Telegram chatId and optional sensitive boolean; Rule34 required tags/source/rating=s|q|e. No credentials or arbitrary headers.
 	 * @apiSuccess {Object} job Frozen scheduled job with text/media payload.
 	 * @apiError (409) LocalPublicationRequestConflict Request key was already used with different input.
 	 * @apiSuccessExample {json} Scheduled
@@ -106,7 +106,7 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiDescription Requires publishing:local. Atomically claims one eligible owner job using node time, rechecking source permissions. Account filters do not grant permissions. No lease expiry or automatic resend.
 	 * @apiBody {Number} [jobId] Explicitly claim only this queued job now, ignoring its schedule. Ownership and account filters still apply.
 	 * @apiBody {Object[]} accounts Configured local accounts (maximum 100).
-	 * @apiBody {String="threads","instagram","reddit","twitter","rule34xxx"} accounts.network Network.
+	 * @apiBody {String="threads","instagram","reddit","twitter","rule34xxx","bluesky","discord","telegram"} accounts.network Network.
 	 * @apiBody {String} accounts.localAccountId Local account identifier.
 	 * @apiSuccess {Object|null} job Claimed job with claimToken or null when none is due.
 	 */
@@ -125,7 +125,7 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiParam {Number} jobId Owner job ID.
 	 * @apiBody {String} claimToken Original claim token.
 	 * @apiBody {String="posted","failed","needs_review"} status Result.
-	 * @apiBody {String} [remoteId] Required for posted.
+	 * @apiBody {String} [remoteId] Required for posted, maximum 500 characters (supports Bluesky AT URI).
 	 * @apiBody {String} [remoteUrl] HTTPS post URL without credentials/query/fragment. Rule34 jobs additionally allow only rule34.xxx/index.php?page=post&s=view&id=remoteId.
 	 * @apiBody {String} [error] Sanitized error, maximum 500 characters; no secrets.
 	 * @apiSuccess {Object} job Updated job.

@@ -9,7 +9,7 @@ import {PostStatus} from '../group/interface.js';
 import ILocalClientModule from './interface.js';
 import {getOutboxMethods, isManagedOutbox} from './outbox.js';
 
-const networks = ['threads', 'instagram', 'reddit', 'twitter', 'rule34xxx'];
+const networks = ['threads', 'instagram', 'reddit', 'twitter', 'rule34xxx', 'bluesky', 'discord', 'telegram'];
 const statuses = ['queued', 'processing', 'posted', 'failed', 'needs_review', 'cancelled'];
 
 export default async function localClient(app: IGeesomeApp) {
@@ -220,12 +220,30 @@ export function normalizeRequest(input: any) {
 		throw problem(400, 'local_publication_schedule_invalid');
 	}
 	const target = input.target ?? {};
-	if (network === 'twitter') {
+	if (['twitter', 'bluesky'].includes(network)) {
 		assertKeys(target, ['sensitive']);
 		if (target.sensitive !== undefined && typeof target.sensitive !== 'boolean') {
 			throw problem(400, 'local_publication_target_invalid');
 		}
 		return {requestKey, postId, network, localAccountId, scheduledAt: new Date(input.scheduledAt).toISOString(), target: target.sensitive === undefined ? {} : {sensitive: target.sensitive}};
+	}
+	if (network === 'discord') {
+		assertKeys(target, ['channelId', 'guildId', 'sensitive']);
+		if (typeof target.channelId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(target.channelId) || (target.sensitive !== undefined && typeof target.sensitive !== 'boolean') ||
+			(target.guildId !== undefined && (typeof target.guildId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(target.guildId)))) {
+			throw problem(400, 'local_publication_target_invalid');
+		}
+		return {requestKey, postId, network, localAccountId, scheduledAt: new Date(input.scheduledAt).toISOString(), target: {
+			channelId: target.channelId, ...(target.guildId === undefined ? {} : {guildId: target.guildId}), ...(target.sensitive === undefined ? {} : {sensitive: target.sensitive})}};
+	}
+	if (network === 'telegram') {
+		assertKeys(target, ['chatId', 'sensitive']);
+		if (typeof target.chatId !== 'string' || !/^(?:-?[1-9][0-9]{0,19}|@[A-Za-z][A-Za-z0-9_]{4,31})$/.test(target.chatId) ||
+			(target.sensitive !== undefined && typeof target.sensitive !== 'boolean')) {
+			throw problem(400, 'local_publication_target_invalid');
+		}
+		return {requestKey, postId, network, localAccountId, scheduledAt: new Date(input.scheduledAt).toISOString(), target: {
+			chatId: target.chatId, ...(target.sensitive === undefined ? {} : {sensitive: target.sensitive})}};
 	}
 	if (network === 'rule34xxx') {
 		assertKeys(target, ['tags', 'source', 'rating']);
