@@ -24,7 +24,7 @@ export function validatePreparedPublication(request) {
 	const text = request.text;
 	const characters = [...text].length;
 	for (const {network, target} of request.destinations) {
-		if (count > (['twitter', 'bluesky'].includes(network) ? 4 : 1) || (['instagram', 'rule34xxx'].includes(network) && count !== 1)) {
+		if (count > (network === 'patreon' ? 20 : ['twitter', 'bluesky'].includes(network) ? 4 : 1) || (['instagram', 'rule34xxx'].includes(network) && count !== 1)) {
 			problem('local_publication_image_count_invalid');
 		}
 		if ((network === 'twitter' && characters > 280) || (network === 'threads' && characters > 500) ||
@@ -34,6 +34,9 @@ export function validatePreparedPublication(request) {
 		}
 		if (network === 'bluesky' && (Buffer.byteLength(text, 'utf8') > 3000 || [...new Intl.Segmenter('en', {granularity: 'grapheme'}).segment(text)].length > 300)) {
 			problem('local_publication_text_too_long');
+		}
+		if (network === 'patreon' && (!count || !text.startsWith(target.teaserText) || text.length <= target.teaserText.length)) {
+			problem('local_publication_target_invalid');
 		}
 		if (network === 'reddit') {
 			if (!/^[A-Za-z0-9_]{2,21}$/.test(target.subreddit || '') || typeof target.title !== 'string' || !target.title.trim() || [...target.title].length > 300 ||

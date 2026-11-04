@@ -10,7 +10,7 @@ import ILocalClientModule from './interface.js';
 import {getOutboxMethods} from './outbox.js';
 import {getSourceMethods, isOwnedQueueGroup} from './sources.js';
 
-const networks = ['threads', 'instagram', 'reddit', 'twitter', 'rule34xxx', 'bluesky', 'discord', 'telegram'];
+const networks = ['threads', 'instagram', 'reddit', 'twitter', 'rule34xxx', 'bluesky', 'discord', 'telegram', 'patreon'];
 const statuses = ['queued', 'processing', 'posted', 'failed', 'needs_review', 'cancelled'];
 
 export default async function localClient(app: IGeesomeApp) {
@@ -39,6 +39,9 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 			}
 			const post = await assertSource(app, userId, request.postId);
 			const payload = await snapshot(app, post);
+			if (request.network === 'patreon' && (!payload.text.startsWith(request.target.teaserText) || payload.text.length <= request.target.teaserText.length || !payload.attachments.length)) {
+				throw problem(400, 'local_publication_target_invalid');
+			}
 			try {
 				return {...plain(await PublicationJob.create({...request, userId, requestHash, payload, status: 'queued'})), groupId: post.groupId};
 			} catch (error) {
@@ -52,6 +55,12 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 			const limit = boundedInteger(query.limit ?? 20, 1, 100);
 			const offset = boundedInteger(query.offset ?? 0, 0, 1000000);
 			const where: any = {userId};
+			if (query.network !== undefined) {
+				if (!networks.includes(query.network)) {
+					throw problem(400, 'local_publication_network_invalid');
+				}
+				where.network = query.network;
+			}
 			if (query.groupIds !== undefined) {
 				where.postId = postsInGroups(normalizeGroupIds(query.groupIds));
 			}
@@ -276,6 +285,18 @@ export function normalizeRequest(input: any, allowUnbound = false) {
 		throw problem(400, 'local_publication_schedule_invalid');
 	}
 	const target = input.target ?? {};
+	if (network === 'patreon') {
+		assertKeys(target, ['title', 'audience', 'teaserText', 'campaignId']);
+		const title = textField(target.title, 200);
+		if (!['free_members', 'paid_members'].includes(target.audience) || typeof target.teaserText !== 'string' ||
+			!target.teaserText.trim() || target.teaserText.length > 10000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(target.teaserText) ||
+			(!(allowUnbound && !localAccountId && target.campaignId === undefined) &&
+				(typeof target.campaignId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(target.campaignId)))) {
+			throw problem(400, 'local_publication_target_invalid');
+		}
+		return {requestKey, postId, network, localAccountId, scheduledAt: new Date(input.scheduledAt).toISOString(),
+			target: {title, audience: target.audience, teaserText: target.teaserText, ...(target.campaignId === undefined ? {} : {campaignId: target.campaignId})}};
+	}
 	if (['twitter', 'bluesky'].includes(network)) {
 		assertKeys(target, ['sensitive']);
 		if (target.sensitive !== undefined && typeof target.sensitive !== 'boolean') {
@@ -369,8 +390,12 @@ function normalizeRoutes(value, accounts) {
 			throw problem(400, 'local_publication_routes_invalid');
 		}
 		const target = route.target ?? {};
-		assertKeys(target, route.network === 'discord' ? ['channelId', 'guildId', 'sfwChannelId'] : route.network === 'telegram' ? ['chatId', 'sfwChatId'] : []);
-		if (Object.keys(target).length) {
+		assertKeys(target, route.network === 'discord' ? ['channelId', 'guildId', 'sfwChannelId'] : route.network === 'telegram' ? ['chatId', 'sfwChatId'] : route.network === 'patreon' ? ['campaignId'] : []);
+		if (route.network === 'patreon') {
+			if (typeof target.campaignId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(target.campaignId)) {
+				throw problem(400, 'local_publication_routes_invalid');
+			}
+		} else if (Object.keys(target).length) {
 			const {sfwChannelId, sfwChatId, ...primary} = target;
 			normalizeRequest({requestKey: 'route', postId: 1, network: route.network, localAccountId, scheduledAt: '2000-01-01T00:00:00Z', target: primary});
 			if (sfwChannelId !== undefined || sfwChatId !== undefined) {
