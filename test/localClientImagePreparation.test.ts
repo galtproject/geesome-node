@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-import {encodeSocialImage, preparedMediaDigest, validatePreparedPublication, imageLimit, socialImageMaxEdge} from '../app/modules/localClient/imagePreparation.js';
+import {encodeSocialImage, preparedMediaDigest, validatePreparedPublication, imageLimit, socialImageMaxEdge, isPublicationJpeg} from '../app/modules/localClient/imagePreparation.js';
 import {publicationDigest} from '../app/modules/localClient/producer.js';
 
 describe('local publication image preparation', function () {
@@ -53,6 +53,30 @@ describe('local publication image preparation', function () {
 		// acTL advertises animation; policy rejects it before a frame could be silently dropped.
 		const chunk = Buffer.alloc(20); chunk.writeUInt32BE(8, 0); chunk.write('acTL', 4); chunk.writeUInt32BE(2, 8);
 		await assert.rejects(encodeSocialImage(Buffer.concat([png.subarray(0, 33), chunk, png.subarray(33)]), 'image/png', 2000000));
+	});
+	it('reuses only trusted, fully decoded and normalized JPEGs within the selected limits', async () => {
+		const bytes = await sharp({create: {width: 120, height: 80, channels: 3, background: '#6382ab'}}).jpeg({quality: 95}).toBuffer();
+		const reused = await encodeSocialImage(bytes, 'image/jpeg', imageLimit('bluesky'), true);
+		assert.equal(reused.bytes, bytes);
+		assert.equal(reused.codec, 'reuse:publication-jpeg95-v1');
+		assert.notEqual((await encodeSocialImage(bytes, 'image/jpeg', imageLimit('bluesky'))).codec, reused.codec);
+		for (const input of [await sharp(bytes).withMetadata().toBuffer(), await sharp(bytes).withMetadata({orientation: 6}).toBuffer(),
+			await sharp({create: {width: 4200, height: 20, channels: 3, background: '#6382ab'}}).jpeg().toBuffer()]) {
+			const result = await encodeSocialImage(input, 'image/jpeg', imageLimit('bluesky'), true);
+			assert.notEqual(result.codec, reused.codec);
+			assert(Math.max(result.width, result.height) <= socialImageMaxEdge);
+		}
+		await assert.rejects(encodeSocialImage(bytes, 'image/jpeg', 1, true), {code: 'local_publication_image_cannot_fit'});
+		await assert.rejects(encodeSocialImage(bytes.subarray(0, 60), 'image/jpeg', 2000000, true), {code: 'local_publication_image_decode_failed'});
+	});
+	it('treats missing, malformed and non-object legacy rendition metadata as ordinary input', () => {
+		for (const propertiesJson of ['null', '[]', 'true', '1', '"legacy"', '{', '{}']) {
+			assert.equal(isPublicationJpeg({id: 1, storageId: 'original', extension: 'jpg', mimeType: 'image/jpeg', propertiesJson}), false);
+			assert.equal(isPublicationJpeg({mimeType: 'image/png', propertiesJson}), false);
+		}
+		const receipt = {policy: 'publication-jpeg95-v1', resultContentId: 1, resultStorageId: 'original'};
+		assert.equal(isPublicationJpeg({id: 1, storageId: 'original', extension: 'jpg', mimeType: 'image/jpeg', propertiesJson: JSON.stringify({publicationImage: receipt})}), true);
+		assert.equal(isPublicationJpeg({id: 2, storageId: 'original', extension: 'jpg', mimeType: 'image/jpeg', propertiesJson: JSON.stringify({publicationImage: receipt})}), false);
 	});
 	it('validates every network text/image limit before preparation', () => {
 		const request = (network, text, images = 1, target = {}) => ({text, imageStorageIds: Array.from({length: images}, (_, n) => String(n)), destinations: [{network, target}]});

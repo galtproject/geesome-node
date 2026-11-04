@@ -76,7 +76,7 @@ async function readImage(app, source) {
 	return Buffer.concat(chunks);
 }
 
-export async function encodeSocialImage(bytes, mimeType, maxBytes) {
+export async function encodeSocialImage(bytes, mimeType, maxBytes, trustedPublicationJpeg = false) {
 	try {
 		const image = sharp(bytes, {limitInputPixels: maxImagePixels, failOn: 'warning'}).timeout({seconds: 10});
 		const metadata = await image.metadata();
@@ -86,6 +86,11 @@ export async function encodeSocialImage(bytes, mimeType, maxBytes) {
 			problem('local_publication_image_input_invalid');
 		}
 		await image.stats(); // Decode fully; metadata alone accepts truncated images.
+		if (trustedPublicationJpeg && metadata.format === 'jpeg' && bytes.length <= maxBytes &&
+			Math.max(metadata.width, metadata.height) <= socialImageMaxEdge && (!metadata.orientation || metadata.orientation === 1) &&
+			metadata.space === 'srgb' && metadata.channels === 3 && !metadata.hasProfile && !metadata.exif && !metadata.icc && !metadata.xmp && !metadata.iptc && !metadata.comments?.length) {
+			return {bytes, width: metadata.width, height: metadata.height, codec: 'reuse:publication-jpeg95-v1', reused: true};
+		}
 		const initial = await encodePublicationImage(Readable.from([bytes]), null, false, undefined, socialImageMaxEdge);
 		if (initial.bytes.length <= maxBytes) {
 			return initial;
@@ -124,6 +129,25 @@ function hasPngAnimation(bytes) {
 	return false;
 }
 
+// Only an existing self-bound publication rendition is eligible for passthrough.
+export function isPublicationJpeg(source) {
+	if (source.mimeType !== 'image/jpeg' || source.extension !== 'jpg') {
+		return false;
+	}
+	let properties;
+	try {
+		properties = JSON.parse(source.propertiesJson || '{}');
+	} catch {
+		return false;
+	}
+	if (!properties || typeof properties !== 'object' || Array.isArray(properties)) {
+		return false;
+	}
+	const receipt = properties.publicationImages?.['publication-jpeg95-v1'] || properties.publicationImage;
+	return source.mimeType === 'image/jpeg' && source.extension === 'jpg' && receipt?.policy === 'publication-jpeg95-v1' &&
+		Number(receipt.resultContentId) === Number(source.id) && receipt.resultStorageId === source.storageId;
+}
+
 export function createImagePreparation(app) {
 	const active = new Map();
 	const sequelize = app.ms.database?.sequelize;
@@ -158,8 +182,8 @@ export function createImagePreparation(app) {
 			return existing;
 		}
 		const bytes = await readImage(app, source);
-		const image = await encodeSocialImage(bytes, source.mimeType, maxBytes);
-		const content = await app.ms.content.saveData(userId, image.bytes, `${socialImagePolicy}-${requestHash}.jpg`, {
+		const image = await encodeSocialImage(bytes, source.mimeType, maxBytes, isPublicationJpeg(source));
+		const content = 'reused' in image && image.reused ? source : await app.ms.content.saveData(userId, image.bytes, `${socialImagePolicy}-${requestHash}.jpg`, {
 			mimeType: 'image/jpeg', driver: {raw: true}, skipFileCatalog: true, waitForPin: true,
 			properties: {socialImage: {...identity, codec: image.codec, width: image.width, height: image.height}}
 		});

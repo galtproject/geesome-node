@@ -34,7 +34,7 @@ describe('private local publication outbox integration', function () {
 		await app?.stop();
 	});
 	it('keeps GET read-only, uploads an owned picture and composes one private source with multiple jobs', async () => {
-		assert.deepEqual(await successful(await call('/outbox')), {ownerId: user.id, group: null, drafts: []});
+		assert.deepEqual(await successful(await call('/outbox')), {ownerId: user.id, capabilities: {ownedImageReferences: true}, group: null, drafts: []});
 		const image = await sharp({create: {width: 600, height: 400, channels: 3, background: '#998877'}}).jpeg().toBuffer();
 		const uploadKey = randomUUID();
 		async function upload() {
@@ -376,6 +376,53 @@ describe('private local publication outbox integration', function () {
 		}
 		assert.equal(await keyModel.count({where: {userId: user.id, namespace: 'local-social-images-v1'}}), count);
 		assert.equal((await call('/compose', {...input, mediaPolicy: undefined})).status, 409);
+	});
+	it('composes owned Content references without uploads and rejects unsafe content before jobs', async () => {
+		const bytes = await sharp({create: {width: 90, height: 70, channels: 3, background: '#243762'}}).png().toBuffer();
+		const content = await app.ms.content.saveData(user.id, bytes, 'owned-reference.png', {mimeType: 'image/png', driver: {raw: true}, skipFileCatalog: true});
+		await app.ms.database.models.Content.update({propertiesJson: 'null'}, {where: {id: content.id}});
+		const Asset = app.ms.database.sequelize.models.asset;
+		assert.equal(await Asset.count({where: {userId: user.id, storageId: content.storageId}}), 0);
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Owned reference source'}));
+		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', imageStorageIds: [content.storageId], destinations: [{network: 'twitter'}]});
+		const composed = await successful(await call('/compose', input));
+		assert.equal(composed.jobs[0].payload.mediaPreparation.sourceAttachments[0].storageId, content.storageId);
+		for (const flag of ['isEncrypted', 'isDeleted', 'isRemote']) {
+			await app.ms.database.models.Content.update({[flag]: true}, {where: {id: content.id}});
+			try {
+				assert.equal((await call('/compose', {...input, requestKey: randomUUID()})).status, 403);
+			} finally {
+				await app.ms.database.models.Content.update({[flag]: false}, {where: {id: content.id}});
+			}
+		}
+		const foreign = await app.registerUser({email: 'foreign-content-reference@example.com', name: 'foreign-content-reference', permissions: [CorePermissionName.UserAll]});
+		const other = await app.ms.content.saveData(foreign.id, await sharp(bytes).negate().png().toBuffer(), 'foreign-reference.png', {mimeType: 'image/png', driver: {raw: true}, skipFileCatalog: true});
+		assert.equal((await call('/compose', {...input, requestKey: randomUUID(), imageStorageIds: [other.storageId]})).status, 403);
+		assert.equal((await successful(await call('/compose', input))).postId, composed.postId);
+	});
+	it('reuses an existing publication JPEG and its durable social cache without re-encoding', async () => {
+		const png = await sharp({create: {width: 110, height: 75, channels: 3, background: '#6382ab'}}).png().toBuffer();
+		const content = await app.ms.content.saveData(user.id, png, 'trusted-publication.png', {mimeType: 'image/png',
+			driver: {name: 'imageOptimize', module: 'convert', params: {policy: 'publication-jpeg95-v1'}}, skipFileCatalog: true, requirePreview: true});
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Trusted JPEG source'}));
+		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', imageStorageIds: [content.storageId], destinations: [{network: 'bluesky'}]});
+		const save = app.ms.content.saveData;
+		let encodes = 0;
+		app.ms.content.saveData = async (...args) => {
+			if (String(args[2]).startsWith('social-images-v1-')) {
+				encodes++;
+			}
+			return save.apply(app.ms.content, args);
+		};
+		try {
+			const first = await successful(await call('/compose', input));
+			const next = await successful(await call('/compose', {...input, requestKey: randomUUID()}));
+			assert.equal(first.jobs[0].payload.attachments[0].storageId, content.storageId);
+			assert.equal(next.jobs[0].payload.attachments[0].storageId, content.storageId);
+			assert.equal(encodes, 0);
+		} finally {
+			app.ms.content.saveData = save;
+		}
 	});
 	it('preserves original producer digest through preparation, routing and replay', async () => {
 		const bytes = await sharp({create: {width: 300, height: 200, channels: 3, background: '#b68261'}}).webp().toBuffer();
