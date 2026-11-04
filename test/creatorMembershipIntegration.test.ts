@@ -835,7 +835,7 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert(publicHtml.includes('Public creator introduction'));
         const publicPostLocation = (await get(`membership/site/posts/${post.id}/`)).headers.get('location');
         const publicPostHtml = (await read(publicPostLocation)).body;
-        assert(publicPostHtml.includes('<title>Public creator name — Snapshot post</title>'));
+        assert(publicPostHtml.includes('<title>Public creator name - Snapshot post</title>'));
         assert(publicPostHtml.includes(`property="og:image" content="https://snapshots.test/ipfs/${previewCid}"`));
         assert(!publicPostHtml.includes(fullCid));
 		const publicDirectory = new URL('.', publicLocation);

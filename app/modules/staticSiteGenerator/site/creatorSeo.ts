@@ -70,7 +70,7 @@ export function creatorMetadata(site, posts, single = false) {
         || (post ? `Read ${postTitle} by ${brand}.` : `Explore the latest posts and membership updates from ${brand}.`);
     const values = {siteTitle:brand, postTitle, postDescription};
     const applyTemplate = (template: string, limit: number) => plainDescription(template, 500).replace(/\{(siteTitle|postTitle|postDescription)\}/g, (_match, key) => values[key]).replace(/\s+/g, ' ').trim().slice(0, limit);
-    const title = post ? applyTemplate(seo.postTitleTemplate || '{siteTitle} — {postTitle}', 200)
+    const title = post ? applyTemplate(seo.postTitleTemplate || '{siteTitle} - {postTitle}', 200)
         : path === '/account/' ? `Account — ${brand}`
         : path.startsWith('/page/') ? `Archive ${path.split('/')[2]} — ${brand}` : plainDescription(seo.title, 200) || brand;
     const description = post ? applyTemplate(seo.postDescriptionTemplate || '{postDescription}', 500) : postDescription;
