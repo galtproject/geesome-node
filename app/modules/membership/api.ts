@@ -14,7 +14,7 @@ export default function (app, module) {
 	* @apiBody {Boolean} enabled Enable browser access for this binding.
 	* @apiBody {Boolean} registrationEnabled Allow creation of private readers.
 	* @apiBody {Boolean} postsEnabled Enable public preview feed.
-	* @apiBody {Object} [seo] Optional title (200), description (500), imageUrl, faviconUrl (HTTPS or root-relative), imageAlt (300), adult (boolean). Use a public share image; no private media. Omission preserves existing SEO; an empty object resets defaults.
+	* @apiBody {Object} [seo] Optional title (200), description (500), postTitleTemplate (200), postDescriptionTemplate (500) with {siteTitle}, {postTitle}, {postDescription} placeholders, imageUrl, faviconUrl (HTTPS or root-relative), imageAlt (300), adult (boolean). Use a public share image; no private media. Omission preserves existing SEO; an empty object resets defaults.
 	* @apiBody {Object} [presentation] Versioned presentation; creator/1 or restricted html-shell/1 with template.html. Same schema as mutable site settings; no arbitrary CSS/scripts or executable templates.
 	* @apiSuccess {Object} result Persisted site settings including incremented version.
 	* @apiError (403) not_permitted AdminMembershipSites on account and active key required; delegated credentials also require UserGroupManagement and own group.
@@ -47,7 +47,7 @@ export default function (app, module) {
 	* @apiBody {Boolean} enabled Allow browser access.
 	* @apiBody {Boolean} registrationEnabled Allow reader registration.
 	* @apiBody {Boolean} postsEnabled Allow public preview feed.
-	* @apiBody {Object} [seo] Optional title (200), description (500), imageUrl, faviconUrl (HTTPS or root-relative), imageAlt (300), adult (boolean). Use a public share image; no private media. Omission preserves existing SEO; an empty object resets defaults.
+	* @apiBody {Object} [seo] Optional title (200), description (500), postTitleTemplate (200), postDescriptionTemplate (500) with {siteTitle}, {postTitle}, {postDescription} placeholders, imageUrl, faviconUrl (HTTPS or root-relative), imageAlt (300), adult (boolean). Use a public share image; no private media. Omission preserves existing SEO; an empty object resets defaults.
 	* @apiBody {Object} [presentation] Versioned presentation manifest (schemaVersion=1, template creator/1 or html-shell/1). html-shell/1 requires template.html with validated structural HTML, fixed utility classes and unique trusted slots. Only documented tokens and placeholders; no executable templates, arbitrary CSS or scripts. Omission preserves the existing manifest.
 	* @apiBody {String} [displayTitle] Public creator name (1–200 characters); independent of the private group title. Omission preserves the existing value.
 	* @apiBody {String} [displayDescription] Visible creator introduction (0–1000 characters), independent of SEO description. Empty hides it; omission preserves the value or legacy description fallback.
