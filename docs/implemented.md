@@ -12,6 +12,17 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Active-member archive prompts (#1543)
+
+Creator post cards use the same active membership state as the sidebar. Active
+members no longer see a join/renew button or the membership-unlock hint on posts
+without link attachments. Guest join prompts, expired-member renewal prompts,
+full-set links and private post content retain their existing behavior.
+
+Verification: `npm run test:ssg-creator-types` and
+`npm run test:ssg-membership-browser -- --pagination` cover guest, active and
+expired membership on desktop/mobile, including archive and single-post access.
+
 ## Subscription activation celebration (#1534)
 
 Newly paid invoices observed for the current signed-in reader show a compact
