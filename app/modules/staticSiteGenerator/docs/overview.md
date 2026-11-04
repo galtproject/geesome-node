@@ -22,6 +22,54 @@ The `staticSiteGenerator` module renders GeeSome groups and content lists into s
 - Group renders require group-admin rights; content-list renders require a bounded `entityIds` list.
 - Errors must close or mark the async operation so queue rows do not remain stuck.
 
+## Restart-interrupted content-list renders (#1554)
+
+An operation marked `node-restart` retains its original receipt. An owner with
+save permission and `content:write` can submit
+`POST /v1/render/static-site-generator/recover/:queueId` with the exact numeric
+`expectedOperationId`. Replacement renders are supported, including queues
+already closed by an older node. New content-list admissions, including rebuilds
+without optimization, atomically save owned source IDs, immutable CIDs,
+preview CIDs and render-metadata fingerprints. Sources are checked before
+rendering and before the result checkpoint. Changed or missing sources stop.
+Group renders and legacy content-list renders without a saved source snapshot
+are refused unless an already-created result is exactly correlated to the
+original operation ID, entity IDs and render options; that result is adopted
+without rereading mutable sources or rerendering.
+
+Recovery keeps the queue ID, input, replacement ID and interrupted operation;
+it creates a new operation and an immutable interrupted-receipt snapshot in the
+new model-synced `staticSiteRenderRecoveries` table. New admissions also use
+`staticSiteRenderReceipts` for the original source fingerprint and queue-bound
+result. A queue row lock and unique
+queue/interrupted-operation key make concurrent calls and lost responses
+idempotent. Repeating the original expected ID reads the accepted attempt; it
+does not retry a failed attempt. Three recovery admissions per queue are the
+fixed maximum, including attempts interrupted by another restart. Other errors,+cancellation, foreign ownership and changed operation IDs are refused.
+
+Only the requested queue is processed. The existing storage worker picks up
+already-admitted pending recoveries if the immediate processor is busy. It does
+not automatically admit other interrupted renders. Poll the original queue to
+observe the current operation. The owner queue projection includes
+`renderRecoveryPolicy: {contract: 1, supported, mode, limit: 3}`; modes are
+`replacement`, `frozen-content-list`, `legacy-result-only` and `unsupported`.
+Check this capability before preparing a new recovery intent. A saved replacement result or completed immutable
+revision is adopted before any rendering, and archive admission is reconciled
+before the new operation finishes. Archive **readiness**, public proof and
+publication cutover remain the consumer's barriers; recovery never performs
+publication cleanup or edits external links.
+
+Deploy the backend before the consumer calls this new endpoint. No existing
+table alteration or migration is required; startup sync creates the new tables.
+Old readers continue to poll the same queue shape. Rollback preserves the new
+table and receipt snapshots, but older nodes cannot execute pending recoveries;
+drain admitted attempts before rollback or redeploy this version before resuming.
+An owner may recover Iris queue `13488`, interrupted operation `70372`, only
+after rereading its live state and confirming replacement `13486` and the
+consumer's original source/version fence. Do not create a replacement queue or
+reset its old operation. The consumer must verify the recovered site and archive
+before replacing its published URL; Patreon is outside this operation.
+
 ## Boundaries
 
 - Keep render inputs bounded; do not render unbounded group timelines or content lists inline.

@@ -124,6 +124,9 @@ function notesFor(route: RouteRow, block: string): string[] {
   if (routeLower.includes('/site-replacements') || routeLower.includes('/image-optimization/capabilities')) {
     notes.add('service checks actor ownership and content:write; deletion/finalization also verifies storage:retire when selected, exact publication and consumer receipts');
   }
+  if (routeLower.includes('/static-site-generator/recover/')) {
+    notes.add('owner + user:save_data + content:write; exact node-restart operation CAS; frozen source/replacement or proven saved result; three persisted recovery attempts; original input/receipts retained');
+  }
   if (route.moduleName === 'localClient') {
     notes.add('publishing:local and UserGroupManagement; compose also requires assets:write; owner-scoped jobs; public-source edit permission or owned ordinary closed source at create/claim; bounded owner-only source selection; authoritative group/network/account routes; opt-in media preparation validates owned originals and uses server-only completed cache; original claim token for results');
   }

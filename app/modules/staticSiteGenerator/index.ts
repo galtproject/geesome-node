@@ -1,6 +1,7 @@
 import fs from 'fs';
 import {normalizeSitePresentation} from './site/presentation.js';
 import {SiteReplacements} from './replacements.js';
+import {StaticSiteRenderRecovery} from './renderRecovery.js';
 import {configureSiteReplacements} from './replacementWorker.js';
 import registerReplacementApi from './replacementApi.js';
 import {withStorageTaskLock} from '../../storageLifecycle.js';
@@ -211,9 +212,33 @@ export async function getModule(app: IGeesomeApp, models) {
     let finishCallbacks = {
 
     };
+    const renderRecovery = new StaticSiteRenderRecovery(app, models);
 
     class StaticSiteGenerator implements IGeesomeStaticSiteGeneratorModule {
         moduleName = 'static-site-generator';
+
+        renderRecoveryPolicy(queue) {
+            return renderRecovery.policy(queue);
+        }
+
+        async recoverRenderQueue(userId, queueId, expectedOperationId, apiKeyId = null) {
+            const receipt = await renderRecovery.recover(userId, queueId, expectedOperationId, apiKeyId);
+            this.processQueue({userId, queueId}).catch(error => console.error('static_site_recovery_worker_error', error));
+            return receipt;
+        }
+
+        async processPendingRenderRecoveries() {
+            const pending = await models.RenderRecovery.findAll({where: {state: 'pending'}, order: [['id', 'ASC']], limit: 5});
+            for (const attempt of pending) {
+                const queue = await app.ms.asyncOperation.getUserOperationQueue(attempt.userId, attempt.queueId);
+                if (queue.asyncOperationId !== attempt.asyncOperationId || !queue.isWaiting || !queue.asyncOperation?.inProcess
+                    || queue.asyncOperation.errorType || queue.asyncOperation.cancel) {
+                    await attempt.update({state: 'interrupted'});
+                    continue;
+                }
+                await this.processQueue({userId: attempt.userId, queueId: attempt.queueId});
+            }
+        }
 
         async addRenderToQueueAndProcess(userId: number, userApiKeyId: number, renderArgs: IStaticSiteRenderArgs, options: any) {
             const {entityType, entityId, entityIds} = renderArgs;
@@ -242,10 +267,7 @@ export async function getModule(app: IGeesomeApp, models) {
                 }
             }
 
-            const operationQueue = await app.ms.asyncOperation.addUserOperationQueue(userId, this.moduleName, userApiKeyId, {
-                renderArgs,
-                options
-            });
+            const operationQueue = await renderRecovery.admit(userId, userApiKeyId, renderArgs, options);
             this.processQueue();
             return operationQueue;
         }
@@ -263,12 +285,12 @@ export async function getModule(app: IGeesomeApp, models) {
             return helpers.keccak(JSON.stringify(entityIds));
         }
 
-        async processQueue() {
+        async processQueue(target = null) {
             if (app.ms.database.sequelize?.getDialect?.() !== 'postgres') {
-                return this.processClaimedQueue();
+                return this.processClaimedQueue(target);
             }
             try {
-                return await withStorageTaskLock(app, 'static-site-generator-queue', () => this.processClaimedQueue());
+                return await withStorageTaskLock(app, 'static-site-generator-queue', () => this.processClaimedQueue(target));
             } catch (error) {
                 if (error.message !== 'image_render_in_process') {
                     throw error;
@@ -276,20 +298,24 @@ export async function getModule(app: IGeesomeApp, models) {
             }
         }
 
-        async processClaimedQueue() {
-            const waitingQueue = await app.ms.asyncOperation.getWaitingOperationByModule(this.moduleName);
+        async processClaimedQueue(target = null) {
+            const waitingQueue = target
+                ? await app.ms.asyncOperation.getUserOperationQueue(target.userId, target.queueId)
+                : await app.ms.asyncOperation.getWaitingOperationByModule(this.moduleName);
             log('waitingQueue', waitingQueue);
-            if (!waitingQueue) {
+            if (!waitingQueue || !waitingQueue.isWaiting) {
                 return;
             }
             log('waitingQueue.asyncOperation', waitingQueue.asyncOperation);
-            if (waitingQueue.asyncOperation) {
+            const recovery = waitingQueue.asyncOperation ? await renderRecovery.pending(waitingQueue) : null;
+            if (waitingQueue.asyncOperation && !(recovery && waitingQueue.asyncOperation.inProcess
+                && !waitingQueue.asyncOperation.errorType && !waitingQueue.asyncOperation.cancel)) {
                 if (waitingQueue.asyncOperation.inProcess) {
                     log('return');
                     return;
                 } else {
                     await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(waitingQueue.asyncOperation.id);
-                    return this.processClaimedQueue();
+                    return target ? undefined : this.processClaimedQueue();
                 }
             }
 
@@ -304,7 +330,7 @@ export async function getModule(app: IGeesomeApp, models) {
                 } else {
                     operationPrefix = 'type:' + entityType + ';id:' + entityId;
                 }
-                asyncOperation = await app.ms.asyncOperation.addAsyncOperation(userId, {
+                asyncOperation = recovery ? waitingQueue.asyncOperation : await app.ms.asyncOperation.addAsyncOperation(userId, {
                     userApiKeyId,
                     module: this.moduleName,
                     name: 'run-' + this.moduleName + '-' + entityType,
@@ -312,17 +338,25 @@ export async function getModule(app: IGeesomeApp, models) {
                 });
 
                 await app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(waitingQueue.id, asyncOperation.id);
+                if (recovery) {
+                    await recovery.update({state: 'running'});
+                }
 
                 options.asyncOperationId = asyncOperation.id;
-                const generateSite = entityType === 'content-list'
+                const saved = await renderRecovery.prepare(waitingQueue, asyncOperation);
+                const generateSite = saved ? Promise.resolve(saved) : entityType === 'content-list'
                     ? this.generateContentListSite(userId, renderArgs, options)
                     : this.generateGroupSite(userId, renderArgs, options).then(storageId => ({storageId, staticSiteId: null}));
                 await generateSite.then(async ({storageId, staticSiteId}) => {
+                    await renderRecovery.checkpoint(waitingQueue, asyncOperation, {storageId, staticSiteId});
                     if (options.archive === true) {
                         await app.ms.archive.requestArchive(userId, storageId, userApiKeyId);
                     }
                     await app.ms.asyncOperation.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
                     await app.ms.asyncOperation.finishAsyncOperation(userId, asyncOperation.id, null, JSON.stringify({storageId, staticSiteId}));
+                    if (recovery) {
+                        await recovery.update({state: 'complete'});
+                    }
                     if (finishCallbacks[waitingQueue.id]) {
                         finishCallbacks[waitingQueue.id](await app.ms.asyncOperation.getAsyncOperation(asyncOperation.userId, asyncOperation.id));
                     }
@@ -331,6 +365,9 @@ export async function getModule(app: IGeesomeApp, models) {
                 console.error('processQueue', e);
                 if (asyncOperation) {
                     await app.ms.asyncOperation.errorAsyncOperation(userId, asyncOperation.id, e.message);
+                    if (recovery) {
+                        await recovery.update({state: 'failed'});
+                    }
                     if (finishCallbacks[waitingQueue.id]) {
                         finishCallbacks[waitingQueue.id](await app.ms.asyncOperation.getAsyncOperation(asyncOperation.userId, asyncOperation.id));
                     }
@@ -339,7 +376,9 @@ export async function getModule(app: IGeesomeApp, models) {
                 }
                 delete finishCallbacks[waitingQueue.id];
             }
-            await this.processClaimedQueue();
+            if (!target) {
+                await this.processClaimedQueue();
+            }
 
             return waitingQueue;
         }
@@ -858,7 +897,7 @@ export async function getModule(app: IGeesomeApp, models) {
         }
 
         async flushDatabase() {
-            await pIteration.forEachSeries(['Revision', 'StaticSite'], (modelName) => {
+            await pIteration.forEachSeries(['RenderReceipt', 'RenderRecovery', 'Revision', 'StaticSite'], (modelName) => {
                 return models[modelName].destroy({where: {}});
             });
         }
