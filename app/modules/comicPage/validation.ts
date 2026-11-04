@@ -101,15 +101,20 @@ export function validateRecipe(r) {
 		if (!sourceIds.has(panel.sourceId)) {
 			throw new ComicPageError('comic_page_invalid');
 		}
-		rect(panel.frame);
-		rect(panel.crop);
+		rect(panel.frame, r.canvas.width, r.canvas.height, true);
+		rect(panel.crop, 1, 1, false);
 	}
 	for (const bubble of r.bubbles) {
 		if (typeof bubble.text !== 'string' || bubble.text.length > 4000
 			|| !['speech', 'caption'].includes(bubble.kind) || (bubble.panelId !== null && !panelIds.has(bubble.panelId))) {
 			throw new ComicPageError('comic_page_invalid');
 		}
-		rect(bubble.rect);
+		rect(bubble.rect, r.canvas.width, r.canvas.height, true);
+		if (bubble.tail !== null && bubble.tail !== undefined
+			&& (!Number.isSafeInteger(bubble.tail.x) || !Number.isSafeInteger(bubble.tail.y)
+				|| bubble.tail.x < 0 || bubble.tail.y < 0 || bubble.tail.x > r.canvas.width || bubble.tail.y > r.canvas.height)) {
+			throw new ComicPageError('comic_page_invalid');
+		}
 	}
 }
 
@@ -125,10 +130,11 @@ function unique(values, key) {
 	return ids;
 }
 
-function rect(value) {
+function rect(value, maxWidth, maxHeight, integerPixels) {
 	if (!value || ![value.x, value.y, value.width, value.height].every(Number.isFinite)
 		|| value.x < 0 || value.y < 0 || value.width <= 0 || value.height <= 0
-		|| value.x + value.width > 1.000001 || value.y + value.height > 1.000001) {
+		|| (integerPixels && ![value.x, value.y, value.width, value.height].every(Number.isSafeInteger))
+		|| value.x + value.width > maxWidth || value.y + value.height > maxHeight) {
 		throw new ComicPageError('comic_page_invalid');
 	}
 }

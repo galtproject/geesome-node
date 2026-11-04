@@ -14,8 +14,8 @@ function recipe(source: string, changes = {}) {
 	return {type: 'comic-page', version: 1, comicId: 'comic', pageId: 'page1', pageNumber: 1, pageRevision: 1,
 		previousVersionRef: null, sourceAssets: [{sourceId: 'source', originalManifestId: source, storageId: 'source-bytes', width: 160, height: 200, setProvenance: JSON.stringify({constructor: {sequencePosition: 1, sceneImageIndex: 1}})}],
 		canvas: {width: 160, height: 200, background: '#fff'}, panels: [{panelId: 'panel', sourceId: 'source',
-			frame: {x: 0, y: 0, width: 1, height: 1}, crop: {x: 0, y: 0, width: 1, height: 1}}],
-		bubbles: [{bubbleId: 'bubble', panelId: 'panel', kind: 'caption', text: 'Hello', rect: {x: .1, y: .1, width: .4, height: .2}}], ...changes};
+			frame: {x: 0, y: 0, width: 160, height: 200}, crop: {x: 0, y: 0, width: 1, height: 1}}],
+		bubbles: [{bubbleId: 'bubble', panelId: 'panel', kind: 'caption', text: 'Hello', rect: {x: 16, y: 20, width: 64, height: 40}, tail: {x: 96, y: 80}}], ...changes};
 }
 
 describe('native comic-page validation and API', () => {
@@ -28,6 +28,26 @@ describe('native comic-page validation and API', () => {
 		assert.throws(() => normalize({...base, recipe: recipe('source', {panels: [{panelId: 'p', sourceId: 'missing'}]})}));
 		assert.throws(() => normalize({...base, recipe: recipe('source', {canvas: {width: 100000, height: 100000}})}));
 		assert.throws(() => normalize({...base, recipe: recipe('source', {unused: Infinity})}));
+	});
+	it('bounds page-pixel frames, bubbles and tails independently from normalized source crops', () => {
+		const baseRecipe = recipe('source');
+		const base = {idempotencyKey: 'geometry', comicId: 'comic', pageId: 'page1', pageRevision: 1, folderId: 1,
+			recipe: baseRecipe, pngBase64: '', bubbles: [{id: 'bubble', svg}]};
+		assert.equal(normalize(base).recipe.panels[0].frame.width, 160);
+		const panel = baseRecipe.panels[0];
+		const bubble = baseRecipe.bubbles[0];
+		for (const frame of [{x: 1, y: 0, width: 160, height: 200}, {x: 0, y: 1, width: 160, height: 200}, {x: .5, y: 0, width: 100, height: 100}]) {
+			assert.throws(() => normalize({...base, recipe: {...baseRecipe, panels: [{...panel, frame}]}}), /comic_page_invalid/);
+		}
+		for (const crop of [{x: .1, y: 0, width: 1, height: 1}, {x: 0, y: .1, width: 1, height: 1}, {x: -1, y: 0, width: 1, height: 1}]) {
+			assert.throws(() => normalize({...base, recipe: {...baseRecipe, panels: [{...panel, crop}]}}), /comic_page_invalid/);
+		}
+		for (const rect of [{x: 150, y: 0, width: 20, height: 20}, {x: 0, y: 190, width: 20, height: 20}]) {
+			assert.throws(() => normalize({...base, recipe: {...baseRecipe, bubbles: [{...bubble, rect}]}}), /comic_page_invalid/);
+		}
+		for (const tail of [{x: 161, y: 20}, {x: 20, y: 201}, {x: -1, y: 20}, {x: NaN, y: 20}]) {
+			assert.throws(() => normalize({...base, recipe: {...baseRecipe, bubbles: [{...bubble, tail}]}}));
+		}
 	});
 	it('decodes exact bounded PNG dimensions and rejects corrupted bytes', async () => {
 		const bytes = await sharp({create: {width: 160, height: 200, channels: 4, background: '#fff'}}).png().toBuffer();

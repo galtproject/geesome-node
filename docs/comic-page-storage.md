@@ -25,8 +25,9 @@ Authenticated `POST /v1/user/comic-pages` accepts `idempotencyKey`, `comicId`,
 `pageId`, positive `pageRevision`, `folderId`, optional `previousVersionRef`,
 `recipe`, `pngBase64` and `bubbles: [{id, svg}]`. The recipe has
 `type: comic-page`, `version: 1`, matching comic/page/revision identifiers,
-`sourceAssets[].originalManifestId`, normalized panel frame/crop and bubble
-rectangles, and `canvas: {width, height, background}`. Sources are bounded to 12,
+`sourceAssets[].originalManifestId`, integer page-pixel panel frames and bubble
+rectangles/tail endpoints bounded by `canvas: {width, height, background}`, and
+normalized source crop rectangles bounded by `[0, 1]`. Sources are bounded to 12,
 panels to 8, bubbles to 12, canvas to 1600 × 2000 and encoded PNG to 20 MB.
 Source manifests must be owned or public, unencrypted ordinary raster Content;
 storage IDs and declared source dimensions must match the native Content.

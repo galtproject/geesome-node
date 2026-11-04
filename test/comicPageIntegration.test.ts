@@ -23,8 +23,8 @@ describe('comic-page native Content and Media integration', function () {
 			pngBase64: png.toString('base64'), bubbles: [{id: 'bubble1', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50"><ellipse cx="50" cy="25" rx="48" ry="23" fill="white"/><text x="50" y="25" text-anchor="middle">Hello</text></svg>'}]};
 		input.recipe = {type: 'comic-page', version: 1, comicId: input.comicId, pageId: input.pageId, pageNumber: 1, pageRevision: 1,
 			previousVersionRef: null, canvas: {width: 160, height: 200, background: '#fff'}, sourceAssets: [{sourceId: 'original', originalManifestId: source.manifestStorageId, storageId: source.storageId, width: 160, height: 200, setProvenance: JSON.stringify({constructor: {sequencePosition: 1, sceneImageIndex: 1}})}],
-			panels: [{panelId: 'panel1', sourceId: 'original', frame: {x: 0, y: 0, width: 1, height: 1}, crop: {x: 0, y: 0, width: 1, height: 1}}],
-			bubbles: [{bubbleId: 'bubble1', panelId: 'panel1', kind: 'speech', text: 'Hello', rect: {x: .1, y: .1, width: .5, height: .2}}]};
+			panels: [{panelId: 'panel1', sourceId: 'original', frame: {x: 0, y: 0, width: 160, height: 200}, crop: {x: 0, y: 0, width: 1, height: 1}}],
+			bubbles: [{bubbleId: 'bubble1', panelId: 'panel1', kind: 'speech', text: 'Hello', rect: {x: 16, y: 20, width: 80, height: 40}, tail: {x: 100, y: 80}}]};
 	});
 	after(async () => {
 		if (app) {
