@@ -6,7 +6,7 @@ export const membershipBase = '/api/v1/membership/site';
 type SnapshotMedia = {url?: string; mime: string; name?: string; text?: string; view?: string};
 type SnapshotPost = {
 	id?: string | number; date?: number; title?: string; teaser?: string; fullText?: string;
-	free?: boolean; postUrl?: string; media: SnapshotMedia[];
+	socialImageUrl?: string; free?: boolean; postUrl?: string; media: SnapshotMedia[];
 };
 type SnapshotSite = {brand?: any; domain?: string; description?: string; resourceId?: string; options?: any[]; title: string; homeUrl?: string; entryPath?: string; postsCount?: number; pageUrls?: string[]; relativeRoot?: string; navigation?: {newer?: string; older?: string; home: string}; canonicalPath?: string};
 

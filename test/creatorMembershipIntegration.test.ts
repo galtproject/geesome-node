@@ -833,6 +833,11 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert(publicHtml.includes('rel="canonical" href="https://snapshots.test/"'));
 		assert(publicHtml.includes('property="og:image" content="https://snapshots.test/share.webp"'));
 		assert(publicHtml.includes('Public creator introduction'));
+        const publicPostLocation = (await get(`membership/site/posts/${post.id}/`)).headers.get('location');
+        const publicPostHtml = (await read(publicPostLocation)).body;
+        assert(publicPostHtml.includes('<title>Public creator name — Snapshot post</title>'));
+        assert(publicPostHtml.includes(`property="og:image" content="https://snapshots.test/ipfs/${previewCid}"`));
+        assert(!publicPostHtml.includes(fullCid));
 		const publicDirectory = new URL('.', publicLocation);
 		const sitemap = await read(new URL('sitemap.xml', publicDirectory));
 		assert.equal(sitemap.status, 200);
@@ -890,6 +895,10 @@ suite('creator modules with real PostgreSQL and HTTP', function () {
 		assert.equal((await get('membership/site/', {cookie: '__Host-geesome_session=forged'})).headers.get('location'), publicLocation);
 		const oldPost = (await get(`membership/site/posts/${post.id}/`, {cookie})).headers.get('location');
 		assert((await read(oldPost)).body.includes('FIRST-PAID-TEXT'));
+        const paidPostHead = (await read(oldPost)).body.split('</head>')[0];
+        assert(paidPostHead.includes(`property="og:image" content="https://snapshots.test/ipfs/${previewCid}"`));
+        assert(!paidPostHead.includes(fullCid));
+        assert(!paidPostHead.includes('FIRST-PAID-TEXT'));
 		assert((await read(oldPost)).body.includes(`../../media/${hashPublicationInput(fullCid)}.png`));
 		assert.equal((await read(new URL(`../../media/${hashPublicationInput(fullCid)}.png`, oldPost).href)).body, 'FULL-MEDIA-BYTES');
 		assert(!(await read(publicLocation)).body.includes(fullCid));

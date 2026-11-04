@@ -308,7 +308,7 @@ try {
                 await card.getByTestId('share-post').click();
                 const toast = page.getByTestId('share-notification');
                 await toast.filter({hasText:'Copied to clipboard'}).waitFor();
-                assert.equal(await page.evaluate(()=>window.sharedUrl),'https://creator.test/api/v1/membership/site/posts/51/');
+                assert.equal(await page.evaluate(()=>window.sharedUrl),'https://creator.test/posts/51/');
                 assert.equal(await card.getByTestId('share-link').count(),0);
                 await page.clock.runFor(350);
                 await toast.evaluate(el=>el.getAnimations().forEach(animation=>animation.finish()));
