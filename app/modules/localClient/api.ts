@@ -56,6 +56,7 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiBody {String} requestKey Owner-scoped compose idempotency key.
 	 * @apiBody {String} text New text (maximum 40000 characters).
 	 * @apiBody {String[]} imageStorageIds Owned Asset or local Content storage IDs (maximum 20).
+	 * @apiBody {Object} [destinations.target] Each Patreon destination target requires title (1–200 chars), audience (free_members or paid_members), teaserText (nonempty exact prefix of text, maximum 10000 chars) and campaignId (positive decimal, up to 20 digits). Unbound group jobs may defer campaignId to the local route. Prepared Patreon jobs allow up to 20 preview images. No Cookie credentials accepted.
 	 * @apiBody {Object[]} destinations Explicit network/localAccountId/target selections (1–20). With explicit groupId only, omit localAccountId to defer local account selection until claim.
 	 * @apiBody {String} [scheduledAt] ISO instant with timezone; omit to send now.
 	 * @apiBody {Object} [producer] For one destination only: type=microwave-girls and positive postId. Stored with server-computed canonical original-intent digest, preserved when a claim resolves an unbound account/route; no URL or credential.
@@ -87,6 +88,8 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiQuery {Number{0-1000000}} [offset=0] Page offset.
 	 * @apiSuccess {Number} ownerId Authenticated GeeSome owner ID for connection verification.
 	 * @apiSuccess {Object} capabilities Supported additive publishing features.
+	 * @apiSuccess {Boolean} capabilities.patreonPublishing Supports explicit Patreon member audience and multi-image preview jobs.
+	 * @apiSuccess {Boolean} capabilities.networkQueues Supports network-filtered publication queue pages.
 	 * @apiSuccess {Boolean} capabilities.ownedImageReferences Compose accepts owned local Content references without an Asset upload.
 	 * @apiSuccess {Object|null} group Existing owned outbox identity, or null before first composition.
 	 * @apiSuccess {Object[]} drafts Source postId, text, attachments and creation time.
@@ -105,10 +108,10 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiDescription Requires publishing:local scope and permission to edit a public local post or an owned ordinary closed local channel source. Social credentials stay on the client. Repeated requestKey returns the original snapshot; conflicting input returns 409.
 	 * @apiBody {String} requestKey Owner-scoped idempotency key (1–128 identifier characters).
 	 * @apiBody {Number} postId Existing public locally authored post.
-	 * @apiBody {String="threads","instagram","reddit","twitter","rule34xxx","bluesky","discord","telegram"} network Destination network.
+	 * @apiBody {String="threads","instagram","reddit","twitter","rule34xxx","bluesky","discord","telegram","patreon"} network Destination network.
 	 * @apiBody {String} localAccountId Account identifier configured on the local client.
 	 * @apiBody {String} scheduledAt ISO 8601 instant with timezone.
-	 * @apiBody {Object} [target] Typed targets: Reddit subreddit/title/flairId/kind; Twitter/Bluesky optional sensitive boolean; Discord channelId plus optional guildId/sensitive boolean; Telegram chatId and optional sensitive boolean; Rule34 required tags/source/rating=s|q|e. No credentials or arbitrary headers.
+	 * @apiBody {Object} [target] Typed targets: Reddit subreddit/title/flairId/kind; Twitter/Bluesky optional sensitive boolean; Discord channelId plus optional guildId/sensitive boolean; Telegram chatId and optional sensitive boolean; Rule34 required tags/source/rating=s|q|e; Patreon requires title/audience/teaserText/campaignId as documented for compose. No credentials or arbitrary headers.
 	 * @apiSuccess {Object} job Frozen scheduled job with text/media payload.
 	 * @apiError (409) LocalPublicationRequestConflict Request key was already used with different input.
 	 * @apiSuccessExample {json} Scheduled
@@ -128,6 +131,7 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiDescription Requires publishing:local. Only the authenticated owner's jobs are returned; claim tokens are included for manual resolution. Processing jobs are never automatically requeued.
 	 * @apiQuery {Number{1-100}} [limit=20] Page size.
 	 * @apiQuery {Number{0-1000000}} [offset=0] Page offset.
+	 * @apiQuery {String="threads","instagram","reddit","twitter","rule34xxx","bluesky","discord","telegram","patreon"} [network] Filter a single network before pagination, intersected with owner and source filters.
 	 * @apiQuery {String="queued","processing","posted","failed","needs_review","cancelled"} [status] Filter.
 	 * @apiQuery {String} [groupIds] Comma-separated distinct positive group IDs (maximum 100), intersected with owner filters. Empty selects no jobs.
 	 * @apiQuery {String} [composeKey] Exact owner-scoped compose key (1–128 identifier characters) for read-only lost-response recovery.
@@ -152,9 +156,9 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiBody {Number} [routes.groupId] Selected source group.
 	 * @apiBody {String} [routes.network] Network, also present in accounts.
 	 * @apiBody {String} [routes.localAccountId] Configured account, also present in accounts.
-	 * @apiBody {Object} [routes.target] Discord channelId/guildId/sfwChannelId or Telegram chatId/sfwChatId defaults only. SFW alternative is used only when authored sensitive=false and destination is absent.
+	 * @apiBody {Object} [routes.target] Discord channelId/guildId/sfwChannelId, Telegram chatId/sfwChatId or Patreon campaignId defaults only. SFW alternative is used only when authored sensitive=false and destination is absent.
 	 * @apiBody {Object[]} accounts Configured local accounts (maximum 100).
-	 * @apiBody {String="threads","instagram","reddit","twitter","rule34xxx","bluesky","discord","telegram"} accounts.network Network.
+	 * @apiBody {String="threads","instagram","reddit","twitter","rule34xxx","bluesky","discord","telegram","patreon"} accounts.network Network.
 	 * @apiBody {String} accounts.localAccountId Local account identifier.
 	 * @apiSuccess {Object|null} job Claimed job with claimToken or null when none is due.
 	 */

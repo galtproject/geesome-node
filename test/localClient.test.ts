@@ -40,6 +40,32 @@ describe('local publication queue', function () {
 			getPostContentData: async () => content
 		}}} as any, models);
 	});
+	it('filters network queues before pagination and retains owner scoping', async () => {
+		const older = await module.createJob(1, request());
+		await module.createJob(1, request({network: 'twitter'}));
+		await module.createJob(2, request());
+		const newer = await module.createJob(1, request());
+		assert.deepEqual((await module.listJobs(1, {network: 'threads', limit: 1})).map(job => job.id), [newer.id]);
+		assert.deepEqual((await module.listJobs(1, {network: 'threads', limit: 1, offset: 1})).map(job => job.id), [older.id]);
+		assert.deepEqual(await module.listJobs(1, {network: 'patreon'}), []);
+		await assert.rejects(module.listJobs(1, {network: 'other'}), {status: 400});
+	});
+	it('rejects a Patreon legacy job without a preview and matching protected-text boundary', async () => {
+		const input = request({network: 'patreon', target: {title: 'Set', audience: 'paid_members', teaserText: 'Frozen', campaignId: '123'}});
+		await assert.rejects(module.createJob(1, input), {status: 400});
+		assert.deepEqual(await module.listJobs(1, {network: 'patreon'}), []);
+	});
+	it('requires explicit Patreon member access and preserves unbound campaign routing', async () => {
+		const target = {title: 'Set title', audience: 'paid_members', teaserText: 'Subscribe.', campaignId: '123'};
+		const input = request({network: 'patreon', target});
+		assert.deepEqual(normalizeRequest(input).target, target);
+		const {campaignId, ...unbound} = target;
+		assert.deepEqual(normalizeRequest({...input, localAccountId: undefined, target: unbound}, true).target, unbound);
+		for (const invalid of [{...target, audience: 'public'}, {...target, campaignId: '0'}, {...target, cookie: 'secret'}, {...target, teaserText: ''}]) {
+			assert.throws(() => normalizeRequest({...input, target: invalid}), {status: 400});
+		}
+		assert.throws(() => normalizeRequest({...input, target: unbound}), {status: 400});
+	});
 	it('freezes source and deduplicates replay without re-reading edited source', async () => {
 		const input = request();
 		const original = await module.createJob(1, input);

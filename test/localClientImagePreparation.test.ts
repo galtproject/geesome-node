@@ -5,6 +5,14 @@ import {publicationDigest} from '../app/modules/localClient/producer.js';
 
 describe('local publication image preparation', function () {
 	this.timeout(90000);
+	it('keeps Patreon previews in one job and requires an exact nonempty protected-body boundary', () => {
+		const request = {text: 'Public preview.\nProtected link', imageStorageIds: Array.from({length: 20}, (_, i) => String(i)), destinations: [{network: 'patreon', target: {teaserText: 'Public preview.'}}]};
+		assert.doesNotThrow(() => validatePreparedPublication(request));
+		assert.throws(() => validatePreparedPublication({...request, imageStorageIds: [...request.imageStorageIds, 'extra']}));
+		assert.throws(() => validatePreparedPublication({...request, text: 'Public preview.'}));
+		assert.throws(() => validatePreparedPublication({...request, text: 'Different prefix. Protected link'}));
+		assert.throws(() => validatePreparedPublication({...request, destinations: [{network: 'telegram', target: {}}]}));
+	});
 	it('decodes PNG/WebP to compatible JPEG while flattening transparency and preserving orientation', async () => {
 		const png = await sharp({create: {width: 120, height: 80, channels: 4, background: {r: 255, g: 0, b: 0, alpha: 0}}}).png().toBuffer();
 		for (const [bytes, mime] of [[png, 'image/png'], [await sharp(png).webp().toBuffer(), 'image/webp']] as any) {

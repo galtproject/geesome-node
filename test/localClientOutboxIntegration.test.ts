@@ -34,7 +34,11 @@ describe('private local publication outbox integration', function () {
 		await app?.stop();
 	});
 	it('keeps GET read-only, uploads an owned picture and composes one private source with multiple jobs', async () => {
-		assert.deepEqual(await successful(await call('/outbox')), {ownerId: user.id, capabilities: {ownedImageReferences: true}, group: null, drafts: []});
+		const {capabilities, ...empty} = await successful(await call('/outbox'));
+		assert.deepEqual(empty, {ownerId: user.id, group: null, drafts: []});
+		assert.equal(capabilities.ownedImageReferences, true);
+		assert.equal(capabilities.patreonPublishing, true);
+		assert.equal(capabilities.networkQueues, true);
 		const image = await sharp({create: {width: 600, height: 400, channels: 3, background: '#998877'}}).jpeg().toBuffer();
 		const uploadKey = randomUUID();
 		async function upload() {
@@ -423,6 +427,27 @@ describe('private local publication outbox integration', function () {
 		} finally {
 			app.ms.content.saveData = save;
 		}
+	});
+	it('prepares a Patreon preview job and freezes the campaign route without changing producer intent', async () => {
+		const bytes = await sharp({create: {width: 300, height: 200, channels: 3, background: '#b68261'}}).webp().toBuffer();
+		const uploaded = await uploadPreparationImage(bytes, 'image/webp');
+		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Patreon source'}));
+		const target = {title: 'Prepared set', audience: 'free_members', teaserText: 'Public preview.'};
+		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', text: 'Public preview.\nProtected link', imageStorageIds: [uploaded.storageId], producer: {type: 'microwave-girls', postId: 901}, destinations: [{network: 'patreon', target}]});
+		const job = (await successful(await call('/compose', input))).jobs[0];
+		assert.equal(job.payload.attachments[0].mimeType, 'image/jpeg');
+		const account = {network: 'patreon', localAccountId: 'patreon_prepared'};
+		const claimed = (await successful(await call('/claim', {jobId: job.id, groupIds: [group.id], accounts: [account], routes: [{groupId: group.id, ...account, target: {campaignId: '123'}}]}))).job;
+		assert.equal(claimed.target.campaignId, '123');
+		assert.equal(claimed.target.audience, 'free_members');
+		assert.equal(claimed.producer.digest, job.producer.digest);
+		assert.deepEqual(claimed.payload, job.payload);
+		const listed = (await successful(await call('?network=patreon&limit=1'))).jobs;
+		assert.equal(listed.length, 1);
+		assert.equal(listed[0].id, job.id);
+		const replayed = (await successful(await call('/compose', input))).jobs[0];
+		assert.equal(replayed.id, job.id);
+		assert.equal(replayed.target.campaignId, '123');
 	});
 	it('preserves original producer digest through preparation, routing and replay', async () => {
 		const bytes = await sharp({create: {width: 300, height: 200, channels: 3, background: '#b68261'}}).webp().toBuffer();
