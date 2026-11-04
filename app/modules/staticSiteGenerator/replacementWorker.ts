@@ -16,7 +16,8 @@ export function configureSiteReplacements(app, service) {
         return service.status(userId, id);
     };
     Object.defineProperty(service, 'capabilities', {get: () => ({contract: 1, policy, imagePolicies, resave: true, watermark: true, imageOptimizeDriver: true,
-        retirement: Boolean(app.ms.storageSpace && app.ms.storage.node?.repo?.gc && app.ms.storage.node?.files?.rm)})});
+        retirement: Boolean(app.ms.storageSpace && app.ms.storage.node?.repo?.gc && app.ms.storage.node?.files?.rm),
+        retainOriginalForExternalLinks: true})});
     service.processQueue = () => withStorageWorker(app, async () => {
         for (const row of await service.jobs.list(['rendered'])) {
             try {

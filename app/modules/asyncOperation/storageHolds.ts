@@ -9,8 +9,14 @@ export async function storageJobs(app) {
     if (sequelize.models && !sequelize.models.userOperationQueue) {
         return [];
     }
-    return sequelize.model('userOperationQueue').findAll({where: {isWaiting: true},
-        include: [{association: 'asyncOperation', attributes: ['output']}], limit: 1001});
+    // Retained external galleries outlive the queue's worker lifecycle. Keep
+    // their terminal receipts in the same bounded snapshot as active jobs.
+    // Coarse text matching avoids casting malformed historical output to JSON;
+    // indexJobs validates matching receipts and fails closed on unknown state.
+    return sequelize.model('userOperationQueue').findAll({where: {[Op.or]: [
+        {isWaiting: true},
+        {module: 'site-replacement', '$asyncOperation.output$': {[Op.like]: '%"externalLinksRetention"%'}},
+    ]}, include: [{association: 'asyncOperation', attributes: ['output']}], limit: 1001});
 }
 export function storageJobState(row) {
     const accepted = JSON.parse(row.inputJson);
@@ -27,9 +33,17 @@ function indexJobs(app, rows) {
             let ids: string[] = [];
             if (row.module === 'content-resave') {
                 ids = imageFiles(state.source);
-            } else if (row.module === 'site-replacement' && !state.result?.cleanup?.holdsReleased) {
+            } else if (row.module === 'site-replacement' && state.result?.cleanup?.holdsReleased !== true) {
+                const retention = state.result?.externalLinksRetention;
+                if (retention && (retention.reason !== 'external_links_pending'
+                    || !Array.isArray(retention.sources) || !retention.previousPageStorageId)) {
+                    throw new Error('storage_retention_receipt_invalid');
+                }
                 ids = [...state.input.sources.flatMap(imageFiles), state.input.previous?.storageId,
-                    state.input.previous?.archiveStorageId].filter(Boolean).map(normalizeStorageId);
+                    state.input.previous?.archiveStorageId,
+                    ...(retention ? [...retention.sources.flatMap(imageFiles), retention.previousPageStorageId,
+                        retention.previousArchiveStorageId] : []),
+                ].filter(Boolean).map(normalizeStorageId);
             }
             for (const cid of new Set(ids)) {
                 const owners = holders.get(cid) || new Set<number>();

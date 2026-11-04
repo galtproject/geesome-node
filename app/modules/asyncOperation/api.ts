@@ -71,7 +71,7 @@ export default (app: IGeesomeApp, asyncOperationModule: IGeesomeAsyncOperationMo
      * @apiUse AsyncErrors
      *
      * @apiParam {Number} operationId Operation queue id.
-     * @apiSuccess {Object} [renderRecoveryPolicy] Static-site queue recovery capability: contract 1, supported, mode (replacement, frozen-content-list, legacy-result-only or unsupported), and fixed attempt limit 3. A capability does not authorize recovery or imply a currently interrupted operation; mutation requires content:write and the exact node-restart receipt.
+     * @apiSuccess {Object} [renderRecoveryPolicy] Static-site queue recovery capability: contract 1, supported, mode (replacement, frozen-content-list, legacy-result-only or unsupported), fixed attempt limit 3 and retainOriginalForExternalLinks support. A capability does not authorize recovery or imply a currently interrupted operation; mutation requires content:write and the exact node-restart receipt.
      * @apiInterface (./interface.ts) {IUserOperationQueue} apiSuccess
      */
     app.ms.api.onAuthorizedPost('user/get-operation-queue/:operationId', async (req, res) => {

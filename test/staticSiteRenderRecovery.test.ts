@@ -9,6 +9,7 @@ import {getModule as siteModule, normalizeStaticSiteOptions} from '../app/module
 import {StaticSiteRenderRecovery} from '../app/modules/staticSiteGenerator/renderRecovery.js';
 import {SiteReplacements} from '../app/modules/staticSiteGenerator/replacements.js';
 import {digest} from '../app/storageIdentity.js';
+import {stopStorageFence} from '../app/storageLifecycle.js';
 
 describe('static-site restart recovery with persisted receipts', function () {
     this.timeout(30000);
@@ -18,7 +19,8 @@ describe('static-site restart recovery with persisted receipts', function () {
 
     before(async () => {
         const config = databaseConfig;
-        sequelize = new Sequelize(config.database, config.username, config.password, {...config, logging: false});
+        sequelize = new Sequelize(config.database, config.username, config.password,
+            {...config, logging: false, pool: {max: 2, min: 0, acquire: 2000}});
         models = {...await syncOperations(sequelize), ...await syncSites(sequelize)};
         app = {ms: {database: {sequelize, getApiKey: async () => null}}, checkUserCan: async () => {}};
         operations = operationsModule(app, models);
@@ -42,12 +44,15 @@ describe('static-site restart recovery with persisted receipts', function () {
         await models.UserOperationQueue.destroy({where: {userId}});
         await models.UserAsyncOperation.destroy({where: {userId}});
     });
-    after(async () => { await sequelize?.close(); });
+    after(async () => { await stopStorageFence(app); await sequelize?.close(); });
 
-    async function interrupted() {
+    async function interrupted(retain = false) {
+        const previousSite = retain ? await models.StaticSite.create({userId, name: 'held_' + randomUUID().replaceAll('-', ''), storageId}) : null;
         const replacement = await replacements.jobs.create(userId, null, randomUUID(), {
             requestKey: randomUUID(), requestHash: randomUUID(), status: 'preparing',
-            input: {contentIds: [1], sources: []}, result: null, error: null});
+            input: {contentIds: [1], sources: retain ? [{id: 1, userId, storageId, manifestStorageId: storageId}] : [],
+                ...(retain ? {deleteReplacedFiles: true, previous: {siteId: previousSite.id, storageId, archiveStorageId: storageId}} : {})},
+            result: null, error: null});
         const options = {archive: true, replacementId: replacement.id, site: {name: 'recovery_' + randomUUID().replaceAll('-', '')}};
         const queue = await operations.addUserOperationQueue(userId, 'static-site-generator', null,
             {renderArgs: {entityType: 'content-list', entityIds: [1]}, options});
@@ -73,6 +78,47 @@ describe('static-site restart recovery with persisted receipts', function () {
             JSON.parse(JSON.stringify(original)));
         assert.equal((await operations.getUserOperationQueue(userId, queue.id)).inputJson, input);
         assert.equal((await operations.getUserOperationQueue(userId, queue.id)).isWaiting, true);
+    });
+
+    it('admits concurrent retained recoveries with only two application SQL connections and bounded storage RPCs', async () => {
+        const first = await interrupted(true);
+        const second = await interrupted(true);
+        const oldStorage = app.ms.storage, oldArchive = app.ms.archive;
+        const paths = new Map();
+        let entered = 0, release;
+        const both = new Promise(resolve => {release = resolve;});
+        const bounded = options => {
+            assert.equal(options.timeout, 30000);
+            assert.ok(options.signal instanceof AbortSignal);
+        };
+        app.ms.archive = {getArchive: async () => ({archivedStorageId: storageId})};
+        app.ms.storage = {getFileStat: async () => ({size: 1}), addPin: async () => {}, node: {files: {
+            mkdir: async (_path, options) => {bounded(options);},
+            cp: async (_cid, path, options) => {
+                bounded(options);
+                paths.set(path, storageId);
+                if (++entered === 2) {
+                    release();
+                }
+                await both;
+            },
+            stat: async (path, options) => {bounded(options); return {cid: paths.get(path)};},
+        }}};
+        const attempts = [first, second].map(item => recovery.recover(userId, item.queue.id, item.operation.id, null,
+            {retainOriginalForExternalLinks: true}));
+        try {
+            const accepted = await Promise.all(attempts);
+            assert.equal(entered, 2);
+            assert.equal(new Set(accepted.map(item => item.asyncOperationId)).size, 2);
+            assert.equal(await models.Revision.count({where: {userId}}), 2);
+            assert.equal(await models.RenderRecovery.count({where: {userId}}), 2);
+            assert.equal((await replacements.replacement(userId, first.replacement.id)).input.deleteReplacedFiles, true);
+        } finally {
+            release();
+            await Promise.allSettled(attempts);
+            app.ms.storage = oldStorage;
+            app.ms.archive = oldArchive;
+        }
     });
 
     it('runs the accepted attempt on the original queue and reconciles archive admission before finishing', async () => {

@@ -10,6 +10,10 @@ import http from 'node:http';
 import {digest, sameCid} from '../app/storageIdentity.js';
 import {pageCid, readSiteData} from '../app/modules/staticSiteGenerator/siteData.js';
 import {readArchive} from './helpers/archive.js';
+import {StaticSiteRenderRecovery} from '../app/modules/staticSiteGenerator/renderRecovery.js';
+import {SiteReplacements} from '../app/modules/staticSiteGenerator/replacements.js';
+import {configureSiteReplacements} from '../app/modules/staticSiteGenerator/replacementWorker.js';
+import {getModule as staticSiteModule} from '../app/modules/staticSiteGenerator/index.js';
 
 const imageDriver = (watermark = null, policy = 'publication-webp-v1') => ({name: 'imageOptimize', module: 'convert',
     params: {policy, ...(watermark ? {watermark} : {})}});
@@ -317,7 +321,7 @@ describe('persisted image saving and local site retirement', function () {
         assert.equal(obsolete.status, 400, 'top-level imagePolicy is explicitly rejected');
     });
 
-    for (const mode of ['remove', 'keep', 'shared']) {
+    for (const mode of ['remove', 'keep', 'shared', 'external']) {
     it(`${mode}: resaves through the normal queue, publishes WebP, and collects the old archive/site/images locally`, async () => {
         const png = await sharp({create: {width: 1200, height: 1600, channels: 3, background: `#${randomUUID().replace(/-/g, '').slice(0, 6)}`}}).png().toBuffer();
         let source = await app.ms.content.saveData(user.id, png, 'source.png', {waitForPin: true});
@@ -371,6 +375,33 @@ describe('persisted image saving and local site retirement', function () {
             {entityType: 'content-list', entityIds: [source.id]}, {archive: true, replacementId: receipt.id,
                 asyncOperationId: 999999, site: {name: `new_optimized_site_${mode}`, title: 'Original'}});
         assert.ok(sameCid(replay.storageId, replacement.storageId), 'lost render response reuses the frozen revision');
+        if (mode === 'external') {
+            const sequelize = app.ms.database.sequelize;
+            const recovery = new StaticSiteRenderRecovery(app, {Revision: service.models.Revision,
+                RenderRecovery: sequelize.model('staticSiteRenderRecovery'), RenderReceipt: sequelize.model('staticSiteRenderReceipt')});
+            const queue = await app.ms.asyncOperation.addUserOperationQueue(user.id, 'static-site-generator', null,
+                {renderArgs: {entityType: 'content-list', entityIds: [source.id]}, options: {archive: true,
+                    replacementId: receipt.id, site: {name: `new_optimized_site_${mode}`, title: 'Original'}}});
+            const operation = await app.ms.asyncOperation.addAsyncOperation(user.id,
+                {module: 'static-site-generator', name: 'render', channel: randomUUID()});
+            await app.ms.asyncOperation.setAsyncOperationToUserOperationQueue(queue.id, operation.id);
+            await sequelize.model('userAsyncOperation').update({inProcess: false, errorType: 'node-restart'}, {where: {id: operation.id}});
+            await app.ms.asyncOperation.closeUserOperationQueue(queue.id);
+            const accepted = await recovery.recover(user.id, queue.id, operation.id, null, {retainOriginalForExternalLinks: true});
+            const repeated = await recovery.recover(user.id, queue.id, operation.id, null, {retainOriginalForExternalLinks: true});
+            assert.equal(repeated.asyncOperationId, accepted.asyncOperationId);
+            await assert.rejects(() => recovery.recover(user.id, queue.id, operation.id), {code: 'static_site_recovery_retention_conflict'});
+            const retained = (await service.replacement(user.id, receipt.id)).result.externalLinksRetention;
+            assert.equal(await service.models.Revision.count({where: {workPath: retained.workPath}}), 1);
+            await sequelize.model('staticSite').update({storageId: replacement.storageId}, {where: {id: old.staticSiteId}});
+            assert.ok(sameCid((await app.ms.staticSiteGenerator.getStaticSiteByStorageId(old.storageId)).storageId, old.storageId),
+                'old public root is retained before the recovery render can switch a binding');
+            const publicPage = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/ipfs/${old.storageId}/index.html`,
+                {signal: AbortSignal.timeout(5000)});
+            assert.equal(publicPage.status, 200);
+            assert.ok((await publicPage.text()).includes('Original'));
+            await app.ms.staticSiteGenerator.processPendingRenderRecoveries();
+        }
         if (mode === 'shared') {
             const site = await app.ms.database.sequelize.model('staticSite').findByPk(old.staticSiteId);
             await app.ms.database.sequelize.model('staticSite').create({...site.toJSON(), id: undefined,
@@ -394,7 +425,13 @@ describe('persisted image saving and local site retirement', function () {
         await app.ms.group.updatePost(user.id, post.id, {contents: [{id: output.content.id, view: 'attachment'}, ...(compact ? [{id:nextLink.id,view:'attachment',isPrivate:true}] : [])],
             propertiesJson: JSON.stringify({membership: {sourceKey, ...(!compact ? {pageUrl: `https://eraofwave.com/ipfs/${replacement.storageId}/#/`} : {}),
                 title: 'Original', free: false, imageReplacement: {id: receipt.id, receiptId: consumer.receiptId, mappingsHash: consumer.mappingsHash}}})});
-        await service.finalize(user.id, receipt.id, {postId: post.id, storageId: replacement.storageId, consumer});
+        const finalBody = {postId: post.id, storageId: replacement.storageId, consumer,
+            ...(mode === 'external' ? {retainOriginalForExternalLinks: true} : {})};
+        if (mode === 'external') {
+            await assert.rejects(() => service.finalize(user.id, receipt.id, {...finalBody, retainOriginalForExternalLinks: false}),
+                {code: 'image_replacement_finalize_conflict'});
+        }
+        await service.finalize(user.id, receipt.id, finalBody);
         await processCleanupNow(service);
         let finished = await service.status(user.id, receipt.id);
         for (let attempt = 0; ['retiring', 'gc_pending'].includes(finished.status) && attempt < 30; attempt++) {
@@ -416,6 +453,43 @@ describe('persisted image saving and local site retirement', function () {
                 assert.equal(finished.status, 'complete_with_retained');
                 const site = await app.ms.database.sequelize.model('staticSite').findByPk(old.staticSiteId);
                 assert.ok(await app.ms.storage.node.files.stat(`/${site.staticId}-site`));
+            }
+            if (mode === 'external') {
+                assert.equal((await service.replacement(user.id, receipt.id)).input.deleteReplacedFiles, true);
+                assert.equal(finished.result.cleanup.retention.reason, 'external_links_pending');
+                assert.equal(finished.result.cleanupQueuedAt, undefined);
+                assert.equal(finished.result.cleanup.detached, false);
+                assert.deepEqual(Buffer.from((await app.ms.storage.getFileData(source.storageId)).slice()), originalBytes);
+                assert.equal((await app.ms.database.getContent(source.id)).isDeleted, false);
+                const count = await service.models.Revision.count();
+                await service.finalize(user.id, receipt.id, finalBody);
+                assert.equal(await service.models.Revision.count(), count);
+                await assert.rejects(() => service.finalize(user.id, receipt.id, {...finalBody, retainOriginalForExternalLinks: false}),
+                    {code: 'image_replacement_finalize_conflict'});
+                const reloaded = new SiteReplacements(app, service.models);
+                configureSiteReplacements(app, reloaded);
+                await reloaded.processQueue();
+                await reloaded.discardUnfinishedRevision(user.id, receipt.id);
+                await reloaded.retryCleanup(user.id, receipt.id, null);
+                assert.equal((await reloaded.status(user.id, receipt.id)).status, 'complete_with_retained');
+                const fresh = await staticSiteModule(app, {StaticSite: app.ms.database.sequelize.model('staticSite'),
+                    Revision: service.models.Revision});
+                assert.ok(await fresh.getStaticSiteByStorageId(old.storageId));
+                assert.ok(await app.ms.storage.node.files.stat(finished.result.cleanup.retention.workPath));
+                const oldArchiveResponse = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/archive/${old.storageId}`);
+                assert.equal(oldArchiveResponse.status, 200);
+                const publicRoot = `http://127.0.0.1:${process.env.PORT || 7771}/ipfs/${old.storageId}`;
+                const oldClientData = await fetch(publicRoot + '/clientData.js', {signal: AbortSignal.timeout(5000)});
+                assert.equal(oldClientData.status, 200);
+                assert.ok((await oldClientData.text()).includes(source.storageId));
+                for (const [path, bytes] of [
+                    [`/content/1_${source.storageId}.${source.extension}`, originalBytes],
+                    [`/preview/1_${source.mediumPreviewStorageId}.png`, previewBytes],
+                ]) {
+                    const response = await fetch(publicRoot + path, {signal: AbortSignal.timeout(5000)});
+                    assert.equal(response.status, 200, path as string);
+                    assert.deepEqual(Buffer.from(await response.arrayBuffer()), bytes);
+                }
             }
             return;
         }
@@ -857,6 +931,7 @@ describe('persisted image saving and local site retirement', function () {
         const caps = await fetch(`${origin}/user/image-optimization/capabilities`, {headers});
         assert.equal(caps.status, 200);
         assert.deepEqual(await caps.json(), {contract: 1, policy: 'publication-jpeg95-v1', imagePolicies: ['publication-webp-v1', 'publication-jpeg95-v1'], resave: true, watermark: true, imageOptimizeDriver: true, retirement: true,
+            retainOriginalForExternalLinks: true,
             preparedImage: {contract: 1, policy: 'publication-jpeg95-v1', producer: 'trusted-client', maxBytes: 64 * 1024 * 1024,
                 slots: ['file', 'small', 'medium', 'large'], previewEdges: {small: 512, medium: 1024, large: 2048}}});
         const png = await sharp({create: {width: 40, height: 60, channels: 3, background: '#123abc'}}).png().toBuffer();

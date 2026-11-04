@@ -77,6 +77,55 @@ before replacing its published URL; Patreon is outside this operation.
 - Storage references created by generated output must stay visible to storage-space and delete-safety checks.
 - Static ID binding is separate from rendering and should remain explicit.
 
+## Retaining originals for external links (#1557)
+
+When Patreon or another external reference still uses the previous gallery,
+explicitly pass `retainOriginalForExternalLinks: true` to the guarded recovery
+and finalization requests. Check the queue policy and optimization capabilities
+for that exact capability first; older runtimes must not silently ignore it.
+Recovery currently requires the original owned replacement/previous-site receipt
+for this hold. It pins the old Page and completed archive, verifies the owned
+source identities, and saves a dedicated `/ssg-retained/REPLACEMENT_ID` MFS link
+and Revision **before** accepting a new render attempt. The current queue and
+deletion policy are unchanged. Repeats reuse the same hold and attempt; changing
+the flag for the same recovery identity conflicts.
+
+Normal publication, consumer mapping, Page and archive proof still apply to
+finalization. An explicit hold finishes as `complete_with_retained`, records
+`external_links_pending`, original deletion policy, previous Page/archive and
+source references, and never queues retirement or GC. False/absent keep the
+previous finalization hash; true is part of the frozen finalization identity.
+Changing the flag after finalization conflicts. Cleanup retries do not release
+this terminal hold. No release endpoint exists; releasing these originals needs
+a separately authorized future workflow.
+
+Terminal external-link receipts remain in the same bounded storage-hold
+projection as active work, including original files, manifests, all previews,
+Page and archive. Another replacement cannot release this receipt's holds.
+Malformed matching receipts and more than 1,000 projected jobs block deletion.
+Only an explicit future `holdsReleased: true` checkpoint could release them;
+ordinary cleanup retries do not write one for this terminal result.
+
+Recovery/finalization control locks use a separate pool capped at two SQL
+connections per process, with same-replacement reentrancy. They never reserve
+application-pool connections across storage I/O. Include these two auxiliary
+connections when configuring database connection budgets. The static-site queue
+retains its original advisory identity on that pool; other task-lock semantics
+are unchanged. MFS mkdir/copy/stat use cancellation-aware 30-second RPC bounds.
+The deterministic retained path is checked and reused after partial outcomes.
+
+Public old-root lookup permits only unretired retained revisions whose reserved
+path matches their replacement ID and whose StaticSite still belongs to the
+same owner. Ordinary scratch cleanup only handles unfinished render revisions;
+the reserved retained path cannot be removed by ordinary site retirement. The
+existing Revision model stores this hold; no column or migration is added.
+
+Once a retained root has been established and the binding switched, keep a
+retention-aware runtime deployed. Rolling back to the older restart-only fix
+can return `423 content_locked` for the old external URL even though its blocks
+remain pinned. Before admitting Iris, the old runtime backup is a safe rollback;
+after admission, rollback requires retaining this public-read behavior.
+
 ## Downloaded sites
 
 Generated HTML uses a standalone classic `public/client.js` bundle (Vue with its
