@@ -676,9 +676,10 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
   // A1 reference-count helper for a specific Content row. Used by delete paths to detect
   // attachments/avatars/covers/file-catalog references that would orphan if the row is destroyed.
   async countContentReferences(contentId) {
-    const [posts, contentDependencies, imageCompositionOperations, imageCompositionIdentities, fileCatalogItems, groupAvatars, groupCovers, userAvatars, pinnedContents] = await Promise.all([
+    const [posts, contentDependencies, comicPageOperations, imageCompositionOperations, imageCompositionIdentities, fileCatalogItems, groupAvatars, groupCovers, userAvatars, pinnedContents] = await Promise.all([
       this.models.PostsContents.count({where: {contentId}}),
       this.models.ContentDependency.count({where: {childContentId: contentId}}),
+      this.models.ComicPageOperation ? this.models.ComicPageOperation.count({where: {contentId}}) : 0,
       this.models.ImageCompositionOperation ? this.models.ImageCompositionOperation.count({where: {[Op.or]: [{resultContentId: contentId}, {candidateContentId: contentId}]}}) : 0,
       this.models.ImageCompositionIdentity ? this.models.ImageCompositionIdentity.count({
         where: {[Op.or]: [{rootContentId: contentId}, {currentContentId: contentId}]},
@@ -689,7 +690,7 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
       this.models.User.count({where: {avatarImageId: contentId}}),
       this.models.Content.count({where: getActiveContentWhere({id: contentId, isPinned: true})}),
     ]);
-    return {posts, contentDependencies, imageCompositionOperations, imageCompositionIdentities, fileCatalogItems, groupAvatars, groupCovers, userAvatars, pinnedContents};
+    return {posts, contentDependencies, comicPageOperations, imageCompositionOperations, imageCompositionIdentities, fileCatalogItems, groupAvatars, groupCovers, userAvatars, pinnedContents};
   }
 
   async getContentDeleteSafety(content, options: {allowedFileCatalogItems?: number; excludeFileCatalogItemId?: number} = {}) {
@@ -1318,6 +1319,7 @@ function getContentDeleteContentBlockers(contentRefs, options): IContentDeleteSa
   return [
     getContentDeleteBlocker('content', 'posts', contentRefs.posts),
     getContentDeleteBlocker('content', 'contentDependencies', contentRefs.contentDependencies),
+    getContentDeleteBlocker('content', 'comicPageOperations', contentRefs.comicPageOperations),
     getContentDeleteBlocker('content', 'imageCompositionOperations', contentRefs.imageCompositionOperations),
     getContentDeleteBlocker('content', 'imageCompositionIdentities', contentRefs.imageCompositionIdentities),
     getContentDeleteBlocker(

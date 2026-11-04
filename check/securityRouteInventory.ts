@@ -127,6 +127,9 @@ function notesFor(route: RouteRow, block: string): string[] {
   if (route.moduleName === 'localClient') {
     notes.add('publishing:local and UserGroupManagement; compose also requires assets:write; owner-scoped jobs; public-source edit permission or owned ordinary closed source at create/claim; bounded owner-only source selection; authoritative group/network/account routes; opt-in media preparation validates owned originals and uses server-only completed cache; original claim token for results');
   }
+  if (route.moduleName === 'comicPage') {
+    notes.add('create requires UserSaveData/UserFileCatalogManagement, owned folder and owned/public raster sources; detail and operation receipts are actor-owned; bounded PNG/SVG recipe validation; immutable version and idempotency uniqueness');
+  }
   if (route.moduleName === 'imageComposition') {
     notes.add('module enforces actor-owned catalog Content and dependency authorization');
     if (routeLower.endsWith('/image-compositions') && route.method === 'GET') {

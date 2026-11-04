@@ -35,6 +35,7 @@ import IGeesomeInviteModule from "./modules/invite/interface.js";
 import IGeesomeGroupModule from "./modules/group/interface.js";
 import IGeesomePrivateGroupModule from "./modules/privateGroup/interface.js";
 import IGeesomeChatModule from "./modules/chat/interface.js";
+import IGeesomeComicPageModule from './modules/comicPage/interface.js';
 import IGeesomeImageCompositionModule from "./modules/imageComposition/interface.js";
 import IGeesomeApiModule from "./modules/api/interface.js";
 import IGeesomeArchiveModule from './modules/archive/interface.js';
@@ -168,6 +169,7 @@ function getModule(config, appPass) {
       group: IGeesomeGroupModule,
       privateGroup?: IGeesomePrivateGroupModule,
       chat: IGeesomeChatModule,
+      comicPage: IGeesomeComicPageModule,
       imageComposition: IGeesomeImageCompositionModule,
       accountStorage: IGeesomeAccountStorageModule,
       communicator: IGeesomeCommunicatorModule,

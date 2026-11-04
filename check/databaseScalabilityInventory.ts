@@ -55,6 +55,7 @@ function joinList(items: string[]): string {
 function modelRows(): ModelRow[] {
   const postSource = read('app/modules/group/models/post.ts');
   const contentDependencySource = read('app/modules/database/models/contentDependency.ts');
+  const comicPageOperationSource = read('app/modules/comicPage/model.ts');
   const imageCompositionIdentitySource = read('app/modules/imageComposition/models/imageCompositionIdentity.ts');
   const imageCompositionOperationSource = read('app/modules/imageComposition/models/imageCompositionOperation.ts');
   const postEventSource = read('app/modules/group/models/postEvent.ts');
@@ -296,6 +297,17 @@ function modelRows(): ModelRow[] {
         hasPostSourceUnique ? 'has group/source unique import identity' : 'missing group/source unique import identity',
         has(postSource, "fields: ['manifestStorageId'") ? 'has manifest lookup index' : 'missing manifest lookup index',
       ],
+    },
+    {
+      area: 'Comic-page operations',
+      source: 'app/modules/comicPage/model.ts + app/modules/comicPage/index.ts',
+      model: 'ComicPageOperation',
+      indexes: [
+        has(comicPageOperationSource, 'comic_page_operation_user_key_unique') ? 'userId,idempotencyKey unique receipt/reconciliation' : 'missing actor/key identity',
+        has(comicPageOperationSource, 'comic_page_operation_version_unique') ? 'userId,comicId,pageId,pageRevision immutable version identity' : 'missing immutable page identity',
+        has(comicPageOperationSource, 'comic_page_operation_content_idx') ? 'contentId protected recovery/result lookup' : 'missing Content reverse lookup',
+      ],
+      notes: ['New model-sync table. Exact-key reconciliation is bounded; recovery alone can search owned Content metadata for a lost save checkpoint. ContentDependency retains page source/SVG assets.'],
     },
     {
       area: 'Image composition graph',

@@ -12,6 +12,20 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Immutable comic-page persistence (#1552)
+
+`comicPage` stores a baked PNG with the full version-one recipe in native Content
+metadata, mandatory previews, source/bubble retention edges and one distinct Media
+catalog entry per page revision. Actor-scoped durable keys and unique page-version
+identities reject conflicting uploads; checkpoint recovery reuses content saved
+before an upload response was lost. Read-only capability, detail and operation
+endpoints let Microwave reconcile unknown results without republishing.
+Microwave owns rendering, review and complete comic snapshots. Deploy this node
+capability before enabling the corresponding Posts comic flow.
+
+Verification: focused PostgreSQL persistence, replay/concurrency, recovery,
+revision and ownership tests, PNG/SVG validation, API annotations and inventories.
+
 ## Reuse owned publication images (#1546)
 
 Private group compose now accepts owned local Content references as well as

@@ -127,6 +127,13 @@ const moduleModelSyncers = [
     },
   },
   {
+    name: 'comicPage',
+    sync: async (sequelize: Sequelize, models: any) => {
+      await (await import('../app/modules/comicPage/model.js')).default(sequelize, models);
+      return models;
+    },
+  },
+  {
     name: 'tgContentBot',
     sync: async (sequelize: Sequelize, models: any) => {
       Object.assign(models, await (await import('../app/modules/tgContentBot/models.js')).default(sequelize));

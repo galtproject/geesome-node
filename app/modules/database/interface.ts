@@ -340,6 +340,7 @@ export interface IStorageIdReferenceOptions {
 export interface IContentReferenceCounts {
   posts: number;
   contentDependencies: number;
+  comicPageOperations?: number;
   imageCompositionOperations: number;
   imageCompositionIdentities: number;
   fileCatalogItems: number;
@@ -425,6 +426,8 @@ export enum StorageObjectReferenceType {
 }
 
 export enum ContentDependencyRole {
+  ComicPageSource = 'comic-page-source',
+  ComicPageBubble = 'comic-page-bubble',
   ImageCompositionOriginal = 'image-composition-original',
   ImageCompositionSticker = 'image-composition-sticker'
 }
