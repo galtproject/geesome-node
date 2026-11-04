@@ -78,7 +78,7 @@ function join() {
                 <template v-else>
                     <a v-if="single" :href="publicPath('/')" class="back-link">← All posts</a>
                     <h2 v-else class="feed-heading">{{ navigation?.newer ? presentation.copy.archiveHeading : presentation.copy.feedHeading }}</h2>
-                    <PostCard :subscribe-label="presentation.copy.subscribe" :polished="polished" :domain="resource.domain" v-for="post in posts" :key="post.id" :post="post" :single="single" :post-url="publicPath(`/posts/${encodeURIComponent(post.id)}`)" :checked="checked" :expired="expired" @gallery="showGallery" @share="sharePost" @checkout="checkout" @notify="notify" />
+                    <PostCard :subscribe-label="presentation.copy.subscribe" :polished="polished" :domain="resource.domain" v-for="post in posts" :key="post.id" :post="post" :single="single" :post-url="publicPath(`/posts/${encodeURIComponent(post.id)}`)" :checked="checked" :active="active" :expired="expired" @gallery="showGallery" @share="sharePost" @checkout="checkout" @notify="notify" />
                     <section v-if="!posts.length" class="account-panel"><h2>New work is on the way</h2><p>Find the latest updates through the links above.</p></section>
                 </template>
             </template>

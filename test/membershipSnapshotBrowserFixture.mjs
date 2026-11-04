@@ -150,6 +150,20 @@ assert(!/theme-meat|theme-wave|Era Of Wave/.test(await fs.readFile('app/modules/
         }
     }
 }
+// Older snapshots can omit pageUrl or retain a locked flag alongside an action link.
+// Neither shape should advertise checkout to an already active member.
+{
+    const file = path.join(root,'paged-full/index.html');
+    const html = await fs.readFile(file,'utf8');
+    const data = JSON.parse(html.match(/<script id="site-data"[^>]*>([\s\S]*?)<\/script>/)[1]);
+    const [withoutLinks, withLink] = data.creator.posts;
+    delete withoutLinks.pageUrl;
+    delete withLink.pageUrl;
+    withLink.locked = true;
+    withLink.attachments.push({mime:'text/uri-list',view:'link',url:'https://example.com/full-set',name:'View full set'});
+    const prepared = await renderer.prepareRender(data);
+    await fs.writeFile(file,await prepared.renderPage('/',[]));
+}
 // Exercise the social composition independently of feed length and membership state.
 const socialHtml = await fs.readFile(path.join(root,'paged/index.html'),'utf8');
 const socialState = JSON.parse(socialHtml.match(/<script id="site-data"[^>]*>([\s\S]*?)<\/script>/)[1]);
