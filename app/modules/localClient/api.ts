@@ -51,11 +51,11 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 * @apiUse ValidationErrors
-	 * @apiDescription Requires publishing:local and assets:write. Creates a native ordinary closed owner outbox lazily, or uses an explicitly chosen owned ordinary closed channel. Source post and all destination jobs commit atomically before provider calls. Omitted schedule means now on first creation; identical request retries return the same source/jobs. Existing draft edits are rejected explicitly. No social credentials accepted.
+	 * @apiDescription Requires publishing:local and assets:write. Creates a native ordinary closed owner outbox lazily, or uses an explicitly chosen owned ordinary closed channel. Source post and all destination jobs commit atomically before provider calls. Omitted schedule means now on first creation; identical request retries return the same source/jobs. Existing draft edits are rejected explicitly. No social credentials accepted. Image references resolve owned Assets or local, non-deleted, non-remote, unencrypted Content. Check outbox capabilities.ownedImageReferences before using Content-only references with older nodes.
 	 * @apiBody {String="social-images-v1"} [mediaPolicy] Prepare provider-ready JPEG images before source/job acceptance. Original refs stay in the private source post; per-job payload.mediaPreparation binds original refs and prepared refs. Omit for exact legacy behavior.
 	 * @apiBody {String} requestKey Owner-scoped compose idempotency key.
 	 * @apiBody {String} text New text (maximum 40000 characters).
-	 * @apiBody {String[]} imageStorageIds Owner uploaded asset storage IDs (maximum 20).
+	 * @apiBody {String[]} imageStorageIds Owned Asset or local Content storage IDs (maximum 20).
 	 * @apiBody {Object[]} destinations Explicit network/localAccountId/target selections (1–20). With explicit groupId only, omit localAccountId to defer local account selection until claim.
 	 * @apiBody {String} [scheduledAt] ISO instant with timezone; omit to send now.
 	 * @apiBody {Object} [producer] For one destination only: type=microwave-girls and positive postId. Stored with server-computed canonical original-intent digest, preserved when a claim resolves an unbound account/route; no URL or credential.
@@ -86,6 +86,8 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiQuery {Number{1-100}} [limit=20] Bounded draft page size.
 	 * @apiQuery {Number{0-1000000}} [offset=0] Page offset.
 	 * @apiSuccess {Number} ownerId Authenticated GeeSome owner ID for connection verification.
+	 * @apiSuccess {Object} capabilities Supported additive publishing features.
+	 * @apiSuccess {Boolean} capabilities.ownedImageReferences Compose accepts owned local Content references without an Asset upload.
 	 * @apiSuccess {Object|null} group Existing owned outbox identity, or null before first composition.
 	 * @apiSuccess {Object[]} drafts Source postId, text, attachments and creation time.
 	 */
