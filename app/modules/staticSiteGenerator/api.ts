@@ -44,6 +44,7 @@ export default (app: IGeesomeApp, ssgModule: IGeesomeStaticSiteGeneratorModule) 
      * @apiUse AuthErrors
      * @apiParam {Number} id Original owned render queue id.
      * @apiBody {Number} expectedOperationId Exact interrupted operation id from the original receipt.
+     * @apiBody {Boolean} [retainOriginalForExternalLinks=false] Establish an owned retained Page/archive/MFS reference before admitting a replacement recovery while external links still use the old URL. Requires the queue policy's retention capability. The same recovery identity must retain the same flag. Generic unproven previous roots are refused.
      * @apiDescription Requires content:write and save permission. Content-list renders stopped by node-restart are eligible when they have a replacement receipt, frozen owned-source snapshot, or exactly correlated legacy saved result. Poll the original queue's renderRecoveryPolicy before recovery; unproven legacy input and group renders require review. The original queue/input and interrupted operation remain unchanged; a new attempt is attached to the same queue. At most three recovery attempts are accepted per queue. Repeating the same expectedOperationId returns the accepted attempt without replaying it. Saved output is adopted instead of rerendering; archive admission is reconciled before completion. Other errors, cancellation, changed sources/operation or exhausted budget require review.
      * @apiSuccess {Number} id Original render queue id.
      * @apiSuccess {Number} asyncOperationId Current render operation id.
@@ -52,10 +53,12 @@ export default (app: IGeesomeApp, ssgModule: IGeesomeStaticSiteGeneratorModule) 
      * @apiError static_site_recovery_not_interrupted Operation is active, complete, cancelled or failed for another reason.
      * @apiError static_site_recovery_operation_changed Queue no longer points to the expected interrupted operation.
      * @apiError static_site_recovery_exhausted Three recovery attempts were already accepted.
+     * @apiError static_site_recovery_retention_conflict The same recovery identity was used with another external-link retention choice.
+     * @apiError static_site_recovery_retention_requires_replacement No owned frozen previous-site replacement receipt exists for the requested hold.
      */
     api.onAuthorizedPost('recover/:id', async (req, res) => {
         return res.send(await ssgModule.recoverRenderQueue(req.user.id, Number(req.params.id),
-            req.body.expectedOperationId, req.apiKey.id), 202);
+            req.body.expectedOperationId, req.apiKey.id, {retainOriginalForExternalLinks: req.body.retainOriginalForExternalLinks}), 202);
     });
 	api.onAuthorizedPost('bind-to-static-id/:id', async (req, res) => {
 		return res.send(await ssgModule.bindSiteToStaticId(req.user.id, req.params.id), 200);

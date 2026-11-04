@@ -8,19 +8,21 @@ import {createHash} from 'node:crypto';
 // while waiting for a writer/GC fence. No transaction spans media or IPFS I/O.
 const pools = new WeakMap<object, pg.Pool>();
 const workerPools = new WeakMap<object, pg.Pool>();
+const controlPools = new WeakMap<object, pg.Pool>();
 const contexts = new AsyncLocalStorage<any>();
+const controlContexts = new AsyncLocalStorage<any>();
 const namespace = 17419;
 const storageKey = 9301;
 
-function storageLockPool(app, purpose: 'fence' | 'worker' = 'fence') {
-    const registry = purpose === 'worker' ? workerPools : pools;
+function storageLockPool(app, purpose: 'fence' | 'worker' | 'control' = 'fence') {
+    const registry = purpose === 'control' ? controlPools : purpose === 'worker' ? workerPools : pools;
     const sequelize = app.ms.database.sequelize;
     let pool = registry.get(app);
     if (!pool) {
         const config = sequelize.config;
         pool = new pg.Pool({host: config.host, port: config.port, database: config.database,
             user: config.username, password: config.password, ssl: sequelize.options?.dialectOptions?.ssl,
-            max: purpose === 'worker' ? 2 : 10, idleTimeoutMillis: 1000, connectionTimeoutMillis: 10000, allowExitOnIdle: true});
+            max: purpose === 'fence' ? 10 : 2, idleTimeoutMillis: 1000, connectionTimeoutMillis: 10000, allowExitOnIdle: true});
         registry.set(app, pool);
     }
     return pool;
@@ -173,9 +175,11 @@ export async function withStorageWorker(app, run: () => Promise<any>) {
 export async function stopStorageFence(app) {
     const pool = pools.get(app);
     const workers = workerPools.get(app);
+    const control = controlPools.get(app);
     pools.delete(app);
     workerPools.delete(app);
-    await Promise.all([pool?.end(), workers?.end()]);
+    controlPools.delete(app);
+    await Promise.all([pool?.end(), workers?.end(), control?.end()]);
 }
 
 export function storageFenceSignal() {
@@ -198,5 +202,53 @@ export async function withStorageTaskLock(app, identity: string, run) {
             await connection.query('SELECT pg_advisory_unlock($1, $2)', [namespace + 1, key]);
         }
         await sequelize.connectionManager.releaseConnection(connection);
+    }
+}
+
+export async function withStorageControlTaskLock(app, identity: string, run, options: {taskLockNamespace?: boolean} = {}) {
+    const lockNamespace = options.taskLockNamespace ? namespace + 1 : namespace + 2;
+    const existing = controlContexts.getStore();
+    if (existing?.app === app && existing.active) {
+        if (existing.identity !== identity || existing.lockNamespace !== lockNamespace) {
+            throw new Error('storage_control_lock_nesting_forbidden');
+        }
+        await existing.assertHeld();
+        return run();
+    }
+    const connection = await storageLockPool(app, 'control').connect();
+    const key = createHash('sha256').update(identity).digest().readInt32BE(0);
+    let locked = false;
+    let broken = false;
+    const onError = () => {broken = true;};
+    connection.on('error', onError);
+    const context = {app, identity, lockNamespace, active: true, assertHeld: async () => {
+        if (broken) {
+            throw new Error('storage_control_lock_lost');
+        }
+        await connection.query('SELECT 1');
+    }};
+    try {
+        locked = (await connection.query('SELECT pg_try_advisory_lock($1, $2) AS locked', [lockNamespace, key])).rows[0].locked;
+        if (!locked) {
+            if (options.taskLockNamespace) {
+                throw new Error('image_render_in_process');
+            }
+            problem('storage_control_busy', 409);
+        }
+        return await controlContexts.run(context, async () => {
+            const result = await run();
+            await context.assertHeld();
+            return result;
+        });
+    } finally {
+        context.active = false;
+        try {
+            if (locked && !broken) {
+                await connection.query('SELECT pg_advisory_unlock($1, $2)', [lockNamespace, key]);
+            }
+        } finally {
+            connection.removeListener('error', onError);
+            connection.release(broken);
+        }
     }
 }

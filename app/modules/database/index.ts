@@ -897,8 +897,8 @@ class PostgresDatabase implements IGeesomeDatabaseModule {
     return getContentSearchWhere(getDeletedOnlyContentWhere(), searchString);
   }
 
-  getUserContentListByIds(userId, contentIds) {
-    return this.models.Content.findAll({where: getActiveContentWhere({userId, id: {[Op.in]: contentIds}})});
+  getUserContentListByIds(userId, contentIds, options: {transaction?: any} = {}) {
+    return this.models.Content.findAll({where: getActiveContentWhere({userId, id: {[Op.in]: contentIds}}), transaction: options.transaction});
   }
 
   async getAllContentList(searchString, listParams: IListParams = {}) {

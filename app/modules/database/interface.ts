@@ -75,7 +75,7 @@ export interface IGeesomeDatabaseModule {
 
   getContentList(accountAddress, listParams?: IListParams): Promise<IContent[]>;
 
-  getUserContentListByIds(userId, contentIds): Promise<IContent[]>;
+  getUserContentListByIds(userId, contentIds, options?: {transaction?: any}): Promise<IContent[]>;
 
   getContent(id, options?: {includeDeleted?: boolean}): Promise<IContent>;
 
