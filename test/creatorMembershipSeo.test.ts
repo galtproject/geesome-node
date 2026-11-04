@@ -5,18 +5,18 @@ import {membershipRenderData} from '../app/modules/staticSiteGenerator/membershi
 import renderer from '../app/modules/staticSiteGenerator/site/index.js';
 
 const site = {title:'Creator',domain:'creator.test',canonicalPath:'/',brand:{avatarUrl:'/ipfs/public-avatar',seo:{description:'Public introduction',imageUrl:'/ipfs/share/card.webp',imageAlt:'Creator artwork',faviconUrl:'/ipfs/icon',adult:true}}};
-const post = {id:'42',title:'A & B "story"',teaser:'<p>Public &amp; useful</p>',fullText:'PRIVATE-CONTENT',media:[{mime:'image/webp',url:'../../media/preview.webp',name:'random-file.jpg'}]};
+const post = {id:'42',title:'A & B "story"',socialImageUrl:'/ipfs/public-post-image',teaser:'<p>Public &amp; useful</p>',fullText:'PRIVATE-CONTENT',media:[{mime:'image/webp',url:'../../media/preview.webp',name:'random-file.jpg'}]};
 describe('creator website SEO', () => {
     it('renders escaped unique public titles, canonical URLs, cards and JSON-LD in the initial HTML', async () => {
         const data = membershipRenderData({...site,canonicalPath:'/posts/42/',relativeRoot:'../../'},[post],false,true);
         const html = await (await renderer.prepareRender(data)).renderPage('/post/42', [['meta',{name:'og:title',content:'Old brand-only title'}]]);
         const $ = load(html);
-        assert.equal($('title').text(),'A & B "story" — Creator');
+        assert.equal($('title').text(),'Creator — A & B "story"');
         assert.equal($('link[rel="canonical"]').attr('href'),'https://creator.test/posts/42/');
-        assert.equal($('meta[property="og:title"]').attr('content'),'A & B "story" — Creator');
+        assert.equal($('meta[property="og:title"]').attr('content'),'Creator — A & B "story"');
         assert.equal($('meta[name="og:title"]').length,0);
         assert.equal($('meta[name="description"]').attr('content'),'Public & useful');
-        assert.equal($('meta[property="og:image"]').attr('content'),'https://creator.test/ipfs/share/card.webp');
+        assert.equal($('meta[property="og:image"]').attr('content'),'https://creator.test/ipfs/public-post-image');
         assert.equal($('meta[name="twitter:card"]').attr('content'),'summary_large_image');
         assert.equal($('link[rel="icon"]').attr('href'),'https://creator.test/ipfs/icon');
         assert.equal($('meta[name="rating"]').attr('content'),'adult');
@@ -66,6 +66,31 @@ describe('creator website SEO', () => {
         }
         assert.deepEqual(normalizeCreatorSeo({imageUrl:'/ipfs/card',adult:false,title:' Title '}),{imageUrl:'/ipfs/card',adult:false,title:'Title'});
         assert.deepEqual(normalizeCreatorSeo({}),{});
+    });
+    it('applies owner templates to SEO and both cards using only public descriptions', async () => {
+        const configured = {...site, canonicalPath:'/posts/42/',brand:{...site.brand,seo:{...site.brand.seo,
+            postTitleTemplate:'{siteTitle}: {postTitle}',postDescriptionTemplate:'{postTitle} | {postDescription} | {siteTitle}'}}};
+        const html = await (await renderer.prepareRender(membershipRenderData(configured,[post],true,true))).renderPage('/post/42',[]);
+        const $ = load(html);
+        assert.equal($('title').text(),'Creator: A & B "story"');
+        for (const selector of ['meta[property="og:title"]','meta[name="twitter:title"]']) {
+            assert.equal($(selector).attr('content'),$('title').text());
+        }
+        for (const selector of ['meta[name="description"]','meta[property="og:description"]','meta[name="twitter:description"]']) {
+            assert.equal($(selector).attr('content'),'A & B "story" | Public & useful | Creator');
+        }
+        assert.equal($('meta[name="twitter:image"]').attr('content'),'https://creator.test/ipfs/public-post-image');
+        assert.equal($('meta[property="og:image:alt"]').attr('content'),'A & B "story"');
+        assert(!$('head').html().includes('PRIVATE-CONTENT'));
+    });
+    it('does not use member-only media as a share image and falls back to site imagery', () => {
+        const {socialImageUrl: _, ...withoutPreview} = post;
+        const metadata = creatorMetadata(site,[{...withoutPreview,media:[{mime:'image/webp',url:'/ipfs/PRIVATE'}]}],true);
+        assert.equal(metadata.headers.find(([,a]) => a.property === 'og:image')[1].content,'https://creator.test/ipfs/share/card.webp');
+        for (const value of [{postTitleTemplate:'{fullText}'},{postDescriptionTemplate:'x'.repeat(501)}]) {
+            assert.throws(()=>normalizeCreatorSeo(value),/membership_seo_invalid/);
+        }
+        assert.equal(normalizeCreatorSeo({postTitleTemplate:'{siteTitle} | {postTitle}'}).postTitleTemplate,'{siteTitle} | {postTitle}');
     });
     it('emits stable canonical discovery URLs with escaped XML', () => {
         const xml = creatorSitemap('creator.test',['index.html','posts/42/index.html','page/1/index.html']);

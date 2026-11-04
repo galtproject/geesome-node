@@ -249,6 +249,7 @@ async function snapshotPost(app, post) {
 			previews.push(item);
 		}
 	}
-	return {id: String(post.id), date: new Date(post.publishedAt || 0).getTime(), title: String(m.title || '').slice(0, 500), teaser: String(m.teaser ?? m.description ?? '').slice(0, 10000),
+	const preview = previews.find(item => item.mime.startsWith('image/'));
+	return {socialImageUrl: preview ? `/ipfs/${preview.storageId}` : undefined, id: String(post.id), date: new Date(post.publishedAt || 0).getTime(), title: String(m.title || '').slice(0, 500), teaser: String(m.teaser ?? m.description ?? '').slice(0, 10000),
 		fullText: String(m.fullText ?? m.description ?? '').slice(0, 100000), free: m.free === true, full: media, previews};
 }
