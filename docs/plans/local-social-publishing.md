@@ -257,3 +257,18 @@ are strings to avoid numeric precision loss, and optional sensitivity retains
 false. Ordinary Bluesky AT URIs use the existing 500-character opaque remoteId;
 no extra database column alteration or broader result-URL allowance is introduced.
 The client/Girls own provider execution and removal of legacy/Tumblr publishers.
+
+## Owned image reuse (#1546)
+
+The existing compose `imageStorageIds` also resolves locally owned Content for
+new private group sources. The resolver rejects foreign, deleted, encrypted or
+remote content before source/job creation. The outbox response adds
+`capabilities.ownedImageReferences: true` on every successful shape. Producers
+must negotiate this flag; older nodes continue using Asset uploads. Neither the
+request shape nor producer/media digest changes.
+
+Publication JPEGs with a self-bound `publication-jpeg95-v1` receipt may be reused
+by the social preparer after full decode, byte/dimension, orientation, color and
+embedded-metadata checks. Unsupported provenance or a changed constraint keeps
+the existing encoder. Cache identities and original source refs remain intact.
+No new endpoint, schema, image registry or cache service is introduced.

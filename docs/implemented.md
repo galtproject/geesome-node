@@ -12,6 +12,21 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Reuse owned publication images (#1546)
+
+Private group compose now accepts owned local Content references as well as
+Assets and advertises `capabilities.ownedImageReferences` through outbox reads.
+Foreign, deleted, encrypted and remote image references remain forbidden.
+Existing publication JPEGs with self-bound provenance are fully decoded and
+checked against byte/dimension/orientation/color/metadata constraints before
+passthrough; otherwise the existing encoder is used. Passthrough registers the
+existing Content in the existing social rendition cache, without another encode
+or Content row. Legacy null/malformed metadata safely uses normal preparation.
+
+Verified: 29 focused image/outbox cases in Docker with isolated PostgreSQL and
+Kubo, eight local image-preparation tests, generated apiDoc and route inventory.
+See [the contract](plans/local-social-publishing.md#owned-image-reuse-1546).
+
 ## Active-member archive prompts (#1543)
 
 Creator post cards use the same active membership state as the sidebar. Active

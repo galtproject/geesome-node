@@ -83,12 +83,12 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 		}
 		return {group: groupView(post.group), postId: post.id, jobs: await jobViews(jobs)};
 	}
-	async function images(userId, ids, allowOwnedContent = false) {
+	async function images(userId, ids) {
 		const records = [];
 		for (const storageId of ids) {
 			const asset = await sequelize.models.asset.findOne({where: {userId, storageId}});
-			const content = asset ? await app.ms.database.getContent(asset.contentId) : (allowOwnedContent ? await app.ms.database.getContentByStorageAndUserId(storageId, userId) : null);
-			if (!content || Number(content.userId) !== Number(userId) || content.storageId !== storageId || !String(content.mimeType).startsWith('image/') || (content as any).isEncrypted || content.isDeleted) {
+			const content = asset ? await app.ms.database.getContent(asset.contentId) : await app.ms.database.getContentByStorageAndUserId(storageId, userId);
+			if (!content || Number(content.userId) !== Number(userId) || content.storageId !== storageId || !String(content.mimeType).startsWith('image/') || (content as any).isEncrypted || content.isDeleted || content.isRemote) {
 				throw problem(403, 'local_publication_image_forbidden');
 			}
 			records.push(content);
@@ -143,7 +143,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			if (request.mediaPolicy) {
 				validatePreparedPublication(request);
 			}
-			const imageContents = await images(userId, request.imageStorageIds, Boolean(request.postId));
+			const imageContents = await images(userId, request.imageStorageIds);
 			const group = request.groupId ? await app.ms.group.getGroup(request.groupId) : await ensureGroup(userId);
 			if (!isOwnedQueueGroup(group, userId)) {
 				throw problem(403, 'local_publication_source_forbidden');
@@ -238,10 +238,10 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			const eligible = groups.filter(group => isOwnedQueueGroup(group, userId));
 			const group = selected ? (eligible.length === 1 ? eligible[0] : null) : await getGroup(userId);
 			if (selected && !eligible.length) {
-				return {ownerId: Number(userId), group: null, groups: [], drafts: []};
+				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true}, group: null, groups: [], drafts: []};
 			}
 			if (!selected && !group) {
-				return {ownerId: Number(userId), group: null, drafts: []};
+				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true}, group: null, drafts: []};
 			}
 			if (!selected && !isManagedOutbox(group, userId)) {
 				throw problem(409, 'local_publication_outbox_conflict');
@@ -266,7 +266,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 					drafts.push({postId: post.id, groupId: post.groupId, text: '', attachments: [], createdAt: post.createdAt, unavailable: true, error: 'This draft contains unsupported content. Edit it in GeeSome before scheduling.'});
 				}
 			}
-			return {ownerId: Number(userId), group: group ? groupView(group) : null, ...(selected ? {groups: eligible.map(groupView)} : {}), drafts};
+			return {ownerId: Number(userId), capabilities: {ownedImageReferences: true}, group: group ? groupView(group) : null, ...(selected ? {groups: eligible.map(groupView)} : {}), drafts};
 		}
 	};
 }
