@@ -28,6 +28,7 @@ export default async (app: IGeesomeApp) => {
 	app.ms.database.registerStorageIdReferenceSource({name: 'active-storage-jobs', count: cid => countStorageHolds(app, cid)});
 	const worker = startIntervalWorker(async () => {
 		await app.ms.content?.['processResaveQueue']?.();
+		await app.ms.staticSiteGenerator?.['processPendingRenderRecoveries']?.();
 		await app.ms.staticSiteGenerator?.['processSiteReplacementQueue']?.();
 	}, {intervalMs: 2000, onError: error => console.error('storage_job_worker_error', error)});
 	const stop = module.stop.bind(module);
@@ -230,7 +231,7 @@ export function getModule(app: IGeesomeApp, models) {
 			return finishedOperation;
 		}
 
-		addUserOperationQueue(userId, module, userApiKeyId, input) {
+		addUserOperationQueue(userId, module, userApiKeyId, input, options: any = {}) {
 			const {inputJson, inputHash} = getOperationQueueInputData(input);
 			return models.UserOperationQueue.create({
 				userId,
@@ -239,7 +240,7 @@ export function getModule(app: IGeesomeApp, models) {
 				userApiKeyId,
 				inputHash,
 				isWaiting: true,
-			});
+			}, {transaction: options.transaction});
 		}
 
 		async addUniqueUserOperationQueue(userId, module, userApiKeyId, input, options: any = {}) {
@@ -364,6 +365,11 @@ export function getModule(app: IGeesomeApp, models) {
 			}
 			if (userOperationQueue.userId != userId) {
 				throw new Error("not_permitted");
+			}
+			if (userOperationQueue.module === 'static-site-generator' && app.ms.staticSiteGenerator?.['renderRecoveryPolicy']) {
+				const policy = await app.ms.staticSiteGenerator['renderRecoveryPolicy'](userOperationQueue);
+				userOperationQueue.renderRecoveryPolicy = policy;
+				userOperationQueue['setDataValue']('renderRecoveryPolicy', policy);
 			}
 			return userOperationQueue;
 		}

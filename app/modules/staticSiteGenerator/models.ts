@@ -54,7 +54,33 @@ export default async function (sequelize: Sequelize) {
         storageId: DataTypes.STRING(100), workPath: {type: DataTypes.STRING(200), allowNull: false}, retiredAt: DataTypes.DATE,
     }, {indexes: [{fields: ['storageId']}, {fields: ['workPath'], unique: true}, {fields: ['replacementId']}]});
     await Revision.sync({});
+
+    const RenderRecovery = sequelize.define('staticSiteRenderRecovery', {
+        queueId: {type: DataTypes.INTEGER, allowNull: false},
+        userId: {type: DataTypes.INTEGER, allowNull: false},
+        interruptedOperationId: {type: DataTypes.INTEGER, allowNull: false},
+        asyncOperationId: {type: DataTypes.INTEGER, allowNull: false},
+        interruptedReceipt: {type: DataTypes.TEXT, allowNull: false},
+        state: {type: DataTypes.STRING(30), allowNull: false},
+    }, {indexes: [
+        {fields: ['queueId', 'interruptedOperationId'], unique: true},
+        {fields: ['asyncOperationId'], unique: true},
+        {fields: ['state', 'id']},
+    ]});
+    await RenderRecovery.sync({});
+
+    const RenderReceipt = sequelize.define('staticSiteRenderReceipt', {
+        queueId: {type: DataTypes.INTEGER, allowNull: false, unique: true},
+        userId: {type: DataTypes.INTEGER, allowNull: false},
+        inputHash: {type: DataTypes.STRING(200), allowNull: false},
+        sources: {type: DataTypes.TEXT, allowNull: false},
+        renderOperationId: DataTypes.INTEGER,
+        result: DataTypes.TEXT,
+    });
+    await RenderReceipt.sync({});
 	return {
+        RenderReceipt,
+        RenderRecovery,
         Revision,
 		StaticSite: await StaticSite.sync({})
 	};
