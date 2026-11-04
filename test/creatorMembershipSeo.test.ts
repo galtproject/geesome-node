@@ -11,9 +11,9 @@ describe('creator website SEO', () => {
         const data = membershipRenderData({...site,canonicalPath:'/posts/42/',relativeRoot:'../../'},[post],false,true);
         const html = await (await renderer.prepareRender(data)).renderPage('/post/42', [['meta',{name:'og:title',content:'Old brand-only title'}]]);
         const $ = load(html);
-        assert.equal($('title').text(),'Creator — A & B "story"');
+        assert.equal($('title').text(),'Creator - A & B "story"');
         assert.equal($('link[rel="canonical"]').attr('href'),'https://creator.test/posts/42/');
-        assert.equal($('meta[property="og:title"]').attr('content'),'Creator — A & B "story"');
+        assert.equal($('meta[property="og:title"]').attr('content'),'Creator - A & B "story"');
         assert.equal($('meta[name="og:title"]').length,0);
         assert.equal($('meta[name="description"]').attr('content'),'Public & useful');
         assert.equal($('meta[property="og:image"]').attr('content'),'https://creator.test/ipfs/public-post-image');

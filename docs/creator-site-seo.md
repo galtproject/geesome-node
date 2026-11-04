@@ -19,7 +19,7 @@ No database migration is needed: settings live in the existing resource JSON.
   "seo": {
     "title": "Creator — artwork and updates",
     "description": "A short public introduction describing the creator and membership.",
-    "postTitleTemplate": "{siteTitle} — {postTitle}",
+    "postTitleTemplate": "{siteTitle} - {postTitle}",
     "postDescriptionTemplate": "{postDescription}",
     "imageUrl": "/ipfs/PUBLIC_IMAGE_CID/card.webp",
     "imageAlt": "Creator artwork",
@@ -36,7 +36,7 @@ URLs must be HTTPS or root-relative, without credentials or protocol-relative
 forms. Unknown fields and invalid values return `membership_seo_invalid` (400).
 
 The home uses the configured SEO title, then the creator name. Posts default
-to `{siteTitle} — {postTitle}` and use the optional
+to `{siteTitle} - {postTitle}` and use the optional
 `postTitleTemplate` (200 characters) and `postDescriptionTemplate` (500 characters)
 for the HTML title/description, Open Graph and Twitter cards. Supported literal
 placeholders are `{siteTitle}`, `{postTitle}` and `{postDescription}`. The latter
