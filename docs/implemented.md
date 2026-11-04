@@ -1323,3 +1323,24 @@ producer/route digest preservation, foreign cache rejection and privacy-race
 rollback. API docs and security/scalability inventories are aligned. Live provider
 compatibility remains a separate account-level check; no social publication was
 performed by these tests.
+
+## Restart-interrupted content-list renders (#1554)
+
+Owned static-site render queues with replacement receipts or frozen source
+snapshots can recover from `node-restart` through a bounded, idempotent endpoint.
+Unverifiable legacy renders are refused unless an exactly correlated saved
+result can be adopted. The original queue/input and old operation remain
+available, new attempts keep durable interrupted-receipt snapshots, and saved
+replacement revisions are adopted before rerendering. Only accepted recovery
+queues are processed. See the static-site module overview for rollout and
+consumer verification requirements.
+
+Verification: 25 focused PostgreSQL/helper cases passed. The final-source
+Node 22 Docker image passed all 62 static-site, image optimization, restart
+recovery and async-operation batch cases with isolated PostgreSQL and Kubo.
+The image's 497 application/new-test files matched the workstation fingerprint
+`ed773977eeef37530a8d369adad98284f5b757fedc07321e0f19d7c8e4a4175e`.
+API docs generation and the security route inventory passed. A separate broad
+Docker run of the earlier implementation snapshot reported a two-node chat
+attachment failure; it is not a passing final-source full-suite result and its
+baseline cause has not been established.

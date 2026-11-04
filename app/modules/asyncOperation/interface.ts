@@ -23,7 +23,7 @@ export default interface IGeesomeAsyncOperationModule {
 
 	findAsyncOperations(userId, name?, channelLike?, inProcess?): Promise<IUserAsyncOperation[]>;
 
-	addUserOperationQueue(userId, module, apiKeyId, inputs): Promise<IUserOperationQueue>;
+	addUserOperationQueue(userId, module, apiKeyId, inputs, options?: {transaction?: any}): Promise<IUserOperationQueue>;
 
 	addUniqueUserOperationQueue(userId, module, apiKeyId, inputs, options?: any): Promise<IUserOperationQueue>;
 
@@ -93,6 +93,7 @@ export interface IUserOperationQueue {
 	asyncOperationId: number;
 	userApiKeyId: number;
 	asyncOperation?: IUserAsyncOperation;
+    renderRecoveryPolicy?: {contract: number; supported: boolean; mode: string; limit: number};
 }
 
 export interface IModuleOperationQueueProcessorOptions {

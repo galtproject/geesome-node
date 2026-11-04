@@ -5,8 +5,8 @@ import helpers from "../../helpers.js";
 const {pick} = _;
 
 
-export default (_app: IGeesomeApp, ssgModule: IGeesomeStaticSiteGeneratorModule) => {
-	const api = _app.ms.api.prefix('render/static-site-generator/');
+export default (app: IGeesomeApp, ssgModule: IGeesomeStaticSiteGeneratorModule) => {
+	const api = app.ms.api.prefix('render/static-site-generator/');
 
 	api.onAuthorizedPost('get-default-options', async (req, res) => {
 		return res.send(await ssgModule.getDefaultOptionsByRenderArgs(req.user.id, pickRenderArgs(req.body)), 200);
@@ -36,6 +36,27 @@ export default (_app: IGeesomeApp, ssgModule: IGeesomeStaticSiteGeneratorModule)
 	api.onAuthorizedPost('run', async (req, res) => {
 		return res.send(await ssgModule.addRenderToQueueAndProcess(req.user.id, req.apiKey.id, pickRenderArgs(req.body), req.body.options), 200);
 	});
+    /**
+     * @api {post} /v1/render/static-site-generator/recover/:id Recover a restart-interrupted content-list render
+     * @apiName StaticSiteRecover
+     * @apiGroup StaticSiteGenerator
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiParam {Number} id Original owned render queue id.
+     * @apiBody {Number} expectedOperationId Exact interrupted operation id from the original receipt.
+     * @apiDescription Requires content:write and save permission. Content-list renders stopped by node-restart are eligible when they have a replacement receipt, frozen owned-source snapshot, or exactly correlated legacy saved result. Poll the original queue's renderRecoveryPolicy before recovery; unproven legacy input and group renders require review. The original queue/input and interrupted operation remain unchanged; a new attempt is attached to the same queue. At most three recovery attempts are accepted per queue. Repeating the same expectedOperationId returns the accepted attempt without replaying it. Saved output is adopted instead of rerendering; archive admission is reconciled before completion. Other errors, cancellation, changed sources/operation or exhausted budget require review.
+     * @apiSuccess {Number} id Original render queue id.
+     * @apiSuccess {Number} asyncOperationId Current render operation id.
+     * @apiSuccess {Object} asyncOperation Current operation receipt.
+     * @apiSuccess {Object} recovery Accepted attempt id, interrupted/current operation ids, state and limit.
+     * @apiError static_site_recovery_not_interrupted Operation is active, complete, cancelled or failed for another reason.
+     * @apiError static_site_recovery_operation_changed Queue no longer points to the expected interrupted operation.
+     * @apiError static_site_recovery_exhausted Three recovery attempts were already accepted.
+     */
+    api.onAuthorizedPost('recover/:id', async (req, res) => {
+        return res.send(await ssgModule.recoverRenderQueue(req.user.id, Number(req.params.id),
+            req.body.expectedOperationId, req.apiKey.id), 202);
+    });
 	api.onAuthorizedPost('bind-to-static-id/:id', async (req, res) => {
 		return res.send(await ssgModule.bindSiteToStaticId(req.user.id, req.params.id), 200);
 	});

@@ -135,7 +135,33 @@ export class SiteReplacements {
             if (row.result?.renderHash && row.result.renderHash !== renderHash) {
                 problem('image_replacement_render_conflict');
             }
+            if (!row.result?.storageId && row.result?.renderRevisionId && row.result?.renderHash === renderHash) {
+                const revision = await this.models.Revision.findOne({where: {id: row.result.renderRevisionId,
+                    userId, replacementId, retiredAt: null}});
+                if (revision?.storageId) {
+                    if (row.status !== 'preparing') {
+                        problem('image_replacement_render_conflict');
+                    }
+                    await row.update({status: 'rendered', result: {...row.result, storageId: revision.storageId,
+                        staticSiteId: revision.staticSiteId, revisionId: revision.id}});
+                }
+            }
             if (row.result?.storageId) {
+                const Site = this.app.ms.database.sequelize.model('staticSite');
+                const site = await Site.findOne({where: {id: row.result.staticSiteId, userId}});
+                if (!site) {
+                    problem('image_replacement_render_conflict');
+                }
+                if (!sameCid(site.storageId, row.result.storageId)) {
+                    if (site.storageId && !sameCid(site.storageId, row.input.previous?.storageId)) {
+                        problem('image_replacement_render_conflict');
+                    }
+                    const [updated] = await Site.update({storageId: row.result.storageId, options: JSON.stringify(options)},
+                        {where: {id: site.id, userId, storageId: site.storageId}});
+                    if (updated !== 1) {
+                        problem('image_replacement_render_conflict');
+                    }
+                }
                 return {storageId: row.result.storageId, staticSiteId: row.result.staticSiteId};
             }
             if (row.status !== 'preparing') {
