@@ -290,6 +290,9 @@ try {
             assert.equal(await page.getByTestId('membership-ribbon').count(),1);
             assert((await page.getByTestId('join-membership').textContent()).includes('Join here · $4.00 / 1 month'));
             assert.equal(await page.getByTestId('join-membership').isEnabled(),true);
+            if (javaScriptEnabled) {
+                await page.getByTestId('post-51').getByTestId('subscribe-post').filter({hasText:'Join here to unlock'}).waitFor();
+            }
             if (viewport.width>760) {
                 const layout = await page.evaluate(()=>({side:document.querySelector('.creator-sidebar').getBoundingClientRect().toJSON(),feed:document.querySelector('.member-feed').getBoundingClientRect().toJSON()}));
                 assert(layout.side.x<layout.feed.x && Math.abs(layout.side.y-layout.feed.y)<1,'Subscription sidebar and posts begin beside each other');
@@ -445,10 +448,19 @@ try {
                 await page.getByTestId('join-membership').filter({hasText:'My membership'}).waitFor();
                 assert.equal(await page.getByTestId('membership-ribbon').count(),0);
                 await page.getByTestId('membership-choice').scrollIntoViewIfNeeded();
-                await capture('active-member','An active direct member sees My membership and the access date, with no sales ribbon. Patreon remains a separate purchase alternative.');
+                assert.equal(await page.getByTestId('subscribe-post').count(),0,'Active members see no post unlock prompts, including posts without links');
+                assert.equal(await page.getByTestId('post-50').getByTestId('content-link').getAttribute('href'),'https://example.com/full-set','Existing full-set action links remain available');
+                await capture('active-member','An active direct member sees My membership and the access date, with no sales ribbon or post unlock prompts. Patreon remains a separate purchase alternative.');
+                await page.getByTestId('post-51').locator('.post-copy').scrollIntoViewIfNeeded();
+                await capture('active-member-post','An active member sees the archive post actions without Join here to unlock even when the post has no link attachments.');
+                await page.goto(`${origin}/paged-full/posts/51/`);
+                await page.getByTestId('join-membership').filter({hasText:'My membership'}).waitFor();
+                assert.equal(await page.getByTestId('subscribe-post').count(),0,'Active members see no unlock prompt on the full post');
+                await page.getByText('PRIVATE 51',{exact:true}).waitFor();
                 membershipAccount = {reader:{id:'reader',name:'Test member'},active:false,expired:true,invoices:[{id:'paid',status:'paid'}],refunds:[]};
                 await page.goto(`${origin}/paged/`);
                 await page.getByTestId('join-membership').filter({hasText:'Renew membership'}).waitFor();
+                await page.getByTestId('post-51').getByTestId('subscribe-post').filter({hasText:'Renew membership'}).waitFor();
                 await page.getByTestId('membership-choice').scrollIntoViewIfNeeded();
                 await capture('expired-member','An expired direct member gets Renew membership while the Patreon alternative and crypto explanation remain clear.');
             }
