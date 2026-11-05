@@ -156,13 +156,19 @@ describe('storage fence admission lifecycle with PostgreSQL', function () {
                 withStorageFence(app, 'shared', async () => undefined));
             await withStorageAdmission(app, {timeoutMs: 1000, route: '/v1/user/123?token=secret', requestId: 'bad\nsecret'}, () =>
                 withStorageFence(app, 'shared', async () => undefined));
-            assert.equal(events.length, 4);
-            assert.equal(events[0].stage, 'acquired');
-            assert.equal(events[0].route, '/v1/user/site-replacements');
-            assert.equal(events[1].stage, 'released');
-            assert.equal(typeof events[1].holdMs, 'number');
-            assert.equal(events[2].route, undefined);
-            assert.equal(events[2].requestId, undefined);
+            const correlated = events.filter(event => event.requestId === 'req_safe');
+            const acquired = correlated.find(event => event.stage === 'acquired');
+            const released = correlated.find(event => event.stage === 'released');
+            assert(acquired && released, 'a completed fence has correlated acquire and release evidence');
+            assert.equal(acquired.route, '/v1/user/site-replacements');
+            assert.equal(released.fenceId, acquired.fenceId);
+            assert.equal(released.users, 0);
+            assert(Number.isSafeInteger(released.holdMs) && released.holdMs >= 0);
+            assert(events.some(event => event.route === undefined && event.requestId === undefined));
+            for (let index = 0; index < 80; index++) {
+                await withStorageFence(app, 'shared', async () => undefined);
+            }
+            assert(events.length <= 120, 'diagnostic output is capped during one bounded test window');
             assert.equal(JSON.stringify(events).includes('secret'), false);
         } finally {
             console.info = log;

@@ -12,7 +12,7 @@ import {IUser} from "../database/interface.js";
 import {cleanupAndRethrow} from '../../resourceCleanup.js';
 import {ApiProblemError, getRequestId, sendApiProblem, sendResponse} from './problem.js';
 import {getPublicApiContext} from './publicUrls.js';
-import {withStorageAdmission, withStorageFence} from '../../storageLifecycle.js';
+import {isStorageAdmissionRejection, withStorageAdmission, withStorageFence} from '../../storageLifecycle.js';
 import {StorageRouteOptions} from './interface.js';
 import IGeesomeApiModule, {
 	IApiModuleCommonOutput,
@@ -31,15 +31,22 @@ export default async (app: IGeesomeApp, options: any = {}) => {
 	}
 }
 
-async function getModule(app: IGeesomeApp, version, port, host, admissionTimeoutMs = 3000) {
+async function getModule(app: IGeesomeApp, version, port, host, admissionTimeoutMs = 10000) {
 	const service = express();
-	if (!Number.isFinite(admissionTimeoutMs) || admissionTimeoutMs <= 0 || admissionTimeoutMs > 3000) {
+	if (!Number.isFinite(admissionTimeoutMs) || admissionTimeoutMs <= 0 || admissionTimeoutMs > 10000) {
 		throw new Error('storage_admission_timeout_invalid');
 	}
 	async function storageCallback(req, res, route, callback, routeOptions: StorageRouteOptions = {}) {
 		if (routeOptions.storageReadOnly) {
 			return callback();
 		}
+		const header = req.headers['x-geesome-storage-admission-ms'];
+		if (header !== undefined && (typeof header !== 'string' || !/^[1-9][0-9]{0,3}$/.test(header)
+			|| Number(header) > 3000)) {
+			throw new ApiProblemError(400, 'storage_admission_budget_invalid', 'Storage admission budget invalid',
+				'X-Geesome-Storage-Admission-Ms must be an integer from 1 through 3000.');
+		}
+		const requestAdmissionMs = header === undefined ? admissionTimeoutMs : Math.min(Number(header), admissionTimeoutMs);
 		const controller = new AbortController();
 		const abandon = () => controller.abort();
 		req.once('aborted', abandon);
@@ -47,11 +54,23 @@ async function getModule(app: IGeesomeApp, version, port, host, admissionTimeout
 		if (req.aborted || res.destroyed) {
 			abandon();
 		}
+		let executionStarted = false;
 		try {
 			return await withStorageAdmission(app, {signal: controller.signal,
-				timeoutMs: admissionTimeoutMs, route, requestId: req.requestId}, () =>
+				timeoutMs: requestAdmissionMs, route, requestId: req.requestId}, () =>
 				routeOptions.storageFence === 'handler' ? callback()
-					: withStorageFence(app, 'shared', callback, {wait: false}));
+					: withStorageFence(app, 'shared', () => {
+						executionStarted = true;
+						return callback();
+					}, {wait: false}));
+		} catch (error) {
+			const safeBoundary = routeOptions.storageFence === 'handler'
+				? routeOptions.storageAdmissionRejectionSafe === true : !executionStarted;
+			if (safeBoundary && isStorageAdmissionRejection(error, controller.signal)) {
+				throw new ApiProblemError(error.status, error.code, error.title, error.message,
+					{...error.extensions, admissionRejected: true, executionStarted: false});
+			}
+			throw error;
 		} finally {
 			req.removeListener('aborted', abandon);
 			res.removeListener('close', abandon);
@@ -127,7 +146,7 @@ async function getModule(app: IGeesomeApp, version, port, host, admissionTimeout
 		res.setHeader('Access-Control-Allow-Credentials', 'true');
 		res.setHeader('Access-Control-Allow-Origin', '*');
 		res.setHeader('Access-Control-Allow-Methods', "GET, POST, PATCH, PUT, DELETE, OPTIONS, HEAD");
-		res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, Idempotency-Key, X-Request-Id, X-Requested-With');
+		res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, Idempotency-Key, X-Request-Id, X-Requested-With, X-Geesome-Storage-Admission-Ms');
 		res.setHeader('Access-Control-Expose-Headers', 'Content-Digest, ETag, Link, Location, Retry-After, X-Geesome-Storage-Id, X-Request-Id');
 		res.setHeader('Connection', 'close'); //TODO: determine the best solution https://serverfault.com/questions/708319/chrome-requests-get-stuck-pending
 		// Point clients/agents at the API docs. Use the IPFS path (served at /ipfs/
@@ -194,7 +213,7 @@ async function getModule(app: IGeesomeApp, version, port, host, admissionTimeout
 			service.head(`/${routeName}`, (req, res) => this.handleCallback(req, res, callback));
 		}
 
-		async authorizeAndHandleCallback(req: IApiModuleGetInput, res: IApiModuleCommonOutput, callback) {
+		async authorizeAndHandleCallback(req: IApiModuleGetInput, res: IApiModuleCommonOutput, callback, propagateErrors = false) {
 			if (!req.token) {
 				return sendApiProblem(res, new ApiProblemError(401, 'credentials_required', 'Credentials required', 'Supply a bearer token in the Authorization header.'), req.requestId);
 			}
@@ -204,7 +223,9 @@ async function getModule(app: IGeesomeApp, version, port, host, admissionTimeout
 			if (!req.user || !req.user.id) {
 				return sendApiProblem(res, new ApiProblemError(401, 'invalid_credentials', 'Invalid credentials', 'The supplied bearer token is invalid, expired, or revoked.'), req.requestId);
 			}
-			return app.runWithApiKey(apiKey, () => this.handleCallback(req, res, callback));
+			return app.runWithApiKey(apiKey, () => propagateErrors
+				? callback(reqToModuleInput(req), resToModuleOutput(res))
+				: this.handleCallback(req, res, callback));
 		}
 
 		onAuthorizedGet(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
@@ -216,7 +237,10 @@ async function getModule(app: IGeesomeApp, version, port, host, admissionTimeout
 
 		onAuthorizedPost(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any, options: StorageRouteOptions = {}) {
 			this.onPost(routeName, (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => {
-				return this.authorizeAndHandleCallback(req, res, callback);
+				// Preserve the audited admission error until its HTTP boundary can
+				// attach the safe-refusal contract; other business errors stay generic.
+				return this.authorizeAndHandleCallback(req, res, callback,
+					options.storageFence === 'handler' && options.storageAdmissionRejectionSafe === true);
 			}, options);
 			markLastRouteAuthorized();
 		}
@@ -519,7 +543,10 @@ function buildPublicDiscovery(app: IGeesomeApp, version: string, port: number | 
 			assetUpload: Boolean(app.ms['asset']),
 			asyncOperations: Boolean(app.ms.asyncOperation),
 			batchContentUpload: Boolean(app.ms['asset']?.supportsBatches),
-            imageOptimization: app.ms.staticSiteGenerator?.['replacements']?.capabilities || null
+            imageOptimization: app.ms.staticSiteGenerator?.['replacements']?.capabilities || null,
+			storageAdmission: {contract: 1, requestHeader: 'X-Geesome-Storage-Admission-Ms',
+				legacyTimeoutMs: 10000, maximumOptInTimeoutMs: 3000,
+				safeRefusal: {admissionRejected: true, executionStarted: false}}
 		},
 		limits: {
 			maxUploadBytes

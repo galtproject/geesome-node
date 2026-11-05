@@ -5,6 +5,9 @@ export interface StorageRouteOptions {
 	storageReadOnly?: boolean;
 	// The handler must fence every mutation itself; permits authorized receipt reads.
 	storageFence?: 'handler';
+	// Audited handler: normalization/auth/receipt reads may precede its first
+	// fence, but no business mutation does. Never set on arbitrary handlers.
+	storageAdmissionRejectionSafe?: boolean;
 }
 
 export default interface IGeesomeApiModule {

@@ -769,7 +769,7 @@ describe('persisted image saving and local site retirement', function () {
             form.append('async', 'true');
             form.append('path', `/multi-client/${item.index}.png`);
             const response = await fetch(`${origin}/user/save-file`, {method: 'POST',
-                headers: {Authorization: `Bearer ${item.client.token}`}, body: form, signal: AbortSignal.timeout(5000)});
+                headers: {Authorization: `Bearer ${item.client.token}`, 'X-Geesome-Storage-Admission-Ms': '3000'}, body: form, signal: AbortSignal.timeout(5000)});
             return {status: response.status, retryAfter: response.headers.get('retry-after'), body: await response.json()};
         };
         // Attach rejection handlers immediately: a known admission refusal can arrive
@@ -882,7 +882,7 @@ describe('persisted image saving and local site retirement', function () {
         try {
             const startedAt = Date.now();
             const response = await fetch(`${origin}/user/site-replacements`, {method: 'POST',
-                headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
+                headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Geesome-Storage-Admission-Ms': '3000'},
                 body, signal: AbortSignal.timeout(5000)});
             assert.equal(response.status, 503);
             assert.equal(response.headers.get('retry-after'), '2');
@@ -902,7 +902,7 @@ describe('persisted image saving and local site retirement', function () {
     it('rejects concurrent HTTP producers promptly during cleanup and accepts the same request after release', async () => {
         const origin = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
         const token = await app.generateUserApiKey(user.id, {scopes: ['content:write', 'operations:read']});
-        const headers = {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'};
+        const headers = {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Geesome-Storage-Admission-Ms': '3000'};
         const png = await sharp({create: {width: 40, height: 60, channels: 3, background: '#789abc'}}).png().toBuffer();
         const content = await app.ms.content.saveData(user.id, png, 'storage-wait.png', {driver: imageDriver(), waitForPin: true});
         const body = JSON.stringify({requestKey: randomUUID(), driver: imageDriver(), contentIds: [content.id]});

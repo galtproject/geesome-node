@@ -104,4 +104,47 @@ describe('GC-safe pinned Kubo imports', function () {
             node.dag.put = original;
         }
     });
+
+    it('rechecks only the imported root when pin confirmation is temporarily unavailable', async () => {
+        const originalAdd = node.add, originalProof = node.pin.ls;
+        let imports = 0, reads = 0;
+        node.add = async (...args) => { imports++; return originalAdd(...args); };
+        node.pin.ls = async function * (...args) {
+            reads++;
+            if (reads === 1) {
+                throw Object.assign(new Error('temporary proof outage'),
+                    {response: {status: 503, headers: new Headers({'retry-after': '0'})}});
+            }
+            yield* originalProof(...args);
+        };
+        try {
+            const content = randomBytes(4096);
+            const file = await service.saveFileByData(content, {pinProofTimeoutMs: 1000});
+            assert.equal(imports, 1, 'proof failure never reimports the file');
+            assert.equal(reads, 2);
+            assert.deepEqual(await bytes(file.id), content);
+        } finally {
+            node.add = originalAdd;
+            node.pin.ls = originalProof;
+        }
+    });
+
+    it('keeps a denied proof distinct from a missing pin and never repeats the import', async () => {
+        const originalAdd = node.add, originalProof = node.pin.ls;
+        let imports = 0, reads = 0;
+        node.add = async (...args) => { imports++; return originalAdd(...args); };
+        node.pin.ls = async function * () {
+            reads++;
+            throw Object.assign(new Error('proof access denied'), {response: {status: 403}});
+        };
+        try {
+            await assert.rejects(service.saveFileByData(randomBytes(4096)),
+                (error: any) => error.cause?.code === 'kubo_import_pin_proof_unavailable');
+            assert.equal(imports, 1);
+            assert.equal(reads, 1);
+        } finally {
+            node.add = originalAdd;
+            node.pin.ls = originalProof;
+        }
+    });
 });

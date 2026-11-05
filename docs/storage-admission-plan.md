@@ -24,7 +24,8 @@ Focused real PostgreSQL/HTTP saturation/abort/GC tests, existing image optimizat
 - Client disconnect only cancels admission that has not begun. Accepted/durable work continues with original receipts.
 - Diagnostics must omit tokens, URLs, payloads, source IDs and request keys; bounded route templates/request IDs only.
 
-- Implementation: HTTP context uses a three-second absolute admission budget,
+- Initial implementation (superseded by the user-flow compatibility contract below):
+  HTTP context used a three-second absolute admission budget,
   response-close/aborted cancellation before the first executing fence, and
   handler-owned mode only for site-replacements. No mixed save-data bypass.
 - Receipt service already authorizes and validates request hash before its
@@ -65,7 +66,7 @@ Focused real PostgreSQL/HTTP saturation/abort/GC tests, existing image optimizat
 ## Minimal pinned-write implementation (#1566)
 - Implemented Kubo pinned file/directory/JSON-object import with explicit recursive
   pin confirmation in geesome-libs, then consumed immutable compatibility commit
-  f990ffd. This preserves the previous crypto/helper base instead of introducing
+  f990ffd, followed by e163700 for independent pin-proof policy. This preserves the previous crypto/helper base instead of introducing
   unrelated master additions. Library PR #166 replaces the exploratory draft #165.
 - Kept existing immutable publication, default-retain policy and explicit retirement
   queue. No global barrier is removed; MFS and cross-SQL/IPFS deletion races retain
@@ -81,3 +82,66 @@ Focused real PostgreSQL/HTTP saturation/abort/GC tests, existing image optimizat
   callback after nonblocking worker-lock refusal. Replaced that unbounded fixture
   wait with bounded claim retries, keeping all disconnect/capacity assertions.
 - Final compatibility-base Docker verification passed: 49 tests, 3 pending. It covers real native GC, pinned imports/CID stability, HTTP admission, detached GC lifetime, multi-owner uploads, archive/render/retirement and replay. The full suite was not repeated after the focused fixes; the broad run and exact-base chat baseline remain recorded above.
+
+## User-flow compatibility implementation
+
+Source of truth: storage user-regression review dated 2026-11-05. Keep PR #1564
+and library #166 draft while these acceptance gaps are addressed.
+
+Parallel write scopes:
+- Backend admission owner: lifecycle/API adapter and audited route registrations,
+  admission HTTP tests, route contract docs. Legacy requests retain the previous
+  budget; supported clients opt into a bounded short budget. Mark only proven
+  pre-execution refusals, preserve disconnect protection, and test actual control
+  routes/GC refusal without relaxing auth or business-effect assertions.
+- MG foreground owner: Uploading/GeesomeLight, affected settings/crop/paste UI and
+  frontend tests. Preserve context through waiting/Stop; unknown transport outcomes
+  reconcile read-only or surface unknown, with no automatic new upload POST.
+- Library proof owner: bounded independent proof checks and safe read-only retry,
+  without a second import or weaker pin guarantees. Root coordinates import budget.
+- Coordinator: MG backend client/BFF opt-in/metadata, separate import policy, real
+  API/Docker UI integration, documentation, review, final commits and pushes.
+
+Contract: X-Geesome-Storage-Admission-Ms opts into a 1..3000ms admission budget;
+legacy budget remains 10000ms. Typed HTTP pre-execution refusals carry explicit
+admissionRejected=true and executionStarted=false only at an audited boundary.
+Never infer rejection from generic 503, offline, timeout or lost response. Keep
+legacy safe refusal support narrowly scoped to the audited upload route.
+
+Import budget is separate from the old 120s pin-only budget, caller-configurable
+within a documented cap; pin proof has its own short bound, inherits caller/fence
+cancellation, and can retry reads of the same CID without importing again.
+
+Implementation follow-up:
+- Legacy HTTP admission restored to 10 seconds; supported clients explicitly opt
+  into 1..3000ms. Safe-refusal markers are privately bound to the current HTTP
+  admission signal, including audited handler-owned replacement admission.
+- Authenticated SQL-only login/post/content/group/site-list controls bypass writer
+  admission while retaining their existing permission checks. Internal replacement
+  calls retain the prior waiting policy; HTTP first admission refuses maintenance.
+- Whole-import deadline defaults to 30 minutes (environment cap 24 hours), separate
+  from the 120-second pin-proof policy in immutable library commit e163700.
+- Proof checks retry transient reads only, max three checks/one deadline/no second
+  import. Actual Kubo tests cover transient proof recovery and permission failure.
+- Tests that intentionally require a 3-second refusal now send the explicit header;
+  diagnostics assert correlated acquire/release and bounded output, not log count.
+- Frontend retains upload context/file/crop through waiting and Stop. Lost response
+  without receipt blocks replay; known 4xx preserves its useful original reason.
+  Crop cancellation cannot cache deferred old bytes after selecting a new image.
+
+Final user-flow compatibility verification (2026-11-05):
+- Exact-source Docker affected-path suite: 62 passing, 3 pending. Includes actual
+  PostgreSQL/HTTP acquisition, audited controls under saturation/GC, same-key
+  receipts, 30 uploads across owners, pinned Kubo imports/native GC, transient and
+  denied proof, archive/render/retirement, cancellation and no late execution.
+- Image tests now explicitly opt into short admission where their clients have
+  five-second deadlines. Two failures from the earlier snapshot were stale test
+  expectations and pass in this final run; business safety assertions were kept.
+- Source/package/lock/library SHA256 match inside the test image (8 checked files).
+  Dependency image reuse limitation remains recorded above. apiDoc generation,
+  security route inventory and diff check passed. Independent backend review
+  found no further blocker. Full broad suite was not rerun; existing baseline
+  chat attachment failures remain outside this patch.
+- No production deployment/image publication or batch resume. Merge library #166,
+  backend #1564 into dev, then reviewed stable promotion preserving control and
+  retention code; publish exact-commit image and use the standard updater.

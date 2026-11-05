@@ -1,6 +1,6 @@
 import {IGeesomeApp} from "../../interface.js";
 import IGeesomeStorageModule from "./interface.js";
-import {storageRpc} from './rpcDeadline.js';
+import {storageRpc, pinTimeoutMs, storageImportTimeoutMs} from './rpcDeadline.js';
 import ipfsHelper from "geesome-libs/src/ipfsHelper.js";
 
 export default async (app: IGeesomeApp, options = {implementation: null}) => {
@@ -54,14 +54,25 @@ function normalizeStorageAddresses(module: IGeesomeStorageModule): IGeesomeStora
 	return module;
 }
 
-export function configureStoragePinning(module: IGeesomeStorageModule): IGeesomeStorageModule {
+export function configureStoragePinning(module: IGeesomeStorageModule,
+	policy = {importTimeoutMs: storageImportTimeoutMs(), pinProofTimeoutMs: pinTimeoutMs}): IGeesomeStorageModule {
+	for (const value of [policy.importTimeoutMs, policy.pinProofTimeoutMs]) {
+		if (!Number.isSafeInteger(value) || value < 1) {
+			throw new Error('storage_import_timeout_configuration_invalid');
+		}
+	}
 	// Pinned imports no longer pass through addPin. Retain the same bounded RPC
 	// and fence-loss cancellation over import, stream consumption and pin proof.
 	for (const name of ['saveFile', 'saveDirectory', 'saveObject']) {
 		const original = (module as any)[name];
 		if (typeof original === 'function') {
 			(module as any)[name] = function (data, options = {}) {
-				return storageRpc('import', options, bounded => original.call(this, data, bounded));
+				const requestedProof = (options as any).pinProofTimeoutMs ?? policy.pinProofTimeoutMs;
+				if (!Number.isSafeInteger(requestedProof) || requestedProof < 1) {
+					return Promise.reject(new Error('kubo_import_pin_proof_budget_invalid'));
+				}
+				return storageRpc('import', options, bounded => original.call(this, data,
+					{...bounded, pinProofTimeoutMs: Math.min(requestedProof, policy.pinProofTimeoutMs)}), policy.importTimeoutMs);
 			};
 		}
 	}

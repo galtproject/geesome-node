@@ -11,6 +11,7 @@ const pools = new WeakMap<object, pg.Pool>();
 const workerPools = new WeakMap<object, pg.Pool>();
 const contexts = new AsyncLocalStorage<any>();
 const admissions = new AsyncLocalStorage<any>();
+const admissionRejections = new WeakMap<object, AbortSignal>();
 
 export interface StorageAdmissionOptions {
     signal?: AbortSignal;
@@ -29,7 +30,7 @@ export interface StorageFenceOptions {
 // Only unaccepted work is cancelled. The first acquired fence transfers lifetime
 // ownership to the operation; response loss must not cancel its durable outcome.
 export function withStorageAdmission<T>(app, options: StorageAdmissionOptions, run: () => Promise<T>): Promise<T> {
-    const timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs >= 0 ? options.timeoutMs : 3000;
+    const timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs >= 0 ? options.timeoutMs : 10000;
     return admissions.run({app, ...options, deadline: performance.now() + timeoutMs, admitted: false}, run);
 }
 
@@ -61,9 +62,22 @@ function fenceDiagnostic(pool, diagnostic, fields) {
     diagnosticDropped = 0;
 }
 
-function admissionError() {
-    return new ApiProblemError(503, 'storage_busy', 'storage busy');
+function admissionError(code = 'storage_busy') {
+    return new ApiProblemError(503, code, code.replace(/_/g, ' '));
 }
+
+// Only the actual first-fence refusal carries this private origin. A business
+// handler throwing the same public code cannot forge a pre-execution refusal.
+export function isStorageAdmissionRejection(error: unknown, signal: AbortSignal): boolean {
+    return typeof error === 'object' && error !== null
+        && admissionRejections.has(error) && admissionRejections.get(error) === signal;
+}
+
+export function storageAdmissionFenceOptions(app): StorageFenceOptions {
+    const admission = admissions.getStore();
+    return admission?.app === app && !admission.admitted ? {wait: false} : {};
+}
+
 
 // pg-pool has no AbortSignal checkout API. An abandoned waiter can still receive
 // a connection later, so consume that promise and release its result exactly once.
@@ -145,8 +159,14 @@ export async function withStorageFence<T>(app, mode: 'shared' | 'exclusive', run
     }
     const admission = admissions.getStore();
     const pendingAdmission = admission?.app === app && !admission.admitted ? admission : null;
+    const rejected = error => {
+        if (pendingAdmission?.signal && !pendingAdmission.admitted) {
+            admissionRejections.set(error, pendingAdmission.signal);
+        }
+        return error;
+    };
     const deadline = options.admissionTimeoutMs !== undefined
-        ? performance.now() + (Number.isFinite(options.admissionTimeoutMs) ? Math.max(0, options.admissionTimeoutMs) : 3000)
+        ? performance.now() + (Number.isFinite(options.admissionTimeoutMs) ? Math.max(0, options.admissionTimeoutMs) : 10000)
         : pendingAdmission?.deadline;
     const callerSignal = options.signal || pendingAdmission?.signal;
     const admissionController = new AbortController();
@@ -184,7 +204,7 @@ export async function withStorageFence<T>(app, mode: 'shared' | 'exclusive', run
             throw new Error('storage_retirement_requires_postgres');
         }
         if (admissionExpired()) {
-            throw admissionError();
+            throw rejected(admissionError());
         }
         if (pendingAdmission) {
             pendingAdmission.admitted = true;
@@ -209,7 +229,7 @@ export async function withStorageFence<T>(app, mode: 'shared' | 'exclusive', run
         fenceDiagnostic(pool, diagnostic, {stage: 'rejected', mode, reason: signal.aborted ? 'abandoned' : 'checkout_failed',
             poolWaitMs: Math.round(performance.now() - started)});
         if (signal.aborted || error.message === 'timeout exceeded when trying to connect') {
-            throw admissionError();
+            throw rejected(admissionError());
         }
         throw error;
     }
@@ -237,7 +257,7 @@ export async function withStorageFence<T>(app, mode: 'shared' | 'exclusive', run
     let acquired = true;
     try {
         if (admissionExpired()) {
-            throw admissionError();
+            throw rejected(admissionError());
         }
         if (options.wait === false) {
             acquired = (await connection.query(`SELECT pg_try_advisory_lock${suffix}($1, $2) AS locked`, [namespace, storageKey])).rows[0].locked;
@@ -245,7 +265,7 @@ export async function withStorageFence<T>(app, mode: 'shared' | 'exclusive', run
             await connection.query(`SELECT pg_advisory_lock${suffix}($1, $2)`, [namespace, storageKey]);
         }
         if (admissionExpired()) {
-            throw admissionError();
+            throw rejected(admissionError());
         }
         if (broken) {
             throw new Error('storage_fence_lost');
@@ -255,7 +275,7 @@ export async function withStorageFence<T>(app, mode: 'shared' | 'exclusive', run
         fenceDiagnostic(pool, diagnostic, {stage: 'rejected', mode, reason: signal.aborted ? 'abandoned' : 'lock_failed',
             poolWaitMs: Math.round(checkedOut - started), lockWaitMs: Math.round(performance.now() - checkedOut)});
         if (signal.aborted) {
-            throw admissionError();
+            throw rejected(admissionError());
         }
         throw error;
     } finally {
@@ -266,7 +286,7 @@ export async function withStorageFence<T>(app, mode: 'shared' | 'exclusive', run
         releaseConnection();
         fenceDiagnostic(pool, diagnostic, {stage: 'rejected', mode, reason: 'maintenance',
             poolWaitMs: Math.round(checkedOut - started), lockWaitMs: Math.round(performance.now() - checkedOut)});
-        problem('storage_maintenance_busy', 503);
+        throw rejected(admissionError('storage_maintenance_busy'));
     }
     if (pendingAdmission) {
         pendingAdmission.admitted = true;

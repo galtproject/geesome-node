@@ -77,7 +77,7 @@ describe('replacement receipt admission under writer saturation', function () {
         try {
             await Promise.race([ready.promise, Promise.all(writers)]);
             api = await apiModule(app, {port: await unusedPort(), host: '127.0.0.1',
-                registerRoutes: async (_app, module) => {
+                storageAdmissionTimeoutMs: 150, registerRoutes: async (_app, module) => {
                     app.ms.api = module;
                     registerReplacementApi(app, service);
                 }});
@@ -100,7 +100,10 @@ describe('replacement receipt admission under writer saturation', function () {
             const fresh = {...input, requestKey: 'new-receipt'};
             const refused = await post(fresh);
             assert.equal(refused.status, 503);
-            assert.equal((await refused.json()).code, 'storage_busy');
+            const refusal = await refused.json();
+            assert.equal(refusal.code, 'storage_busy');
+            assert.equal(refusal.admissionRejected, true);
+            assert.equal(refusal.executionStarted, false);
             assert.equal(refused.headers.get('retry-after'), '2');
             assert.equal(creates, 0);
             assert.equal(sourceReads, 0, 'new snapshot must not run without the shared fence');
@@ -116,6 +119,31 @@ describe('replacement receipt admission under writer saturation', function () {
             assert.equal((await replay.json()).id, 92);
             assert.equal(creates, 1);
             assert.equal(sourceReads, 1);
+
+            const gcEntered = deferred(), gcHeld = deferred();
+            const gc = withStorageFence(app, 'exclusive', async () => {
+                gcEntered.resolve();
+                await gcHeld.promise;
+            });
+            await gcEntered.promise;
+            try {
+                const oldReceipt = await post(input);
+                assert.equal(oldReceipt.status, 202);
+                assert.equal((await oldReceipt.json()).id, 91);
+                const started = Date.now();
+                const maintenance = await post({...input, requestKey: 'new-during-gc'});
+                assert.equal(maintenance.status, 503);
+                const refusedByGc = await maintenance.json();
+                assert.equal(refusedByGc.code, 'storage_maintenance_busy');
+                assert.equal(refusedByGc.admissionRejected, true);
+                assert.equal(refusedByGc.executionStarted, false);
+                assert(Date.now() - started < 1000);
+                assert.equal(creates, 1);
+                assert.equal(sourceReads, 1);
+            } finally {
+                gcHeld.resolve();
+                await gc;
+            }
         } finally {
             held.resolve();
             await Promise.allSettled(writers);

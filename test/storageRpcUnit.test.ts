@@ -79,3 +79,30 @@ describe('cleanup batch scheduling', () => {
         assert.equal(cleanupBatchReady([{result: {cleanupRetry: {force: true}}}], true, start), true);
     });
 });
+
+describe('separate import and pin-proof policy', () => {
+    it('allows a slow import beyond its pin-proof budget without renewing cancellation', async () => {
+        let received;
+        const module: any = {saveFile: async (_data, options) => {
+            received = options;
+            await new Promise(resolve => setTimeout(resolve, 40));
+            options.signal.throwIfAborted();
+            return {id: 'confirmed-root'};
+        }};
+        configureStoragePinning(module, {importTimeoutMs: 200, pinProofTimeoutMs: 20});
+        assert.deepEqual(await module.saveFile('bytes'), {id: 'confirmed-root'});
+        assert.equal(received.timeout, 200);
+        assert.equal(received.pinProofTimeoutMs, 20);
+        assert.equal(received.signal.aborted, false);
+        await assert.rejects(module.saveFile('bytes', {pinProofTimeoutMs: 0}), /proof_budget_invalid/);
+    });
+    it('validates configurable import policy independently of the old pin deadline', async () => {
+        const {storageImportTimeoutMs, defaultImportTimeoutMs, pinTimeoutMs} = await import('../app/modules/storage/rpcDeadline.js');
+        assert.equal(storageImportTimeoutMs({} as any), defaultImportTimeoutMs);
+        assert(defaultImportTimeoutMs > pinTimeoutMs);
+        assert.equal(storageImportTimeoutMs({GEESOME_STORAGE_IMPORT_TIMEOUT_MS: '900000'} as any), 900000);
+        for (const value of ['0', '-1', 'NaN', '86400001', '']) {
+            assert.throws(() => storageImportTimeoutMs({GEESOME_STORAGE_IMPORT_TIMEOUT_MS: value} as any), /configuration_invalid/);
+        }
+    });
+});
