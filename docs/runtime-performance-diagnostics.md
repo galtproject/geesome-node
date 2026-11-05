@@ -163,3 +163,35 @@ See [storage admission plan](storage-admission-plan.md) for the deferred durable
 queue and dedicated GC scheduling stages. This first stage needs no migration or
 MG API change. Merge and publish the exact reviewed GeeSome commit before using
 the normal idle-guarded upgrade; do not deploy from an unmerged topic branch.
+
+## GC-safe pinned imports and retention policy (#1566)
+
+The backend consumes the storage-only geesome-libs compatibility commit
+`f990ffd2d0ebc08a12e978498b5ff06ffc874b8b` (library PR #166). It starts from
+our previous `420754a` dependency and does not import unrelated browser E2EE
+changes from newer master. File, directory and canonical JSON DAG-CBOR helpers
+use Kubo pinned import and confirm a matching recursive root before returning.
+Codec, hash, CID version and directory wrapping remain unchanged. Confirmation
+is a root-pin check, not an arbitrary linked-DAG availability audit or a backup.
+
+`configureStoragePinning` now bounds `saveFile`, `saveDirectory` and `saveObject`
+with the existing storage RPC deadline/fence-loss signal. That protection used
+to be applied to the separate pin RPC; it must cover the whole import and pin
+confirmation after removing that extra write. Byte/path/URL helpers forward
+options into `saveFile`. Kubo writes now wait for pin confirmation even when
+legacy `waitForPin` is false; Helia retains its existing helper contract.
+
+Ordinary replacement admission already defaults `deleteReplacedFiles` to false.
+The new root is verified before cutover; physical retirement remains the explicit
+existing queue, gated by deletion authorization and reference checks. No new
+lease/epoch framework, deletion-policy change or automatic retirement is added.
+Keep application exclusion around reference acquisition, MFS and retirement.
+Kubo 0.42 MFS/native-GC coordination is a separate boundary; this patch does not
+make arbitrary MFS mutation safe against an out-of-band raw GC command.
+`saveDataStructure(waitForStorage:false)` also keeps its existing asynchronous
+precomputed-CID contract; callers requiring stored publication state must wait.
+
+Rollout: merge library PR #166 first, then node PR #1564, promote the reviewed
+node release preserving master-only control/retention code, publish its exact
+commit image, and use the normal idle-guarded upgrade. There is no schema or
+MG protocol migration. Original batch plans/journals remain authoritative.

@@ -55,6 +55,16 @@ function normalizeStorageAddresses(module: IGeesomeStorageModule): IGeesomeStora
 }
 
 export function configureStoragePinning(module: IGeesomeStorageModule): IGeesomeStorageModule {
+	// Pinned imports no longer pass through addPin. Retain the same bounded RPC
+	// and fence-loss cancellation over import, stream consumption and pin proof.
+	for (const name of ['saveFile', 'saveDirectory', 'saveObject']) {
+		const original = (module as any)[name];
+		if (typeof original === 'function') {
+			(module as any)[name] = function (data, options = {}) {
+				return storageRpc('import', options, bounded => original.call(this, data, bounded));
+			};
+		}
+	}
 	if (!(module as any).addPin) {
 		return module;
 	}

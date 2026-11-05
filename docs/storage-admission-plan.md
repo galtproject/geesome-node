@@ -49,3 +49,35 @@ Focused real PostgreSQL/HTTP saturation/abort/GC tests, existing image optimizat
   Standard cold dependency build failed on Yarn cache extraction/network, so no
   package versions were changed to bypass it. Source fingerprints were compared
   inside the test image before the run.
+
+- Follow-up delivery is tracked in [#1565](https://github.com/galtproject/geesome-node/issues/1565): durable worker stages and reserved GC admission.
+- Additional necessity review found the deployed adapter uses unpinned add followed
+  by a separate pin RPC. Even awaited pinning has a between-RPC GC window. Kubo's
+  native pinned-add lock can close that adapter gap; our PG fence does not protect
+  against raw daemon/manual GC. Before adding a larger lifecycle framework,
+  evaluate GC-safe atomic pinned writes in geesome-libs, then append-only immutable
+  publication with explicit queued retirement. Automatic cross-SQL/IPFS reclamation
+  still needs reference/retirement coordination; pins are not owner reference counts.
+  The present admission fix remains valid and preserves existing safety while this
+  simpler policy is evaluated. Official source: Kubo v0.42.0 core/coreunix/add.go,
+  gc/gc.go and core/coreapi/pin.go. The adapter implementation is in library PR #166; this backend PR consumes its compatibility commit.
+
+## Minimal pinned-write implementation (#1566)
+- Implemented Kubo pinned file/directory/JSON-object import with explicit recursive
+  pin confirmation in geesome-libs, then consumed immutable compatibility commit
+  f990ffd. This preserves the previous crypto/helper base instead of introducing
+  unrelated master additions. Library PR #166 replaces the exploratory draft #165.
+- Kept existing immutable publication, default-retain policy and explicit retirement
+  queue. No global barrier is removed; MFS and cross-SQL/IPFS deletion races retain
+  application exclusion. No new lifecycle framework was introduced.
+- Moved node RPC deadline/fence-loss cancellation onto imports because the helpers
+  no longer invoke the separate addPin path. Local encoder fingerprint still
+  matches the original fifty-site journal (Sharp 0.35.5 / vips 8.18.7).
+- First broad Docker run: 910 passed, 38 pending, 5 failed. Three tests encoded the
+  former admission contract and were updated to assert typed bounded refusals, no
+  late receipts and explicit retry. The two chat attachment failures reproduced
+  on exact pre-change admission source in a separate baseline run (0 pass / 2 fail).
+- A subsequent affected-path run exposed a multipart test fixture awaiting a
+  callback after nonblocking worker-lock refusal. Replaced that unbounded fixture
+  wait with bounded claim retries, keeping all disconnect/capacity assertions.
+- Final compatibility-base Docker verification passed: 49 tests, 3 pending. It covers real native GC, pinned imports/CID stability, HTTP admission, detached GC lifetime, multi-owner uploads, archive/render/retirement and replay. The full suite was not repeated after the focused fixes; the broad run and exact-base chat baseline remain recorded above.

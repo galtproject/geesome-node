@@ -5,6 +5,27 @@ import {cleanupDue, cleanupFailure} from '../app/modules/staticSiteGenerator/cle
 
 const cid = 'QmYWQu4zcgiBCR5ztA4PYwMyCYXLRuWngxuwnjJVH929mE';
 describe('bounded storage RPC and cleanup recovery', () => {
+
+    it('bounds pinned imports through completion without relying on a later addPin call', async () => {
+        for (const name of ['saveFile', 'saveDirectory', 'saveObject']) {
+            const controller = new AbortController();
+            let received;
+            const module: any = {[name]: async (_data, options) => {
+                received = options;
+                await new Promise((_resolve, reject) => options.signal.addEventListener('abort',
+                    () => reject(options.signal.reason), {once: true}));
+            }};
+            configureStoragePinning(module);
+            const work = module[name]('input', {signal: controller.signal, timeout: 1000, waitForPin: true});
+            controller.abort(new Error('request_cancelled'));
+            await assert.rejects(work, error => error.code === 'storage_import_cancelled');
+            assert.equal(received.timeout, 1000);
+            assert.equal(received.waitForPin, true);
+            assert.equal(received.signal.aborted, true);
+            await assert.rejects(module[name]('input', {timeout: 10}),
+                error => error.code === 'storage_import_timeout');
+        }
+    });
     it('preserves pin options and caller cancellation through the actual storage adapter', async () => {
         const controller = new AbortController();
         let received;
