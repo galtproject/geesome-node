@@ -108,3 +108,27 @@ calculated budget. An impossible budget emits one scalar warning such as
 not run per request, block startup, resize the Sequelize pool, or change the
 PostgreSQL setting. Set `DATABASE_CONNECTION_BUDGET_CHECK=0` only when the
 server setting cannot be read or the deployment is validated externally.
+
+## Group lookup and storage writer contention
+
+`POST /v1/group/get` is a database-only read. It retains optional bearer
+authentication and the existing private-group membership check, but bypasses
+the storage writer fence. Ten concurrent storage writers can occupy that
+fence's ten connections while doing media or IPFS I/O. Previously an unrelated
+group lookup queued behind them, even though it did not access storage.
+Mutation routes remain fenced. `test/groupReadFence.test.ts` exercises the
+actual PostgreSQL advisory locks and HTTP route with all ten slots occupied;
+it checks an authorized read, anonymous denial, and a blocked mutation that
+resumes after release.
+
+The 2026-11-05 ten-site trial completed but recorded five-second response-header
+timeouts on group lookup and save-data. Later, four sequential authorized group
+reads from the MG host returned HTTP 200 in 59–222ms. Read-only host samples
+found Kubo at 157% CPU and I/O pressure around 11% full/27% some, while GeeSome
+and PostgreSQL were around 2% CPU. Available memory was about 2GB; low free
+memory alone did not establish exhaustion. No waiting native queues, active
+operations, advisory-lock waiters, or active provider/reprovider work were
+observed. These post-batch samples do not establish the original timeout cause.
+The group read change removes a demonstrated contention mechanism; save-data
+latency still needs an overlapping workload trace before changing its pipeline
+or deadlines. No production profiling flags, queues, or configuration were changed.
