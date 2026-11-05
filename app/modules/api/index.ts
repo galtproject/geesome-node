@@ -12,7 +12,8 @@ import {IUser} from "../database/interface.js";
 import {cleanupAndRethrow} from '../../resourceCleanup.js';
 import {ApiProblemError, getRequestId, sendApiProblem, sendResponse} from './problem.js';
 import {getPublicApiContext} from './publicUrls.js';
-import {withStorageFence} from '../../storageLifecycle.js';
+import {withStorageAdmission, withStorageFence} from '../../storageLifecycle.js';
+import {StorageRouteOptions} from './interface.js';
 import IGeesomeApiModule, {
 	IApiModuleCommonOutput,
 	IApiModuleGetInput,
@@ -21,7 +22,7 @@ import IGeesomeApiModule, {
 const {trimStart} = _;
 
 export default async (app: IGeesomeApp, options: any = {}) => {
-	const module = await getModule(app, 'v1', options.port || process.env.PORT || app.config.port || 2052, options.host || '0.0.0.0');
+	const module = await getModule(app, 'v1', options.port || process.env.PORT || app.config.port || 2052, options.host || '0.0.0.0', options.storageAdmissionTimeoutMs);
 	try {
 		await (options.registerRoutes || registerApiRoutes)(app, module);
 		return module;
@@ -30,8 +31,32 @@ export default async (app: IGeesomeApp, options: any = {}) => {
 	}
 }
 
-async function getModule(app: IGeesomeApp, version, port, host) {
+async function getModule(app: IGeesomeApp, version, port, host, admissionTimeoutMs = 3000) {
 	const service = express();
+	if (!Number.isFinite(admissionTimeoutMs) || admissionTimeoutMs <= 0 || admissionTimeoutMs > 3000) {
+		throw new Error('storage_admission_timeout_invalid');
+	}
+	async function storageCallback(req, res, route, callback, routeOptions: StorageRouteOptions = {}) {
+		if (routeOptions.storageReadOnly) {
+			return callback();
+		}
+		const controller = new AbortController();
+		const abandon = () => controller.abort();
+		req.once('aborted', abandon);
+		res.once('close', abandon);
+		if (req.aborted || res.destroyed) {
+			abandon();
+		}
+		try {
+			return await withStorageAdmission(app, {signal: controller.signal,
+				timeoutMs: admissionTimeoutMs, route, requestId: req.requestId}, () =>
+				routeOptions.storageFence === 'handler' ? callback()
+					: withStorageFence(app, 'shared', callback, {wait: false}));
+		} finally {
+			req.removeListener('aborted', abandon);
+			res.removeListener('close', abandon);
+		}
+	}
 
 	// Registry of routes for the discovery index (GET /v1) and OpenAPI spec.
 	const registeredRoutes: {method: string, path: string, authorized?: boolean}[] = [];
@@ -146,15 +171,15 @@ async function getModule(app: IGeesomeApp, version, port, host) {
 		onUnversionPost(routeName: string, callback: (req: IApiModulePotInput, res: IApiModuleCommonOutput) => any) {
 			routeName = trimStart(routeName, '/');
 			trackRoute('POST', `/${routeName}`);
-			service.post(`/${routeName}`, (req, res) => this.handleCallback(req, res, (input, output) => withStorageFence(app, 'shared', () => callback(input, output), {wait: false})));
+			service.post(`/${routeName}`, (req, res) => this.handleCallback(req, res, (input, output) =>
+				storageCallback(req, res, `/${routeName}`, () => callback(input, output))));
 		}
 
-		onPost(routeName: string, callback: (req: IApiModulePotInput, res: IApiModuleCommonOutput) => any, options: {storageReadOnly?: boolean} = {}) {
+		onPost(routeName: string, callback: (req: IApiModulePotInput, res: IApiModuleCommonOutput) => any, options: StorageRouteOptions = {}) {
 			routeName = trimStart(routeName, '/');
 			trackRoute('POST', `/${version}/${routeName}`);
 			service.post(`/${version}/${routeName}`, (req, res) => this.handleCallback(req, res, (input, output) =>
-				options.storageReadOnly ? callback(input, output)
-					: withStorageFence(app, 'shared', () => callback(input, output), {wait: false})));
+				storageCallback(req, res, `/${version}/${routeName}`, () => callback(input, output), options)));
 		}
 
 		onHead(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any) {
@@ -189,7 +214,7 @@ async function getModule(app: IGeesomeApp, version, port, host) {
 			markLastRouteAuthorized();
 		}
 
-		onAuthorizedPost(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any, options: {storageReadOnly?: boolean} = {}) {
+		onAuthorizedPost(routeName: string, callback: (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => any, options: StorageRouteOptions = {}) {
 			this.onPost(routeName, (req: IApiModuleGetInput, res: IApiModuleCommonOutput) => {
 				return this.authorizeAndHandleCallback(req, res, callback);
 			}, options);

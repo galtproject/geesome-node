@@ -22,7 +22,7 @@ export default function (app, service) {
      * @apiName SiteReplacementCreate
      * @apiGroup StaticSiteGenerator
      * @apiUse ApiKey
-     * @apiDescription Records an owned publication/source snapshot before resaving. This does not create an optimization batch: resave each file through user/save-data with sourceContentId and the same imageOptimize driver, using the existing operation queue. Requires content:write; deleteReplacedFiles additionally requires storage:retire. Replays reuse the owner/requestKey receipt; changed requests conflict.
+     * @apiDescription Records an owned publication/source snapshot before resaving. This does not create an optimization batch: resave each file through user/save-data with sourceContentId and the same imageOptimize driver, using the existing operation queue. Requires content:write; deleteReplacedFiles additionally requires storage:retire. Authorized replays with matching inputs return the existing owner/requestKey receipt without waiting for writer capacity. Changed requests conflict. New snapshots still acquire the storage/GC safety fence; unavailable admission returns 503 before the client deadline, without creating a new receipt.
      * @apiBody {String} requestKey Stable caller identity, up to 200 characters.
      * @apiBody {Object} driver imageOptimize convert driver with params.policy and optional params.watermark; normalized and frozen with this replacement.
      * @apiBody {Number[]} contentIds Ordered owned image IDs, 1..1000, no duplicates. For a previous site, keep the first occurrence of each ID; all old entries must still match the owned source CIDs.
@@ -32,11 +32,13 @@ export default function (app, service) {
      * @apiSuccess {Number} id Existing operation-queue ID.
      * @apiSuccess {String} status preparing
      * @apiError image_replacement_idempotency_conflict Request key was used with other inputs.
+     * @apiError (503) storage_busy Writer admission is unavailable; retry with the same requestKey after Retry-After.
      * @apiError (503) storage_maintenance_busy Storage cleanup is active; this request has not executed. Retry with the same requestKey.
      */
     app.ms.api.onAuthorizedPost('user/site-replacements', async (req, res) => {
+        // The service checks authorized replays first and fences every new snapshot.
         res.send(await service.requestReplacement(req.user.id, req.body, req.apiKey.id), 202);
-    });
+    }, {storageFence: 'handler'});
     /**
      * @api {get} /v1/user/site-replacements/:id Get site replacement and cleanup receipt
      * @apiName SiteReplacementGet

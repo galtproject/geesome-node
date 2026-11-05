@@ -1344,3 +1344,14 @@ API docs generation and the security route inventory passed. A separate broad
 Docker run of the earlier implementation snapshot reported a two-node chat
 attachment failure; it is not a passing final-source full-suite result and its
 baseline cause has not been established.
+
+
+## Bounded storage admission and replacement receipt reads (#1563)
+
+HTTP writer admission is bounded to three seconds and abandoned waits never run
+a late writer callback. Existing authorized matching replacement receipts bypass
+writer admission; new snapshots retain the inner shared fence. Accepted and
+detached writers keep full-lifetime GC protection. Opt-in bounded storage-fence
+events distinguish pool wait, lock wait and hold durations with safe correlation.
+No schema, request-key or existing-receipt migration is required. Durable worker
+stages and reserved GC scheduling remain tracked follow-up work.

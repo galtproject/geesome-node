@@ -132,3 +132,34 @@ observed. These post-batch samples do not establish the original timeout cause.
 The group read change removes a demonstrated contention mechanism; save-data
 latency still needs an overlapping workload trace before changing its pipeline
 or deadlines. No production profiling flags, queues, or configuration were changed.
+
+## Storage admission and fence timing (#1563)
+
+HTTP writer admission now has a three-second total budget (including validation
+before a handler-owned fence). Waiting requests receive `503 storage_busy` with
+`Retry-After: 2` before the membership client's five-second timeout. Disconnects
+abandon only work that has not acquired its first fence: late pool checkouts are
+released without invoking the writer. A lost response after admission remains an
+uncertain accepted outcome and must be reconciled with the original key/receipt.
+This deadline does not cancel running writers or shorten their GC protection.
+Internal and background callers retain their existing acquisition policy.
+
+`POST /v1/user/site-replacements` delegates fencing to the service. Authorization,
+request normalization and matching existing-receipt lookup run before writer
+admission; creating a new receipt still fences all source/snapshot validation.
+The mixed `save-data` route retains its writer fence. This stage does not make
+large snapshot validation asynchronous or increase execution concurrency.
+
+Set `GEESOME_STORAGE_FENCE_DIAGNOSTICS=1` for a controlled observation window.
+JSON `storage_fence` events record a generated fence ID, sanitized registered
+route template/request ID, acquisition/rejection/release stage, pool wait, advisory
+lock wait, hold duration, ownership count/peak, outcome and pool counters. Logging
+is capped at 120 events per minute per process; dropped counts are reported on
+the next emitted event. Samples are incomplete under the cap and cannot establish
+whole-traffic percentiles. No bodies, tokens, actual URL parameters, source IDs or
+request keys are included. Detached children retain their root correlation.
+
+See [storage admission plan](storage-admission-plan.md) for the deferred durable
+queue and dedicated GC scheduling stages. This first stage needs no migration or
+MG API change. Merge and publish the exact reviewed GeeSome commit before using
+the normal idle-guarded upgrade; do not deploy from an unmerged topic branch.

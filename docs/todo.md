@@ -471,6 +471,11 @@ Verification:
 Goal: maintain the completed scalability and storage-analyzer foundations using
 production evidence rather than adding speculative models or migrations.
 
+Storage architecture follow-up after #1563: introduce durable validating/execution
+stages with atomic source holds and bounded worker claims; reserve GC admission
+capacity and verify cross-process drain/fairness. Keep operation fences through
+all unpinned writes. See [the phased plan](storage-admission-plan.md).
+
 Remaining work:
 
 - Rerun restored-database migration, integrity, derived-state, pressure, and
