@@ -13,7 +13,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
 
     /**
      * @api {post} /v1/group/get Get group by params
-     * @apiDescription Public groups allow anonymous reads; private groups require a bearer token for a member, administrator or creator.
+     * @apiDescription Public groups allow anonymous reads; private groups require a bearer token for a member, administrator or creator. This database-only lookup does not wait for the storage writer fence.
      * @apiHeader {String} [Authorization] Optional bearer token; required for private groups.
      * @apiUse AuthErrors
      * @apiError not_permitted Private group membership required.
@@ -38,7 +38,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
             await groupModule.assertGroupReadable(req.user?.id, group.id);
             res.send(group, 200);
         });
-    });
+    }, {storageReadOnly: true});
 
     /**
      * @api {post} /v1/post/get Get post by params
