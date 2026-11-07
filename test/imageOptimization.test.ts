@@ -668,21 +668,42 @@ describe('persisted image saving and local site retirement', function () {
         let releaseWorker, workerStarted;
         const workerReady = new Promise<void>(resolve => { workerStarted = resolve; });
         const workerRelease = new Promise<void>(resolve => { releaseWorker = resolve; });
-        const worker = withStorageWorker(app, async () => { workerStarted(); await workerRelease; });
-        await workerReady;
-        const partial = Array.from({length: 10}, () => {
-            const request = http.request(`${origin}/user/save-file`, {method: 'POST', headers: {
-                Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data; boundary=partial',
-                'Content-Length': 100000,
-            }});
-            request.on('error', () => {});
-            request.write('--partial\r\nContent-Disposition: form-data; name="file"; filename="partial.png"\r\nContent-Type: image/png\r\n\r\npartial');
-            return request;
-        });
+        const claimDeadline = Date.now() + 5000;
+        const worker = (async () => {
+            for (let attempt = 0; attempt < 250 && Date.now() < claimDeadline; attempt++) {
+                let claimed = false;
+                const work = withStorageWorker(app, async () => {
+                    claimed = true;
+                    workerStarted();
+                    await workerRelease;
+                });
+                // A busy background worker returns without invoking the callback.
+                // Do not wait forever for a readiness signal from that attempt.
+                await Promise.race([workerReady, work]);
+                if (claimed) {
+                    await work;
+                    return;
+                }
+                await new Promise(resolve => setTimeout(resolve, 20));
+            }
+            assert.fail('multipart fixture could not acquire the storage worker lock within five seconds');
+        })();
+        const partial = [];
         const sharedCount = async () => Number((await app.ms.database.sequelize.query(
             "SELECT count(*) AS count FROM pg_locks WHERE locktype='advisory' AND classid=17419 AND objid=9301 AND mode='ShareLock' AND granted",
             {type: QueryTypes.SELECT}))[0].count);
         try {
+            // Observe both readiness and a failed claim; cleanup also covers startup.
+            await Promise.race([workerReady, worker]);
+            for (let index = 0; index < 10; index++) {
+                const request = http.request(`${origin}/user/save-file`, {method: 'POST', headers: {
+                    Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data; boundary=partial',
+                    'Content-Length': 100000,
+                }});
+                request.on('error', () => {});
+                request.write('--partial\r\nContent-Disposition: form-data; name="file"; filename="partial.png"\r\nContent-Type: image/png\r\n\r\npartial');
+                partial.push(request);
+            }
             for (let attempt = 0; attempt < 100 && await sharedCount() < 10; attempt++) {
                 await new Promise(resolve => setTimeout(resolve, 20));
             }
@@ -722,6 +743,15 @@ describe('persisted image saving and local site retirement', function () {
             token: await app.generateUserApiKey(owner.id, {}),
             operation: await app.ms.asyncOperation.addAsyncOperation(owner.id, {name: 'multi-client-wait', channel: randomUUID()}),
         })));
+        const Operation = app.ms.database.sequelize.model('userAsyncOperation');
+        const operationCounts = await Promise.all(clients.map(client => Operation.count({
+            where: {userId: client.owner.id, name: 'save-data'},
+        })));
+        const work = await Promise.all(clients.flatMap((client, clientIndex) =>
+            Array.from({length: 10}, async (_unused, index) => ({client, clientIndex, index,
+                png: await sharp({create: {width: 40, height: 60, channels: 3,
+                    background: `#${(clientIndex * 10 + index + 1).toString(16).padStart(6, '0')}`}}).png().toBuffer(),
+            }))));
         let unlock, started, held = 0;
         const ready = new Promise<void>(resolve => { started = resolve; });
         const release = new Promise<void>(resolve => { unlock = resolve; });
@@ -732,23 +762,26 @@ describe('persisted image saving and local site retirement', function () {
             await release;
         }));
         await ready;
-        const uploads = clients.map(client => Promise.all(Array.from({length: 10}, async (_unused, index) => {
-            const png = await sharp({create: {width: 40, height: 60, channels: 3,
-                background: `#${randomUUID().replace(/-/g, '').slice(0, 6)}`}}).png().toBuffer();
+        const upload = async item => {
+            // Rebuild multipart framing, but preserve exactly the same owned work.
             const form = new FormData();
-            form.append('file', new Blob([png], {type: 'image/png'}), `${index}.png`);
+            form.append('file', new Blob([item.png], {type: 'image/png'}), `${item.index}.png`);
             form.append('async', 'true');
-            form.append('path', `/multi-client/${index}.png`);
+            form.append('path', `/multi-client/${item.index}.png`);
             const response = await fetch(`${origin}/user/save-file`, {method: 'POST',
-                headers: {Authorization: `Bearer ${client.token}`}, body: form, signal: AbortSignal.timeout(20000)});
-            assert.equal(response.status, 200, await response.clone().text());
-            return response.json();
-        })));
+                headers: {Authorization: `Bearer ${item.client.token}`, 'X-Geesome-Storage-Admission-Ms': '3000'}, body: form, signal: AbortSignal.timeout(5000)});
+            return {status: response.status, retryAfter: response.headers.get('retry-after'), body: await response.json()};
+        };
+        // Attach rejection handlers immediately: a known admission refusal can arrive
+        // while the polling assertions are still running and all writer slots are held.
+        const firstAttempts = Promise.allSettled(work.map(upload));
+        let firstResults;
         try {
             const anonymous = await fetch(`${origin}/user/get-async-operations`, {method: 'POST',
                 headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: [clients[0].operation.id]}),
                 signal: AbortSignal.timeout(3000)});
             assert.equal(anonymous.status, 401, 'read-only polling still requires authorization');
+            await anonymous.arrayBuffer();
             for (const client of clients) {
                 const batch = await fetch(`${origin}/user/get-async-operations`, {method: 'POST',
                     headers: {Authorization: `Bearer ${client.token}`, 'Content-Type': 'application/json'},
@@ -759,13 +792,55 @@ describe('persisted image saving and local site retirement', function () {
                     headers: {Authorization: `Bearer ${client.token}`, 'Content-Type': 'application/json'},
                     body: JSON.stringify({path: '/multi-client', type: 'folder'}), signal: AbortSignal.timeout(3000)});
                 assert.equal(catalog.status, 200, 'owned catalog lookup remains available');
+                await catalog.arrayBuffer();
+            }
+            firstResults = await firstAttempts;
+            for (let index = 0; index < clients.length; index++) {
+                assert.equal(await Operation.count({where: {userId: clients[index].owner.id, name: 'save-data'}}),
+                    operationCounts[index], 'saturated requests must not create async operations');
             }
         } finally {
             unlock();
             await Promise.all(holders);
+            // Drain every request even when a polling assertion fails.
+            await firstAttempts;
         }
-        const receipts = await Promise.all(uploads);
+        for (const result of firstResults) {
+            assert.equal(result.status, 'fulfilled', 'transport-uncertain uploads must never be retried');
+            if (result.status === 'fulfilled') {
+                assert.equal(result.value.status, 503);
+                assert.equal(result.value.body.code, 'storage_busy');
+                assert.equal(result.value.retryAfter, '2');
+            }
+        }
+        const accepted = await Promise.allSettled(work.map(async item => {
+            for (let attempt = 0; attempt < 4; attempt++) {
+                const response = await upload(item);
+                if (response.status === 200) {
+                    return response.body;
+                }
+                assert.equal(response.status, 503, JSON.stringify(response.body));
+                assert.ok(['storage_busy', 'storage_maintenance_busy'].includes(response.body.code));
+                assert.equal(response.retryAfter, '2');
+                if (attempt < 3) {
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
+            }
+            assert.fail('upload exceeded its bounded known-admission retry budget');
+        }));
+        const receipts = clients.map(() => []);
+        for (let index = 0; index < accepted.length; index++) {
+            const result = accepted[index];
+            assert.equal(result.status, 'fulfilled', 'each owned upload must finish within its retry budget');
+            if (result.status === 'fulfilled') {
+                receipts[work[index].clientIndex].push(result.value);
+            }
+        }
         assert.equal(new Set(receipts.flat().map(receipt => receipt.asyncOperationId)).size, 30);
+        for (let index = 0; index < clients.length; index++) {
+            assert.equal(await Operation.count({where: {userId: clients[index].owner.id, name: 'save-data'}}),
+                operationCounts[index] + 10, 'rejected attempts must not create duplicate operations');
+        }
         for (let clientIndex = 0; clientIndex < clients.length; clientIndex++) {
             for (const receipt of receipts[clientIndex]) {
                 let operation;
@@ -787,6 +862,13 @@ describe('persisted image saving and local site retirement', function () {
     it('reports a bounded pool acquisition timeout separately from storage maintenance', async () => {
         const origin = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
         const token = await app.generateUserApiKey(user.id, {});
+        const png = await sharp({create: {width: 40, height: 60, channels: 3, background: '#345678'}}).png().toBuffer();
+        const content = await app.ms.content.saveData(user.id, png, 'pool-wait.png', {driver: imageDriver(), waitForPin: true});
+        const requestKey = randomUUID();
+        const body = JSON.stringify({requestKey, driver: imageDriver(), contentIds: [content.id]});
+        const service = app.ms.staticSiteGenerator.replacements;
+        const Queue = app.ms.database.sequelize.model('userOperationQueue');
+        const before = await Queue.count({where: {module: 'site-replacement', userId: user.id}});
         let unlock, started, held = 0;
         const ready = new Promise<void>(resolve => { started = resolve; });
         const release = new Promise<void>(resolve => { unlock = resolve; });
@@ -798,21 +880,29 @@ describe('persisted image saving and local site retirement', function () {
         }));
         await ready;
         try {
+            const startedAt = Date.now();
             const response = await fetch(`${origin}/user/site-replacements`, {method: 'POST',
-                headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'},
-                body: '{}', signal: AbortSignal.timeout(15000)});
+                headers: {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Geesome-Storage-Admission-Ms': '3000'},
+                body, signal: AbortSignal.timeout(5000)});
             assert.equal(response.status, 503);
+            assert.equal(response.headers.get('retry-after'), '2');
             assert.equal((await response.json()).code, 'storage_busy', 'capacity timeout does not claim GC is running');
+            assert.ok(Date.now() - startedAt < 5000, 'server admission fails before the client deadline');
+            assert.equal(await Queue.count({where: {module: 'site-replacement', userId: user.id}}), before);
+            assert.equal(await service.jobs.byKey(user.id, requestKey), null, 'no replacement was admitted');
         } finally {
             unlock();
             await Promise.all(writers);
         }
+        await new Promise(resolve => setTimeout(resolve, 50));
+        assert.equal(await service.jobs.byKey(user.id, requestKey), null, 'released capacity must not start the abandoned admission');
+        assert.equal(await Queue.count({where: {module: 'site-replacement', userId: user.id}}), before);
     });
 
     it('rejects concurrent HTTP producers promptly during cleanup and accepts the same request after release', async () => {
         const origin = `http://127.0.0.1:${process.env.PORT || 7771}/v1`;
         const token = await app.generateUserApiKey(user.id, {scopes: ['content:write', 'operations:read']});
-        const headers = {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json'};
+        const headers = {Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'X-Geesome-Storage-Admission-Ms': '3000'};
         const png = await sharp({create: {width: 40, height: 60, channels: 3, background: '#789abc'}}).png().toBuffer();
         const content = await app.ms.content.saveData(user.id, png, 'storage-wait.png', {driver: imageDriver(), waitForPin: true});
         const body = JSON.stringify({requestKey: randomUUID(), driver: imageDriver(), contentIds: [content.id]});
@@ -825,12 +915,19 @@ describe('persisted image saving and local site retirement', function () {
         const cleanup = withStorageFence(app, 'exclusive', async () => { started(); await release; });
         await held;
         try {
-            const responses = await Promise.all(Array.from({length: 20}, () => fetch(`${origin}/user/site-replacements`,
-                {method: 'POST', headers, body, signal: AbortSignal.timeout(5000)})));
+            const responses = await Promise.allSettled(Array.from({length: 20}, async () => {
+                const response = await fetch(`${origin}/user/site-replacements`,
+                    {method: 'POST', headers, body, signal: AbortSignal.timeout(5000)});
+                return {status: response.status, retryAfter: response.headers.get('retry-after'), body: await response.json()};
+            }));
             for (const response of responses) {
-                assert.equal(response.status, 503);
-                assert.equal(response.headers.get('retry-after'), '2');
-                assert.equal((await response.json()).code, 'storage_maintenance_busy');
+                assert.equal(response.status, 'fulfilled', 'every concurrent request must receive an explicit admission response');
+                if (response.status === 'fulfilled') {
+                    assert.equal(response.value.status, 503);
+                    assert.equal(response.value.retryAfter, '2');
+                    assert.ok(['storage_busy', 'storage_maintenance_busy'].includes(response.value.body.code),
+                        'both pool checkout saturation and exclusive maintenance are typed admission refusals');
+                }
             }
             assert.equal(await Queue.count({where: {module: 'site-replacement'}}), before, 'rejected callbacks never ran');
             const caps = await fetch(`${origin}/user/image-optimization/capabilities`, {headers, signal: AbortSignal.timeout(5000)});
@@ -843,9 +940,13 @@ describe('persisted image saving and local site retirement', function () {
             unlock();
             await cleanup;
         }
+        await new Promise(resolve => setTimeout(resolve, 50));
+        assert.equal(await app.ms.staticSiteGenerator.replacements.jobs.byKey(user.id, JSON.parse(body).requestKey), null,
+            'requests rejected during cleanup must not begin after release');
         const response = await fetch(`${origin}/user/site-replacements`, {method: 'POST', headers, body});
         assert.equal(response.status, 202, await response.clone().text());
         const replay = await fetch(`${origin}/user/site-replacements`, {method: 'POST', headers, body});
+        assert.equal(replay.status, 202, await replay.clone().text());
         assert.equal((await replay.json()).id, (await response.json()).id);
         assert.equal(await Queue.count({where: {module: 'site-replacement'}}), before + 1);
     });

@@ -1344,3 +1344,30 @@ API docs generation and the security route inventory passed. A separate broad
 Docker run of the earlier implementation snapshot reported a two-node chat
 attachment failure; it is not a passing final-source full-suite result and its
 baseline cause has not been established.
+
+
+## Bounded storage admission and replacement receipt reads (#1563)
+
+HTTP writer admission is bounded to three seconds and abandoned waits never run
+a late writer callback. Existing authorized matching replacement receipts bypass
+writer admission; new snapshots retain the inner shared fence. Accepted and
+detached writers keep full-lifetime GC protection. Opt-in bounded storage-fence
+events distinguish pool wait, lock wait and hold durations with safe correlation.
+No schema, request-key or existing-receipt migration is required. Durable worker
+stages and reserved GC scheduling remain tracked follow-up work.
+
+
+## GC-safe pinned imports (#1566)
+
+The backend consumes storage-only library commit f990ffd from the existing
+420754a consumer base. Kubo file, directory and JSON DAG-CBOR imports pin during
+import and confirm a matching recursive root before returning. RPC deadlines and
+fence-loss signals cover import and confirmation. Existing CIDs, immutable
+publication and explicit retirement policy are preserved. Application exclusion
+remains for MFS and reference/deletion races; no new lease framework is added.
+
+Verification: library 52 passing / 2 pending; final affected-path Docker suite
+49 passing / 3 pending, including native GC concurrency and pin confirmation.
+The first broad run's three old admission expectations were updated and passed;
+an unbounded multipart fixture wait was corrected and passed. Two chat attachment
+failures reproduced independently on the pre-change admission source.

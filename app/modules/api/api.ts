@@ -99,6 +99,10 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	/**
 	 * @apiDefine StorageErrors
 	 *
+	 * @apiHeader {Number} [X-Geesome-Storage-Admission-Ms] Optional HTTP writer admission budget, integer 1..3000ms. Legacy requests retain the 10000ms budget. This does not limit already accepted execution.
+	 * @apiError (400) storage_admission_budget_invalid Invalid optional admission budget header.
+	 * @apiError (503) storage_busy Writer admission is unavailable. Only admissionRejected=true and executionStarted=false prove an audited pre-execution refusal.
+	 * @apiError (503) storage_maintenance_busy Storage maintenance prevents admission. Safe-refusal markers are required to infer that a supported mutation did not execute.
 	 * @apiError (400) StoragePathInvalid Storage path is invalid or cannot be resolved.
 	 * @apiError (502) StorageGatewayFailed Local storage or IPFS gateway request failed.
 	 * @apiErrorExample {json} Storage gateway failed
@@ -141,6 +145,7 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 
 	/**
 	 * @api {post} /v1/login/password Login by password
+	 * @apiDescription SQL/crypto authentication and API-key creation do not wait for storage writer capacity or GC.
 	 * @apiName LoginPassword
 	 * @apiGroup Login
 	 *
@@ -171,7 +176,7 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 				route: 'login/password',
 				username: req.body?.username
 			})));
-	});
+	}, {storageReadOnly: true});
 
 	/**
 	 * @api {get} /v1/user Get current user

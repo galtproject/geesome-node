@@ -377,6 +377,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
 
     /**
      * @api {post} /v1/content-list-by-storage-id Get user content list by storage ids
+     * @apiDescription Owned SQL metadata lookup; does not wait for storage writer capacity or GC.
      * @apiName UserContentListByStorageId
      * @apiGroup UserContent
      *
@@ -388,7 +389,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      */
     app.ms.api.onAuthorizedPost('content-list-by-storage-id', async (req, res) => {
         res.send(await contentModule.getContentByStorageIdListAndUserId(req.body.idList, req.user.id));
-    });
+    }, {storageReadOnly: true});
 
     /**
      * @api {get} /v1/content-stats/* Get stored content stats
