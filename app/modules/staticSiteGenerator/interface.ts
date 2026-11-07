@@ -27,7 +27,8 @@ export default interface IGeesomeStaticSiteGeneratorModule {
 
 	addRenderToQueueAndProcess(userId: number, apiKeyId: number, renderArgs: IStaticSiteRenderArgs, options: any): Promise<IUserOperationQueue>;
 
-    recoverRenderQueue(userId: number, queueId: number, expectedOperationId: number, apiKeyId?: number): Promise<any>;
+    recoverRenderQueue(userId: number, queueId: number, expectedOperationId: number, apiKeyId?: number,
+        options?: {retainOriginalForExternalLinks?: boolean}): Promise<any>;
 
 	getStaticSiteInfo(userId: number, renderArgs: IStaticSiteRenderArgs): Promise<IStaticSite>;
 

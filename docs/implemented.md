@@ -1371,3 +1371,30 @@ Verification: library 52 passing / 2 pending; final affected-path Docker suite
 The first broad run's three old admission expectations were updated and passed;
 an unbounded multipart fixture wait was corrected and passed. Two chat attachment
 failures reproduced independently on the pre-change admission source.
+
+## Retained external gallery links (#1557, follow-up to #1554)
+
+Guarded restart recovery can establish an explicit external-link hold before
+render admission. The original deletion policy stays frozen; ordinary cutover
+and archive proof still apply, and finalization completes with retained originals
+without admitting retirement. Reserved owned revisions keep the old Page public
+after the active binding changes. Terminal retained receipts protect originals,
+previews, manifests and archives against other cleanup jobs. No release API is
+introduced.
+
+Control locks use a separate bounded two-connection pool with replacement-level
+reentrancy; application connections remain available for SQL, including concurrent
+recoveries with a two-connection application pool. The existing global render
+advisory identity is preserved. Source and replacement reads reuse an active
+recovery transaction, and retained MFS operations have bounded cancellation-aware
+RPCs. See the module overview for rollback restrictions after the first hold.
+
+Verification: 82 affected cases passed on the final functional Node 22 Docker
+snapshot with an application pool of two, isolated PostgreSQL and Kubo. This
+includes real old Page/client-data/image/preview HTTP byte checks after cutover,
+archive/source preservation, repeated recovery/finalization, cleanup reload,
+cross-replacement holds, control lock loss/reentrancy and unchanged ordinary
+retirement. The 501 application/test files matched fingerprint
+`3ef233ddc08fee68c3d74af111c2e77b0bda041c0756492550c6164e21d73b1d`;
+subsequent edits only aligned API comment documentation. Focused PostgreSQL and
+hold/RPC tests also passed (29 cases). API docs and the security inventory passed.

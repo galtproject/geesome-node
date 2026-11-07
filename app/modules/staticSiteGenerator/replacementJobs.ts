@@ -32,11 +32,11 @@ export class SiteReplacementJobs {
             }};
         return receipt;
     }
-    async get(userId, id) {
+    async get(userId, id, transaction = undefined) {
         if (!/^\d+$/.test(String(id)) || !Number.isSafeInteger(Number(id))) {
             problem('image_replacement_not_found', 404);
         }
-        return this.wrap(await this.Queue.findOne({where: {id: Number(id), userId, module: this.moduleName}, include: this.include}));
+        return this.wrap(await this.Queue.findOne({where: {id: Number(id), userId, module: this.moduleName}, include: this.include, transaction}));
     }
     async byKey(userId, key) {
         return this.wrap(await this.Queue.findOne({where: {userId, module: this.moduleName,

@@ -123,6 +123,7 @@ function notesFor(route: RouteRow, block: string): string[] {
   }
   if (routeLower.includes('/site-replacements') || routeLower.includes('/image-optimization/capabilities')) {
     notes.add('service checks actor ownership and content:write; deletion/finalization also verifies storage:retire when selected, exact publication and consumer receipts');
+    notes.add('explicit external-link retention keeps frozen policy, owner-bound old-root/MFS/archive proof and terminal no-retirement receipt');
   }
   if (routeLower.includes('/static-site-generator/recover/')) {
     notes.add('owner + user:save_data + content:write; exact node-restart operation CAS; frozen source/replacement or proven saved result; three persisted recovery attempts; original input/receipts retained');

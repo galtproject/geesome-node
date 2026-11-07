@@ -12,6 +12,7 @@ export default function (app, service) {
      * @apiSuccess {Boolean} resave Existing save-data accepts sourceContentId and an imageOptimize driver.
      * @apiSuccess {Boolean} watermark Watermark driver is supported with optimization and frozen replacement receipts.
      * @apiSuccess {Boolean} retirement Local Kubo retirement adapter is supported.
+     * @apiSuccess {Boolean} retainOriginalForExternalLinks Explicit retained-original finalization and guarded recovery are supported.
      */
     app.ms.api.onAuthorizedGet('user/image-optimization/capabilities', async (req, res) => {
         await service.authorize(req.user.id, req.apiKey.id);
@@ -63,10 +64,13 @@ export default function (app, service) {
      * @apiBody {String} storageId Exact replacement site CID.
      * @apiBody {Number} postId Owned upstream Post referencing the replacement root through text/uri-list Content, or the legacy membership page URL. Other IPFS link attachments are allowed.
      * @apiBody {Object} consumer Durable microwave-girls alias acknowledgment: kind, receiptId and mappingsHash; also bound in the Post metadata.
+     * @apiBody {Boolean} [retainOriginalForExternalLinks=false] Preserve the original Page/archive/source references while external links await replacement. This keeps the frozen deletion policy unchanged, verifies ordinary cutover/archive proof, and finishes complete_with_retained without admitting retirement. The true flag is frozen in the finalization hash; false/absent preserve the older hash. No later cleanup-release API is provided.
      * @apiDescription Verifies saved renderer receipt, ordered files, archive readiness, Post site-root reference, legacy image mapping when applicable, and consumer acknowledgment. The deletion flag is frozen at admission. Cleanup accumulates for one minute when idle or up to fifteen minutes behind foreground saves/renders/archives, then runs in a shared batch. Scheduling survives restarts and explicit cleanup retries bypass accumulation. Completion of GC is reported separately from publication success. Replays must match the original finalization.
-     * @apiSuccess {String} status complete or retiring.
+     * @apiSuccess {String} status complete, retiring, or complete_with_retained for an explicit external-link hold.
      * @apiError image_replacement_archive_not_ready Replacement archive is not complete.
      * @apiError image_replacement_publication_changed Post no longer matches the frozen replacement.
+     * @apiError image_replacement_finalize_conflict The finalization identity or an established external-link retention flag changed.
+     * @apiError image_replacement_retention_source_changed Original owned source identities changed before a hold could be established.
      */
     app.ms.api.onAuthorizedPost('user/site-replacements/:id/finalize', async (req, res) => {
         res.send(await service.finalize(req.user.id, Number(req.params.id), req.body, req.apiKey.id), 202);
