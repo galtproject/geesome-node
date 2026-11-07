@@ -1,10 +1,12 @@
 import fs from 'fs';
+import {Op} from 'sequelize';
+import {normalizeStorageId} from '../../storageIdentity.js';
 import {normalizeSitePresentation} from './site/presentation.js';
 import {SiteReplacements} from './replacements.js';
 import {StaticSiteRenderRecovery} from './renderRecovery.js';
 import {configureSiteReplacements} from './replacementWorker.js';
 import registerReplacementApi from './replacementApi.js';
-import {withStorageTaskLock} from '../../storageLifecycle.js';
+import {withStorageControlTaskLock} from '../../storageLifecycle.js';
 import {requireIntegrationScopes} from '../api/integrationScopes.js';
 import {sanitizeStaticSiteLayoutHtml} from '../../htmlSafety.js';
 import _ from 'lodash';
@@ -221,8 +223,8 @@ export async function getModule(app: IGeesomeApp, models) {
             return renderRecovery.policy(queue);
         }
 
-        async recoverRenderQueue(userId, queueId, expectedOperationId, apiKeyId = null) {
-            const receipt = await renderRecovery.recover(userId, queueId, expectedOperationId, apiKeyId);
+        async recoverRenderQueue(userId, queueId, expectedOperationId, apiKeyId = null, options = {}) {
+            const receipt = await renderRecovery.recover(userId, queueId, expectedOperationId, apiKeyId, options);
             this.processQueue({userId, queueId}).catch(error => console.error('static_site_recovery_worker_error', error));
             return receipt;
         }
@@ -290,7 +292,8 @@ export async function getModule(app: IGeesomeApp, models) {
                 return this.processClaimedQueue(target);
             }
             try {
-                return await withStorageTaskLock(app, 'static-site-generator-queue', () => this.processClaimedQueue(target));
+                return await withStorageControlTaskLock(app, 'static-site-generator-queue',
+                    () => this.processClaimedQueue(target), {taskLockNamespace: true});
             } catch (error) {
                 if (error.message !== 'image_render_in_process') {
                     throw error;
@@ -388,7 +391,24 @@ export async function getModule(app: IGeesomeApp, models) {
         }
 
         async getStaticSiteByStorageId(storageId: string): Promise<IStaticSite> {
-            return models.StaticSite.findOne({where: {storageId}});
+            const current = await models.StaticSite.findOne({where: {storageId}});
+            if (current) {
+                return current;
+            }
+            let cid;
+            try {
+                cid = normalizeStorageId(storageId);
+            } catch {
+                return null;
+            }
+            const revision = await models.Revision.findOne({where: {storageId: cid,
+                retiredAt: null, workPath: {[Op.like]: '/ssg-retained/%'}}});
+            if (!revision || !Number.isSafeInteger(revision.replacementId) || revision.replacementId <= 0
+                || revision.workPath !== `/ssg-retained/${revision.replacementId}`) {
+                return null;
+            }
+            const site = await models.StaticSite.findOne({where: {id: revision.staticSiteId, userId: revision.userId}});
+            return site ? {...site.toJSON(), storageId: revision.storageId} : null;
         }
 
         async getStorageResponseHeaders(storageId: string): Promise<Record<string, string>> {

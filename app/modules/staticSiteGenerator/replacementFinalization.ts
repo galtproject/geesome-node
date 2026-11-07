@@ -2,18 +2,27 @@ import {postIpfsLinks} from './publicationLinks.js';
 import {digest, sameCid} from '../../storageIdentity.js';
 import {pageCid, readSiteData} from './siteData.js';
 import {problem} from '../content/publicationInput.js';
+import {retainOriginalForExternalLinks} from './externalLinkRetention.js';
 
 export async function finalizeReplacement(service, userId, id, body, apiKeyId = null) {
     const row = await service.replacement(userId, id);
     await service.authorize(userId, apiKeyId, row.input.deleteReplacedFiles);
+    if (body.retainOriginalForExternalLinks !== undefined && typeof body.retainOriginalForExternalLinks !== 'boolean') {
+        problem('image_replacement_retention_flag_invalid', 400);
+    }
+    const retain = body.retainOriginalForExternalLinks === true;
     const cid = pageCid(`https://local.invalid/ipfs/${body.storageId}/`);
-    const receipt = {storageId: cid, postId: Number(body.postId), consumer: body.consumer};
+    const receipt = {storageId: cid, postId: Number(body.postId), consumer: body.consumer,
+        ...(retain ? {retainOriginalForExternalLinks: true} : {})};
     const hash = digest(receipt);
     if (row.result?.finalization) {
         if (row.result.finalization.hash !== hash) {
             problem('image_replacement_finalize_conflict');
         }
         return service.status(userId, id);
+    }
+    if (row.result?.externalLinksRetention && !retain) {
+        problem('image_replacement_finalize_conflict');
     }
     if (row.status !== 'rendered' || !sameCid(cid, row.result?.storageId)) {
         problem('image_replacement_render_not_ready');
@@ -52,10 +61,16 @@ export async function finalizeReplacement(service, userId, id, body, apiKeyId = 
     await service.app.ms.storage.getFileStat(archive.archivedStorageId);
     await service.app.ms.storage.addPin(cid);
     await service.app.ms.storage.addPin(archive.archivedStorageId);
+    const retention = retain ? await retainOriginalForExternalLinks(service, userId, id) : null;
+    const current = retention ? await service.replacement(userId, id) : row;
     const finalization = {...receipt, hash, archiveStorageId: archive.archivedStorageId,
         postHash: digest({metadata, contentIds: attachments.map(c => c.id)})};
-    await row.update({status: row.input.deleteReplacedFiles ? 'retiring' : 'complete',
-        result: {...row.result, finalization, ...(row.input.deleteReplacedFiles ? {cleanupQueuedAt: new Date().toISOString()} : {})}});
+    await current.update({status: retain ? 'complete_with_retained' : row.input.deleteReplacedFiles ? 'retiring' : 'complete',
+        result: {...current.result, finalization, ...(retain ? {cleanup: {
+            candidates: [], retained: [{reason: 'external_links_pending', storageId: retention.previousPageStorageId,
+                archiveStorageId: retention.previousArchiveStorageId, sources: retention.sources}],
+            detached: false, paths: [], holdsReleased: false, retention}}
+            : row.input.deleteReplacedFiles ? {cleanupQueuedAt: new Date().toISOString()} : {})}});
     return service.status(userId, id);
 }
 

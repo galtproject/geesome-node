@@ -4,7 +4,7 @@ import {randomUUID} from 'node:crypto';
 import {Op} from 'sequelize';
 import {imagePolicy, optimizationRequest} from '../drivers/convert/imageOptimize.js';
 import {contentIds, problem, requestKey} from '../content/publicationInput.js';
-import {storageAdmissionFenceOptions, withStorageFence, withStorageTaskLock} from '../../storageLifecycle.js';
+import {storageAdmissionFenceOptions, withStorageFence, withStorageTaskLock, withStorageControlTaskLock} from '../../storageLifecycle.js';
 import {digest, normalizeStorageId, variants, sameCid} from '../../storageIdentity.js';
 import {pageCid, readSiteData} from './siteData.js';
 import {finalizeReplacement, assertCurrentPublication} from './replacementFinalization.js';
@@ -16,7 +16,8 @@ export class SiteReplacements {
         this.jobs = new SiteReplacementJobs(app, 'site-replacement');
     }
     finalize(userId, id, body, apiKeyId = null) {
-        return finalizeReplacement(this, userId, id, body, apiKeyId);
+        return withStorageControlTaskLock(this.app, `site-replacement:${id}`, () =>
+            finalizeReplacement(this, userId, id, body, apiKeyId));
     }
     assertCurrentPublication(row) {
         return assertCurrentPublication(this, row);
@@ -114,8 +115,8 @@ export class SiteReplacements {
         }, storageAdmissionFenceOptions(this.app));
     }
 
-    async replacement(userId, id) {
-        const replacement = await this.jobs.get(userId, id);
+    async replacement(userId, id, transaction = undefined) {
+        const replacement = await this.jobs.get(userId, id, transaction);
         if (!replacement) {
             problem('image_replacement_not_found', 404);
         }

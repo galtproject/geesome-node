@@ -93,7 +93,7 @@ export interface IUserOperationQueue {
 	asyncOperationId: number;
 	userApiKeyId: number;
 	asyncOperation?: IUserAsyncOperation;
-    renderRecoveryPolicy?: {contract: number; supported: boolean; mode: string; limit: number};
+    renderRecoveryPolicy?: {contract: number; supported: boolean; mode: string; limit: number; retainOriginalForExternalLinks?: boolean};
 }
 
 export interface IModuleOperationQueueProcessorOptions {
