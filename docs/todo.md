@@ -457,7 +457,7 @@ Remaining work:
 
 - Verify an explicitly authorized real-account scheduled post for Threads,
   Instagram and Reddit, including account/app eligibility and public media access.
-- Keep hub registration and automatic source routes as separate work.
+- Server-side execution remains a separate stage; explicit client destination catalog/claims are implemented in #1570.
 
 Verification:
 

@@ -78,6 +78,7 @@ const migrationDirs: Record<MigrationModule, string> = {
 };
 
 const coveredMigrations: CoveredMigration[] = [
+  {module: 'database', file: '20261110000000-bind-publication-destinations.cjs', verifies: ['publication destination executor snapshot columns']},
   {
     module: 'database',
     file: '20261028000000-scope-payment-addresses-to-resources.cjs',
@@ -242,6 +243,9 @@ const coveredMigrations: CoveredMigration[] = [
 ];
 
 const expectedColumns: ExpectedColumn[] = [
+  {table: 'publicationJobs', columns: ['destinationId'], type: 'integer'},
+  {table: 'publicationJobs', columns: ['clientId'], type: 'character varying'},
+  {table: 'publicationJobs', columns: ['executionMode'], type: 'character varying'},
   {table: 'payments_crypto_hd_accounts', columns: ['resourceId'], type: 'character varying'},
   {table: 'postsContents', columns: ['isPrivate'], type: 'boolean'},
   {table: 'posts', columns: ['size'], type: 'bigint'},

@@ -129,7 +129,7 @@ function notesFor(route: RouteRow, block: string): string[] {
     notes.add('owner + user:save_data + content:write; exact node-restart operation CAS; frozen source/replacement or proven saved result; three persisted recovery attempts; original input/receipts retained');
   }
   if (route.moduleName === 'localClient') {
-    notes.add('publishing:local and UserGroupManagement; compose also requires assets:write; owner-scoped jobs; public-source edit permission or owned ordinary closed source at create/claim; bounded owner-only source selection; authoritative group/network/account routes; opt-in media preparation validates owned originals and uses server-only completed cache; original claim token for results');
+    notes.add('publishing:local and UserGroupManagement; compose also requires assets:write; owner-scoped jobs; public-source edit permission or owned ordinary closed source at create/claim; bounded owner-only source selection; authoritative group/network/account routes; opt-in media preparation validates owned originals and uses server-only completed cache; original claim token for results; destination registration and claim bind executor to dedicated non-password API key ID; legacy claim excludes destination jobs; destination results require original client key');
   }
   if (route.moduleName === 'imageComposition') {
     notes.add('module enforces actor-owned catalog Content and dependency authorization');
