@@ -9,7 +9,7 @@
 
 User request: one destination is one channel; user chooses SFW or NSFW.
 `contentPolicy: sfw` accepts only explicitly safe authored content. Twitter,
-Bluesky, Discord and Telegram require `target.sensitive === false`; Rule34
+Bluesky, Discord, Telegram and Reddit require `target.sensitive === false`; Rule34
 requires `target.rating === 's'`. `nsfw` allows both. It never marks the post
 sensitive automatically or replaces the Discord provider's own NSFW check.
 

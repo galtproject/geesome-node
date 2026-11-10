@@ -12,7 +12,7 @@ export function normalizeContentPolicy(value) {
 
 export function assertContentPolicy(policy, network, target) {
 	if (policy === 'sfw' && !(network === 'rule34xxx' ? target?.rating === 's' :
-		['twitter', 'bluesky', 'discord', 'telegram'].includes(network) && target?.sensitive === false)) {
+		['twitter', 'bluesky', 'discord', 'telegram', 'reddit'].includes(network) && target?.sensitive === false)) {
 		throw new ApiProblemError(409, 'publication_content_policy_forbidden', 'SFW destinations require explicitly safe content');
 	}
 }

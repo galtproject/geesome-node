@@ -12,6 +12,14 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Reddit destination content policy (#1579)
+
+Reddit now accepts optional boolean `target.sensitive`; explicit SFW destinations
+require false. Distinct subreddit destinations can share one local account while
+freezing their separate endpoints, policies and jobs. Legacy omitted sensitivity,
+digests and accepted retries remain unchanged. Credentials stay on Client.
+See [Reddit setup](../app/modules/socNetPublishing/docs/reddit-destinations.md).
+
 ## Explicit publication content policy (#1575)
 
 Destinations now expose nullable `contentPolicy`: `sfw` accepts only explicitly

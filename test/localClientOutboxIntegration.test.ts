@@ -92,6 +92,31 @@ describe('private local publication outbox integration', function () {
 		}
 		assert.deepEqual((await successful(await call('/outbox'))).drafts, []);
 	});
+	it('freezes two Reddit subreddit destinations on one account and rejects unsafe SFW creation', async () => {
+		const source = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Reddit source'}));
+		const accountId = 'reddit_wave';
+		const registration = await successful(await call('/destinations', {destinations: [
+			{localKey: 'reddit-main', network: 'reddit', label: 'r/EraOfWave', localAccountId: accountId, sourceGroupId: source.group.id, contentPolicy: 'nsfw', target: {subreddit: 'EraOfWave'}, enabled: true},
+			{localKey: 'reddit-sfw', network: 'reddit', label: 'r/EraOfWave_SFW', localAccountId: accountId, sourceGroupId: source.group.id, contentPolicy: 'sfw', target: {subreddit: 'EraOfWave_SFW'}, enabled: true}
+		]}));
+		const [main, safe] = registration.destinations;
+		const input = {requestKey: randomUUID(), groupId: source.group.id, text: 'Safe Reddit post', imageStorageIds: [], destinations: [
+			{destinationId: main.id, network: 'reddit', target: {title: 'Safe Reddit post', sensitive: false}},
+			{destinationId: safe.id, network: 'reddit', target: {title: 'Safe Reddit post', sensitive: false}}
+		]};
+		const before = await app.ms.database.models.Post.count({where: {groupId: source.group.id}});
+		const invalid = await call('/compose', {...input, destinations: [{...input.destinations[1], target: {title: 'Unsafe', sensitive: true}}]});
+		assert.equal(invalid.status, 409);assert.equal((await invalid.json()).code, 'publication_content_policy_forbidden');
+		assert.equal(await app.ms.database.models.Post.count({where: {groupId: source.group.id}}), before);
+		const result = await successful(await call('/compose', input));assert.equal(result.jobs.length, 2);
+		assert.deepEqual(result.jobs.map(job => job.target.subreddit), ['EraOfWave', 'EraOfWave_SFW']);
+		assert(result.jobs.every(job => job.localAccountId === accountId && job.target.sensitive === false));
+		assert.deepEqual(result.jobs.map(job => job.contentPolicy), ['nsfw', 'sfw']);
+		assert.deepEqual((await successful(await call('/compose', input))).jobs.map(job => job.id), result.jobs.map(job => job.id));
+		for (const job of result.jobs) {
+			await successful(await call(`/${job.id}/cancel`, {}));
+		}
+	});
 	it('freezes producer identity and digest on owned compose replay and bounded HTTP lookup', async () => {
 		const input = composeInput({producer: {type: 'microwave-girls', postId: 123}, destinations: [{network: 'twitter', localAccountId: 'twitter_local', target: {sensitive: false}}]});
 		const result = await successful(await call('/compose', input));

@@ -442,7 +442,7 @@ export function normalizeRequest(input: any, allowUnbound = false): any {
 		}
 		return {requestKey, postId, network, localAccountId, scheduledAt: new Date(input.scheduledAt).toISOString(), target: {tags, source, rating: target.rating}};
 	}
-	assertKeys(target, ['subreddit', 'title', 'flairId', 'kind']);
+	assertKeys(target, ['subreddit', 'title', 'flairId', 'kind', ...(network === 'reddit' ? ['sensitive'] : [])]);
 	const normalizedTarget = {};
 	for (const key of ['subreddit', 'title', 'flairId', 'kind']) {
 		if (target[key] !== undefined && target[key] !== '') {
@@ -451,6 +451,12 @@ export function normalizeRequest(input: any, allowUnbound = false): any {
 	}
 	if (target.kind !== undefined && !['self', 'link', 'image'].includes(target.kind)) {
 		throw problem(400, 'local_publication_target_invalid');
+	}
+	if (network === 'reddit' && target.sensitive !== undefined) {
+		if (typeof target.sensitive !== 'boolean') {
+			throw problem(400, 'local_publication_target_invalid');
+		}
+		normalizedTarget['sensitive'] = target.sensitive;
 	}
 	return {requestKey, postId, network, localAccountId, scheduledAt: new Date(input.scheduledAt).toISOString(), target: normalizedTarget};
 }

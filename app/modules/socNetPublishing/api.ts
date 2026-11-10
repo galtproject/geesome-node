@@ -243,7 +243,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiBody {String="threads","instagram","reddit","twitter","rule34xxx","bluesky","discord","telegram","patreon"} network Destination network.
 	 * @apiBody {String} localAccountId Account identifier configured on the local client.
 	 * @apiBody {String} scheduledAt ISO 8601 instant with timezone.
-	 * @apiBody {Object} [target] Typed targets: Reddit subreddit/title/flairId/kind; Twitter/Bluesky optional sensitive boolean; Discord channelId plus optional guildId/sensitive boolean; Telegram chatId and optional sensitive boolean; Rule34 required tags/source/rating=s|q|e; Patreon requires title/audience/teaserText/campaignId as documented for compose. No credentials or arbitrary headers.
+	 * @apiBody {Object} [target] Typed targets: Reddit subreddit/title/flairId/kind and optional sensitive boolean; Twitter/Bluesky optional sensitive boolean; Discord channelId plus optional guildId/sensitive boolean; Telegram chatId and optional sensitive boolean; Rule34 required tags/source/rating=s|q|e; Patreon requires title/audience/teaserText/campaignId as documented for compose. No credentials or arbitrary headers.
 	 * @apiSuccess {Object} job Frozen scheduled job with text/media payload.
 	 * @apiError (409) LocalPublicationRequestConflict Request key was already used with different input.
 	 * @apiSuccessExample {json} Scheduled

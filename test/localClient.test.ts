@@ -78,6 +78,24 @@ describe('local publication queue', function () {
 		assert.equal((await resolveDestination(1, {destinationId: rule.id, network: 'rule34xxx', target})).contentPolicy, 'sfw');
 		await assert.rejects(resolveDestination(1, {destinationId: rule.id, network: 'rule34xxx', target: {...target, rating: 'e'}}), {code: 'publication_content_policy_forbidden'});
 	});
+	it('supports separate Reddit policies and subreddits with one local account and unchanged legacy targets', async () => {
+		await models.PublicationDestination.destroy({where: {}});
+		const {resolveDestination} = getDestinationMethods(models.PublicationDestination, {normalizeRequest, app: {}, loadServerAccount: async () => {}, boundedInteger: Number, problem: (status, code) => Object.assign(new Error(code), {status, code})});
+		const main = await register('key:1', {localKey: 'reddit-main', network: 'reddit', localAccountId: 'reddit_wave', contentPolicy: 'nsfw', target: {subreddit: 'EraOfWave'}});
+		const sfw = await register('key:1', {localKey: 'reddit-sfw', network: 'reddit', localAccountId: 'reddit_wave', contentPolicy: 'sfw', target: {subreddit: 'EraOfWave_SFW'}});
+		assert.notEqual(main.id, sfw.id);assert.equal(main.localAccountId, sfw.localAccountId);
+		const safe = await resolveDestination(1, {destinationId: sfw.id, network: 'reddit', target: {title: 'Safe post', sensitive: false}});
+		assert.deepEqual(safe.target, {subreddit: 'EraOfWave_SFW', title: 'Safe post', sensitive: false});assert.equal(safe.contentPolicy, 'sfw');
+		for (const target of [{title: 'Unclassified'}, {title: 'Sensitive', sensitive: true}]) {
+			await assert.rejects(resolveDestination(1, {destinationId: sfw.id, network: 'reddit', target}), {code: 'publication_content_policy_forbidden'});
+		}
+		assert.equal((await resolveDestination(1, {destinationId: main.id, network: 'reddit', target: {title: 'Sensitive', sensitive: true}})).target.subreddit, 'EraOfWave');
+		const legacy = normalizeRequest(request({network: 'reddit', target: {subreddit: 'EraOfWave', title: 'Legacy'}}));
+		assert.deepEqual(legacy.target, {subreddit: 'EraOfWave', title: 'Legacy'});
+		for (const sensitive of ['false', 0, null]) {
+			assert.throws(() => normalizeRequest(request({network: 'reddit', target: {subreddit: 'EraOfWave', title: 'Invalid', sensitive}})), {code: 'local_publication_target_invalid'});
+		}
+	});
 	it('registers destinations idempotently, bounds safe listings and scopes local keys by client and owner', async () => {
 		await models.PublicationDestination.destroy({where: {}});
 		const first = await register();
