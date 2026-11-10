@@ -29,16 +29,21 @@ Account/target verification never creates a post. Use POST
   "network": "telegram",
   "label": "Era of Wave Telegram",
   "sourceGroupId": 42,
+  "contentPolicy": "nsfw",
   "account": {"botToken": "REPLACE_LOCALLY"},
-  "target": {"chatId": "-1001234567890", "sfwChatId": "-1009876543210"},
+  "target": {"chatId": "-1001234567890"},
   "enabled": false
 }
 ```
 
 Values above are examples, not a production account or group. For Bluesky,
 account is `{identifier,appPassword}` and target `{}`. For Discord, account is
-`{botToken}`; target contains `channelId` and optional `guildId`/`sfwChannelId`.
-Telegram target contains `chatId` and optional `sfwChatId`. Setup resolves named
+`{botToken}`; target contains `channelId` and optional `guildId`.
+Telegram target contains `chatId`. Configure each channel as a separate destination
+with `contentPolicy: "sfw"` or `"nsfw"`; multiple channels reuse one account.
+SFW accepts only explicit sensitive=false; NSFW allows both. These settings never
+switch channels automatically. [Content policy and upgrade compatibility](content-policy.md)
+explains retained legacy alternate fields and frozen job snapshots. Setup resolves named
 Telegram chats to numeric IDs and verifies bot/channel access; Discord guild and
 Bluesky DID are confirmed. Sensitive Discord jobs require an NSFW channel.
 

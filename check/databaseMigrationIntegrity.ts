@@ -79,6 +79,7 @@ const migrationDirs: Record<MigrationModule, string> = {
 
 const coveredMigrations: CoveredMigration[] = [
   {module: 'database', file: '20261110001000-server-social-publishing.cjs', verifies: ['server publication account binding columns', 'server managed credential storage', 'server destination key uniqueness']},
+  {module: 'database', file: '20261110002000-publication-content-policy.cjs', verifies: ['destination content policy', 'frozen job content policy']},
   {module: 'database', file: '20261110000000-bind-publication-destinations.cjs', verifies: ['publication destination executor snapshot columns']},
   {
     module: 'database',
@@ -247,6 +248,8 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'publicationJobs', columns: ['serverAccountId'], type: 'integer'},
   {table: 'publicationJobs', columns: ['accountIdentity'], type: 'character varying'},
   {table: 'publicationDestinations', columns: ['accountIdentity'], type: 'character varying'},
+  {table: 'publicationDestinations', columns: ['contentPolicy'], type: 'character varying'},
+  {table: 'publicationJobs', columns: ['contentPolicy'], type: 'character varying'},
   {table: 'socNetAccounts', columns: ['serverCredentialsEncrypted'], type: 'text'},
   {table: 'publicationJobs', columns: ['destinationId'], type: 'integer'},
   {table: 'publicationJobs', columns: ['clientId'], type: 'character varying'},

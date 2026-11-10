@@ -12,6 +12,19 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Explicit publication content policy (#1575)
+
+Destinations now expose nullable `contentPolicy`: `sfw` accepts only explicitly
+safe authored content; `nsfw` allows both. Each explicit-policy destination uses
+one endpoint. Alternate SFW channel/chat fields remain only for legacy nullable
+settings. Compose rejects unsafe SFW submissions before source/media/job writes,
+rechecks policy under the transaction lock and freezes it on the accepted job.
+Existing digests, accepted replay, jobs and unknown outcomes are unchanged.
+
+The additive migration preserves old settings and refuses rollback while explicit
+policy data exists. The worker validates the frozen policy before sending.
+See [contract and upgrade notes](../app/modules/socNetPublishing/docs/content-policy.md).
+
 ## Server social publishing and canonical API (#1572)
 
 `socNetPublishing` now owns the existing queue for both local and server

@@ -1,4 +1,5 @@
 import {createServerProviders} from './providers/index.js';
+import {assertContentPolicy} from './contentPolicy.js';
 
 export function createServerPublisher(app, module, options: any = {}) {
 	const providers = options.providers || createServerProviders({fetch: options.fetch});
@@ -28,6 +29,11 @@ export function createServerPublisher(app, module, options: any = {}) {
 					const {job, account} = claimed;
 					let result;
 					try {
+						try {
+							assertContentPolicy(job.contentPolicy, job.network, job.target);
+						} catch (error) {
+							throw Object.assign(error, {ambiguous: false});
+						}
 						const published = await providers.publish(job.network, account, {...job.payload, target: job.target},
 							(attachment, maxBytes) => loadOwnedMedia(app, job.userId, attachment, maxBytes));
 						if (!published?.remoteId) {
