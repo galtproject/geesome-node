@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 import {Sequelize} from 'sequelize';
 import createModels from '../app/modules/socNetPublishing/models.js';
 import {getModule, normalizeRequest} from '../app/modules/socNetPublishing/index.js';
-import {publicationClientId} from '../app/modules/socNetPublishing/destinations.js';
+import {publicationClientId, getDestinationMethods} from '../app/modules/socNetPublishing/destinations.js';
 import registerApi from '../app/modules/socNetPublishing/api.js';
 import databaseConfig from '../app/modules/database/config.js';
 import {CorePermissionName} from '../app/modules/database/interface.js';
@@ -54,6 +54,30 @@ describe('local publication queue', function () {
 		await models.PublicationJob.update({destinationId: destination.id, clientId: destination.clientId, executionMode: 'client'}, {where: {id: legacy.id}});
 		return legacy;
 	}
+	it('enforces explicit policies and keeps legacy alternate endpoints separate', async () => {
+		await models.PublicationDestination.destroy({where: {}});
+		const {resolveDestination} = getDestinationMethods(models.PublicationDestination, {normalizeRequest, app: {}, loadServerAccount: async () => {}, boundedInteger: Number, problem: (status, code) => Object.assign(new Error(code), {status, code})});
+		const sfw = await register('key:1', {network: 'discord', localAccountId: 'discord_1', target: {channelId: '123'}, contentPolicy: 'sfw'});
+		assert.equal(sfw.contentPolicy, 'sfw');
+		for (const target of [{}, {sensitive: true}]) {
+			await assert.rejects(resolveDestination(1, {destinationId: sfw.id, network: 'discord', target}), {code: 'publication_content_policy_forbidden'});
+		}
+		const safe = await resolveDestination(1, {destinationId: sfw.id, network: 'discord', target: {sensitive: false}});
+		assert.equal(safe.contentPolicy, 'sfw');assert.equal(safe.target.channelId, '123');
+		await assert.rejects(register('key:1', {network: 'discord', localAccountId: 'discord_1', target: {channelId: '123'}}), {code: 'publication_content_policy_required'});
+		await assert.rejects(register('key:2', {network: 'discord', contentPolicy: 'sfw', target: {channelId: '123', sfwChannelId: '456'}}), {code: 'publication_destination_single_endpoint_required'});
+		await assert.rejects(register('key:2', {contentPolicy: 'custom'}), {code: 'publication_content_policy_invalid'});
+		const legacy = await register('key:2', {network: 'discord', target: {channelId: '123', sfwChannelId: '456'}});
+		assert.equal(legacy.contentPolicy, null);
+		assert.equal((await resolveDestination(1, {destinationId: legacy.id, network: 'discord', target: {sensitive: false}})).target.channelId, '456');
+		const unrestricted = await register('key:3', {network: 'discord', contentPolicy: 'nsfw', target: {channelId: '789'}});
+		assert.equal((await resolveDestination(1, {destinationId: unrestricted.id, network: 'discord', target: {sensitive: false}})).target.channelId, '789');
+		assert.equal((await resolveDestination(1, {destinationId: unrestricted.id, network: 'discord', target: {sensitive: true}})).target.channelId, '789');
+		const rule = await register('key:4', {network: 'rule34xxx', contentPolicy: 'sfw'});
+		const target = {tags: 'safe', source: 'https://example.com', rating: 's'};
+		assert.equal((await resolveDestination(1, {destinationId: rule.id, network: 'rule34xxx', target})).contentPolicy, 'sfw');
+		await assert.rejects(resolveDestination(1, {destinationId: rule.id, network: 'rule34xxx', target: {...target, rating: 'e'}}), {code: 'publication_content_policy_forbidden'});
+	});
 	it('registers destinations idempotently, bounds safe listings and scopes local keys by client and owner', async () => {
 		await models.PublicationDestination.destroy({where: {}});
 		const first = await register();

@@ -5,9 +5,10 @@ import config from '../app/modules/database/config.js';
 import helpers from '../app/helpers.js';
 import createModels from '../app/modules/socNetPublishing/models.js';
 import createAccounts from '../app/modules/socNetAccount/models.js';
-import {getModule} from '../app/modules/socNetPublishing/index.js';
+import {getModule, normalizeRequest} from '../app/modules/socNetPublishing/index.js';
 import {getModule as accountModule} from '../app/modules/socNetAccount/index.js';
 import {serverPublicationDigest} from '../app/modules/socNetPublishing/producer.js';
+import {getDestinationMethods} from '../app/modules/socNetPublishing/destinations.js';
 import startCron from '../app/modules/socNetPublishing/cron.js';
 import registerApi from '../app/modules/socNetPublishing/api.js';
 import {getApiKeyScopes} from '../app/modules/api/integrationScopes.js';
@@ -61,6 +62,20 @@ describe('server social publishing foundation', function () {
 		const accounts = accountModule(app, {Account: sequelize.models.socNetAccount});
 		await assert.rejects(accounts.createOrUpdateAccount(1, {socNet: 'telegram', accountId: 'bot:12345', username: 'replacement'}), /dedicated_setup/);
 		await assert.rejects(accounts.createOrUpdateAccount(1, {socNet: 'telegram', accountId: 'bot:99999', serverCredentialsEncrypted: 'forged'}), /dedicated_setup/);
+	});
+	it('uses explicit one-channel policies with a shared account and frozen worker validation', async () => {
+		const {resolveDestination} = getDestinationMethods(models.PublicationDestination, {normalizeRequest, app, loadServerAccount: module.loadServerAccount, boundedInteger: Number, problem: (status, code) => Object.assign(new Error(code), {status, code})});
+		const sfw = await registered({contentPolicy: 'sfw'});
+		const nsfw = await registered({requestKey: 'telegram-other', contentPolicy: 'nsfw', target: {chatId: '-67890'}});
+		assert.equal(sfw.account, nsfw.account);
+		assert.equal(sfw.contentPolicy, 'sfw');
+		await assert.rejects(module.setupServerDestination(1, setup({contentPolicy: 'sfw', target: {chatId: '-12345', sfwChatId: '-67890'}})), {code: 'publication_destination_single_endpoint_required'});
+		await assert.rejects(module.setupServerDestination(1, setup()), {code: 'publication_content_policy_required'});
+		await assert.rejects(resolveDestination(1, {destinationId: sfw.id, network: 'telegram', target: {sensitive: true}}), {code: 'publication_content_policy_forbidden'});
+		const invalid = await queued(sfw, {contentPolicy: 'sfw', target: {chatId: '-12345', sensitive: true}});
+		await module.processServerQueue();assert.equal(published.length, 0);assert.equal((await invalid.reload()).status, 'failed');
+		const frozen = await queued(sfw, {contentPolicy: 'nsfw', target: {chatId: '-12345', sensitive: true}});
+		await module.processServerQueue();assert.equal(published.length, 1);assert.equal((await frozen.reload()).contentPolicy, 'nsfw');
 	});
 	it('isolates server claims, frozen payload, result permissions and outcome state', async () => {
 		const destination = await registered();const job = await queued(destination);

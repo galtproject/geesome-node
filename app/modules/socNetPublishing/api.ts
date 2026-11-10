@@ -33,7 +33,8 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiBody {String} label Display name, 1–200 characters.
 	 * @apiBody {Number} [sourceGroupId] Owned private source group, or omitted for global destination.
 	 * @apiBody {Object} account Bluesky identifier/appPassword, or Discord/Telegram botToken. Write-only; fixed provider hosts.
-	 * @apiBody {Object} target Endpoint configuration, including optional SFW channel/chat.
+	 * @apiBody {String="sfw","nsfw"} [contentPolicy] Content restriction. sfw requires sensitive=false (Rule34 rating=s); nsfw permits both. Omitted/null retains legacy behavior. An explicit policy cannot be cleared by omission.
+	 * @apiBody {Object} target One endpoint: Discord channelId/guildId, Telegram chatId, Bluesky empty. Alternate SFW fields only for legacy null-policy setup.
 	 * @apiBody {Boolean} [enabled=false] Explicitly enable new tasks and claims.
 	 * @apiSuccess {Object} destination Safe registered destination metadata and accountIdentity; never credentials or internal account reference.
 	 */
@@ -95,7 +96,8 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiBody {String} destinations.localAccountId Local credential reference, 1–200 identifier characters.
 	 * @apiBody {String} destinations.network Supported network.
 	 * @apiBody {String} destinations.label Display label, 1–200 characters.
-	 * @apiBody {Object} destinations.target Endpoint-only parameters: Discord channelId/guildId/sfwChannelId, Telegram chatId/sfwChatId, Patreon campaignId, Reddit subreddit/flairId/kind; otherwise empty.
+	 * @apiBody {String="sfw","nsfw"} [destinations.contentPolicy] Explicit content policy; omitted/null preserves legacy behavior. sfw requires authored sensitive=false, or Rule34 rating=s. Explicit policy cannot be cleared by omission.
+	 * @apiBody {Object} destinations.target One endpoint: Discord channelId/guildId, Telegram chatId, Patreon campaignId, Reddit subreddit/flairId/kind; otherwise empty. Alternate SFW fields only for legacy null-policy setup.
 	 * @apiBody {Boolean} destinations.enabled Explicit enabled state.
 	 * @apiSuccess {String} clientId Authenticated key identity.
 	 * @apiSuccess {Object[]} destinations Registered safe rows.

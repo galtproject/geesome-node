@@ -2,13 +2,14 @@ import {createHash} from 'node:crypto';
 import {isOwnedQueueGroup} from './sources.js';
 import {destinationView, resolveDestinationTarget} from './destinations.js';
 import {createServerProviders} from './providers/index.js';
+import {normalizeContentPolicy, assertSingleEndpoint} from './contentPolicy.js';
 
 export function getServerAccountMethods(app, Destination, {normalizeRequest, boundedInteger, problem}, options: any = {}) {
 	const providers = options.providers || createServerProviders({fetch: options.fetch});
 	const accounts = () => app.ms.database.sequelize.models.socNetAccount;
 	return {
 		async setupServerDestination(userId, input) {
-			if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['requestKey', 'network', 'label', 'sourceGroupId', 'account', 'target', 'enabled'].includes(key)) ||
+			if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['requestKey', 'network', 'label', 'sourceGroupId', 'account', 'target', 'enabled', 'contentPolicy'].includes(key)) ||
 				!['bluesky', 'discord', 'telegram'].includes(input.network) || typeof input.requestKey !== 'string' || !/^[A-Za-z0-9_.:-]{1,128}$/.test(input.requestKey) ||
 				typeof input.label !== 'string' || !input.label.trim() || input.label.length > 200 || /[\u0000-\u001f\u007f]/.test(input.label) ||
 				input.enabled !== undefined && typeof input.enabled !== 'boolean') {
@@ -28,10 +29,12 @@ export function getServerAccountMethods(app, Destination, {normalizeRequest, bou
 				throw problem(400, 'server_publication_credentials_invalid');
 			}
 			const configured = input.target ?? {};
+			const contentPolicy = normalizeContentPolicy(input.contentPolicy);
 			const targetKeys = {bluesky: [], discord: ['channelId', 'guildId', 'sfwChannelId'], telegram: ['chatId', 'sfwChatId']}[input.network];
 			if (!configured || typeof configured !== 'object' || Array.isArray(configured) || Object.keys(configured).some(key => !targetKeys.includes(key))) {
 				throw problem(400, 'local_publication_target_invalid');
 			}
+			assertSingleEndpoint(contentPolicy, configured);
 			let verified;
 			try {
 				verified = await providers.verify(input.network, credentials, configured);
@@ -59,13 +62,16 @@ export function getServerAccountMethods(app, Destination, {normalizeRequest, bou
 				if (previous && (previous.network !== input.network || previous.accountIdentity !== verified.accountIdentity || previous.sourceGroupId !== sourceGroupId)) {
 					throw problem(409, 'server_publication_setup_conflict');
 				}
+				if (previous?.contentPolicy && !contentPolicy) {
+					throw problem(409, 'publication_content_policy_required');
+				}
 				let account = await accounts().findOne({where: {userId, socNet: input.network, accountId: verified.accountIdentity}, transaction, lock: transaction.LOCK.UPDATE});
 				if (!account) {
 					account = await accounts().create({userId, socNet: input.network, accountId: verified.accountIdentity, username: verified.username || null, serverCredentialsEncrypted: encrypted}, {transaction});
 				} else {
 					await account.update({serverCredentialsEncrypted: encrypted}, {transaction});
 				}
-				const data = {userId, localKey, sourceGroupId, network: input.network, label: input.label, executionMode: 'server', clientId: null,
+				const data = {userId, localKey, sourceGroupId, network: input.network, label: input.label, contentPolicy, executionMode: 'server', clientId: null,
 					localAccountId: null, socNetAccountId: account.id, accountIdentity: verified.accountIdentity, target, enabled: input.enabled === true};
 				return previous ? previous.update(data, {transaction}) : Destination.create(data, {transaction});
 			});
