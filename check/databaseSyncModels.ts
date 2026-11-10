@@ -4,9 +4,9 @@ import databaseConfig from '../app/modules/database/config.js';
 
 const moduleModelSyncers = [
   {
-    name: 'localClient',
+    name: 'socNetPublishing',
     sync: async (sequelize: Sequelize, models: any) => {
-      Object.assign(models, await (await import('../app/modules/localClient/models.js')).default(sequelize));
+      Object.assign(models, await (await import('../app/modules/socNetPublishing/models.js')).default(sequelize));
       return models;
     },
   },

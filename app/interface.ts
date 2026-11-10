@@ -18,7 +18,7 @@ import IGeesomeStaticIdModule from "./modules/staticId/interface.js";
 import IGeesomeStorageModule from "./modules/storage/interface.js";
 import IGeesomeStorageSpaceModule from "./modules/storageSpace/interface.js";
 import IGeesomeActivityPubModule from "./modules/activityPub/interface.js";
-import ILocalClientModule from './modules/localClient/interface.js';
+import ISocNetPublishingModule from './modules/socNetPublishing/interface.js';
 import IGeesomeBlueskyModule from "./modules/bluesky/interface.js";
 import IGeesomeDriversModule from "./modules/drivers/interface.js";
 import IGeesomeContentModule from "./modules/content/interface.js";
@@ -70,7 +70,9 @@ export interface IGeesomeApp {
     storageSpace: IGeesomeStorageSpaceModule;
     activityPub: IGeesomeActivityPubModule;
     bluesky: IGeesomeBlueskyModule;
-    localClient: ILocalClientModule;
+    socNetPublishing: ISocNetPublishingModule;
+    /** @deprecated Use socNetPublishing. */
+    localClient: ISocNetPublishingModule;
     communicator: IGeesomeCommunicatorModule;
     entityJsonManifest: IGeesomeEntityJsonManifestModule;
     database: IGeesomeDatabaseModule;

@@ -28,7 +28,7 @@ export function resolveDestinationTarget(network, configured, authored: any = {}
 	return {...target, ...authored};
 }
 
-export function getDestinationMethods(Destination, {app, normalizeRequest, problem, boundedInteger}) {
+export function getDestinationMethods(Destination, {app, normalizeRequest, problem, boundedInteger, loadServerAccount}) {
 	function identifier(value) {
 		if (typeof value !== 'string' || !/^[A-Za-z0-9_.:-]{1,200}$/.test(value)) {
 			throw problem(400, 'local_publication_destination_invalid');
@@ -108,17 +108,20 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 		},
 		async resolveDestination(userId, selection, transaction?) {
 			const destination = await Destination.findOne({where: {id: boundedInteger(selection.destinationId, 1, Number.MAX_SAFE_INTEGER), userId}, transaction});
-			if (!destination || !destination.enabled || destination.executionMode !== 'client' || destination.network !== selection.network) {
+			if (!destination || !destination.enabled || !['client', 'server'].includes(destination.executionMode) || destination.network !== selection.network) {
 				throw problem(409, 'local_publication_destination_unavailable');
 			}
+			if (destination.executionMode === 'server' && !transaction) {
+				await loadServerAccount(userId, destination.socNetAccountId, destination.network, destination.accountIdentity);
+			}
 			const target = resolveDestinationTarget(destination.network, destination.target, selection.target);
-			const normalized = normalizeRequest({requestKey: 'destination', postId: 1, network: destination.network, localAccountId: destination.localAccountId, target, scheduledAt: '2000-01-01T00:00:00Z'});
-			return {destinationId: Number(destination.id), sourceGroupId: destination.sourceGroupId, clientId: destination.clientId, executionMode: 'client', network: destination.network, localAccountId: destination.localAccountId, target: normalized.target};
+			const normalized = normalizeRequest({requestKey: 'destination', postId: 1, network: destination.network, localAccountId: destination.executionMode === 'server' ? 'validation' : destination.localAccountId, target, scheduledAt: '2000-01-01T00:00:00Z'});
+			return {destinationId: Number(destination.id), sourceGroupId: destination.sourceGroupId, clientId: destination.clientId, executionMode: destination.executionMode, network: destination.network, localAccountId: destination.localAccountId, target: normalized.target, ...(destination.executionMode === 'server' ? {serverAccountId: destination.socNetAccountId, accountIdentity: destination.accountIdentity} : {})};
 		}
 	};
 }
 
-function destinationView(row) {
-	const {id, clientId, localKey, sourceGroupId, localAccountId, network, label, executionMode, target, enabled} = row.toJSON();
-	return {id, clientId, localKey, sourceGroupId, localAccountId, network, label, executionMode, target, enabled};
+export function destinationView(row) {
+	const {id, clientId, localKey, sourceGroupId, localAccountId, network, label, executionMode, accountIdentity, target, enabled} = row.toJSON();
+	return {id, localKey, sourceGroupId, network, label, executionMode, target, enabled, ...(executionMode === 'server' ? {accountIdentity} : {clientId, localAccountId})};
 }

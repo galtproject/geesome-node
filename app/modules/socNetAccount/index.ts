@@ -42,11 +42,17 @@ export function getModule(app: IGeesomeApp, models) {
 
 	class SocNetAccountModule {
 		async createOrUpdateAccount(userId, accData) {
+			if (Object.hasOwn(accData, 'serverCredentialsEncrypted')) {
+				throw new Error('server_publishing_account_dedicated_setup_required');
+			}
 			const where = getSocNetAccountLookupWhere(userId, accData);
-			const userAcc = await models.Account.findOne({where});
-			return userAcc ?
-				userAcc.update(accData).then(() => models.Account.findOne({where})) :
-				models.Account.create({ ...accData, userId });
+			return models.Account.sequelize.transaction(async transaction => {
+				const userAcc = await models.Account.findOne({where, transaction, lock: transaction.LOCK.UPDATE});
+				if (userAcc?.serverCredentialsEncrypted) {
+					throw new Error('server_publishing_account_dedicated_setup_required');
+				}
+				return userAcc ? userAcc.update(accData, {transaction}) : models.Account.create({...accData, userId}, {transaction});
+			});
 		}
 		async getAccount(userId, socNet, accountData) {
 			return models.Account.findOne({where: {...accountData, userId, socNet}});

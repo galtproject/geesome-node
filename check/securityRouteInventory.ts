@@ -128,7 +128,9 @@ function notesFor(route: RouteRow, block: string): string[] {
   if (routeLower.includes('/static-site-generator/recover/')) {
     notes.add('owner + user:save_data + content:write; exact node-restart operation CAS; frozen source/replacement or proven saved result; three persisted recovery attempts; original input/receipts retained');
   }
-  if (route.moduleName === 'localClient') {
+  if (route.moduleName === 'socNetPublishing' && (routeLower.includes('/server-destinations') || routeLower.endsWith('/server-result'))) {
+    notes.add('owner + UserGroupManagement; explicit publishing:manage scope or owner password session; write-only app-pass encrypted credentials; provider identity checked before setup; manual result also requires original claim token and never sends');
+  } else if (route.moduleName === 'socNetPublishing') {
     notes.add('publishing:local and UserGroupManagement; compose also requires assets:write; owner-scoped jobs; public-source edit permission or owned ordinary closed source at create/claim; bounded owner-only source selection; authoritative group/network/account routes; opt-in media preparation validates owned originals and uses server-only completed cache; original claim token for results; destination registration and claim bind executor to dedicated non-password API key ID; legacy claim excludes destination jobs; destination results require original client key');
   }
   if (route.moduleName === 'imageComposition') {
@@ -180,6 +182,9 @@ function parseFile(filePath: string): RouteRow[] {
   const localApiRegistrars = new Set<string>();
   const routes: Array<RouteRow & {index: number}> = [];
 
+  if (moduleName === 'socNetPublishing') {
+    localApiRegistrars.add('api');
+  }
   if (relPath === 'app/modules/api/api.ts') {
     localApiRegistrars.add('module');
   }
@@ -212,7 +217,7 @@ function parseFile(filePath: string): RouteRow[] {
     });
   }
 
-  return routes.map((route, index) => {
+  const canonical = routes.map((route, index) => {
     const blockEnd = routes[index + 1]?.index ?? source.length;
     const block = source.slice(route.index, blockEnd);
     const cleanRoute = {...route};
@@ -220,7 +225,9 @@ function parseFile(filePath: string): RouteRow[] {
     cleanRoute.permissions = extractPermissions(block);
     cleanRoute.notes = notesFor(cleanRoute, block);
     return cleanRoute;
-  }).sort((a, b) => `${a.moduleName}:${a.route}:${a.method}`.localeCompare(`${b.moduleName}:${b.route}:${b.method}`));
+  });
+  const aliasesRows = moduleName === 'socNetPublishing' ? canonical.map(route => ({...route, route: route.route.replace('/user/social-publications', '/user/local-publications'), notes: [...route.notes, 'legacy URL alias; same handler and authorization']})) : [];
+  return canonical.concat(aliasesRows).sort((a, b) => `${a.moduleName}:${a.route}:${a.method}`.localeCompare(`${b.moduleName}:${b.route}:${b.method}`));
 }
 
 function render(rows: RouteRow[]): string {
