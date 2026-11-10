@@ -12,6 +12,30 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Server social publishing and canonical API (#1572)
+
+`socNetPublishing` now owns the existing queue for both local and server
+execution. The canonical HTTP path is `/user/social-publications`; old paths,
+module configuration and client/legacy receipts remain compatible. Bluesky,
+Discord and Telegram server adapters use frozen payloads and owned byte loading.
+Read-only setup verifies provider identity and stores an app-pass encrypted
+credential field in socNetAccount. Explicit management scope is separate from
+producer enqueue permission. The existing background-worker lifecycle starts
+paused unless configured; unknown outcomes never automatically resend.
+
+Setup, rollover and rollback: [module guide](../app/modules/socNetPublishing/docs/overview.md).
+Verification: 77 targeted bootstrap/queue/provider/account tests, released-schema
+upgrade test and 25 actual Node/PostgreSQL/Kubo HTTP cases pass; a final eight-case
+config/redaction/upgrade subset passes. The HTTP test boots the worker enabled
+with default module order and mocks only provider transport, confirming private
+JPEG byte delivery, frozen SFW route, client/legacy isolation, unknown outcomes
+and management-only manual settlement. apiDoc/security/scalability checks pass.
+Migration audit: 297 pass, two unrelated missing file-catalog indexes in the
+model-sync test fixture, one skip; all new columns and server unique index pass.
+Full suite was not run; repository-wide type checking retains unrelated existing
+errors, while targeted publishing/account source checks add none. No live send
+or production deployment was performed.
+
 ## Explicit client publication destinations (#1570)
 
 Node now keeps a bounded owner-only safe destination catalog, with executor

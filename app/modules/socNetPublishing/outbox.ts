@@ -3,7 +3,7 @@ import {Op, literal} from 'sequelize';
 import {GroupType, PostStatus} from '../group/interface.js';
 import {IGeesomeApp} from '../../interface.js';
 import {getPublicApiContext} from '../api/publicUrls.js';
-import {publicationDestinationDigest, publicationDigest} from './producer.js';
+import {resolvedPublicationDigest, publicationDigest} from './producer.js';
 import {isOwnedQueueGroup} from './sources.js';
 import {createImagePreparation, socialImagePolicy, imageLimit, validatePreparedPublication, preparedMediaDigest} from './imagePreparation.js';
 
@@ -165,8 +165,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			const imageContents = await images(userId, request.imageStorageIds);
 			if (request.producer && resolved[0].destinationId !== undefined) {
 				const destination = resolved[0];
-				const digest = publicationDestinationDigest(destination.destinationId, destination.clientId, destination.network, destination.localAccountId,
-					{text: request.text, attachments: imageContents}, destination.target);
+				const digest = resolvedPublicationDigest(destination, {text: request.text, attachments: imageContents});
 				if (request.producer.digest !== digest) {
 					throw problem(409, 'local_publication_destination_changed');
 				}
@@ -205,7 +204,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			async function insertJobs(post, transaction, payload) {
 				await assertPrivateGroup(transaction);
 				for (const destination of resolved.filter(item => item.destinationId !== undefined)) {
-					const current = await PublicationDestination.findOne({where: {id: destination.destinationId, userId, enabled: true, executionMode: 'client'}, transaction, lock: transaction.LOCK.SHARE});
+					const current = await PublicationDestination.findOne({where: {id: destination.destinationId, userId, enabled: true, executionMode: destination.executionMode}, transaction, lock: transaction.LOCK.SHARE});
 					if (!current || JSON.stringify(await resolveDestination(userId, request.destinations.find(item => item.destinationId === destination.destinationId), transaction)) !== JSON.stringify(destination)) {
 						throw problem(409, 'local_publication_destination_changed');
 					}
@@ -217,7 +216,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 					return {userId, postId: post.id, ...destination, payload: preparedPayload, scheduledAt, status: 'queued',
 						requestKey: `compose:${createHash('sha256').update(request.requestKey).digest('hex')}:${index}`,
 						requestHash: hash, composeKey: request.requestKey, composeHash: hash, composeIndex: index,
-						...(request.producer ? {producer: {...request.producer, digest: destination.destinationId === undefined ? publicationDigest(destination.network, destination.localAccountId, payload, destination.target) : publicationDestinationDigest(destination.destinationId, destination.clientId, destination.network, destination.localAccountId, payload, destination.target)}} : {})};
+						...(request.producer ? {producer: {...request.producer, digest: destination.destinationId === undefined ? publicationDigest(destination.network, destination.localAccountId, payload, destination.target) : resolvedPublicationDigest(destination, payload)}} : {})};
 				}), {transaction, returning: true});
 			}
 			try {
@@ -271,10 +270,10 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			const eligible = groups.filter(group => isOwnedQueueGroup(group, userId));
 			const group = selected ? (eligible.length === 1 ? eligible[0] : null) : await getGroup(userId);
 			if (selected && !eligible.length) {
-				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, publicationDestinations: true}, group: null, groups: [], drafts: []};
+				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true}, group: null, groups: [], drafts: []};
 			}
 			if (!selected && !group) {
-				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, publicationDestinations: true}, group: null, drafts: []};
+				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true}, group: null, drafts: []};
 			}
 			if (!selected && !isManagedOutbox(group, userId)) {
 				throw problem(409, 'local_publication_outbox_conflict');
@@ -299,7 +298,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 					drafts.push({postId: post.id, groupId: post.groupId, text: '', attachments: [], createdAt: post.createdAt, unavailable: true, error: 'This draft contains unsupported content. Edit it in GeeSome before scheduling.'});
 				}
 			}
-			return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, publicationDestinations: true}, group: group ? groupView(group) : null, ...(selected ? {groups: eligible.map(groupView)} : {}), drafts};
+			return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true}, group: group ? groupView(group) : null, ...(selected ? {groups: eligible.map(groupView)} : {}), drafts};
 		}
 	};
 }

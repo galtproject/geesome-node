@@ -7,6 +7,19 @@ import createApiModule from '../app/modules/api/index.js';
 import {closeHttpServer} from '../app/httpServer.js';
 
 describe('app bootstrap cleanup', () => {
+	it('normalizes legacy publication module config without duplicate initialization or stop', async () => {
+		const loaded = [], stopped = [];
+		const app = await createApp({modules: ['localClient', 'socNetPublishing'], skipFrontendStorage: true,
+			storageConfig: {jsNode: {pass: 'fixture', salt: 'fixture'}}}, {loadModule: async name => {
+			loaded.push(name);return {stop: async () => {stopped.push(name);}};
+		}});
+		assert.equal(loaded.filter(name => name === 'socNetPublishing').length, 1);
+		assert(!loaded.includes('localClient'));
+		assert.equal(app.ms.localClient, app.ms.socNetPublishing);
+		app.checkModules(['localClient', 'socNetPublishing']);
+		await app.stop();assert.equal(stopped.filter(name => name === 'socNetPublishing').length, 1);
+		assert(!stopped.includes('localClient'));
+	});
 	it('rejects with the original module error after stopping initialized modules in lifecycle order', async () => {
 		const initializationError = new Error('third_module_failed');
 		const stopOrder: string[] = [];

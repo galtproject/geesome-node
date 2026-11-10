@@ -1,3 +1,12 @@
+## Server publishing and canonical naming (#1572)
+
+The implementation module is now `socNetPublishing`; legacy `localClient` config
+and app.ms alias remain compatible and initialize/stop only once. Canonical API:
+`/user/social-publications`; `/user/local-publications` is the same-handler legacy
+alias. Server destinations for Bluesky, Discord and Telegram use v5 producer
+digests, private server account bindings and the same queue. Client/v1–v4 contracts
+are unchanged. See [module operation/setup](../../app/modules/socNetPublishing/docs/overview.md).
+
 # Local Social Publishing Plan
 
 Status: node queue, private outbox compose/draft APIs and provider adapters are

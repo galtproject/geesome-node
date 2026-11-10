@@ -4,8 +4,8 @@ import sharp from 'sharp';
 import {IGeesomeApp} from '../app/interface.js';
 import {CorePermissionName} from '../app/modules/database/interface.js';
 import {PostStatus} from '../app/modules/group/interface.js';
-import {preparedMediaDigest, imageLimit} from '../app/modules/localClient/imagePreparation.js';
-import {publicationDestinationDigest, publicationDigest} from '../app/modules/localClient/producer.js';
+import {preparedMediaDigest, imageLimit} from '../app/modules/socNetPublishing/imagePreparation.js';
+import {publicationDestinationDigest, publicationDigest} from '../app/modules/socNetPublishing/producer.js';
 
 describe('private local publication outbox integration', function () {
 	this.timeout(90000);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-import {encodeSocialImage, preparedMediaDigest, validatePreparedPublication, imageLimit, socialImageMaxEdge, isPublicationJpeg} from '../app/modules/localClient/imagePreparation.js';
-import {publicationDigest} from '../app/modules/localClient/producer.js';
+import {encodeSocialImage, preparedMediaDigest, validatePreparedPublication, imageLimit, socialImageMaxEdge, isPublicationJpeg} from '../app/modules/socNetPublishing/imagePreparation.js';
+import {publicationDigest} from '../app/modules/socNetPublishing/producer.js';
 
 describe('local publication image preparation', function () {
 	this.timeout(90000);

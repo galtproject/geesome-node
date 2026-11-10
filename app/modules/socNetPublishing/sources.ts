@@ -16,7 +16,7 @@ export function getSourceMethods(app, helpers) {
 	const initializations = new Map();
 	const {Group, Post} = app.ms.database?.models || {};
 	return {
-		async listSources(userId, query = {}) {
+		async listSources(userId, query: any = {}) {
 			const limit = boundedInteger(query.limit ?? 20, 1, 100);
 			const offset = boundedInteger(query.offset ?? 0, 0, 1000000);
 			let ids;

@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {Sequelize} from 'sequelize';
-import createModels from '../app/modules/localClient/models.js';
-import {getModule, normalizeRequest} from '../app/modules/localClient/index.js';
-import {publicationClientId} from '../app/modules/localClient/destinations.js';
-import registerApi from '../app/modules/localClient/api.js';
+import createModels from '../app/modules/socNetPublishing/models.js';
+import {getModule, normalizeRequest} from '../app/modules/socNetPublishing/index.js';
+import {publicationClientId} from '../app/modules/socNetPublishing/destinations.js';
+import registerApi from '../app/modules/socNetPublishing/api.js';
 import databaseConfig from '../app/modules/database/config.js';
 import {CorePermissionName} from '../app/modules/database/interface.js';
 import {GroupType, PostStatus} from '../app/modules/group/interface.js';
-import {publicationDestinationDigest, publicationDigest} from '../app/modules/localClient/producer.js';
+import {publicationDestinationDigest, publicationDigest} from '../app/modules/socNetPublishing/producer.js';
 
 describe('local publication queue', function () {
 	this.timeout(30000);
@@ -470,17 +470,17 @@ describe('local publication queue', function () {
 describe('local publication API authorization', () => {
 	it('requires publishing scope and user group permission on all operations', async () => {
 		const routes = new Map(), calls = [];
-		const module = Object.fromEntries(['createJob','listJobs','claimJob','reportResult','cancelJob','compose','getOutbox','listSources','createSource','listDestinations','registerDestinations','claimDestinationJob','disableDestination'].map(name => [name, async (...args) => {calls.push(args); return null;} ]));
+		const module = Object.fromEntries(['createJob','listJobs','claimJob','reportResult','cancelJob','compose','getOutbox','listSources','createSource','listDestinations','registerDestinations','claimDestinationJob','disableDestination','setupServerDestination'].map(name => [name, async (...args) => {calls.push(args); return null;} ]));
 		let permission = true;
 		registerApi({ms: {api: {
 			onAuthorizedPost: (path, handler) => routes.set(`POST ${path}`, handler),
 			onAuthorizedGet: (path, handler) => routes.set(`GET ${path}`, handler)
 		}}, checkUserCan: async (userId, name) => {assert.equal(name, CorePermissionName.UserGroupManagement); if (!permission) {throw new Error('not_permitted');}}} as any, module as any);
-		assert.equal(routes.size, 13);
-		for (const handler of routes.values()) {
+		assert.equal(routes.size, 30);
+		for (const [path, handler] of routes.entries()) {
 			const req = {user: {id: 7}, apiKey: {id: 1, scopes: ['assets:write']}, body: {}, query: {}, params: {jobId: 1}};
 			await assert.rejects(handler(req, {send() {}}), {code: 'insufficient_scope'});
-			req.apiKey.scopes = ['publishing:local', 'assets:write'];
+			req.apiKey.scopes = ['publishing:local', 'assets:write', 'publishing:manage'];
 			permission = false;
 			await assert.rejects(handler(req, {send() {}}), /not_permitted/);
 			permission = true;

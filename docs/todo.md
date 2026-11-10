@@ -446,6 +446,10 @@ Verification:
 <!-- /todo-section -->
 
 <!-- todo-section: local-social-publishing -->
+
+Server execution and canonical socNetPublishing naming are implemented in #1572;
+see [implemented work](implemented.md#server-social-publishing-and-canonical-api-1572).
+Authorized live-provider rollout remains an operator task.
 ## Local Social Publishing
 
 Goal: keep scheduled jobs in the node while social accounts and execution stay

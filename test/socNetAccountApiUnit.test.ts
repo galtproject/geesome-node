@@ -51,7 +51,8 @@ describe("social network accounts api", function () {
 					username: "alice",
 					apiKey: "secret-api-key",
 					accessToken: "secret-access-token",
-					sessionKey: "secret-session-key"
+					sessionKey: "secret-session-key",
+					serverCredentialsEncrypted: "secret-server-envelope"
 				}];
 			}
 		});
@@ -76,6 +77,7 @@ describe("social network accounts api", function () {
 		assert.equal(accounts[0].apiKey, undefined);
 		assert.equal(accounts[0].accessToken, undefined);
 		assert.equal(accounts[0].sessionKey, undefined);
+		assert.equal(accounts[0].serverCredentialsEncrypted, undefined);
 		assert.equal(accounts[0].hasApiKey, true);
 		assert.equal(accounts[0].hasAccessToken, true);
 		assert.equal(accounts[0].hasSessionKey, true);

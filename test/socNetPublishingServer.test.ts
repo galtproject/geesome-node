@@ -1,0 +1,118 @@
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {Sequelize} from 'sequelize';
+import config from '../app/modules/database/config.js';
+import helpers from '../app/helpers.js';
+import createModels from '../app/modules/socNetPublishing/models.js';
+import createAccounts from '../app/modules/socNetAccount/models.js';
+import {getModule} from '../app/modules/socNetPublishing/index.js';
+import {getModule as accountModule} from '../app/modules/socNetAccount/index.js';
+import {serverPublicationDigest} from '../app/modules/socNetPublishing/producer.js';
+import startCron from '../app/modules/socNetPublishing/cron.js';
+import registerApi from '../app/modules/socNetPublishing/api.js';
+import {getApiKeyScopes} from '../app/modules/api/integrationScopes.js';
+import {CorePermissionName} from '../app/modules/database/interface.js';
+import {GroupType, PostStatus} from '../app/modules/group/interface.js';
+
+describe('server social publishing foundation', function () {
+	this.timeout(30000);
+	let sequelize, models, app, module, published, outcome, group, identity;
+	const schema = `server_publications_${randomUUID().replaceAll('-', '')}`;
+	const setup = (extra = {}) => ({requestKey: 'telegram-main', network: 'telegram', label: 'Server Telegram', sourceGroupId: 2, account: {botToken: 'fixture-bot-secret'}, target: {chatId: '-12345'}, ...extra});
+	before(async () => {
+		sequelize = new Sequelize({...config, database: process.env.DATABASE_NAME || 'geesome_test', logging: false, pool: {max: 2}, define: {schema}} as any);
+		await sequelize.createSchema(schema, {});
+		models = await createModels(sequelize);
+		await createAccounts(sequelize);
+	});
+	after(async () => { await sequelize?.dropSchema(schema, {cascade: true}); await sequelize?.close(); });
+	beforeEach(async () => {
+		await models.PublicationJob.destroy({where: {}}); await models.PublicationDestination.destroy({where: {}}); await sequelize.models.socNetAccount.destroy({where: {}});
+		published = [];outcome = 'posted';identity = 'bot:12345';
+		group = {id: 2, creatorId: 1, type: GroupType.Channel, isPublic: false, isOpen: false};
+		app = {config: {apiConfig: {publicUrl: 'https://node.example'}}, ms: {database: {sequelize, models: {}}, group: {
+			getGroup: async () => group,
+			getPost: async () => ({id: 1, groupId: 2, userId: 1, status: PostStatus.Published, group}),
+			canEditPostInGroup: async userId => userId === 1,
+			getPostContentData: async () => [{type: 'text', text: 'Frozen server text'}]
+		}}, encryptTextWithAppPass: text => helpers.encryptText(text, 'test-app-pass'), decryptTextWithAppPass: text => helpers.decryptText(text, 'test-app-pass')};
+		module = getModule(app, models, {providers: {
+			verify: async (_network, _credentials, target) => ({accountIdentity: identity, target}),
+			publish: async (network, account, payload) => {published.push({network, account, payload}); if (outcome !== 'posted') {throw Object.assign(new Error('provider-secret must not be logged'), {ambiguous: outcome === 'unknown'});} return {remoteId: '42', remoteUrl: 'https://t.me/fixture/42'};}
+		}});
+	});
+	async function queued(destination, extra = {}) {
+		return models.PublicationJob.create({userId: 1, postId: 1, requestKey: randomUUID(), requestHash: 'a'.repeat(64), destinationId: destination.id,
+			executionMode: 'server', serverAccountId: destination.account, accountIdentity: destination.accountIdentity, localAccountId: null, clientId: null,
+			network: 'telegram', target: {chatId: '-12345', sensitive: false}, payload: {text: 'Frozen server text', attachments: []}, scheduledAt: new Date(0), status: 'queued', ...extra});
+	}
+	async function registered(extra = {}) {
+		const result = await module.setupServerDestination(1, setup({enabled: true, ...extra}));
+		const row = await models.PublicationDestination.findByPk(result.destination.id);
+		return {...result.destination, account: row.socNetAccountId};
+	}
+	it('encrypts write-only credentials, defaults disabled, reuses account and preserves destination identity', async () => {
+		const first = await module.setupServerDestination(1, setup());assert.equal(first.destination.enabled, false);
+		assert(!JSON.stringify(first).includes('fixture-bot-secret'));assert.equal(first.destination.clientId, undefined);assert.equal(first.destination.socNetAccountId, undefined);
+		const account = await sequelize.models.socNetAccount.findOne();assert(!account.serverCredentialsEncrypted.includes('fixture-bot-secret'));
+		assert.equal((await module.setupServerDestination(1, setup({enabled: true}))).destination.id, first.destination.id);
+		assert.equal(await sequelize.models.socNetAccount.count(), 1);
+		identity = 'bot:99999';await assert.rejects(module.setupServerDestination(1, setup()), {status: 409});
+		const accounts = accountModule(app, {Account: sequelize.models.socNetAccount});
+		await assert.rejects(accounts.createOrUpdateAccount(1, {socNet: 'telegram', accountId: 'bot:12345', username: 'replacement'}), /dedicated_setup/);
+		await assert.rejects(accounts.createOrUpdateAccount(1, {socNet: 'telegram', accountId: 'bot:99999', serverCredentialsEncrypted: 'forged'}), /dedicated_setup/);
+	});
+	it('isolates server claims, frozen payload, result permissions and outcome state', async () => {
+		const destination = await registered();const job = await queued(destination);
+		assert.equal(await module.claimJob(1, {accounts: [{network: 'telegram', localAccountId: 'anything'}]}), null);
+		assert.equal(await module.claimDestinationJob(1, 'key:1', {destinationIds: [destination.id]}), null);
+		await models.PublicationDestination.update({target: {chatId: '-77777'}}, {where: {id: destination.id}});
+		await module.processServerQueue();assert.equal(published.length, 1);assert.equal(published[0].payload.target.chatId, '-12345');assert.equal((await job.reload()).status, 'posted');
+		assert.equal((await module.listJobs(1))[0].serverAccountId, undefined);
+		await assert.rejects(module.reportResult(1, job.id, {claimToken: job.claimToken, status: 'posted', remoteId: '42'}, 'key:1'), {status: 403});
+	});
+	it('serializes concurrent worker ticks and never republishes unknown or processing outcomes', async () => {
+		const destination = await registered();const job = await queued(destination);outcome = 'unknown';
+		await Promise.all([module.processServerQueue(), module.processServerQueue()]);assert.equal(published.length, 1);assert.equal((await job.reload()).status, 'needs_review');
+		assert(!job.error.includes('provider-secret'));await module.processServerQueue();assert.equal(published.length, 1);
+		await queued(destination, {status: 'processing'});await module.processServerQueue();assert.equal(published.length, 1);
+	});
+	it('retries only database result after acknowledgement loss', async () => {
+		const destination = await registered();await queued(destination);const report = module.reportResult.bind(module);let failed = false;
+		module.reportResult = async (...args) => {if (!failed) {failed = true;throw Error('db unavailable');}return report(...args);};
+		await assert.rejects(module.processServerQueue());assert.equal(published.length, 1);await module.processServerQueue();assert.equal(published.length, 1);
+	});
+	it('keeps disabled/missing credentials queued and prevents source privacy changes', async () => {
+		const destination = await registered();const job = await queued(destination);await module.disableDestination(1, destination.id, {});
+		await module.processServerQueue();assert.equal((await job.reload()).status, 'queued');assert.equal(published.length, 0);
+		await models.PublicationDestination.update({enabled: true}, {where: {id: destination.id}});app.decryptTextWithAppPass = () => {throw Error('wrong app key');};
+		await module.processServerQueue();assert.equal((await job.reload()).status, 'queued');assert.equal(published.length, 0);
+		app.decryptTextWithAppPass = text => helpers.decryptText(text, 'test-app-pass');group.isPublic = true;
+		await module.processServerQueue();await module.processServerQueue();assert.equal((await job.reload()).status, 'failed');assert.equal(published.length, 0);
+	});
+	it('does not starve healthy jobs behind disabled destinations or bad encrypted accounts', async () => {
+		const bad = await registered();for (let i=0;i<25;i++) {await queued(bad);}
+		await module.disableDestination(1, bad.id, {});
+		const healthy = await registered({requestKey: 'healthy'});const job = await queued(healthy);await module.processServerQueue();assert.equal((await job.reload()).status, 'posted');
+		await models.PublicationDestination.update({enabled: true}, {where: {id: bad.id}});
+		// Both destinations share a verified account, so use a separate corrupt account for the blocked batch.
+		const broken = await sequelize.models.socNetAccount.create({userId: 1, socNet: 'telegram', accountId: 'bot:66666', serverCredentialsEncrypted: 'corrupt'});
+		await models.PublicationDestination.update({socNetAccountId: broken.id, accountIdentity: 'bot:66666'}, {where: {id: bad.id}});
+		await models.PublicationJob.update({serverAccountId: broken.id, accountIdentity: 'bot:66666'}, {where: {destinationId: bad.id}});
+		const next = await queued(healthy);await module.processServerQueue();await module.processServerQueue();assert.equal((await next.reload()).status, 'posted');
+	});
+	it('keeps startup paused and uses stable v5 canonical digest', () => {
+		assert.equal(startCron(app, module), null);
+		const payload = {text: 'hello', attachments: [{storageId: 'QmOne', mimeType: 'image/jpeg'}]};
+		assert.equal(serverPublicationDigest(1, 'bot:12345', 'telegram', payload, {chatId: '-123', sensitive: false}), serverPublicationDigest(1, 'bot:12345', 'telegram', payload, {sensitive: false, chatId: '-123'}));
+	});
+	it('requires explicit management scope on canonical and legacy setup endpoints', async () => {
+		assert(!getApiKeyScopes({permissions: JSON.stringify([CorePermissionName.UserGroupManagement])} as any).includes('publishing:manage'));
+		const routes = new Map();registerApi({ms: {api: {onAuthorizedPost: (path, handler) => routes.set(path, handler), onAuthorizedGet() {}}}, checkUserCan: async () => {}} as any, module);
+		for (const prefix of ['social-publications','local-publications']) {
+			const handler = routes.get(`user/${prefix}/server-destinations`);assert(handler);
+			await assert.rejects(handler({user: {id: 1}, apiKey: {scopes: ['publishing:local']}, body: setup()}, {send() {}}), {code: 'insufficient_scope'});
+			await handler({user: {id: 1}, apiKey: {scopes: ['publishing:manage']}, body: setup()}, {send(value) {assert.equal(value.destination.executionMode, 'server');}});
+		}
+	});
+});

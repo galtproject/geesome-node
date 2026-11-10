@@ -78,6 +78,7 @@ const migrationDirs: Record<MigrationModule, string> = {
 };
 
 const coveredMigrations: CoveredMigration[] = [
+  {module: 'database', file: '20261110001000-server-social-publishing.cjs', verifies: ['server publication account binding columns', 'server managed credential storage', 'server destination key uniqueness']},
   {module: 'database', file: '20261110000000-bind-publication-destinations.cjs', verifies: ['publication destination executor snapshot columns']},
   {
     module: 'database',
@@ -243,6 +244,10 @@ const coveredMigrations: CoveredMigration[] = [
 ];
 
 const expectedColumns: ExpectedColumn[] = [
+  {table: 'publicationJobs', columns: ['serverAccountId'], type: 'integer'},
+  {table: 'publicationJobs', columns: ['accountIdentity'], type: 'character varying'},
+  {table: 'publicationDestinations', columns: ['accountIdentity'], type: 'character varying'},
+  {table: 'socNetAccounts', columns: ['serverCredentialsEncrypted'], type: 'text'},
   {table: 'publicationJobs', columns: ['destinationId'], type: 'integer'},
   {table: 'publicationJobs', columns: ['clientId'], type: 'character varying'},
   {table: 'publicationJobs', columns: ['executionMode'], type: 'character varying'},
@@ -301,6 +306,7 @@ const expectedColumns: ExpectedColumn[] = [
 ];
 
 const expectedIndexes: ExpectedIndex[] = [
+  {name: 'publication_destinations_server_key_unique', table: 'publicationDestinations', columns: ['userId', 'executionMode', 'localKey'], unique: true, predicateIncludes: ["'server'"]},
   {name: 'payments_hd_accounts_resource_unique', table: 'payments_crypto_hd_accounts', columns: ['walletFingerprint', 'readerId', 'resourceId'], unique: true},
   {name: 'payments_crypto_hd_accounts_wallet_fingerprint_index', table: 'payments_crypto_hd_accounts', columns: ['walletFingerprint', 'index'], unique: true},
   {name: 'contents_large_preview_storage_idx', table: 'contents', columns: ['largePreviewStorageId']},
