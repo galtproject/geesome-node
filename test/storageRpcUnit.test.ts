@@ -67,16 +67,16 @@ describe('bounded storage RPC and cleanup recovery', () => {
 
 
 describe('cleanup batch scheduling', () => {
-    it('accumulates idle receipts and defers behind foreground work only until the durable maximum', async () => {
+    it('accumulates idle receipts without age or explicit retry bypassing foreground work', async () => {
         const {cleanupBatchReady, cleanupIdleWaitMs, cleanupMaxWaitMs} = await import('../app/modules/staticSiteGenerator/cleanupBatch.js');
         const start = Date.now();
         const rows = Array.from({length: 20}, (_, id) => ({id, result: {cleanupQueuedAt: new Date(start).toISOString()}}));
         assert.equal(cleanupBatchReady(rows, false, start), false);
         assert.equal(cleanupBatchReady(rows, false, start + cleanupIdleWaitMs), true);
         assert.equal(cleanupBatchReady(rows, true, start + cleanupIdleWaitMs), false);
-        assert.equal(cleanupBatchReady(structuredClone(rows), true, start + cleanupMaxWaitMs), true, 'restart uses persisted queue times');
+        assert.equal(cleanupBatchReady(structuredClone(rows), true, start + cleanupMaxWaitMs), false, 'healthy disk never forces foreground downtime');
         assert.equal(cleanupBatchReady([], true, start + cleanupMaxWaitMs), false);
-        assert.equal(cleanupBatchReady([{result: {cleanupRetry: {force: true}}}], true, start), true);
+        assert.equal(cleanupBatchReady([{result: {cleanupRetry: {force: true}}}], true, start), false);
     });
 });
 

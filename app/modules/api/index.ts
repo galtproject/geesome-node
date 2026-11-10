@@ -1,3 +1,4 @@
+import {beginStorageActivity} from '../staticSiteGenerator/cleanupActivity.js';
 import _ from 'lodash';
 import morgan from 'morgan';
 import express from 'express';
@@ -46,6 +47,7 @@ async function getModule(app: IGeesomeApp, version, port, host, admissionTimeout
 			throw new ApiProblemError(400, 'storage_admission_budget_invalid', 'Storage admission budget invalid',
 				'X-Geesome-Storage-Admission-Ms must be an integer from 1 through 3000.');
 		}
+		const finishActivity = beginStorageActivity(app);
 		const requestAdmissionMs = header === undefined ? admissionTimeoutMs : Math.min(Number(header), admissionTimeoutMs);
 		const controller = new AbortController();
 		const abandon = () => controller.abort();
@@ -72,6 +74,7 @@ async function getModule(app: IGeesomeApp, version, port, host, admissionTimeout
 			}
 			throw error;
 		} finally {
+			finishActivity();
 			req.removeListener('aborted', abandon);
 			res.removeListener('close', abandon);
 		}

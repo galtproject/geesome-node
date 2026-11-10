@@ -50,6 +50,7 @@ export default function (app, service) {
      * @apiParam {String} id Owned operation-queue ID.
      * @apiSuccess {String} status preparing, rendered, retiring, gc_pending, cleanup_failed, complete or complete_with_retained.
      * @apiSuccess {Object} result Saved image mapping, revision, cutover and per-file cleanup/GC receipts.
+     * @apiSuccess {Object} [result.cleanupTiming] Persisted waiting, retirement and native gc phases: startedAt, finishedAt, durationMs, attempts and outcome; failed phases include error. Queue wait is distinct from GC execution.
      */
     app.ms.api.onAuthorizedGet('user/site-replacements/:id', async (req, res) => {
         await service.authorize(req.user.id, req.apiKey.id);
@@ -65,7 +66,7 @@ export default function (app, service) {
      * @apiBody {Number} postId Owned upstream Post referencing the replacement root through text/uri-list Content, or the legacy membership page URL. Other IPFS link attachments are allowed.
      * @apiBody {Object} consumer Durable microwave-girls alias acknowledgment: kind, receiptId and mappingsHash; also bound in the Post metadata.
      * @apiBody {Boolean} [retainOriginalForExternalLinks=false] Preserve the original Page/archive/source references while external links await replacement. This keeps the frozen deletion policy unchanged, verifies ordinary cutover/archive proof, and finishes complete_with_retained without admitting retirement. The true flag is frozen in the finalization hash; false/absent preserve the older hash. No later cleanup-release API is provided.
-     * @apiDescription Verifies saved renderer receipt, ordered files, archive readiness, Post site-root reference, legacy image mapping when applicable, and consumer acknowledgment. The deletion flag is frozen at admission. Cleanup accumulates for one minute when idle or up to fifteen minutes behind foreground saves/renders/archives, then runs in a shared batch. Scheduling survives restarts and explicit cleanup retries bypass accumulation. Completion of GC is reported separately from publication success. Replays must match the original finalization.
+     * @apiDescription Verifies saved renderer receipt, ordered files, archive readiness, Post site-root reference, legacy image mapping when applicable, and consumer acknowledgment. The deletion flag is frozen at admission. Cleanup batches wait for one minute of real storage inactivity with no pending uploads/saves/renders/archives. Task age and retries do not bypass quiet time on healthy disks. An explicitly configured low-disk threshold may override quiet scheduling after accumulation; deletion fences remain enforced. Scheduling receipts and phase timings survive restarts, with a new-process quiet cooldown. Completion of GC is reported separately from publication success. Replays must match the original finalization.
      * @apiSuccess {String} status complete, retiring, or complete_with_retained for an explicit external-link hold.
      * @apiError image_replacement_archive_not_ready Replacement archive is not complete.
      * @apiError image_replacement_publication_changed Post no longer matches the frozen replacement.

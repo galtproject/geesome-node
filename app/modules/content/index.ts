@@ -1,3 +1,4 @@
+import {DurableUploads} from './durableUploads.js';
 import {imageResaveSpan} from './resaveTimings.js';
 import {ImagePreviewDriver, imagePreviewEdge} from '../drivers/preview/image.js';
 import fs from "fs";
@@ -119,6 +120,7 @@ export function getContentServingSecurityHeaders(mimeType?: string) {
 export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
 	const resave = new ContentResave(app);
+	Object.assign(module, {durableUploads: new DurableUploads(app)});
 	Object.assign(module, {publicationImages: resave, requestResave: resave.requestResave.bind(resave),
 		processResaveQueue: resave.processQueue.bind(resave)});
 	(await import('./api.js')).default(app, module);

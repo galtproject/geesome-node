@@ -1398,3 +1398,13 @@ retirement. The 501 application/test files matched fingerprint
 `3ef233ddc08fee68c3d74af111c2e77b0bda041c0756492550c6164e21d73b1d`;
 subsequent edits only aligned API comment documentation. Focused PostgreSQL and
 hold/RPC tests also passed (29 cases). API docs and the security inventory passed.
+
+## Interactive uploads during storage cleanup (#1568)
+
+Cleanup batches wait for real writer inactivity and empty foreground queues;
+healthy disks no longer force GC by receipt age or explicit retry. Replacement
+receipts expose separate waiting, retirement and native-GC timings. Multipart
+uploads use bounded persistent local staging and ordinary async receipts, then
+execute under the existing deletion fence. Restart resumes unstarted jobs and
+quarantines unknown imports without replay. See [operations and rollout](storage-idle-gc-uploads.md)
+and [implementation/verification plan](storage-idle-gc-upload-plan.md).

@@ -1,3 +1,4 @@
+import {beginStorageActivity} from './modules/staticSiteGenerator/cleanupActivity.js';
 import {assertStorageWritable} from './modules/asyncOperation/storageHolds.js';
 import {problem} from './modules/content/publicationInput.js';
 import {AsyncLocalStorage} from 'node:async_hooks';
@@ -294,6 +295,7 @@ export async function withStorageFence<T>(app, mode: 'shared' | 'exclusive', run
         pendingAdmission.admitted = true;
     }
     const heldAt = performance.now();
+    const finishActivity = mode === 'shared' ? beginStorageActivity(app) : () => {};
     const context: any = {app, mode, users: 1, peakUsers: 1, active: true, signal: controller.signal, outcome: 'finished'};
     context.assertHeld = async () => {
         if (broken || !context.active) {
@@ -312,6 +314,7 @@ export async function withStorageFence<T>(app, mode: 'shared' | 'exclusive', run
             return;
         }
         context.active = false;
+        finishActivity();
         try {
             if (!broken) {
                 await connection.query(`SELECT pg_advisory_unlock${suffix}($1, $2)`, [namespace, storageKey]);
