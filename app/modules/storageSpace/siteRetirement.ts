@@ -4,6 +4,7 @@ import {storageRpc, gcTimeoutMs} from '../storage/rpcDeadline.js';
 import {Op} from 'sequelize';
 import {imageFiles, plain, sameCid, variants} from '../../storageIdentity.js';
 import {problem} from '../content/publicationInput.js';
+import {cleanupPhase} from '../staticSiteGenerator/cleanupTiming.js';
 
 
 function absent(error) {
@@ -260,12 +261,14 @@ export async function collectRetiredBlocks(service, rows, assertHeld) {
     let collectedBlocks = 0;
     const {before, after} = await storageRpc('gc', {}, async options => {
         const before = await node.repo.stat(options);
-        for await (const item of node.repo.gc(options)) {
-            if (item.err) {
-                throw new Error(String(item.err));
+        await cleanupPhase(rows, 'gc', async () => {
+            for await (const item of node.repo.gc(options)) {
+                if (item.err) {
+                    throw new Error(String(item.err));
+                }
+                collectedBlocks++;
             }
-            collectedBlocks++;
-        }
+        }, Date.now, assertHeld);
         await assertHeld();
         return {before, after: await node.repo.stat(options)};
     }, gcTimeoutMs);

@@ -112,6 +112,7 @@ function createSocNetAccountModule(accounts: any[] = []) {
 		}
 	} as unknown as IGeesomeApp, {
 		Account: {
+			sequelize: {transaction: async fn => fn({LOCK: {UPDATE: 'UPDATE'}})},
 			findOne: async ({where = {}} = {}) => {
 				return rows.find(account => matchesSocNetAccountWhere(account, where)) || null;
 			},

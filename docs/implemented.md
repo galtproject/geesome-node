@@ -12,6 +12,46 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Server social publishing and canonical API (#1572)
+
+`socNetPublishing` now owns the existing queue for both local and server
+execution. The canonical HTTP path is `/user/social-publications`; old paths,
+module configuration and client/legacy receipts remain compatible. Bluesky,
+Discord and Telegram server adapters use frozen payloads and owned byte loading.
+Read-only setup verifies provider identity and stores an app-pass encrypted
+credential field in socNetAccount. Explicit management scope is separate from
+producer enqueue permission. The existing background-worker lifecycle starts
+paused unless configured; unknown outcomes never automatically resend.
+
+Setup, rollover and rollback: [module guide](../app/modules/socNetPublishing/docs/overview.md).
+Verification: 77 targeted bootstrap/queue/provider/account tests, released-schema
+upgrade test and 25 actual Node/PostgreSQL/Kubo HTTP cases pass; a final eight-case
+config/redaction/upgrade subset passes. The HTTP test boots the worker enabled
+with default module order and mocks only provider transport, confirming private
+JPEG byte delivery, frozen SFW route, client/legacy isolation, unknown outcomes
+and management-only manual settlement. apiDoc/security/scalability checks pass.
+Migration audit: 297 pass, two unrelated missing file-catalog indexes in the
+model-sync test fixture, one skip; all new columns and server unique index pass.
+Full suite was not run; repository-wide type checking retains unrelated existing
+errors, while targeted publishing/account source checks add none. No live send
+or production deployment was performed.
+
+## Explicit client publication destinations (#1570)
+
+Node now keeps a bounded owner-only safe destination catalog, with executor
+identity derived from a dedicated API key and optional source-group binding.
+Compose freezes endpoint/account/client and verifies the v4 producer digest;
+legacy claims cannot take destination jobs. Disabled destinations block claims
+but still accept the original client's result. Owners can retire a lost client's
+metadata without transferring credentials. Server execution remains disabled.
+
+See [the contract and upgrade rules](plans/local-social-publishing.md#explicit-destinations-1570).
+Verified with 36 PostgreSQL-backed queue/API/migration tests, 23 actual-node
+HTTP outbox cases using disposable PostgreSQL and Kubo, and a final two-case HTTP
+rerun after the source-group guard. The isolated released-job migration audit
+passes its four applicable checks; generated apiDoc and security inventory pass.
+No real social publication or production update is part of this change.
+
 ## Reuse owned publication images (#1546)
 
 Private group compose now accepts owned local Content references as well as
@@ -1345,6 +1385,33 @@ Docker run of the earlier implementation snapshot reported a two-node chat
 attachment failure; it is not a passing final-source full-suite result and its
 baseline cause has not been established.
 
+
+## Bounded storage admission and replacement receipt reads (#1563)
+
+HTTP writer admission is bounded to three seconds and abandoned waits never run
+a late writer callback. Existing authorized matching replacement receipts bypass
+writer admission; new snapshots retain the inner shared fence. Accepted and
+detached writers keep full-lifetime GC protection. Opt-in bounded storage-fence
+events distinguish pool wait, lock wait and hold durations with safe correlation.
+No schema, request-key or existing-receipt migration is required. Durable worker
+stages and reserved GC scheduling remain tracked follow-up work.
+
+
+## GC-safe pinned imports (#1566)
+
+The backend consumes storage-only library commit f990ffd from the existing
+420754a consumer base. Kubo file, directory and JSON DAG-CBOR imports pin during
+import and confirm a matching recursive root before returning. RPC deadlines and
+fence-loss signals cover import and confirmation. Existing CIDs, immutable
+publication and explicit retirement policy are preserved. Application exclusion
+remains for MFS and reference/deletion races; no new lease framework is added.
+
+Verification: library 52 passing / 2 pending; final affected-path Docker suite
+49 passing / 3 pending, including native GC concurrency and pin confirmation.
+The first broad run's three old admission expectations were updated and passed;
+an unbounded multipart fixture wait was corrected and passed. Two chat attachment
+failures reproduced independently on the pre-change admission source.
+
 ## Retained external gallery links (#1557, follow-up to #1554)
 
 Guarded restart recovery can establish an explicit external-link hold before
@@ -1371,3 +1438,13 @@ retirement. The 501 application/test files matched fingerprint
 `3ef233ddc08fee68c3d74af111c2e77b0bda041c0756492550c6164e21d73b1d`;
 subsequent edits only aligned API comment documentation. Focused PostgreSQL and
 hold/RPC tests also passed (29 cases). API docs and the security inventory passed.
+
+## Interactive uploads during storage cleanup (#1568)
+
+Cleanup batches wait for real writer inactivity and empty foreground queues;
+healthy disks no longer force GC by receipt age or explicit retry. Replacement
+receipts expose separate waiting, retirement and native-GC timings. Multipart
+uploads use bounded persistent local staging and ordinary async receipts, then
+execute under the existing deletion fence. Restart resumes unstarted jobs and
+quarantines unknown imports without replay. See [operations and rollout](storage-idle-gc-uploads.md)
+and [implementation/verification plan](storage-idle-gc-upload-plan.md).

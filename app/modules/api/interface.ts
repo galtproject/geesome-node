@@ -1,6 +1,15 @@
 import {IUser, IUserApiKey} from "../database/interface.js";
 import {Stream} from "stream";
 
+export interface StorageRouteOptions {
+	storageReadOnly?: boolean;
+	// The handler must fence every mutation itself; permits authorized receipt reads.
+	storageFence?: 'handler';
+	// Audited handler: normalization/auth/receipt reads may precede its first
+	// fence, but no business mutation does. Never set on arbitrary handlers.
+	storageAdmissionRejectionSafe?: boolean;
+}
+
 export default interface IGeesomeApiModule {
 	port;
 
@@ -14,11 +23,11 @@ export default interface IGeesomeApiModule {
 
 	onUnversionHead(routeName: string, callback: (IApiModuleGetInput, IApiModuleCommonOutput) => any): any;
 
-	onPost(routeName: string, callback: (IApiModulePotInput, IApiModuleCommonOutput) => any, options?: {storageReadOnly?: boolean}): any;
+	onPost(routeName: string, callback: (IApiModulePotInput, IApiModuleCommonOutput) => any, options?: StorageRouteOptions): any;
 
 	onAuthorizedGet(routeName: string, callback: (IApiModuleGetInput, IApiModuleCommonOutput) => any): any;
 
-	onAuthorizedPost(routeName: string, callback: (IApiModulePotInput, IApiModuleCommonOutput) => any, options?: {storageReadOnly?: boolean}): any;
+	onAuthorizedPost(routeName: string, callback: (IApiModulePotInput, IApiModuleCommonOutput) => any, options?: StorageRouteOptions): any;
 
 	handleAuthResult(IApiModuleCommonOutput, user: IUser): Promise<any>;
 

@@ -30,7 +30,9 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
 
     /**
      * @api {post} /v1/user/save-file Save file
-     * @apiDescription Store file from browser by FormData class in "file" field. Other fields can be stored as key value.
+     * @apiDescription Accept one file into bounded durable local staging even during IPFS maintenance. async=true returns the ordinary asyncOperationId receipt after file and queue persistence; poll existing operation endpoints. Queued files resume after restart; interrupted imports report upload_outcome_unknown without automatic replay. Synchronous callers wait for the same queued execution. Owner/API key permissions and destination are rechecked during execution.
+     * @apiSuccess {Number} [asyncOperationId] Durable accepted upload receipt when async=true.
+     * @apiError (413) upload_staging_full Local staging or owner quota exhausted; file was not accepted.
      * @apiName UserSaveFile
      * @apiBody {Object} [driver] Use {name:"imageOptimize",module:"convert",params:{policy:"publication-jpeg95-v1",watermark:optionalImageWatermarkDriver}}. Saves JPEG quality 95 plus WebP previews without separate flags.
      * @apiGroup UserContent
@@ -52,36 +54,13 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      *     -F "path=/avatars/avatar.png"
      */
     app.ms.api.onAuthorizedPost('user/save-file', async (req, res) => {
-        const {files, fields: body} = await asyncBusboy(req.stream, {
-            headers: req.headers,
-            limits: {
-                fileSize: await app.getUserLimitRemained(req.user.id, UserLimitName.SaveContentSize)
-            }
-        });
-        if (body.imagePolicy !== undefined || body.optimize !== undefined) {
-            for (const file of files) {
-                file.destroy();
-                file.emitFinish();
-            }
-            throw new ApiProblemError(400, 'image_optimization_driver_required', 'Use the imageOptimize driver');
+        const uploads = contentModule['durableUploads'];
+        const accepted = await uploads.accept(req);
+        if (accepted.async) {
+            return res.send(accepted.receipt);
         }
-        const uploadFields = pick(body, [
-            'driver',
-            'groupId',
-            'folderId',
-            'path',
-            'async',
-            'chatAttachmentReservationId'
-        ]);
-        const options = {
-            userId: req.user.id,
-            userApiKeyId: req.apiKey.id,
-            ...uploadFields,
-            skipFileCatalog: Boolean(uploadFields.chatAttachmentReservationId)
-        };
-        const asyncOperationRes = await app.ms.asyncOperation.asyncOperationWrapper('content', 'saveData', [req.user.id, files[0], files[0].filename, options], options);
-        res.send(asyncOperationRes);
-    });
+        res.send(await uploads.wait(accepted.receipt, req, res));
+    }, {storageFence: 'handler'});
 
     /**
      * @api {post} /v1/user/save-prepared-image Upload prepared image and previews
@@ -377,6 +356,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
 
     /**
      * @api {post} /v1/content-list-by-storage-id Get user content list by storage ids
+     * @apiDescription Owned SQL metadata lookup; does not wait for storage writer capacity or GC.
      * @apiName UserContentListByStorageId
      * @apiGroup UserContent
      *
@@ -388,7 +368,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      */
     app.ms.api.onAuthorizedPost('content-list-by-storage-id', async (req, res) => {
         res.send(await contentModule.getContentByStorageIdListAndUserId(req.body.idList, req.user.id));
-    });
+    }, {storageReadOnly: true});
 
     /**
      * @api {get} /v1/content-stats/* Get stored content stats

@@ -6,28 +6,48 @@ import {IGeesomeApp} from '../../interface.js';
 import {ApiProblemError} from '../api/problem.js';
 import {getPublicApiContext} from '../api/publicUrls.js';
 import {PostStatus} from '../group/interface.js';
-import ILocalClientModule from './interface.js';
+import ISocNetPublishingModule from './interface.js';
+import {getServerAccountMethods} from './serverAccounts.js';
+import {createServerPublisher} from './serverPublisher.js';
+import {getDestinationMethods} from './destinations.js';
 import {getOutboxMethods} from './outbox.js';
 import {getSourceMethods, isOwnedQueueGroup} from './sources.js';
 
 const networks = ['threads', 'instagram', 'reddit', 'twitter', 'rule34xxx', 'bluesky', 'discord', 'telegram', 'patreon'];
 const statuses = ['queued', 'processing', 'posted', 'failed', 'needs_review', 'cancelled'];
 
-export default async function localClient(app: IGeesomeApp) {
+export default async function socNetPublishing(app: IGeesomeApp) {
 	app.checkModules(['api', 'database', 'group', 'asset']);
 	const models = await (await import('./models.js')).default(app.ms.database.sequelize);
 	const module = getModule(app, models);
 	(await import('./api.js')).default(app, module);
+	module.setCronWorker((await import('./cron.js')).default(app, module));
 	return module;
 }
 
-export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClientModule {
+export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestination}: any, options: any = {}): ISocNetPublishingModule {
 	const sequelize = PublicationJob.sequelize;
-	return {
-		...getOutboxMethods(app, PublicationJob, {normalizeRequest, snapshot, plain, problem, boundedInteger, groupIds: normalizeGroupIds, jobViews}),
+	const destinations = getDestinationMethods(PublicationDestination, {app, normalizeRequest, problem, boundedInteger, loadServerAccount: (userId, accountId, network, identity) => serverAccounts.loadServerAccount(userId, accountId, network, identity)});
+	const serverAccounts = getServerAccountMethods(app, PublicationDestination, {normalizeRequest, problem, boundedInteger}, options);
+	let cronWorker = null;
+	let publisher;
+	let serverScanCursor = null;
+	const module: ISocNetPublishingModule = {
+		...serverAccounts,
+		setCronWorker(worker) { cronWorker = worker; },
+		async stop() { await cronWorker?.stop(); cronWorker = null; },
+		async processServerQueue(input = {}) {
+			publisher ||= createServerPublisher(app, module, options);
+			return publisher.process(input);
+		},
+		listDestinations: destinations.listDestinations,
+		disableDestination: destinations.disableDestination,
+		registerDestinations: destinations.registerDestinations,
+		...getOutboxMethods(app, PublicationJob, {normalizeRequest, snapshot, plain, problem, boundedInteger, groupIds: normalizeGroupIds, jobViews, resolveDestination: destinations.resolveDestination, PublicationDestination}),
 		...getSourceMethods(app, {problem, boundedInteger}),
 		async flushDatabase() {
 			await PublicationJob.destroy({where: {}});
+			await PublicationDestination.destroy({where: {}});
 		},
 		async createJob(userId, input) {
 			const request = normalizeRequest(input);
@@ -55,6 +75,9 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 			const limit = boundedInteger(query.limit ?? 20, 1, 100);
 			const offset = boundedInteger(query.offset ?? 0, 0, 1000000);
 			const where: any = {userId};
+			if (query.destinationId !== undefined) {
+				where.destinationId = boundedInteger(query.destinationId, 1, Number.MAX_SAFE_INTEGER);
+			}
 			if (query.network !== undefined) {
 				if (!networks.includes(query.network)) {
 					throw problem(400, 'local_publication_network_invalid');
@@ -85,23 +108,92 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 			}
 			return jobViews(await PublicationJob.findAll({where, limit, offset, order: [['createdAt', 'DESC'], ['id', 'DESC']]}));
 		},
-		async claimJob(userId, input) {
+		async claimServerJob() {
+			const Account = app.ms.database?.sequelize?.models?.socNetAccount;
+			if (!Account) {
+				return null;
+			}
+			const quote = table => sequelize.getQueryInterface().queryGenerator.quoteTable(table.getTableName());
+			const eligible = literal(`(SELECT d."id" FROM ${quote(PublicationDestination)} d JOIN ${quote(Account)} a ON a."id"=d."socNetAccountId" AND a."userId"=d."userId" AND a."socNet"=d."network" AND a."accountId"=d."accountIdentity" WHERE d."enabled"=true AND d."executionMode"='server' AND a."serverCredentialsEncrypted" IS NOT NULL)`);
+			for (let checked = 0; checked < 20; checked++) {
+				const candidate = await PublicationJob.findOne({where: {executionMode: 'server', status: 'queued', destinationId: {[Op.in]: eligible}, scheduledAt: {[Op.lte]: new Date()}, ...(serverScanCursor ? {[Op.or]: [{scheduledAt: {[Op.gt]: serverScanCursor.scheduledAt}}, {scheduledAt: serverScanCursor.scheduledAt, id: {[Op.gt]: serverScanCursor.id}}]} : {})}, order: [['scheduledAt', 'ASC'], ['id', 'ASC']]});
+				if (!candidate) {
+					serverScanCursor = null;
+					return null;
+				}
+				serverScanCursor = {scheduledAt: candidate.scheduledAt, id: candidate.id};
+				const destination = await PublicationDestination.findOne({where: {id: candidate.destinationId, userId: candidate.userId, executionMode: 'server', enabled: true}});
+				if (!destination || destination.socNetAccountId !== candidate.serverAccountId || destination.accountIdentity !== candidate.accountIdentity) {
+					continue;
+				}
+				let account;
+				try {
+					account = await serverAccounts.loadServerAccount(candidate.userId, candidate.serverAccountId, candidate.network, candidate.accountIdentity);
+				} catch {
+					continue;
+				}
+				const job = await sequelize.transaction(async transaction => {
+					const enabled = await PublicationDestination.findOne({where: {id: destination.id, userId: candidate.userId, executionMode: 'server', enabled: true}, transaction, lock: transaction.LOCK.SHARE});
+					if (!enabled) {
+						return null;
+					}
+					const locked = await PublicationJob.findOne({where: {id: candidate.id, executionMode: 'server', status: 'queued'}, transaction, lock: transaction.LOCK.UPDATE, skipLocked: true});
+					if (!locked) {
+						return null;
+					}
+					await locked.update({status: 'processing', processingAt: new Date(), claimToken: randomBytes(32).toString('hex')}, {transaction});
+					return locked;
+				});
+				if (!job) {
+					continue;
+				}
+				try {
+					const source = await assertSource(app, job.userId, job.postId);
+					if (!isOwnedQueueGroup(source.group, job.userId) || destination.sourceGroupId != null && Number(destination.sourceGroupId) !== Number(source.groupId)) {
+						throw problem(403, 'local_publication_source_forbidden');
+					}
+				} catch (error) {
+					if (!(error instanceof ApiProblemError)) {
+						throw error;
+					}
+					await job.update({status: 'failed', error: 'Source is no longer eligible for server publication.'});
+					continue;
+				}
+				return {job: job.toJSON(), account};
+			}
+			return null;
+		},
+		async claimDestinationJob(userId, clientId, input) {
+			assertKeys(input, ['destinationIds', 'jobId']);
+			if (!Array.isArray(input.destinationIds) || input.destinationIds.length > 100) {
+				throw problem(400, 'local_publication_destinations_invalid');
+			}
+			const destinationIds = input.destinationIds.map(id => boundedInteger(id, 1, Number.MAX_SAFE_INTEGER));
+			if (new Set(destinationIds).size !== destinationIds.length) {
+				throw problem(400, 'local_publication_destination_duplicate');
+			}
+			return this.claimJob(userId, {accounts: [], ...(input.jobId === undefined ? {} : {jobId: input.jobId})}, {clientId, destinationIds});
+		},
+		async claimJob(userId, input, clientContext?) {
 			const accounts = normalizeAccounts(input);
 			const groupIds = input.groupIds === undefined ? null : normalizeGroupIds(input.groupIds);
 			const routes = normalizeRoutes(input.routes ?? [], accounts);
 			const jobId = input.jobId === undefined ? null : boundedInteger(input.jobId, 1, Number.MAX_SAFE_INTEGER);
-			if (!accounts.length) {
+			if (!accounts.length && !clientContext) {
 				return null;
 			}
 			// Commit ownership before group APIs run: they can need another DB query.
 			// Keeping the transaction open would deadlock a saturated connection pool.
 			for (let checked = 0; checked < 20; checked++) {
 				const job = await sequelize.transaction(async transaction => {
+					const registered = clientContext ? await PublicationDestination.findAll({where: {userId, clientId: clientContext.clientId,
+						enabled: true, executionMode: 'client', id: {[Op.in]: clientContext.destinationIds}}, transaction, lock: transaction.LOCK.SHARE}) : [];
+					const destinationFilter = clientContext ? {clientId: clientContext.clientId, executionMode: 'client', destinationId: {[Op.in]: registered.map(row => row.id)}} : {destinationId: null};
 					const candidate = await PublicationJob.findOne({
-						where: {userId, status: 'queued', ...(jobId ? {id: jobId} : {scheduledAt: {[Op.lte]: new Date()}}),
+						where: {userId, ...destinationFilter, status: 'queued', ...(jobId ? {id: jobId} : {scheduledAt: {[Op.lte]: new Date()}}),
 							...(groupIds ? {postId: postsInGroups(groupIds)} : {}),
-							[Op.or]: input.routes === undefined ? accounts : routes.map(route => ({network: route.network,
-								localAccountId: {[Op.in]: ['', route.localAccountId]}, postId: postsInGroups([route.groupId])}))},
+							...(clientContext ? {} : {[Op.or]: input.routes === undefined ? accounts : routes.map(route => ({network: route.network,
+								localAccountId: {[Op.in]: ['', route.localAccountId]}, postId: postsInGroups([route.groupId])}))})},
 						order: [['scheduledAt', 'ASC'], ['id', 'ASC']],
 						transaction, lock: transaction.LOCK.UPDATE, skipLocked: true
 					});
@@ -140,7 +232,13 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 				const claimWhere = {id: job.id, userId, status: 'processing', claimToken: job.claimToken};
 				try {
 					const source = await assertSource(app, userId, job.postId);
-					if ((groupIds || input.routes !== undefined) && !isOwnedQueueGroup(source.group, userId)) {
+					if (clientContext) {
+						const destination = await PublicationDestination.findByPk(job.destinationId);
+						if (!destination || destination.sourceGroupId != null && Number(destination.sourceGroupId) !== Number(source.groupId)) {
+							throw problem(403, 'local_publication_source_forbidden');
+						}
+					}
+					if ((clientContext || groupIds || input.routes !== undefined) && !isOwnedQueueGroup(source.group, userId)) {
 						throw problem(403, 'local_publication_source_forbidden');
 					}
 				} catch (error) {
@@ -156,9 +254,12 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 			}
 			return null;
 		},
-		async reportResult(userId, jobId, input) {
+		async reportResult(userId, jobId, input, clientId?) {
 			return sequelize.transaction(async transaction => {
 				const job = await getOwnedJob(userId, jobId, transaction);
+				if (job.executionMode === 'server' ? clientId !== 'server' : job.destinationId && job.clientId !== clientId) {
+					throw problem(403, 'local_publication_client_mismatch');
+				}
 				const result = normalizeResult(input, job.network);
 				if (!job.claimToken || job.claimToken !== input.claimToken) {
 					throw problem(409, 'local_publication_claim_invalid');
@@ -190,6 +291,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 			});
 		}
 	};
+	return module;
 	async function matchOwnedRequest(job, hash) {
 		matchRequest(job, hash);
 		return (await jobViews([job]))[0];
@@ -272,7 +374,7 @@ async function snapshot(app: IGeesomeApp, post: any) {
 	return {text, attachments};
 }
 
-export function normalizeRequest(input: any, allowUnbound = false) {
+export function normalizeRequest(input: any, allowUnbound = false): any {
 	assertKeys(input, ['requestKey', 'postId', 'network', 'localAccountId', 'scheduledAt', 'target']);
 	const requestKey = identifier(input.requestKey, 128);
 	const postId = boundedInteger(input.postId, 1, Number.MAX_SAFE_INTEGER);
@@ -449,6 +551,7 @@ function plain(job) {
 	const value = job.toJSON();
 	delete value.requestHash;
 	delete value.composeHash;
+	delete value.serverAccountId;
 	delete value.userId;
 	return value;
 }

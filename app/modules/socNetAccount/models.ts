@@ -42,6 +42,7 @@ export default async function (sequelize: Sequelize) {
 		sessionKey: {
 			type: DataTypes.TEXT
 		},
+		serverCredentialsEncrypted: {type: DataTypes.TEXT},
 		isEncrypted: {
 			type: DataTypes.BOOLEAN
 		},

@@ -446,6 +446,10 @@ Verification:
 <!-- /todo-section -->
 
 <!-- todo-section: local-social-publishing -->
+
+Server execution and canonical socNetPublishing naming are implemented in #1572;
+see [implemented work](implemented.md#server-social-publishing-and-canonical-api-1572).
+Authorized live-provider rollout remains an operator task.
 ## Local Social Publishing
 
 Goal: keep scheduled jobs in the node while social accounts and execution stay
@@ -457,7 +461,7 @@ Remaining work:
 
 - Verify an explicitly authorized real-account scheduled post for Threads,
   Instagram and Reddit, including account/app eligibility and public media access.
-- Keep hub registration and automatic source routes as separate work.
+- Server-side execution remains a separate stage; explicit client destination catalog/claims are implemented in #1570.
 
 Verification:
 
@@ -470,6 +474,12 @@ Verification:
 
 Goal: maintain the completed scalability and storage-analyzer foundations using
 production evidence rather than adding speculative models or migrations.
+
+Storage architecture follow-up [#1565](https://github.com/galtproject/geesome-node/issues/1565) after #1563: first audit GC-safe pinned writes in geesome-libs and choose append-only retention
+versus automatic reclamation. Multipart staging, quiet-period scheduling and
+phase timing are delivered in [#1568](storage-idle-gc-uploads.md). Remaining work:
+bound other long validation/execution in durable worker stages, reserve GC
+admission and verify cross-process drain/fairness. Keep operation fences through unpinned writes. See [the phased plan](storage-admission-plan.md).
 
 Remaining work:
 

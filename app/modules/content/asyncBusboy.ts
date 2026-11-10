@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 import busboy from 'busboy';
 import {createHash} from 'node:crypto';
+import {Transform} from 'node:stream';
 
 const getDescriptor = Object.getOwnPropertyDescriptor
 
@@ -42,16 +43,18 @@ function onField (fields, name, value, info) {
  * @param {Readable} stream
  * @param {{ filename: string, encoding: string, mimeType: string }} info
  */
-function onFile (filePromises, signal, file, stream, info) {
+function onFile (filePromises, signal, tempDir, fileByteBudget, file, stream, info) {
   const { filename, encoding, mimeType } = info
   const tmpName = Math.random().toString(16).substring(2) + '-' + filename
-  const saveTo = path.join(os.tmpdir(), path.basename(tmpName))
-  const writeStream = fs.createWriteStream(saveTo)
+  const saveTo = path.join(tempDir || os.tmpdir(), path.basename(tmpName))
+  const writeStream = fs.createWriteStream(saveTo, {mode: 0o600})
   const hash = createHash('sha256')
   let bytes = 0
   let complete = false
+  let meter
   const abort = () => {
     stream.destroy(signal.reason)
+    meter?.destroy(signal.reason)
     writeStream.destroy(signal.reason)
   }
   const filePromise = new Promise((resolve, reject) => {
@@ -80,11 +83,16 @@ function onFile (filePromises, signal, file, stream, info) {
         }
         // A data listener starts flowing mode. Attach it only when the writer
         // is ready, immediately before piping, so early bytes cannot be lost.
-        stream.on('data', (chunk) => {
+        meter = new Transform({transform(chunk, _encoding, callback) {
           hash.update(chunk)
           bytes += chunk.length
+          Promise.resolve(fileByteBudget?.(bytes)).then(() => callback(null, chunk), callback)
+        }})
+        meter.on('error', err => {
+          writeStream.destroy(err)
+          stream.resume()
         })
-        stream.pipe(writeStream)
+        stream.pipe(meter).pipe(writeStream)
           .on('error', reject)
           .on('finish', () => {
             complete = true
@@ -196,6 +204,10 @@ export default function (request, options): Promise<any> {
   options.limits = {fields: 100, files: 10, parts: 111, ...(options.limits || {})}
   const customOnFile = typeof options.onFile === 'function' ? options.onFile : false
   delete options.onFile
+  const fileByteBudget = options.fileByteBudget
+  delete options.fileByteBudget
+  const tempDir = options.tempDir
+  delete options.tempDir
   const bb = busboy(options)
 
   return new Promise((resolve, reject) => {
@@ -203,7 +215,7 @@ export default function (request, options): Promise<any> {
     const filePromises = []
     const controller = new AbortController()
     const fieldHandler = onField.bind(null, fields)
-    const fileHandler = customOnFile || onFile.bind(null, filePromises, controller.signal)
+    const fileHandler = customOnFile || onFile.bind(null, filePromises, controller.signal, tempDir, fileByteBudget)
     let settled = false
     let ending = false
 

@@ -1,15 +1,144 @@
 import {IGeesomeApp} from '../../interface.js';
 import {CorePermissionName} from '../database/interface.js';
 import {requireIntegrationScopes} from '../api/integrationScopes.js';
-import ILocalClientModule from './interface.js';
+import {ApiProblemError} from '../api/problem.js';
+import {publicationClientId} from './destinations.js';
+import ISocNetPublishingModule from './interface.js';
 
-export default function registerApi(app: IGeesomeApp, module: ILocalClientModule) {
+export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingModule) {
+	const api = Object.fromEntries(['onAuthorizedGet', 'onAuthorizedPost'].map(method => [method, (path, handler) => {
+		app.ms.api[method](path.replace('user/social-publications', 'user/local-publications'), handler);
+		app.ms.api[method](path, handler);
+	}]));
+	async function authorizeManagement(req) {
+		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
+		let scopes = req.apiKey?.scopes;
+		if (typeof scopes === 'string') {
+			try { scopes = JSON.parse(scopes); } catch { scopes = []; }
+		}
+		if (req.apiKey?.type !== 'password_auth' && !(Array.isArray(scopes) && scopes.includes('publishing:manage'))) {
+			throw new ApiProblemError(403, 'insufficient_scope', 'Server publishing management requires an explicit publishing:manage key or owner session');
+		}
+	}
+	/**
+	 * @api {post} /v1/user/social-publications/server-destinations Configure a server publication destination
+	 * @apiName ServerPublicationDestinationSetup
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Owner-only setup with explicit publishing:manage scope or owner password session. Verifies the provider identity without publication and encrypts credentials using node app-pass. Existing requestKey preserves account identity and source scope. enabled defaults false. No secret appears in response. Same routes are available under legacy /user/local-publications for compatibility.
+	 * @apiBody {String} requestKey Stable owner setup key, 1–128 identifier characters.
+	 * @apiBody {String="bluesky","discord","telegram"} network Server network.
+	 * @apiBody {String} label Display name, 1–200 characters.
+	 * @apiBody {Number} [sourceGroupId] Owned private source group, or omitted for global destination.
+	 * @apiBody {Object} account Bluesky identifier/appPassword, or Discord/Telegram botToken. Write-only; fixed provider hosts.
+	 * @apiBody {Object} target Endpoint configuration, including optional SFW channel/chat.
+	 * @apiBody {Boolean} [enabled=false] Explicitly enable new tasks and claims.
+	 * @apiSuccess {Object} destination Safe registered destination metadata and accountIdentity; never credentials or internal account reference.
+	 */
+	api.onAuthorizedPost('user/social-publications/server-destinations', async (req, res) => {
+		await authorizeManagement(req);
+		res.send(await module.setupServerDestination(req.user.id, req.body));
+	});
+	/**
+	 * @api {post} /v1/user/social-publications/:jobId/server-result Resolve a server publication result
+	 * @apiName ServerPublicationResult
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Owner-only manual server outcome resolution. Requires explicit publishing:manage or owner session plus original claimToken. Stop/settle original worker and verify provider outcome first. Never sends or requeues.
+	 * @apiParam {Number} jobId Owned server job.
+	 * @apiBody {String} claimToken Original claim token.
+	 * @apiBody {String="posted","failed","needs_review"} status Confirmed outcome.
+	 * @apiBody {String} [remoteId] Required for posted.
+	 * @apiBody {String} [remoteUrl] Confirmed credential-free provider URL.
+	 * @apiBody {String} [error] Bounded safe explanation.
+	 * @apiSuccess {Object} job Updated server job.
+	 */
+	api.onAuthorizedPost('user/social-publications/:jobId/server-result', async (req, res) => {
+		await authorizeManagement(req);
+		res.send({job: await module.reportResult(req.user.id, req.params.jobId, req.body, 'server')});
+	});
 	async function authorize(req) {
 		requireIntegrationScopes(req.apiKey, ['publishing:local']);
 		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
 	}
 	/**
-	 * @api {get} /v1/user/local-publications/sources List private queue source groups
+	 * @api {get} /v1/user/social-publications/destinations List publication destinations
+	 * @apiName LocalPublicationDestinations
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Requires publishing:local and group management. Owner-only safe metadata, never credentials. Client key identity is key:API-key-row-ID. Server destinations expose accountIdentity instead of local client fields; provider secrets and account references remain private.
+	 * @apiQuery {Number{1-100}} [limit=20] Page size.
+	 * @apiQuery {Number{0-1000000}} [offset=0] Offset.
+	 * @apiSuccess {Object[]} destinations Safe rows: id/clientId/localKey/sourceGroupId/localAccountId/network/label/executionMode/target/enabled.
+	 */
+	api.onAuthorizedGet('user/social-publications/destinations', async (req, res) => {
+		await authorize(req);
+		res.send(await module.listDestinations(req.user.id, req.query));
+	});
+	/**
+	 * @api {post} /v1/user/social-publications/destinations Register client destinations
+	 * @apiName LocalPublicationDestinationRegister
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Requires publishing:local, group management and a dedicated non-password-auth API key. Identity derives from the authenticated key, not request data. Omitted rows remain unchanged. Disable removed rows explicitly. Account/network identity cannot be changed under an existing localKey. Repeating a request updates the same stable rows. No credentials accepted.
+	 * @apiBody {Object[]} destinations Maximum 100 rows; empty registers the connection identity only.
+	 * @apiBody {String} destinations.localKey Stable local route key, 1–200 identifier characters.
+	 * @apiBody {Number} [destinations.sourceGroupId] Owned ordinary closed source group; immutable under localKey. Omit for a global manual destination.
+	 * @apiBody {String} destinations.localAccountId Local credential reference, 1–200 identifier characters.
+	 * @apiBody {String} destinations.network Supported network.
+	 * @apiBody {String} destinations.label Display label, 1–200 characters.
+	 * @apiBody {Object} destinations.target Endpoint-only parameters: Discord channelId/guildId/sfwChannelId, Telegram chatId/sfwChatId, Patreon campaignId, Reddit subreddit/flairId/kind; otherwise empty.
+	 * @apiBody {Boolean} destinations.enabled Explicit enabled state.
+	 * @apiSuccess {String} clientId Authenticated key identity.
+	 * @apiSuccess {Object[]} destinations Registered safe rows.
+	 */
+	api.onAuthorizedPost('user/social-publications/destinations', async (req, res) => {
+		await authorize(req);
+		res.send(await module.registerDestinations(req.user.id, publicationClientId(req.apiKey), req.body));
+	});
+	/**
+	 * @api {post} /v1/user/social-publications/destinations/:destinationId/disable Retire a publication destination
+	 * @apiName LocalPublicationDestinationDisable
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Requires publishing:local and group management. Owner-only idempotent retirement, including destinations whose original client key was lost/revoked. Send an empty object. No account rebind, enable or credential transfer. Queued jobs remain blocked and processing results retain original-client authorization.
+	 * @apiParam {Number} destinationId Owner destination ID.
+	 * @apiSuccess {Object} destination Disabled safe metadata.
+	 */
+	api.onAuthorizedPost('user/social-publications/destinations/:destinationId/disable', async (req, res) => {
+		await authorize(req);
+		res.send(await module.disableDestination(req.user.id, req.params.destinationId, req.body));
+	});
+
+	/**
+	 * @api {post} /v1/user/social-publications/destination-claim Claim a registered destination job
+	 * @apiName LocalPublicationDestinationClaim
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Requires publishing:local, group management and a dedicated client key. Only this key's enabled destinations can claim. Legacy jobs are excluded. Frozen account and target remain unchanged; no automatic requeue or server fallback.
+	 * @apiBody {Number[]} destinationIds Selected destinations, maximum 100 distinct IDs. Empty claims nothing.
+	 * @apiBody {Number} [jobId] Explicit owned queued job; bypasses schedule only, not executor checks.
+	 * @apiSuccess {Object|null} job Frozen claimed job and original claimToken, or null.
+	 */
+	api.onAuthorizedPost('user/social-publications/destination-claim', async (req, res) => {
+		await authorize(req);
+		res.send({job: await module.claimDestinationJob(req.user.id, publicationClientId(req.apiKey), req.body)});
+	});
+
+	/**
+	 * @api {get} /v1/user/social-publications/sources List private queue source groups
 	 * @apiName LocalPublicationSources
 	 * @apiGroup LocalPublications
 	 * @apiUse ApiKey
@@ -22,12 +151,12 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiSuccess {Number} ownerId Authenticated GeeSome owner.
 	 * @apiSuccess {Object[]} groups Group id/name/title/lastPostAt, with null lastPostAt for empty groups.
 	 */
-	app.ms.api.onAuthorizedGet('user/local-publications/sources', async (req, res) => {
+	api.onAuthorizedGet('user/social-publications/sources', async (req, res) => {
 		await authorize(req);
 		res.send(await module.listSources(req.user.id, req.query));
 	});
 	/**
-	 * @api {post} /v1/user/local-publications/sources Create a private queue source group
+	 * @api {post} /v1/user/social-publications/sources Create a private queue source group
 	 * @apiName LocalPublicationSourceCreate
 	 * @apiGroup LocalPublications
 	 * @apiUse ApiKey
@@ -40,12 +169,12 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiSuccess {Object} group Group id/name/title/lastPostAt.
 	 * @apiError (409) LocalPublicationSourceConflict Key already used with different intent or ineligible group.
 	 */
-	app.ms.api.onAuthorizedPost('user/local-publications/sources', async (req, res) => {
+	api.onAuthorizedPost('user/social-publications/sources', async (req, res) => {
 		await authorize(req);
 		res.send(await module.createSource(req.user.id, req.body));
 	});
 	/**
-	 * @api {post} /v1/user/local-publications/compose Compose and schedule a private outbox post
+	 * @api {post} /v1/user/social-publications/compose Compose and schedule a private outbox post
 	 * @apiName LocalPublicationCompose
 	 * @apiGroup LocalPublications
 	 * @apiUse ApiKey
@@ -57,10 +186,11 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiBody {String} text New text (maximum 40000 characters).
 	 * @apiBody {String[]} imageStorageIds Owned Asset or local Content storage IDs (maximum 20).
 	 * @apiBody {Object} [destinations.target] Each Patreon destination target requires title (1–200 chars), audience (free_members or paid_members), teaserText (nonempty exact prefix of text, maximum 10000 chars) and campaignId (positive decimal, up to 20 digits). Unbound group jobs may defer campaignId to the local route. Prepared Patreon jobs allow up to 20 preview images. No Cookie credentials accepted.
-	 * @apiBody {Object[]} destinations Explicit network/localAccountId/target selections (1–20). With explicit groupId only, omit localAccountId to defer local account selection until claim.
+	 * @apiBody {Object[]} destinations New rows use destinationId/network/target and freeze the registered client route. Legacy rows use network/localAccountId/target selections (1–20). With explicit groupId only, omit localAccountId to defer local account selection until claim.
 	 * @apiBody {String} [scheduledAt] ISO instant with timezone; omit to send now.
 	 * @apiBody {Object} [producer] For one destination only: type=microwave-girls and positive postId. Stored with server-computed canonical original-intent digest, preserved when a claim resolves an unbound account/route; no URL or credential.
 	 * @apiBody {String="microwave-girls"} [producer.type] Producer marker when producer is supplied.
+	 * @apiBody {String} [producer.digest] Required canonical v4 digest for destinationId jobs; binds destination/client/account/merged target and original content. Checked before write effects.
 	 * @apiBody {Number} [producer.postId] Positive owned Girls receipt ID when producer is supplied.
 	 * @apiBody {Number} [groupId] Existing owned ordinary closed local channel. Included in replay intent.
 	 * @apiBody {Number} [postId] Internal source reference for an unchanged owned outbox draft.
@@ -70,13 +200,13 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiError (409) LocalPublicationRequestConflict Compose key already used with different input.
 	 * @apiError (409) LocalPublicationDraftChanged Draft text or image selection differs from stored source.
 	 */
-	app.ms.api.onAuthorizedPost('user/local-publications/compose', async (req, res) => {
+	api.onAuthorizedPost('user/social-publications/compose', async (req, res) => {
 		await authorize(req);
 		requireIntegrationScopes(req.apiKey, ['assets:write']);
 		res.send(await module.compose(req.user.id, req.body));
 	});
 	/**
-	 * @api {get} /v1/user/local-publications/outbox List unscheduled private outbox sources
+	 * @api {get} /v1/user/social-publications/outbox List unscheduled private outbox sources
 	 * @apiName LocalPublicationOutbox
 	 * @apiGroup LocalPublications
 	 * @apiUse ApiKey
@@ -94,12 +224,12 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiSuccess {Object|null} group Existing owned outbox identity, or null before first composition.
 	 * @apiSuccess {Object[]} drafts Source postId, text, attachments and creation time.
 	 */
-	app.ms.api.onAuthorizedGet('user/local-publications/outbox', async (req, res) => {
+	api.onAuthorizedGet('user/social-publications/outbox', async (req, res) => {
 		await authorize(req);
 		res.send(await module.getOutbox(req.user.id, req.query));
 	});
 	/**
-	 * @api {post} /v1/user/local-publications Schedule local social publication
+	 * @api {post} /v1/user/social-publications Schedule local social publication
 	 * @apiName LocalPublicationCreate
 	 * @apiGroup LocalPublications
 	 * @apiUse ApiKey
@@ -117,12 +247,12 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiSuccessExample {json} Scheduled
 	 * {"job":{"id":1,"status":"queued","network":"threads","payload":{"text":"Hello","attachments":[]}}}
 	 */
-	app.ms.api.onAuthorizedPost('user/local-publications', async (req, res) => {
+	api.onAuthorizedPost('user/social-publications', async (req, res) => {
 		await authorize(req);
 		res.send({job: await module.createJob(req.user.id, req.body)});
 	});
 	/**
-	 * @api {get} /v1/user/local-publications List local social publications
+	 * @api {get} /v1/user/social-publications List local social publications
 	 * @apiName LocalPublicationList
 	 * @apiGroup LocalPublications
 	 * @apiUse ApiKey
@@ -132,24 +262,25 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiQuery {Number{1-100}} [limit=20] Page size.
 	 * @apiQuery {Number{0-1000000}} [offset=0] Page offset.
 	 * @apiQuery {String="threads","instagram","reddit","twitter","rule34xxx","bluesky","discord","telegram","patreon"} [network] Filter a single network before pagination, intersected with owner and source filters.
+	 * @apiQuery {Number} [destinationId] Filter a single destination before pagination, intersected with ownership.
 	 * @apiQuery {String="queued","processing","posted","failed","needs_review","cancelled"} [status] Filter.
 	 * @apiQuery {String} [groupIds] Comma-separated distinct positive group IDs (maximum 100), intersected with owner filters. Empty selects no jobs.
 	 * @apiQuery {String} [composeKey] Exact owner-scoped compose key (1–128 identifier characters) for read-only lost-response recovery.
 	 * @apiQuery {String} [ids] Comma-separated distinct positive job IDs (1–100), always intersected with authenticated owner/status filters.
 	 * @apiSuccess {Object[]} jobs Owner jobs with source groupId ordered by newest creation.
 	 */
-	app.ms.api.onAuthorizedGet('user/local-publications', async (req, res) => {
+	api.onAuthorizedGet('user/social-publications', async (req, res) => {
 		await authorize(req);
 		res.send({jobs: await module.listJobs(req.user.id, req.query)});
 	});
 	/**
-	 * @api {post} /v1/user/local-publications/claim Claim one due local publication
+	 * @api {post} /v1/user/social-publications/claim Claim one due local publication
 	 * @apiName LocalPublicationClaim
 	 * @apiGroup LocalPublications
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 * @apiUse ValidationErrors
-	 * @apiDescription Requires publishing:local. Atomically claims one eligible owner job using node time, rechecking source permissions. Account filters do not grant permissions. No lease expiry or automatic resend.
+	 * @apiDescription Requires publishing:local. Atomically claims one eligible owner job using node time, rechecking source permissions. Account filters do not grant permissions. Registered destination jobs are always excluded; use destination-claim. No lease expiry or automatic resend.
 	 * @apiBody {Number} [jobId] Explicitly claim only this queued job now, ignoring its schedule. Ownership and account filters still apply.
 	 * @apiBody {Number[]} [groupIds] Selected private source groups (maximum 100). Empty claims nothing; absent preserves legacy account-only claims.
 	 * @apiBody {Object[]} [routes] Local group/network/account routes (maximum 100). When present these routes are authoritative: bound jobs require the exact group/network/account route; empty routes claim nothing. Only unresolved account jobs may bind once at atomic claim. Authored targets and producer intent digest are preserved.
@@ -162,18 +293,18 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiBody {String} accounts.localAccountId Local account identifier.
 	 * @apiSuccess {Object|null} job Claimed job with claimToken or null when none is due.
 	 */
-	app.ms.api.onAuthorizedPost('user/local-publications/claim', async (req, res) => {
+	api.onAuthorizedPost('user/social-publications/claim', async (req, res) => {
 		await authorize(req);
 		res.send({job: await module.claimJob(req.user.id, req.body)});
 	});
 	/**
-	 * @api {post} /v1/user/local-publications/:jobId/result Report local publication result
+	 * @api {post} /v1/user/social-publications/:jobId/result Report local publication result
 	 * @apiName LocalPublicationResult
 	 * @apiGroup LocalPublications
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 * @apiUse ValidationErrors
-	 * @apiDescription Requires publishing:local, ownership and original claim token. Identical result reports are idempotent. Processing or needs_review jobs allow confirmed manual resolution; terminal conflicting reports return 409.
+	 * @apiDescription Requires publishing:local, ownership and original claim token. Destination jobs additionally require the original client key; disabled destinations still accept original results. Identical result reports are idempotent. Processing or needs_review jobs allow confirmed manual resolution; terminal conflicting reports return 409.
 	 * @apiParam {Number} jobId Owner job ID.
 	 * @apiBody {String} claimToken Original claim token.
 	 * @apiBody {String="posted","failed","needs_review"} status Result.
@@ -183,12 +314,12 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiSuccess {Object} job Updated job.
 	 * @apiError (409) LocalPublicationResultConflict Conflicting terminal result or invalid claim token.
 	 */
-	app.ms.api.onAuthorizedPost('user/local-publications/:jobId/result', async (req, res) => {
+	api.onAuthorizedPost('user/social-publications/:jobId/result', async (req, res) => {
 		await authorize(req);
-		res.send({job: await module.reportResult(req.user.id, req.params.jobId, req.body)});
+		res.send({job: await module.reportResult(req.user.id, req.params.jobId, req.body, req.apiKey?.id && req.apiKey.type !== 'password_auth' ? `key:${req.apiKey.id}` : null)});
 	});
 	/**
-	 * @api {post} /v1/user/local-publications/:jobId/cancel Cancel queued local publication
+	 * @api {post} /v1/user/social-publications/:jobId/cancel Cancel queued local publication
 	 * @apiName LocalPublicationCancel
 	 * @apiGroup LocalPublications
 	 * @apiUse ApiKey
@@ -199,7 +330,7 @@ export default function registerApi(app: IGeesomeApp, module: ILocalClientModule
 	 * @apiSuccess {Object} job Cancelled job.
 	 * @apiError (409) LocalPublicationNotQueued Job has already been claimed or completed.
 	 */
-	app.ms.api.onAuthorizedPost('user/local-publications/:jobId/cancel', async (req, res) => {
+	api.onAuthorizedPost('user/social-publications/:jobId/cancel', async (req, res) => {
 		await authorize(req);
 		res.send({job: await module.cancelJob(req.user.id, req.params.jobId)});
 	});

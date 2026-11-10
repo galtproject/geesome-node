@@ -42,7 +42,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
 
     /**
      * @api {post} /v1/post/get Get post by params
-     * @apiDescription Private group posts require a bearer token for a member, administrator or creator. Unknown post identifiers resolve to JSON null with HTTP 200.
+     * @apiDescription Private group posts require a bearer token for a member, administrator or creator. Unknown post identifiers resolve to JSON null with HTTP 200. This database-only lookup does not wait for storage writer capacity or GC.
      * @apiHeader {String} [Authorization] Optional bearer token; required for private groups.
      * @apiUse AuthErrors
      * @apiError not_permitted Private group membership required.
@@ -67,7 +67,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
             await groupModule.assertGroupReadable(req.user?.id, post.groupId);
             res.send(post, 200);
         });
-    });
+    }, {storageReadOnly: true});
     
     /**
      * @api {post} /v1/user/create-group Create group
@@ -251,6 +251,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
 
     /**
      * @api {post} /v1/user/group/:groupId/is-member Check group membership
+     * @apiDescription Database-only membership lookup; does not wait for storage writer capacity or GC.
      * @apiName UserGroupIsMember
      * @apiGroup UserGroup
      *
@@ -262,7 +263,7 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
      */
     app.ms.api.onAuthorizedPost('user/group/:groupId/is-member', async (req, res) => {
         res.send({result: await groupModule.isMemberInGroup(req.user.id, req.params.groupId)}, 200);
-    });
+    }, {storageReadOnly: true});
 
     /**
      * @api {post} /v1/user/group/:groupId/join Join group

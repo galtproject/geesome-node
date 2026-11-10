@@ -17,9 +17,22 @@ export default (app: IGeesomeApp, ssgModule: IGeesomeStaticSiteGeneratorModule) 
 	api.onAuthorizedPost('get-info', async (req, res) => {
 		return res.send(await ssgModule.getStaticSiteInfo(req.user.id, pickRenderArgs(req.body)), 200);
 	});
+	/**
+	 * @api {post} /v1/render/static-site-generator/get-list List owned static sites
+	 * @apiName StaticSiteGetList
+	 * @apiGroup StaticSiteGenerator
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiDescription SQL metadata lookup scoped to the authenticated owner; does not wait for storage writer capacity or GC.
+	 * @apiBody {String} [entityType] Optional source type filter.
+	 * @apiBody {Number} [limit] Page size.
+	 * @apiBody {Number} [offset] Page offset.
+	 * @apiSuccess {Object[]} list Owned static sites.
+	 * @apiSuccess {Number} total Owned site count.
+	 */
 	api.onAuthorizedPost('get-list', async (req, res) => {
 		return res.send(await ssgModule.getStaticSiteResponse(req.user.id, req.body.entityType, helpers.prepareListParams(req.body)), 200);
-	});
+	}, {storageReadOnly: true});
 	/**
 	 * @api {post} /v1/render/static-site-generator/run Generate a static site
 	 * @apiName StaticSiteGenerate

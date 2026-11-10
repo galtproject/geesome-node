@@ -9,6 +9,7 @@ function sanitizeSocNetAccount(account) {
 	plainAccount.hasApiKey = !!plainAccount.apiKey;
 	plainAccount.hasAccessToken = !!plainAccount.accessToken;
 	plainAccount.hasSessionKey = !!plainAccount.sessionKey;
+	delete plainAccount.serverCredentialsEncrypted;
 	delete plainAccount.apiKey;
 	delete plainAccount.accessToken;
 	delete plainAccount.sessionKey;

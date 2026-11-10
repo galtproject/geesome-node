@@ -6905,9 +6905,9 @@ gcp-metadata@^8.0.0:
     semver "^7.5.0"
     webpack "^5.106.2"
 
-"geesome-libs@https://github.com/galtproject/geesome-libs#420754a66171ffaab788e7a9e552f7f665478faa":
+"geesome-libs@https://github.com/galtproject/geesome-libs#e16370089c4def674821fa85e8795379e7f2c671":
   version "1.0.0"
-  resolved "https://github.com/galtproject/geesome-libs#420754a66171ffaab788e7a9e552f7f665478faa"
+  resolved "https://github.com/galtproject/geesome-libs#e16370089c4def674821fa85e8795379e7f2c671"
   dependencies:
     "@ethersproject/hash" "^5.7.0"
     "@helia/dag-cbor" "^5.1.1"

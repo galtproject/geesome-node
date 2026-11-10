@@ -3,6 +3,7 @@ import {ApiProblemError} from './problem.js';
 
 const SCOPE_PERMISSION_MAP = {
 	'publishing:local': CorePermissionName.UserGroupManagement,
+	'publishing:manage': CorePermissionName.UserGroupManagement,
 	'assets:write': CorePermissionName.UserSaveData,
 	'assets:read-private': CorePermissionName.UserSaveData,
 	'content:write': CorePermissionName.UserSaveData,
@@ -32,7 +33,7 @@ export function getApiKeyScopes(apiKey: IUserApiKey): string[] {
 	}
 	const permissions = parseStringList(apiKey?.permissions);
 	return Object.entries(SCOPE_PERMISSION_MAP)
-		.filter(([, permission]) => permissions.includes(permission) || permissions.includes(CorePermissionName.UserAll))
+		.filter(([scope, permission]) => scope !== 'publishing:manage' && (permissions.includes(permission) || permissions.includes(CorePermissionName.UserAll)))
 		.map(([scope]) => scope)
 		.sort();
 }

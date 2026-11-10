@@ -4,7 +4,7 @@ import {randomUUID} from 'node:crypto';
 import {Op} from 'sequelize';
 import {imagePolicy, optimizationRequest} from '../drivers/convert/imageOptimize.js';
 import {contentIds, problem, requestKey} from '../content/publicationInput.js';
-import {withStorageFence, withStorageTaskLock, withStorageControlTaskLock} from '../../storageLifecycle.js';
+import {storageAdmissionFenceOptions, withStorageFence, withStorageTaskLock, withStorageControlTaskLock} from '../../storageLifecycle.js';
 import {digest, normalizeStorageId, variants, sameCid} from '../../storageIdentity.js';
 import {pageCid, readSiteData} from './siteData.js';
 import {finalizeReplacement, assertCurrentPublication} from './replacementFinalization.js';
@@ -112,7 +112,7 @@ export class SiteReplacements {
                 problem('image_replacement_idempotency_conflict');
             }
             return this.status(userId, replacement.id);
-        });
+        }, storageAdmissionFenceOptions(this.app));
     }
 
     async replacement(userId, id, transaction = undefined) {

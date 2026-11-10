@@ -257,7 +257,7 @@ function modelRows(): ModelRow[] {
   return [
     {
       area: 'Local social publication queue',
-      source: 'app/modules/localClient/models.ts',
+      source: 'app/modules/socNetPublishing/models.ts',
       model: 'publicationJobs',
       indexes: ['userId,requestKey unique', 'userId,composeKey,composeIndex unique', 'postId', 'userId,status,scheduledAt,id', 'userId,createdAt,id'],
       notes: ['owner-filtered jobs/drafts capped at 100 rows and bounded offset; optional ids filter caps at 100 and composeKey lookup uses owner/compose unique index; draft exclusion uses indexed NOT EXISTS on postId', 'claim locks one due row with SKIP LOCKED then checks source outside the short transaction; invalid-source checks capped at 20 rows per request', 'private source page capped at 100 groups; latest nondeleted post date is aggregated only for that page using groupId-indexed posts; optional ids filter max100; group-filtered jobs use indexed postId IN source group subqueries; job group identities hydrate in one bounded batch, no N+1', 'provider-ready media opt-in uses owner/namespace/key unique asset idempotency lookup and owner/CID unique Asset reuse; no pending reservation or extra queue/table; source/derived ownership rechecked', 'processing rows never automatically requeue; retained history has no implicit pruning'],

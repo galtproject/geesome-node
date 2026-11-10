@@ -1,61 +1,116 @@
-# Local Client Publishing
+# Social network publishing
 
-PublicationJob is the one node-owned delivery table. Provider credentials stay
-local. Existing public-post scheduling remains compatible; normal composition
-creates text/pictures in a designated native ordinary closed owner channel.
+`socNetPublishing` owns publication sources, destinations, durable jobs and
+results. Local clients and the optional node worker use the same PublicationJob
+table, isolated by execution mode. No provider credential is stored in a job.
 
-API, relative to the discovered base:
+## Compatibility
 
-- POST user/local-publications/compose: requestKey, text, imageStorageIds,
-  explicit destinations and optional scheduledAt/internal draft postId. Omit time
-  for send-now. Identical retries return the original source and jobs.
-- GET user/local-publications/outbox: bounded unassigned owned sources. Read-only;
-  group=null before first composition. No history/cancelled source reactivation.
-- POST user/local-publications: legacy source-ID scheduling.
-- GET user/local-publications: owner-only paginated delivery history/tokens.
-- POST user/local-publications/claim: configured accounts -> one due job or null.
-- POST user/local-publications/:jobId/result: original claimToken and confirmed
-  posted/failed/needs_review. Identical reports are idempotent.
-- POST user/local-publications/:jobId/cancel: queued cancellation only.
+Canonical API base-relative path: `/user/social-publications`. The previous
+`/user/local-publications` routes call the same handlers with the same checks.
+The existing `publishing:local` scope remains valid. Old `localClient` module
+configuration is normalized to `socNetPublishing`, deduplicated and stopped once;
+`app.ms.localClient` is a compatibility alias. Tables, v1–v4 digests, existing
+request keys and unknown outcomes are not rewritten. New producers can negotiate
+`socialPublishingApi:true`, `publicationDestinations:true`, `serverPublishing:true`
+on the outbox response. A paused worker does not disable queue acceptance.
 
-All use publishing:local scope and existing group rights. Compose additionally
-requires assets:write, which grants the native save-data permission for text.
-Upload through POST assets, preserve its idempotency key, and use returned
-storageId. Node validates caller-owned Asset+Content. Unchanged owned native draft
-pictures may reuse caller-owned Content without re-uploading. Target includes
-Reddit subreddit/title/flairId and kind=self|link|image; credentials are forbidden.
+## Server setup
 
-One source plus all jobs commit atomically through native createPost's trusted
-internal afterPersist callback. The callback performs only job writes using its
-provided transaction. A duplicate compose key rolls back the competing source.
-Draft activation locks the source, rejects changed text/images and any previous
-jobs. This avoids nested storage/group DB calls while holding a transaction.
-The native group's deterministic identity, creator, marker and closed/plaintext
-flags must all match. Explicit groupId additionally permits other caller-owned ordinary closed local channels. Encrypted, foreign, open, remote and deleted groups remain forbidden.
+Only Bluesky, Discord and Telegram support server mode. The owner creates a key
+with explicit `publishing:manage` (or uses the owner's password session). Producer
+keys with only `publishing:local` cannot configure secrets or settle server results.
+Account/target verification never creates a post. Use POST
+`/user/social-publications/server-destinations` with a private JSON body:
 
-Draft discovery never supplies a network or send time. Unsupported attachments
-produce unavailable=true with an error for that item, without hiding valid drafts.
-A user must edit that source in GeeSome before activating it. A source with any
-historical job is excluded, even if its jobs were cancelled.
+```json
+{
+  "requestKey": "era-telegram-main",
+  "network": "telegram",
+  "label": "Era of Wave Telegram",
+  "sourceGroupId": 42,
+  "account": {"botToken": "REPLACE_LOCALLY"},
+  "target": {"chatId": "-1001234567890", "sfwChatId": "-1009876543210"},
+  "enabled": false
+}
+```
 
-Claims lock a due row with SKIP LOCKED and commit ownership before source checks.
-There is no lease expiry or automatic requeue. A crash/uncertain send requires
-manual review, using the original owner-only claim token. Stop/settle the original
-executor before confirming a result or deliberately scheduling another send.
+Values above are examples, not a production account or group. For Bluesky,
+account is `{identifier,appPassword}` and target `{}`. For Discord, account is
+`{botToken}`; target contains `channelId` and optional `guildId`/`sfwChannelId`.
+Telegram target contains `chatId` and optional `sfwChatId`. Setup resolves named
+Telegram chats to numeric IDs and verifies bot/channel access; Discord guild and
+Bluesky DID are confirmed. Sensitive Discord jobs require an NSFW channel.
 
-Payloads freeze text and attachments {storageId,size,url,mimeType,name}. Public
-sources require public HTTPS URLs; the owned ordinary private outbox may use a
-local node URL. Native unencrypted CIDs are not promised confidential storage.
-No social token/cookie appears in node properties, payloads or job records.
+Repeat the same requestKey with `enabled:true` after review to enable the SAME
+destination ID. Repeating setup re-verifies credentials; identity/source scope
+cannot change under an existing key. Rotation must prove the same DID/bot ID.
+To connect a different profile, create a new destination. No automatic import of
+old Girls/client credentials occurs. Partial setup requests are not supported:
+include original credentials/target when enabling or rotating.
 
-PublicationJob is unreleased model-synced state; additive compose columns/indexes
-use non-dropping model sync. Existing Group/Post table schemas are unchanged.
-See the [delivery plan](../../../../docs/plans/local-social-publishing.md).
+Keep real secrets out of command arguments, chat, logs and source. Send the body
+from a mode0600 file/stdin over authenticated HTTPS; responses expose safe catalog
+metadata only. The new socNetAccount.serverCredentialsEncrypted TEXT column uses
+existing app.encryptTextWithAppPass/decryptTextWithAppPass. Preserve the existing
+`data/app-pass.key` alongside deployment backups; lost/wrong keys block sending.
+Existing CryptoJS app-pass encryption is not claimed to be AEAD. `sessionKey`
+and client `isEncrypted` semantics remain unchanged. Generic account update
+cannot change a server-managed row or write the encrypted credential field.
 
-Explicit immediate delivery uses optional `jobId` in claim. Only that owner's
-queued job for a supplied configured account may be claimed; its schedule is
-bypassed, while source eligibility and atomic single-claim checks stay intact.
-Other queued jobs and completed/processing statuses are never selected instead.
+## Queue and worker
+
+Compose uses the existing route with `{destinationId,network,target}`. Node checks
+owner/source, enabled mode and expected producer digest before source/job writes.
+Server v5 canonical digest is SHA256(JSON.stringify({version:5,destinationId,
+executionMode:'server',accountIdentity,network,text,attachments:[{storageId,mimeType}],
+target})); target keys are sorted and attachment order retained. DID or `bot:ID`
+is public identity; the frozen private account reference is excluded from API
+projection. Client destination jobs retain exact v4 digests.
+
+The server worker is OFF by default. Enable explicitly with
+`SOC_NET_PUBLISHING_WORKER=1`; optional interval and bounded batch controls are
+`SOC_NET_PUBLISHING_INTERVAL_MS` (default60000, range1000–3600000) and
+`SOC_NET_PUBLISHING_BATCH_SIZE` (default3, maximum20). Include socNetAccount in
+configured modules. The standard worker defers its first tick, avoids overlap
+and waits for the in-flight tick on shutdown. Polling reads only due enabled
+server jobs. Disabled/missing credentials do not get claimed; a bounded scan
+cursor prevents blocked credentials starving another account. Node claims are
+atomic across processes. Media reads are owner scoped and byte bounded.
+
+Pause by disabling the worker configuration and restarting normally. Disabling a
+destination blocks new claims, not an already processing send. Stop/settle the
+worker before manual reconciliation. queued→processing→posted/failed/needs_review;
+queued→cancelled is unchanged. A crash leaves processing for operator review.
+Timeout/5xx/unreadable publication responses never automatically resend. When a
+provider result is known but DB acknowledgement fails, only that result is retried.
+
+Owner-only manual result resolution: POST
+`/user/social-publications/:jobId/server-result` with the original claimToken,
+status and confirmed remoteId/remoteUrl when posted. It requires management
+scope/password session and never invokes a provider. Client-result endpoints
+cannot settle server jobs; client and legacy claims cannot capture them.
+
+## Upgrade and rollback
+
+Run migration `20261110001000-server-social-publishing.cjs` for existing tables.
+Fresh tables are created by model sync. It adds the server credential column,
+frozen job identity/account columns, nullable client-only fields and a server
+request-key uniqueness index. Migration down refuses server jobs, destinations
+or encrypted credentials; do not deploy an old node binary while they exist.
+Start paused, create disabled server destinations, reconcile old local jobs,
+then explicitly disable old local routes before enabling new server ones.
+Unknown old sends require manual review. No server/client fallback occurs.
+
+The real-node HTTP tests use PostgreSQL/Kubo and mocked provider transport;
+provider tests cover all three protocols. No live publication is required for
+verification. Source plan lives in hub
+`docs/plans/server-social-publication-bluesky-discord-telegram.md`.
+
+## Retained client and legacy protocol details
+
+The following details apply to client-mode/legacy flows. Server execution and
+management use the separate rules above.
 
 ## Microwave Girls producer bridge (#1526)
 
@@ -64,7 +119,7 @@ Queue account filters and create/compose targets now accept `twitter` and
 free HTTP(S) source (up to 2000) and rating s/q/e. These Rule34 fields are rejected
 for other destinations. Twitter accepts only optional target.sensitive boolean;
 explicit false is retained in snapshots and digest, not treated as omitted.
-The node still performs no social-provider requests.
+Client-mode jobs still perform no provider requests on node.
 
 Authorized outbox GET exposes numeric ownerId even before group creation. Job
 listing accepts a bounded comma-separated `ids` filter (1–100 distinct positive

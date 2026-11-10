@@ -1,6 +1,6 @@
 # Patreon publication jobs
 
-Tracking: #1549. The localClient queue additionally accepts `patreon` and exposes
+Tracking: #1549. The socNetPublishing queue additionally accepts `patreon` and exposes
 `patreonPublishing` and `networkQueues` capabilities from the read-only outbox.
 Credentials and browser sessions belong only in GeeSome Client.
 
