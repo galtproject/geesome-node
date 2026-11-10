@@ -33,8 +33,8 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiBody {String} label Display name, 1–200 characters.
 	 * @apiBody {Number} [sourceGroupId] Owned private source group, or omitted for global destination.
 	 * @apiBody {Object} account Bluesky identifier/appPassword, or Discord/Telegram botToken. Write-only; fixed provider hosts.
-	 * @apiBody {String="sfw","nsfw"} [contentPolicy] Content restriction. sfw requires sensitive=false (Rule34 rating=s); nsfw permits both. Omitted/null retains legacy behavior. An explicit policy cannot be cleared by omission.
-	 * @apiBody {Object} target One endpoint: Discord channelId/guildId, Telegram chatId, Bluesky empty. Alternate SFW fields only for legacy null-policy setup.
+	 * @apiBody {String="sfw","nsfw"} contentPolicy Content restriction. sfw accepts only contentType=sfw; nsfw accepts both. Required explicitly.
+	 * @apiBody {Object} target One endpoint: Discord channelId/guildId, Telegram chatId, Bluesky empty. Alternate SFW fields are rejected; configure separate destinations.
 	 * @apiBody {Boolean} [enabled=false] Explicitly enable new tasks and claims.
 	 * @apiSuccess {Object} destination Safe registered destination metadata and accountIdentity; never credentials or internal account reference.
 	 */
@@ -96,8 +96,8 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiBody {String} destinations.localAccountId Local credential reference, 1–200 identifier characters.
 	 * @apiBody {String} destinations.network Supported network.
 	 * @apiBody {String} destinations.label Display label, 1–200 characters.
-	 * @apiBody {String="sfw","nsfw"} [destinations.contentPolicy] Explicit content policy; omitted/null preserves legacy behavior. sfw requires authored sensitive=false, or Rule34 rating=s. Explicit policy cannot be cleared by omission.
-	 * @apiBody {Object} destinations.target One endpoint: Discord channelId/guildId, Telegram chatId, Patreon campaignId, Reddit subreddit/flairId/kind; otherwise empty. Alternate SFW fields only for legacy null-policy setup.
+	 * @apiBody {String="sfw","nsfw"} destinations.contentPolicy Required explicit destination policy; sfw accepts only contentType=sfw.
+	 * @apiBody {Object} destinations.target One endpoint: Discord channelId/guildId, Telegram chatId, Patreon campaignId, Reddit subreddit/flairId/kind; otherwise empty. Alternate SFW fields are rejected; configure separate destinations.
 	 * @apiBody {Boolean} destinations.enabled Explicit enabled state.
 	 * @apiSuccess {String} clientId Authenticated key identity.
 	 * @apiSuccess {Object[]} destinations Registered safe rows.
@@ -130,6 +130,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiUse AuthErrors
 	 * @apiUse ValidationErrors
 	 * @apiDescription Requires publishing:local, group management and a dedicated client key. Only this key's enabled destinations can claim. Legacy jobs are excluded. Frozen account and target remain unchanged; no automatic requeue or server fallback.
+	 * @apiBody {Number=6} intentVersion Required executor protocol handshake; older or missing versions receive publication_upgrade_required before claim.
 	 * @apiBody {Number[]} destinationIds Selected destinations, maximum 100 distinct IDs. Empty claims nothing.
 	 * @apiBody {Number} [jobId] Explicit owned queued job; bypasses schedule only, not executor checks.
 	 * @apiSuccess {Object|null} job Frozen claimed job and original claimToken, or null.
@@ -183,6 +184,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiUse AuthErrors
 	 * @apiUse ValidationErrors
 	 * @apiDescription Requires publishing:local and assets:write. Creates a native ordinary closed owner outbox lazily, or uses an explicitly chosen owned ordinary closed channel. Source post and all destination jobs commit atomically before provider calls. Omitted schedule means now on first creation; identical request retries return the same source/jobs. Existing draft edits are rejected explicitly. No social credentials accepted. Image references resolve owned Assets or local, non-deleted, non-remote, unencrypted Content. Check outbox capabilities.ownedImageReferences before using Content-only references with older nodes.
+	 * @apiBody {String="sfw","nsfw"} contentType Canonical classification frozen on every job; absent or old target classification is rejected.
 	 * @apiBody {String="social-images-v1"} [mediaPolicy] Prepare provider-ready JPEG images before source/job acceptance. Original refs stay in the private source post; per-job payload.mediaPreparation binds original refs and prepared refs. Omit for exact legacy behavior.
 	 * @apiBody {String} requestKey Owner-scoped compose idempotency key.
 	 * @apiBody {String} text New text (maximum 40000 characters).
@@ -192,13 +194,14 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiBody {String} [scheduledAt] ISO instant with timezone; omit to send now.
 	 * @apiBody {Object} [producer] For one destination only: type=microwave-girls and positive postId. Stored with server-computed canonical original-intent digest, preserved when a claim resolves an unbound account/route; no URL or credential.
 	 * @apiBody {String="microwave-girls"} [producer.type] Producer marker when producer is supplied.
-	 * @apiBody {String} [producer.digest] Required canonical v4 digest for destinationId jobs; binds destination/client/account/merged target and original content. Checked before write effects.
+	 * @apiBody {String} [producer.digest] Required canonical v6 digest for destinationId jobs; binds contentType, execution mode, identity, merged target and original content. Checked before write effects.
 	 * @apiBody {Number} [producer.postId] Positive owned Girls receipt ID when producer is supplied.
 	 * @apiBody {Number} [groupId] Existing owned ordinary closed local channel. Included in replay intent.
 	 * @apiBody {Number} [postId] Internal source reference for an unchanged owned outbox draft.
 	 * @apiSuccess {Object} group Owned ordinary closed outbox identity.
 	 * @apiSuccess {Number} postId Persisted source post.
 	 * @apiSuccess {Object[]} jobs Independent scheduled jobs per destination, each including its source groupId. With mediaPolicy, attachments are prepared JPEGs and mediaPreparation contains policy/sourceAttachments/digest. Original producer.digest remains bound to authored originals. Producer jobs include type/postId/digest and composeKey for owner-scoped reconciliation.
+	 * @apiError (409) PublicationUpgradeRequired Pre-upgrade intent must be reconciled by saved IDs/keys; no automatic replacement.
 	 * @apiError (409) LocalPublicationRequestConflict Compose key already used with different input.
 	 * @apiError (409) LocalPublicationDraftChanged Draft text or image selection differs from stored source.
 	 */
@@ -220,6 +223,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiQuery {Number{0-1000000}} [offset=0] Page offset.
 	 * @apiSuccess {Number} ownerId Authenticated GeeSome owner ID for connection verification.
 	 * @apiSuccess {Object} capabilities Supported additive publishing features.
+	 * @apiSuccess {Boolean} capabilities.contentTypePublishing Requires contentType and uses digest v6.
 	 * @apiSuccess {Boolean} capabilities.patreonPublishing Supports explicit Patreon member audience and multi-image preview jobs.
 	 * @apiSuccess {Boolean} capabilities.networkQueues Supports network-filtered publication queue pages.
 	 * @apiSuccess {Boolean} capabilities.ownedImageReferences Compose accepts owned local Content references without an Asset upload.
@@ -238,12 +242,13 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiUse AuthErrors
 	 * @apiUse ValidationErrors
 	 * @apiDescription Requires publishing:local scope and permission to edit a public local post or an owned ordinary closed local channel source. Social credentials stay on the client. Repeated requestKey returns the original snapshot; conflicting input returns 409.
+	 * @apiBody {String="sfw","nsfw"} contentType Canonical classification frozen on every job; absent or old target classification is rejected.
 	 * @apiBody {String} requestKey Owner-scoped idempotency key (1–128 identifier characters).
 	 * @apiBody {Number} postId Existing public locally authored post.
 	 * @apiBody {String="threads","instagram","reddit","twitter","rule34xxx","bluesky","discord","telegram","patreon"} network Destination network.
 	 * @apiBody {String} localAccountId Account identifier configured on the local client.
 	 * @apiBody {String} scheduledAt ISO 8601 instant with timezone.
-	 * @apiBody {Object} [target] Typed targets: Reddit subreddit/title/flairId/kind and optional sensitive boolean; Twitter/Bluesky optional sensitive boolean; Discord channelId plus optional guildId/sensitive boolean; Telegram chatId and optional sensitive boolean; Rule34 required tags/source/rating=s|q|e; Patreon requires title/audience/teaserText/campaignId as documented for compose. No credentials or arbitrary headers.
+	 * @apiBody {Object} [target] Typed targets: Reddit subreddit/title/flairId/kind; Twitter/Bluesky empty object; Discord channelId plus optional guildId; Telegram chatId; Rule34 required tags/source; Patreon requires title/audience/teaserText/campaignId as documented for compose. No credentials or arbitrary headers.
 	 * @apiSuccess {Object} job Frozen scheduled job with text/media payload.
 	 * @apiError (409) LocalPublicationRequestConflict Request key was already used with different input.
 	 * @apiSuccessExample {json} Scheduled
@@ -283,13 +288,14 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiUse AuthErrors
 	 * @apiUse ValidationErrors
 	 * @apiDescription Requires publishing:local. Atomically claims one eligible owner job using node time, rechecking source permissions. Account filters do not grant permissions. Registered destination jobs are always excluded; use destination-claim. No lease expiry or automatic resend.
+	 * @apiBody {Number=6} intentVersion Required executor protocol handshake; older or missing versions receive publication_upgrade_required before claim.
 	 * @apiBody {Number} [jobId] Explicitly claim only this queued job now, ignoring its schedule. Ownership and account filters still apply.
 	 * @apiBody {Number[]} [groupIds] Selected private source groups (maximum 100). Empty claims nothing; absent preserves legacy account-only claims.
 	 * @apiBody {Object[]} [routes] Local group/network/account routes (maximum 100). When present these routes are authoritative: bound jobs require the exact group/network/account route; empty routes claim nothing. Only unresolved account jobs may bind once at atomic claim. Authored targets and producer intent digest are preserved.
 	 * @apiBody {Number} [routes.groupId] Selected source group.
 	 * @apiBody {String} [routes.network] Network, also present in accounts.
 	 * @apiBody {String} [routes.localAccountId] Configured account, also present in accounts.
-	 * @apiBody {Object} [routes.target] Discord channelId/guildId/sfwChannelId, Telegram chatId/sfwChatId or Patreon campaignId defaults only. SFW alternative is used only when authored sensitive=false and destination is absent.
+	 * @apiBody {Object} [routes.target] Discord channelId/guildId, Telegram chatId or Patreon campaignId defaults only. One endpoint per route.
 	 * @apiBody {Object[]} accounts Configured local accounts (maximum 100).
 	 * @apiBody {String="threads","instagram","reddit","twitter","rule34xxx","bluesky","discord","telegram","patreon"} accounts.network Network.
 	 * @apiBody {String} accounts.localAccountId Local account identifier.

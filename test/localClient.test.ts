@@ -8,15 +8,15 @@ import registerApi from '../app/modules/socNetPublishing/api.js';
 import databaseConfig from '../app/modules/database/config.js';
 import {CorePermissionName} from '../app/modules/database/interface.js';
 import {GroupType, PostStatus} from '../app/modules/group/interface.js';
-import {publicationDestinationDigest, publicationDigest} from '../app/modules/socNetPublishing/producer.js';
+import {publicationIntentDigest} from '../app/modules/socNetPublishing/producer.js';
 
 describe('local publication queue', function () {
 	this.timeout(30000);
 	const schema = `local_publication_test_${randomUUID().replaceAll('-', '')}`;
 	let sequelize: Sequelize, models, module, source, editable, content, sourceReads, sourceHook;
 	const account = {network: 'threads', localAccountId: 'threads_1'};
-	const request = (overrides = {}) => ({requestKey: randomUUID(), postId: 1, ...account, scheduledAt: '2020-01-01T00:00:00Z', ...overrides});
-	const claim = (userId = 1) => module.claimJob(userId, {accounts: [account]});
+	const request = (overrides = {}) => ({contentType: 'nsfw', requestKey: randomUUID(), postId: 1, ...account, scheduledAt: '2020-01-01T00:00:00Z', ...overrides});
+	const claim = (userId = 1) => module.claimJob(userId, {intentVersion: 6, accounts: [account]});
 	before(async () => {
 		sequelize = new Sequelize({...databaseConfig, database: process.env.DATABASE_NAME || 'geesome_test', logging: false, pool: {max: 1, min: 0, acquire: 3000}, define: {schema}} as any);
 		await sequelize.createSchema(schema, {});
@@ -43,7 +43,7 @@ describe('local publication queue', function () {
 		}}} as any, models);
 	});
 
-	const destinationInput = (overrides = {}) => ({localKey: 'main', network: 'threads', label: 'Local profile', localAccountId: 'threads_1', target: {}, enabled: true, ...overrides});
+	const destinationInput = (overrides = {}) => ({contentPolicy: 'nsfw', localKey: 'main', network: 'threads', label: 'Local profile', localAccountId: 'threads_1', target: {}, enabled: true, ...overrides});
 	async function register(clientId = 'key:1', overrides = {}) {
 		return (await module.registerDestinations(1, clientId, {destinations: [destinationInput(overrides)]})).destinations[0];
 	}
@@ -54,47 +54,42 @@ describe('local publication queue', function () {
 		await models.PublicationJob.update({destinationId: destination.id, clientId: destination.clientId, executionMode: 'client'}, {where: {id: legacy.id}});
 		return legacy;
 	}
-	it('enforces explicit policies and keeps legacy alternate endpoints separate', async () => {
+	it('uses one content policy rule for every network and explicit subreddit destinations', async () => {
 		await models.PublicationDestination.destroy({where: {}});
 		const {resolveDestination} = getDestinationMethods(models.PublicationDestination, {normalizeRequest, app: {}, loadServerAccount: async () => {}, boundedInteger: Number, problem: (status, code) => Object.assign(new Error(code), {status, code})});
-		const sfw = await register('key:1', {network: 'discord', localAccountId: 'discord_1', target: {channelId: '123'}, contentPolicy: 'sfw'});
-		assert.equal(sfw.contentPolicy, 'sfw');
-		for (const target of [{}, {sensitive: true}]) {
-			await assert.rejects(resolveDestination(1, {destinationId: sfw.id, network: 'discord', target}), {code: 'publication_content_policy_forbidden'});
+		for (const [index, network, target] of [[1, 'reddit', {subreddit: 'Safe'}], [2, 'threads', {}], [3, 'instagram', {}], [4, 'rule34xxx', {}]]) {
+			const row = await register(`key:${index}`, {network, contentPolicy: 'sfw', target});
+			const authored = network === 'rule34xxx' ? {tags: 'safe', source: 'https://example.com'} : {};
+			await assert.rejects(resolveDestination(1, {contentType: 'nsfw', destinationId: row.id, network, target: authored}), {code: 'publication_content_policy_forbidden'});
+			assert.equal((await resolveDestination(1, {contentType: 'sfw', destinationId: row.id, network, target: authored})).contentType, 'sfw');
 		}
-		const safe = await resolveDestination(1, {destinationId: sfw.id, network: 'discord', target: {sensitive: false}});
-		assert.equal(safe.contentPolicy, 'sfw');assert.equal(safe.target.channelId, '123');
-		await assert.rejects(register('key:1', {network: 'discord', localAccountId: 'discord_1', target: {channelId: '123'}}), {code: 'publication_content_policy_required'});
-		await assert.rejects(register('key:2', {network: 'discord', contentPolicy: 'sfw', target: {channelId: '123', sfwChannelId: '456'}}), {code: 'publication_destination_single_endpoint_required'});
-		await assert.rejects(register('key:2', {contentPolicy: 'custom'}), {code: 'publication_content_policy_invalid'});
-		const legacy = await register('key:2', {network: 'discord', target: {channelId: '123', sfwChannelId: '456'}});
-		assert.equal(legacy.contentPolicy, null);
-		assert.equal((await resolveDestination(1, {destinationId: legacy.id, network: 'discord', target: {sensitive: false}})).target.channelId, '456');
-		const unrestricted = await register('key:3', {network: 'discord', contentPolicy: 'nsfw', target: {channelId: '789'}});
-		assert.equal((await resolveDestination(1, {destinationId: unrestricted.id, network: 'discord', target: {sensitive: false}})).target.channelId, '789');
-		assert.equal((await resolveDestination(1, {destinationId: unrestricted.id, network: 'discord', target: {sensitive: true}})).target.channelId, '789');
-		const rule = await register('key:4', {network: 'rule34xxx', contentPolicy: 'sfw'});
-		const target = {tags: 'safe', source: 'https://example.com', rating: 's'};
-		assert.equal((await resolveDestination(1, {destinationId: rule.id, network: 'rule34xxx', target})).contentPolicy, 'sfw');
-		await assert.rejects(resolveDestination(1, {destinationId: rule.id, network: 'rule34xxx', target: {...target, rating: 'e'}}), {code: 'publication_content_policy_forbidden'});
 	});
-	it('supports separate Reddit policies and subreddits with one local account and unchanged legacy targets', async () => {
-		await models.PublicationDestination.destroy({where: {}});
-		const {resolveDestination} = getDestinationMethods(models.PublicationDestination, {normalizeRequest, app: {}, loadServerAccount: async () => {}, boundedInteger: Number, problem: (status, code) => Object.assign(new Error(code), {status, code})});
-		const main = await register('key:1', {localKey: 'reddit-main', network: 'reddit', localAccountId: 'reddit_wave', contentPolicy: 'nsfw', target: {subreddit: 'EraOfWave'}});
-		const sfw = await register('key:1', {localKey: 'reddit-sfw', network: 'reddit', localAccountId: 'reddit_wave', contentPolicy: 'sfw', target: {subreddit: 'EraOfWave_SFW'}});
-		assert.notEqual(main.id, sfw.id);assert.equal(main.localAccountId, sfw.localAccountId);
-		const safe = await resolveDestination(1, {destinationId: sfw.id, network: 'reddit', target: {title: 'Safe post', sensitive: false}});
-		assert.deepEqual(safe.target, {subreddit: 'EraOfWave_SFW', title: 'Safe post', sensitive: false});assert.equal(safe.contentPolicy, 'sfw');
-		for (const target of [{title: 'Unclassified'}, {title: 'Sensitive', sensitive: true}]) {
-			await assert.rejects(resolveDestination(1, {destinationId: sfw.id, network: 'reddit', target}), {code: 'publication_content_policy_forbidden'});
+	it('requires an explicit v6 executor handshake before either claim route mutates a job', async () => {
+		const job = await module.createJob(1, request());
+		for (const intentVersion of [undefined, 5, '6']) {
+			await assert.rejects(module.claimJob(1, {intentVersion, accounts: [account]}), {code: 'publication_upgrade_required'});
+			await assert.rejects(module.claimDestinationJob(1, 'key:1', {intentVersion, destinationIds: []}), {code: 'publication_upgrade_required'});
 		}
-		assert.equal((await resolveDestination(1, {destinationId: main.id, network: 'reddit', target: {title: 'Sensitive', sensitive: true}})).target.subreddit, 'EraOfWave');
-		const legacy = normalizeRequest(request({network: 'reddit', target: {subreddit: 'EraOfWave', title: 'Legacy'}}));
-		assert.deepEqual(legacy.target, {subreddit: 'EraOfWave', title: 'Legacy'});
-		for (const sensitive of ['false', 0, null]) {
-			assert.throws(() => normalizeRequest(request({network: 'reddit', target: {subreddit: 'EraOfWave', title: 'Invalid', sensitive}})), {code: 'local_publication_target_invalid'});
-		}
+		assert.equal((await models.PublicationJob.findByPk(job.id)).status, 'queued');
+		assert.equal((await claim()).id, job.id);
+	});
+	it('holds pre-upgrade queued intent while preserving reporting and cancellation', async () => {
+		const input = request();const job = await module.createJob(1, input);
+		await models.PublicationJob.update({intentVersion: null}, {where: {id: job.id}});
+		assert.equal(await claim(), null);
+		const listed = (await module.listJobs(1))[0];assert.equal(listed.upgradeRequired, true);assert.equal(listed.status, 'queued');
+		await assert.rejects(module.createJob(1, input), {code: 'publication_upgrade_required'});
+		assert.equal((await module.cancelJob(1, job.id)).status, 'cancelled');
+		const processing = await module.createJob(1, request());const claimed = await claim();
+		await models.PublicationJob.update({intentVersion: null}, {where: {id: processing.id}});
+		const posted = await module.reportResult(1, processing.id, {claimToken: claimed.claimToken, status: 'posted', remoteId: 'historical'});
+		assert.equal(posted.status, 'posted');assert.equal(posted.upgradeRequired, true);
+	});
+	it('requires an explicit destination policy instead of weakening existing SFW settings by omission', async () => {
+		const localKey = 'explicit-policy';
+		const row = await register('key:1', {localKey, contentPolicy: 'sfw'});
+		await assert.rejects(register('key:1', {localKey, contentPolicy: undefined}), {code: 'publication_content_policy_invalid'});
+		assert.equal((await models.PublicationDestination.findByPk(row.id)).contentPolicy, 'sfw');
 	});
 	it('registers destinations idempotently, bounds safe listings and scopes local keys by client and owner', async () => {
 		await models.PublicationDestination.destroy({where: {}});
@@ -123,11 +118,11 @@ describe('local publication queue', function () {
 		const destination = await register();
 		const job = await destinationJob(destination);
 		assert.equal(await claim(), null);
-		assert.equal(await module.claimDestinationJob(1, 'key:2', {destinationIds: [destination.id]}), null);
-		assert.equal(await module.claimDestinationJob(2, 'key:1', {destinationIds: [destination.id]}), null);
+		assert.equal(await module.claimDestinationJob(1, 'key:2', {intentVersion: 6, destinationIds: [destination.id]}), null);
+		assert.equal(await module.claimDestinationJob(2, 'key:1', {intentVersion: 6, destinationIds: [destination.id]}), null);
 		await register('key:1', {target: {}, label: 'Renamed'});
 		assert.deepEqual((await module.listJobs(1, {destinationId: destination.id})).map(row => row.id), [job.id]);
-		const results = await Promise.all(Array.from({length: 5}, () => module.claimDestinationJob(1, 'key:1', {destinationIds: [destination.id]})));
+		const results = await Promise.all(Array.from({length: 5}, () => module.claimDestinationJob(1, 'key:1', {intentVersion: 6, destinationIds: [destination.id]})));
 		assert.equal(results.filter(Boolean).length, 1);
 		const claimed = results.find(Boolean);
 		assert.equal(claimed.clientId, 'key:1');
@@ -143,11 +138,11 @@ describe('local publication queue', function () {
 		const destination = await register();
 		const bound = await destinationJob(destination);
 		await register('key:1', {enabled: false});
-		assert.equal(await module.claimDestinationJob(1, 'key:1', {destinationIds: [destination.id], jobId: bound.id}), null);
+		assert.equal(await module.claimDestinationJob(1, 'key:1', {intentVersion: 6, destinationIds: [destination.id], jobId: bound.id}), null);
 		assert.equal((await models.PublicationJob.findByPk(bound.id)).status, 'queued');
 		const legacy = await module.createJob(1, request());
 		assert.equal((await claim()).id, legacy.id);
-		await assert.rejects(module.claimDestinationJob(1, 'key:1', {destinationIds: [destination.id], clientId: 'key:2'}), {status: 400});
+		await assert.rejects(module.claimDestinationJob(1, 'key:1', {intentVersion: 6, destinationIds: [destination.id], clientId: 'key:2'}), {status: 400});
 	});
 
 	it('rejects destination jobs whose private source group became public before claim', async () => {
@@ -155,7 +150,7 @@ describe('local publication queue', function () {
 		const destination = await register();
 		const job = await destinationJob(destination);
 		source.group.isPublic = true;
-		assert.equal(await module.claimDestinationJob(1, 'key:1', {destinationIds: [destination.id]}), null);
+		assert.equal(await module.claimDestinationJob(1, 'key:1', {intentVersion: 6, destinationIds: [destination.id]}), null);
 		assert.equal((await models.PublicationJob.findByPk(job.id)).status, 'failed');
 	});
 
@@ -165,7 +160,7 @@ describe('local publication queue', function () {
 		const destination = await register('key:1', {sourceGroupId: 2});
 		const job = await destinationJob(destination);
 		source.groupId = 3;
-		assert.equal(await module.claimDestinationJob(1, 'key:1', {destinationIds: [destination.id]}), null);
+		assert.equal(await module.claimDestinationJob(1, 'key:1', {intentVersion: 6, destinationIds: [destination.id]}), null);
 		assert.equal((await models.PublicationJob.findByPk(job.id)).status, 'failed');
 	});
 	it('lets the owner retire a lost client destination without exposing a cross-owner operation', async () => {
@@ -178,10 +173,10 @@ describe('local publication queue', function () {
 	});
 	it('binds v4 digest to destination, executor, original content and resolved target', () => {
 		const payload = {text: 'Frozen', attachments: [{storageId: 'bafy1', mimeType: 'image/jpeg'}]};
-		const digest = publicationDestinationDigest(1, 'key:1', 'telegram', 'local', payload, {chatId: '123', sensitive: false});
-		assert.equal(digest, publicationDestinationDigest(1, 'key:1', 'telegram', 'local', payload, {sensitive: false, chatId: '123'}));
-		assert.notEqual(digest, publicationDestinationDigest(2, 'key:1', 'telegram', 'local', payload, {chatId: '123', sensitive: false}));
-		assert.notEqual(digest, publicationDestinationDigest(1, 'key:2', 'telegram', 'local', payload, {chatId: '123', sensitive: false}));
+		const digest = publicationIntentDigest({contentType: 'nsfw', destinationId: 1, clientId: 'key:1', network: 'telegram', localAccountId: 'local', target: {chatId: '123'}, executionMode: 'client'}, payload);
+		assert.equal(digest, publicationIntentDigest({contentType: 'nsfw', destinationId: 1, clientId: 'key:1', network: 'telegram', localAccountId: 'local', target: {chatId: '123'}, executionMode: 'client'}, payload));
+		assert.notEqual(digest, publicationIntentDigest({contentType: 'nsfw', destinationId: 2, clientId: 'key:1', network: 'telegram', localAccountId: 'local', target: {chatId: '123'}, executionMode: 'client'}, payload));
+		assert.notEqual(digest, publicationIntentDigest({contentType: 'nsfw', destinationId: 1, clientId: 'key:2', network: 'telegram', localAccountId: 'local', target: {chatId: '123'}, executionMode: 'client'}, payload));
 	});
 	it('filters network queues before pagination and retains owner scoping', async () => {
 		const older = await module.createJob(1, request());
@@ -240,14 +235,14 @@ describe('local publication queue', function () {
 	it('explicit claim ignores schedule only for the selected owned queued account job', async () => {
 		const future = await module.createJob(1, request({scheduledAt: '2099-01-01T00:00:00Z'}));
 		const due = await module.createJob(1, request());
-		assert.equal(await module.claimJob(2, {accounts: [account], jobId: future.id}), null);
-		assert.equal(await module.claimJob(1, {accounts: [{...account, localAccountId: 'other'}], jobId: future.id}), null);
-		const results = await Promise.all(Array.from({length: 4}, () => module.claimJob(1, {accounts: [account], jobId: future.id})));
+		assert.equal(await module.claimJob(2, {intentVersion: 6, accounts: [account], jobId: future.id}), null);
+		assert.equal(await module.claimJob(1, {intentVersion: 6, accounts: [{...account, localAccountId: 'other'}], jobId: future.id}), null);
+		const results = await Promise.all(Array.from({length: 4}, () => module.claimJob(1, {intentVersion: 6, accounts: [account], jobId: future.id})));
 		assert.equal(results.filter(Boolean).length, 1);
 		assert.equal(results.find(Boolean).id, future.id);
-		assert.equal(await module.claimJob(1, {accounts: [account], jobId: future.id}), null);
+		assert.equal(await module.claimJob(1, {intentVersion: 6, accounts: [account], jobId: future.id}), null);
 		assert.equal((await claim()).id, due.id);
-		await assert.rejects(module.claimJob(1, {accounts: [account], jobId: 0}), {status: 400});
+		await assert.rejects(module.claimJob(1, {intentVersion: 6, accounts: [account], jobId: 0}), {status: 400});
 	});
 	it('skips a due row locked by an independent database connection', async () => {
 		const first = await module.createJob(1, request());
@@ -397,7 +392,7 @@ describe('local publication queue', function () {
 		}
 	});
 	it('validates Rule34 metadata without accepting credentials or extra settings', async () => {
-		const target = {tags: 'artist_name original', source: 'https://example.com/gallery', rating: 'e'};
+		const target = {tags: 'artist_name original', source: 'https://example.com/gallery'};
 		const input = request({network: 'rule34xxx', target});
 		assert.deepEqual(normalizeRequest(input).target, target);
 		assert.equal((await module.createJob(1, input)).network, 'rule34xxx');
@@ -406,31 +401,31 @@ describe('local publication queue', function () {
 			assert.throws(() => normalizeRequest({...input, target: invalid}), {status: 400});
 		}
 		assert.throws(() => normalizeRequest(request({network: 'twitter', target})), {status: 400});
-		const claimed = await module.claimJob(1, {accounts: [{network: 'rule34xxx', localAccountId: account.localAccountId}]});
+		const claimed = await module.claimJob(1, {intentVersion: 6, accounts: [{network: 'rule34xxx', localAccountId: account.localAccountId}]});
 		assert.equal(claimed.network, 'rule34xxx');
 	});
-	it('preserves explicit Twitter sensitivity booleans and rejects them on other networks', async () => {
-		for (const sensitive of [true, false]) {
-			const job = await module.createJob(1, request({network: 'twitter', target: {sensitive}}));
-			assert.deepEqual(job.target, {sensitive});
+	it('requires canonical contentType and rejects old classification fields', async () => {
+		for (const contentType of ['sfw', 'nsfw']) {
+			const job = await module.createJob(1, request({network: 'twitter', contentType, target: {}}));
+			assert.equal(job.contentType, contentType);assert.deepEqual(job.target, {});assert.equal(job.intentVersion, 6);
 		}
-		for (const sensitive of ['false', 0, null]) {
-			assert.throws(() => normalizeRequest(request({network: 'twitter', target: {sensitive}})), {status: 400});
+		for (const contentType of [undefined, null, false, 'other']) {
+			assert.throws(() => normalizeRequest(request({contentType})), {code: 'publication_content_type_invalid'});
 		}
-		assert.throws(() => normalizeRequest(request({target: {sensitive: false}})), {status: 400});
+		assert.throws(() => normalizeRequest(request({network: 'twitter', target: {sensitive: false}})), {status: 400});
 	});
 	it('validates frozen Bluesky, Discord and Telegram targets and claim filters', async () => {
 		const cases = [
-			{network: 'bluesky', target: {sensitive: false}},
-			{network: 'discord', target: {channelId: '12345678901234567890', guildId: '1', sensitive: false}},
-			{network: 'telegram', target: {chatId: '-1001234567890', sensitive: false}},
+			{network: 'bluesky', target: {}},
+			{network: 'discord', target: {channelId: '12345678901234567890', guildId: '1'}},
+			{network: 'telegram', target: {chatId: '-1001234567890'}},
 		];
 		for (const value of cases) {
 			const created = await module.createJob(1, request(value));
 			assert.deepEqual(created.target, value.target);
-			const claimed = await module.claimJob(1, {accounts: [{network: value.network, localAccountId: account.localAccountId}]});
+			const claimed = await module.claimJob(1, {intentVersion: 6, accounts: [{network: value.network, localAccountId: account.localAccountId}]});
 			assert.equal(claimed.id, created.id);
-			assert.equal(await module.claimJob(2, {accounts: [{network: value.network, localAccountId: account.localAccountId}]}), null);
+			assert.equal(await module.claimJob(2, {intentVersion: 6, accounts: [{network: value.network, localAccountId: account.localAccountId}]}), null);
 		}
 		assert.deepEqual(normalizeRequest(request({network: 'discord', target: {channelId: '1'}})).target, {channelId: '1'});
 		assert.deepEqual(normalizeRequest(request({network: 'telegram', target: {chatId: '@valid_name'}})).target, {chatId: '@valid_name'});
@@ -461,7 +456,7 @@ describe('local publication queue', function () {
 	});
 	it('persists the existing 500-character remote ID and AT URI without widening result URL policy', async () => {
 		await module.createJob(1, request({network: 'bluesky'}));
-		const job = await module.claimJob(1, {accounts: [{network: 'bluesky', localAccountId: account.localAccountId}]});
+		const job = await module.claimJob(1, {intentVersion: 6, accounts: [{network: 'bluesky', localAccountId: account.localAccountId}]});
 		const atUri = 'at://did:plc:example/app.bsky.feed.post/record';
 		const result = {claimToken: job.claimToken, status: 'posted', remoteId: atUri, remoteUrl: 'https://bsky.app/profile/example.bsky.social/post/record'};
 		await assert.rejects(module.reportResult(1, job.id, {...result, remoteId: 'a'.repeat(501)}), {status: 400});
@@ -472,8 +467,8 @@ describe('local publication queue', function () {
 		assert.equal((await module.reportResult(1, max.id, {claimToken: max.claimToken, status: 'posted', remoteId: 'a'.repeat(500)})).remoteId.length, 500);
 	});
 	it('accepts only the canonical Rule34 result query for its confirmed ID and network', async () => {
-		const rule34 = await module.createJob(1, request({network: 'rule34xxx', target: {tags: 'artist original', source: 'https://example.com', rating: 'e'}}));
-		const claimed = await module.claimJob(1, {accounts: [{network: 'rule34xxx', localAccountId: account.localAccountId}]});
+		const rule34 = await module.createJob(1, request({network: 'rule34xxx', target: {tags: 'artist original', source: 'https://example.com'}}));
+		const claimed = await module.claimJob(1, {intentVersion: 6, accounts: [{network: 'rule34xxx', localAccountId: account.localAccountId}]});
 		const remoteUrl = 'https://rule34.xxx/index.php?page=post&s=view&id=123';
 		const result = {claimToken: claimed.claimToken, status: 'posted', remoteId: '123', remoteUrl};
 		for (const badUrl of [remoteUrl + '&token=secret', remoteUrl + '&id=123', remoteUrl.replace('id=123', 'id=124'), remoteUrl.replace('s=view', 's=add'), remoteUrl.replace('rule34.xxx', 'evil.example'), remoteUrl.replace('/index.php', '/other.php'), remoteUrl.replace('https:', 'http:')]) {
@@ -487,11 +482,12 @@ describe('local publication queue', function () {
 	});
 	it('binds producer digest to exact text, ordered media and sorted target fields', () => {
 		const payload = {text: 'Hello ☀', attachments: [{storageId: 'bafy1', mimeType: 'image/jpeg', url: 'https://ignored.example/'}]};
-		const digest = publicationDigest('rule34xxx', 'main', payload, {source: 'https://example.com', tags: 'artist original', rating: 'e'});
-		assert.equal(digest, '27ffa5f86218d37e326034ad92f386dedac2d39c4543c86fe2246cc3a8dd6e7d');
-		assert.equal(publicationDigest('rule34xxx', 'main', {...payload, attachments: [{...payload.attachments[0], url: 'https://changed.example/'}]}, {rating: 'e', tags: 'artist original', source: 'https://example.com'}), digest);
-		assert.notEqual(publicationDigest('rule34xxx', 'other', payload, {source: 'https://example.com', tags: 'artist original', rating: 'e'}), digest);
-		assert.notEqual(publicationDigest('rule34xxx', 'main', {...payload, text: 'Changed'}, {source: 'https://example.com', tags: 'artist original', rating: 'e'}), digest);
+		const digest = publicationIntentDigest({contentType: 'nsfw', network: 'rule34xxx', localAccountId: 'main', target: {source: 'https://example.com', tags: 'artist original'}}, payload);
+		assert.equal(digest, '1d1e7de56fcd030ea99d130f7f249dd7f1d09acaf24884c87fa74ff858c97a56');
+		assert.notEqual(publicationIntentDigest({contentType: 'sfw', network: 'rule34xxx', localAccountId: 'main', target: {source: 'https://example.com', tags: 'artist original'}}, payload), digest);
+		assert.equal(publicationIntentDigest({contentType: 'nsfw', network: 'rule34xxx', localAccountId: 'main', target: {tags: 'artist original', source: 'https://example.com'}}, {...payload, attachments: [{...payload.attachments[0], url: 'https://changed.example/'}]}), digest);
+		assert.notEqual(publicationIntentDigest({contentType: 'nsfw', network: 'rule34xxx', localAccountId: 'other', target: {source: 'https://example.com', tags: 'artist original'}}, payload), digest);
+		assert.notEqual(publicationIntentDigest({contentType: 'nsfw', network: 'rule34xxx', localAccountId: 'main', target: {source: 'https://example.com', tags: 'artist original'}}, {...payload, text: 'Changed'}), digest);
 	});
 	it('bounds lists and rejects unsafe input/secret fields/remote URLs', async () => {
 		assert.equal(normalizeRequest(request({postId: '1', target: {kind: 'image'}})).postId, 1);
@@ -500,7 +496,7 @@ describe('local publication queue', function () {
 		assert.throws(() => normalizeRequest(request({target: {accessToken: 'secret'}})), {status: 400});
 		assert.throws(() => normalizeRequest(request({scheduledAt: 'tomorrow'})), {status: 400});
 		await assert.rejects(module.listJobs(1, {limit: 1000}), {status: 400});
-		await assert.rejects(module.claimJob(1, {accounts: [{...account, userId: 2}]}), {status: 400});
+		await assert.rejects(module.claimJob(1, {intentVersion: 6, accounts: [{...account, userId: 2}]}), {status: 400});
 		await module.createJob(1, request());
 		const job = await claim();
 		for (const remoteUrl of ['javascript:alert(1)', 'https://user:secret@example.com/post', 'https://example.com/post?access_token=secret']) {

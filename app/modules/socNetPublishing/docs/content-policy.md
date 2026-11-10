@@ -1,54 +1,63 @@
-# Destination content policy
+# Publication classification
 
-## Contents
+A publication has one required `contentType`: `sfw` or `nsfw`. Compose accepts it
+at the top level and freezes it on every resulting job. Destination
+`contentPolicy` uses the same two values and is required explicitly on registration and setup.
+A destination has one endpoint; separate destinations can share an account.
 
-- [Contract](#contract)
-- [Delivery and verification](#delivery-and-verification)
+`isContentTypeAllowed(contentType, contentPolicy)` is shared policy logic across
+all networks. NSFW content cannot enter an SFW destination. The other three
+valid combinations are allowed. Invalid types are rejected. Compose checks
+before source writes and again while freezing destination identity; server
+workers check only frozen job classification and policy.
 
-## Contract
+Classification is absent from target parameters. Provider adapters translate it
+at send time: Bluesky labels, Discord NSFW-channel checks, Telegram spoilers,
+and client provider flags. Rule34 remains client-only and derives provider
+rating `s` for SFW or `e` for NSFW. There are no network exceptions to policy.
 
-User request: one destination is one channel; user chooses SFW or NSFW.
-`contentPolicy: sfw` accepts only explicitly safe authored content. Twitter,
-Bluesky, Discord, Telegram and Reddit require `target.sensitive === false`; Rule34
-requires `target.rating === 's'`. `nsfw` allows both. It never marks the post
-sensitive automatically or replaces the Discord provider's own NSFW check.
+## Upgrade and recovery
 
-New settings use an explicit policy and a primary endpoint only. Explicit policies
-reject `sfwChannelId`/`sfwChatId`. Legacy null/omitted policies preserve their
-existing behavior, including old alternate routes; old clients may still register
-legacy destinations. An explicit policy cannot silently disappear through an old
-client's registration: that update fails until the client is upgraded.
+Migration `20261110003000-publication-content-type.cjs` is transactional. It
+refuses to proceed when a destination still has a nonempty `sfwChannelId` or
+`sfwChatId`: split those configured endpoints into explicit destinations before
+upgrading. It never silently discards an alternate endpoint. Nullable policies
+become `nsfw` without inferring classification from names or labels.
 
-Compose enforces policy before media/source/job writes and rechecks the destination
-under a transaction lock. Each job freezes the policy. Later destination edits
-do not rewrite accepted jobs, compose replay, v1–v5 digests or result journals.
-The server worker checks the frozen policy before provider calls. Nullable old
-jobs retain their original behavior. New SFW policies for networks without an
-explicit safe-content classification cannot accept posts.
+For historical jobs, the migration maps old `target.sensitive=false` to SFW;
+Rule34 rating `s` also maps to SFW. Other or missing classifications become
+NSFW. It deletes old internal classification keys. IDs, status, request hashes,
+producer digests, claim tokens, remote results and errors remain unchanged.
 
-Migration `20261110002000-publication-content-policy.cjs` adds nullable columns,
-leaves all existing records unchanged and refuses rollback while explicit policy
-data exists. Deploy Node first, then Client and Girls. No production upgrade,
-publication or automatic enablement is part of this source change.
+Historical digest/request identities are opaque evidence, not newly signed
+intent. Only new `intentVersion:6` jobs can be claimed. Both client claim routes require
+an explicit `intentVersion:6` request handshake; older executors are rejected
+before any ownership transition. Existing result acknowledgements remain valid. Historical jobs remain
+visible with `upgradeRequired:true` and an actionable reason; queued work can be
+cancelled through the existing API after reviewing its provider outcome.
+Already processing jobs can still report their result, and ambiguous jobs can
+be settled through existing owner management. No migration requeues or sends.
+Reusing an old compose/request key returns `publication_upgrade_required`;
+clients must reconcile by saved IDs/keys and must not silently create new keys.
 
-## Delivery and verification
+This migration is forward-only: the removed distinction between absent and
+explicit old booleans, or Rule34 `q` and `e`, cannot be reconstructed reliably.
+Rollback requires a pre-upgrade database backup plus matching application
+versions. Stop executors and back up before rollout; upgrade Node, Girls and
+Client together. The old authored API is deliberately rejected.
 
-Tracking: #1575. Node owns schema, API and policy enforcement. Client owns its
-account policy UI, safe primary endpoints and frozen local retries. Girls owns
-catalog filtering, receipt snapshots and clear errors. Consumer work can proceed
-in parallel after this contract; root coordinates the final cross-repo handoff.
+## Digest v6
 
-Verification covers explicit SFW rejection/acceptance, separate channels sharing
-an account, policy snapshots/replay, legacy alternate compatibility, guarded
-migration and HTTP behavior. 73 targeted PostgreSQL tests and 26 actual
-Node/PostgreSQL/Kubo HTTP tests pass. HTTP verifies rejection before source writes,
-unchanged accepted replay and frozen job policy. Provider transport is mocked;
-no live send is needed. apiDoc, security inventory and scalability inventory pass.
-Schema audit: 299 pass, two known unrelated file-catalog model-sync index failures,
-one skip; both new policy columns pass. The full repository suite was not run.
+SHA256 of UTF-8 `JSON.stringify` with this exact field order:
 
-An old client cannot clear an explicit policy even while registering a disabled
-row. Use the existing owner-only destination disable endpoint for recovery, or
-upgrade the client. Do not run an old binary after explicit policy data exists:
-it cannot enforce that restriction, and migration rollback intentionally refuses
-to discard it. Configure live policies only after deploying the matching Node.
+```js
+{version:6,contentType,destinationId:null|number,executionMode:'client'|'server',
+ accountIdentity:string|null,clientId:string|null,network,localAccountId:string|null,
+ text,attachments:[{storageId,mimeType}],target:sortedTarget}
+```
+
+Nonapplicable identity fields are null. An unbound local account also hashes as
+null. Attachments retain order; target keys sort lexicographically. URLs and
+filenames do not enter the digest. Digest v6 binds classification independently
+of provider target parameters. Original producer intent remains frozen when
+images are prepared or an unbound local route is selected.

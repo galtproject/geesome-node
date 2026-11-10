@@ -2,7 +2,7 @@ import {createHash} from 'node:crypto';
 import {isOwnedQueueGroup} from './sources.js';
 import {destinationView, resolveDestinationTarget} from './destinations.js';
 import {createServerProviders} from './providers/index.js';
-import {normalizeContentPolicy, assertSingleEndpoint} from './contentPolicy.js';
+import {normalizeContentPolicy} from './contentPolicy.js';
 
 export function getServerAccountMethods(app, Destination, {normalizeRequest, boundedInteger, problem}, options: any = {}) {
 	const providers = options.providers || createServerProviders({fetch: options.fetch});
@@ -30,11 +30,10 @@ export function getServerAccountMethods(app, Destination, {normalizeRequest, bou
 			}
 			const configured = input.target ?? {};
 			const contentPolicy = normalizeContentPolicy(input.contentPolicy);
-			const targetKeys = {bluesky: [], discord: ['channelId', 'guildId', 'sfwChannelId'], telegram: ['chatId', 'sfwChatId']}[input.network];
+			const targetKeys = {bluesky: [], discord: ['channelId', 'guildId'], telegram: ['chatId']}[input.network];
 			if (!configured || typeof configured !== 'object' || Array.isArray(configured) || Object.keys(configured).some(key => !targetKeys.includes(key))) {
 				throw problem(400, 'local_publication_target_invalid');
 			}
-			assertSingleEndpoint(contentPolicy, configured);
 			let verified;
 			try {
 				verified = await providers.verify(input.network, credentials, configured);
@@ -45,10 +44,8 @@ export function getServerAccountMethods(app, Destination, {normalizeRequest, bou
 				throw problem(400, 'server_publication_identity_invalid');
 			}
 			const target = verified.target || configured;
-			normalizeRequest({requestKey: 'setup', postId: 1, network: input.network, localAccountId: 'validation', target: resolveDestinationTarget(input.network, target), scheduledAt: '2000-01-01T00:00:00Z'});
-			if (target.sfwChannelId || target.sfwChatId) {
-				normalizeRequest({requestKey: 'setup', postId: 1, network: input.network, localAccountId: 'validation', target: resolveDestinationTarget(input.network, target, {sensitive: false}), scheduledAt: '2000-01-01T00:00:00Z'});
-			}
+			normalizeRequest({contentType: 'nsfw', requestKey: 'setup', postId: 1, network: input.network, localAccountId: 'validation', target: resolveDestinationTarget(input.network, target), scheduledAt: '2000-01-01T00:00:00Z'});
+
 			const encrypted = await app.encryptTextWithAppPass(JSON.stringify({network: input.network, accountIdentity: verified.accountIdentity, credentials}));
 			const localKey = `server:${input.requestKey}`;
 			const sequelize = Destination.sequelize;
@@ -62,9 +59,7 @@ export function getServerAccountMethods(app, Destination, {normalizeRequest, bou
 				if (previous && (previous.network !== input.network || previous.accountIdentity !== verified.accountIdentity || previous.sourceGroupId !== sourceGroupId)) {
 					throw problem(409, 'server_publication_setup_conflict');
 				}
-				if (previous?.contentPolicy && !contentPolicy) {
-					throw problem(409, 'publication_content_policy_required');
-				}
+
 				let account = await accounts().findOne({where: {userId, socNet: input.network, accountId: verified.accountIdentity}, transaction, lock: transaction.LOCK.UPDATE});
 				if (!account) {
 					account = await accounts().create({userId, socNet: input.network, accountId: verified.accountIdentity, username: verified.username || null, serverCredentialsEncrypted: encrypted}, {transaction});

@@ -5,7 +5,7 @@ import {IGeesomeApp} from '../app/interface.js';
 import {CorePermissionName} from '../app/modules/database/interface.js';
 import {PostStatus} from '../app/modules/group/interface.js';
 import {preparedMediaDigest, imageLimit} from '../app/modules/socNetPublishing/imagePreparation.js';
-import {publicationDestinationDigest, publicationDigest} from '../app/modules/socNetPublishing/producer.js';
+import {publicationIntentDigest} from '../app/modules/socNetPublishing/producer.js';
 
 describe('private local publication outbox integration', function () {
 	this.timeout(90000);
@@ -13,9 +13,9 @@ describe('private local publication outbox integration', function () {
 	const port = Number(process.env.PORT || 7771);
 	const base = `http://127.0.0.1:${port}/v1`;
 	const destination = {network: 'threads', localAccountId: 'threads_outbox'};
-	const composeInput = (extra = {}) => ({requestKey: randomUUID(), text: 'Composed text', imageStorageIds: [imageStorageId], destinations: [destination], ...extra});
+	const composeInput = (extra = {}) => ({contentType: 'nsfw', requestKey: randomUUID(), text: 'Composed text', imageStorageIds: [imageStorageId], destinations: [destination], ...extra});
 	const call = (suffix, body, key = token) => fetch(`${base}/user/local-publications${suffix}`, {
-		method: body === undefined ? 'GET' : 'POST', headers: {Authorization: `Bearer ${key}`, 'Content-Type': 'application/json'}, body: body === undefined ? undefined : JSON.stringify(body)
+		method: body === undefined ? 'GET' : 'POST', headers: {Authorization: `Bearer ${key}`, 'Content-Type': 'application/json'}, body: body === undefined ? undefined : JSON.stringify(['/claim', '/destination-claim'].includes(suffix) ? {intentVersion: 6, ...body} : suffix === '/destinations' && Array.isArray(body.destinations) ? {...body, destinations: body.destinations.map(item => ({contentPolicy: 'nsfw', ...item}))} : body)
 	});
 	async function successful(response) {
 		const value = await response.json() as any;
@@ -58,7 +58,7 @@ describe('private local publication outbox integration', function () {
 		const result = results[0];
 		assert.equal(new Set(results.map(value => value.postId)).size, 1);
 		assert.equal(result.jobs.length, 2);
-		const legacyNormalized = {requestKey: input.requestKey, text: input.text, imageStorageIds: input.imageStorageIds,
+		const legacyNormalized = {contentType: 'nsfw', requestKey: input.requestKey, text: input.text, imageStorageIds: input.imageStorageIds,
 			destinations: input.destinations.map(item => ({network: item.network, localAccountId: item.localAccountId, target: 'target' in item ? item.target : {}})), scheduledAt: null, postId: null};
 		const stored = await app.ms.database.sequelize.models.publicationJob.findByPk(result.jobs[0].id);
 		assert.equal(stored.get('composeHash'), createHash('sha256').update(JSON.stringify(legacyNormalized)).digest('hex'));
@@ -93,36 +93,48 @@ describe('private local publication outbox integration', function () {
 		assert.deepEqual((await successful(await call('/outbox'))).drafts, []);
 	});
 	it('freezes two Reddit subreddit destinations on one account and rejects unsafe SFW creation', async () => {
-		const source = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Reddit source'}));
+		const source = await successful(await call('/sources', { requestKey: randomUUID(), title: 'Reddit source'}));
 		const accountId = 'reddit_wave';
 		const registration = await successful(await call('/destinations', {destinations: [
 			{localKey: 'reddit-main', network: 'reddit', label: 'r/EraOfWave', localAccountId: accountId, sourceGroupId: source.group.id, contentPolicy: 'nsfw', target: {subreddit: 'EraOfWave'}, enabled: true},
 			{localKey: 'reddit-sfw', network: 'reddit', label: 'r/EraOfWave_SFW', localAccountId: accountId, sourceGroupId: source.group.id, contentPolicy: 'sfw', target: {subreddit: 'EraOfWave_SFW'}, enabled: true}
 		]}));
 		const [main, safe] = registration.destinations;
-		const input = {requestKey: randomUUID(), groupId: source.group.id, text: 'Safe Reddit post', imageStorageIds: [], destinations: [
-			{destinationId: main.id, network: 'reddit', target: {title: 'Safe Reddit post', sensitive: false}},
-			{destinationId: safe.id, network: 'reddit', target: {title: 'Safe Reddit post', sensitive: false}}
+		const missingPolicy = await call('/destinations', {destinations: [{localKey: 'reddit-sfw', network: 'reddit', label: 'SFW', localAccountId: accountId, sourceGroupId: source.group.id, contentPolicy: undefined, target: {subreddit: 'EraOfWave_SFW'}, enabled: true}]});assert.equal(missingPolicy.status, 400);
+		const input = {contentType: 'sfw', requestKey: randomUUID(), groupId: source.group.id, text: 'Safe Reddit post', imageStorageIds: [], destinations: [
+			{destinationId: main.id, network: 'reddit', target: {title: 'Safe Reddit post'}},
+			{destinationId: safe.id, network: 'reddit', target: {title: 'Safe Reddit post'}}
 		]};
 		const before = await app.ms.database.models.Post.count({where: {groupId: source.group.id}});
-		const invalid = await call('/compose', {...input, destinations: [{...input.destinations[1], target: {title: 'Unsafe', sensitive: true}}]});
+		const invalid = await call('/compose', {...input, contentType: 'nsfw', destinations: [{...input.destinations[1], target: {title: 'Unsafe'}}]});
 		assert.equal(invalid.status, 409);assert.equal((await invalid.json()).code, 'publication_content_policy_forbidden');
 		assert.equal(await app.ms.database.models.Post.count({where: {groupId: source.group.id}}), before);
 		const result = await successful(await call('/compose', input));assert.equal(result.jobs.length, 2);
 		assert.deepEqual(result.jobs.map(job => job.target.subreddit), ['EraOfWave', 'EraOfWave_SFW']);
-		assert(result.jobs.every(job => job.localAccountId === accountId && job.target.sensitive === false));
+		assert(result.jobs.every(job => job.localAccountId === accountId && job.contentType === 'sfw'));
 		assert.deepEqual(result.jobs.map(job => job.contentPolicy), ['nsfw', 'sfw']);
 		assert.deepEqual((await successful(await call('/compose', input))).jobs.map(job => job.id), result.jobs.map(job => job.id));
 		for (const job of result.jobs) {
 			await successful(await call(`/${job.id}/cancel`, {}));
 		}
 	});
+	it('exposes old intent for recovery and refuses replay or claim without changing its status', async () => {
+		const input = composeInput();const accepted = await successful(await call('/compose', input));const job = accepted.jobs[0];
+		for (const suffix of ['/claim', '/destination-claim']) {
+			const old = await call(suffix, {intentVersion: undefined, accounts: [destination], destinationIds: []});assert.equal(old.status, 409);assert.equal((await old.json()).code, 'publication_upgrade_required');
+		}
+		await app.ms.database.sequelize.models.publicationJob.update({intentVersion: null}, {where: {id: job.id}});
+		const listed = (await successful(await call(`?ids=${job.id}`))).jobs[0];assert.equal(listed.status, 'queued');assert.equal(listed.upgradeRequired, true);assert(listed.upgradeReason.includes('Reconcile'));
+		const replay = await call('/compose', input);assert.equal(replay.status, 409);assert.equal((await replay.json()).code, 'publication_upgrade_required');
+		assert.equal((await successful(await call('/claim', {jobId: job.id, accounts: [destination]}))).job, null);
+		assert.equal((await successful(await call(`/${job.id}/cancel`, {}))).job.status, 'cancelled');
+	});
 	it('freezes producer identity and digest on owned compose replay and bounded HTTP lookup', async () => {
-		const input = composeInput({producer: {type: 'microwave-girls', postId: 123}, destinations: [{network: 'twitter', localAccountId: 'twitter_local', target: {sensitive: false}}]});
+		const input = composeInput({producer: {type: 'microwave-girls', postId: 123}, destinations: [{network: 'twitter', localAccountId: 'twitter_local', target: {}}]});
 		const result = await successful(await call('/compose', input));
 		const job = result.jobs[0];
-		const expected = createHash('sha256').update(JSON.stringify({network: 'twitter', localAccountId: 'twitter_local', text: input.text,
-			attachments: [{storageId: imageStorageId, mimeType: 'image/jpeg'}], target: {sensitive: false}})).digest('hex');
+		const expected = createHash('sha256').update(JSON.stringify({version: 6, contentType: 'nsfw', destinationId: null, executionMode: 'client', accountIdentity: null, clientId: null, network: 'twitter', localAccountId: 'twitter_local', text: input.text,
+			attachments: [{storageId: imageStorageId, mimeType: 'image/jpeg'}], target: {}})).digest('hex');
 		assert.deepEqual(job.producer, {type: 'microwave-girls', postId: 123, digest: expected});
 		assert.equal((await successful(await call('/compose', input))).jobs[0].id, job.id);
 		assert.equal((await call('/compose', {...input, producer: {...input.producer, postId: 124}})).status, 409);
@@ -140,9 +152,9 @@ describe('private local publication outbox integration', function () {
 	});
 	it('composes and reports Bluesky, Discord and Telegram with narrow scopes and frozen metadata', async () => {
 		const cases = [
-			{network: 'bluesky', target: {sensitive: false}, remoteId: 'at://did:plc:example/app.bsky.feed.post/record', remoteUrl: 'https://bsky.app/profile/example.bsky.social/post/record'},
-			{network: 'discord', target: {channelId: '123456789012345678', guildId: '234567890123456789', sensitive: true}, remoteId: '345678901234567890', remoteUrl: 'https://discord.com/channels/234567890123456789/123456789012345678/345678901234567890'},
-			{network: 'telegram', target: {chatId: '-1001234567890', sensitive: true}, remoteId: '123', remoteUrl: 'https://t.me/c/1234567890/123'},
+			{network: 'bluesky', target: {}, remoteId: 'at://did:plc:example/app.bsky.feed.post/record', remoteUrl: 'https://bsky.app/profile/example.bsky.social/post/record'},
+			{network: 'discord', target: {channelId: '123456789012345678', guildId: '234567890123456789'}, remoteId: '345678901234567890', remoteUrl: 'https://discord.com/channels/234567890123456789/123456789012345678/345678901234567890'},
+			{network: 'telegram', target: {chatId: '-1001234567890'}, remoteId: '123', remoteUrl: 'https://t.me/c/1234567890/123'},
 		];
 		for (const [index, value] of cases.entries()) {
 			const localAccountId = `${value.network}_local`;
@@ -230,7 +242,7 @@ describe('private local publication outbox integration', function () {
 		const privateGroup = await app.ms.group.createGroup(user.id, {name: 'not-an-outbox', title: 'Ordinary private', isPublic: false, isOpen: false});
 		const text = await app.ms.content.saveData(user.id, 'Private unrelated', 'private.txt');
 		const post = await app.ms.group.createPost(user.id, {groupId: privateGroup.id, status: PostStatus.Published, contents: [{id: text.id}]});
-		assert.equal((await call('', {requestKey: randomUUID(), postId: post.id, ...destination, scheduledAt: '2020-01-01T00:00:00Z'})).status, 403);
+		assert.equal((await call('', {contentType: 'nsfw', requestKey: randomUUID(), postId: post.id, ...destination, scheduledAt: '2020-01-01T00:00:00Z'})).status, 403);
 		const narrow = await app.generateUserApiKey(user.id, {scopes: ['publishing:local']});
 		assert.equal((await call('/compose', composeInput({imageStorageIds: []}), narrow)).status, 403);
 	});
@@ -275,17 +287,17 @@ describe('private local publication outbox integration', function () {
 		assert.equal((await successful(await call(`/sources?ids=${queue.id}`))).groups[0].lastPostAt, null);
 	});
 	it('routes network-only jobs once within selected groups and preserves the authored producer digest', async () => {
-		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Routed source'}));
-		const input = composeInput({groupId: group.id, producer: {type: 'microwave-girls', postId: 501}, destinations: [{network: 'discord', target: {sensitive: false}}]});
+		const {group} = await successful(await call('/sources', { requestKey: randomUUID(), title: 'Routed source'}));
+		const input = composeInput({groupId: group.id, producer: {type: 'microwave-girls', postId: 501}, destinations: [{network: 'discord', target: {}}]});
 		const composed = await successful(await call('/compose', input));
 		const original = composed.jobs[0];
 		assert.equal(original.groupId, group.id);
 		assert.equal(original.localAccountId, '');
-		assert.deepEqual(original.target, {sensitive: false});
+		assert.deepEqual(original.target, {});
 		assert.equal((await call('/compose', {...input, groupId: undefined})).status, 400);
 		assert.equal((await successful(await call(`/sources?ids=${group.id}`))).groups[0].lastPostAt !== null, true);
 		const accounts = [{network: 'discord', localAccountId: 'discord_local'}];
-		const routes = [{groupId: group.id, ...accounts[0], target: {channelId: '100', sfwChannelId: '200', guildId: '300'}}];
+		const routes = [{groupId: group.id, ...accounts[0], target: {channelId: '100', guildId: '300'}}];
 		assert.equal((await successful(await call('/claim', {accounts, groupIds: [], routes}))).job, null);
 		assert.equal((await successful(await call('/claim', {accounts, groupIds: [groupId], routes}))).job, null);
 		assert.equal((await successful(await call('/claim', {accounts, groupIds: [group.id]}))).job, null);
@@ -295,7 +307,7 @@ describe('private local publication outbox integration', function () {
 		const claimed = raced.map(value => value.job).filter(Boolean);
 		assert.equal(claimed.length, 1);
 		assert.equal(claimed[0].localAccountId, 'discord_local');
-		assert.deepEqual(claimed[0].target, {sensitive: false, channelId: '200', guildId: '300'});
+		assert.deepEqual(claimed[0].target, {channelId: '100', guildId: '300'});
 		assert.deepEqual(claimed[0].producer, original.producer);
 		const replay = await successful(await call('/compose', input));
 		assert.equal(replay.jobs[0].id, original.id);
@@ -304,28 +316,28 @@ describe('private local publication outbox integration', function () {
 		assert.equal((await successful(await call('/claim', {jobId: original.id, accounts, groupIds: [group.id], routes}))).job, null);
 	});
 	it('preserves authored channels, rejects unsafe routes, and leaves direct group posts as drafts', async () => {
-		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Draft source'}));
+		const {group} = await successful(await call('/sources', { requestKey: randomUUID(), title: 'Draft source'}));
 		const text = await app.ms.content.saveData(user.id, 'Direct group draft', 'draft.txt');
 		const draft = await app.ms.group.createPost(user.id, {groupId: group.id, status: PostStatus.Published, contents: [{id: text.id}]});
 		const accounts = [{network: 'telegram', localAccountId: 'telegram_local'}];
-		const routes = [{groupId: group.id, ...accounts[0], target: {chatId: '-100', sfwChatId: '-200'}}];
+		const routes = [{groupId: group.id, ...accounts[0], target: {chatId: '-100'}}];
 		assert.equal((await successful(await call('/claim', {accounts, groupIds: [group.id], routes}))).job, null);
 		const listed = await successful(await call(`/outbox?groupIds=${group.id}`));
 		assert.equal(listed.drafts[0].postId, draft.id);
 		assert.equal(listed.drafts[0].groupId, group.id);
 		assert.deepEqual((await successful(await call('/outbox?groupIds='))).drafts, []);
-		const input = composeInput({groupId: group.id, postId: draft.id, text: 'Direct group draft', imageStorageIds: [], destinations: [{network: 'telegram', target: {chatId: '-300', sensitive: false}}]});
+		const input = composeInput({groupId: group.id, postId: draft.id, text: 'Direct group draft', imageStorageIds: [], destinations: [{network: 'telegram', target: {chatId: '-300'}}]});
 		const assigned = await successful(await call('/compose', input));
-		for (const extra of [{target: {chatId: '-100', sensitive: true}}, {target: {chatId: '-100', cookie: 'secret'}}, {localAccountId: 'missing'}]) {
+		for (const extra of [{target: {chatId: '-100', sensitive: false}}, {target: {chatId: '-100', cookie: 'secret'}}, {localAccountId: 'missing'}]) {
 			assert.equal((await call('/claim', {accounts, groupIds: [group.id], routes: [{...routes[0], ...extra}]})).status, 400);
 		}
 		const claimed = (await successful(await call('/claim', {accounts, groupIds: [group.id], routes}))).job;
 		assert.equal(claimed.id, assigned.jobs[0].id);
-		assert.deepEqual(claimed.target, {chatId: '-300', sensitive: false});
+		assert.deepEqual(claimed.target, {chatId: '-300'});
 		assert.deepEqual((await successful(await call(`/outbox?groupIds=${group.id}`))).drafts, []);
 	});
 	it('fails selected source jobs if their private group becomes public before claim', async () => {
-		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Revoked source'}));
+		const {group} = await successful(await call('/sources', { requestKey: randomUUID(), title: 'Revoked source'}));
 		const composed = await successful(await call('/compose', composeInput({groupId: group.id, destinations: [{network: 'threads', localAccountId: destination.localAccountId}]})));
 		await app.ms.database.models.Group.update({isPublic: true}, {where: {id: group.id}});
 		assert.equal((await successful(await call('/claim', {accounts: [destination], groupIds: [group.id]}))).job, null);
@@ -333,7 +345,7 @@ describe('private local publication outbox integration', function () {
 	});
 
 	it('treats supplied routes as authoritative for bound jobs and rejects malformed group selections', async () => {
-		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Bound source'}));
+		const {group} = await successful(await call('/sources', { requestKey: randomUUID(), title: 'Bound source'}));
 		const composed = await successful(await call('/compose', composeInput({groupId: group.id, imageStorageIds: [], destinations: [destination]})));
 		const input = {accounts: [destination, {...destination, localAccountId: 'other'}], groupIds: [group.id]};
 		assert.equal((await successful(await call('/claim', {...input, routes: []}))).job, null);
@@ -361,9 +373,9 @@ describe('private local publication outbox integration', function () {
 	it('prepares immutable JPEG jobs before acceptance and keeps originals in the private source post', async () => {
 		const bytes = await sharp({create: {width: 640, height: 480, channels: 4, background: {r: 10, g: 80, b: 150, alpha: .5}}}).png().toBuffer();
 		const uploaded = await uploadPreparationImage(bytes, 'image/png');
-		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Prepared media source'}));
+		const {group} = await successful(await call('/sources', { requestKey: randomUUID(), title: 'Prepared media source'}));
 		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', imageStorageIds: [uploaded.storageId],
-			destinations: [{network: 'bluesky', target: {sensitive: false}}, {network: 'twitter'}, {network: 'threads'}, {network: 'discord', target: {sensitive: false}}]});
+			destinations: [{network: 'bluesky', target: {}}, {network: 'twitter'}, {network: 'threads'}, {network: 'discord', target: {}}]});
 		const composed = await successful(await call('/compose', input));
 		assert.equal(composed.jobs.length, 4);
 		const post = await app.ms.group.getPost(user.id, composed.postId);
@@ -412,7 +424,7 @@ describe('private local publication outbox integration', function () {
 		await app.ms.database.models.Content.update({propertiesJson: 'null'}, {where: {id: content.id}});
 		const Asset = app.ms.database.sequelize.models.asset;
 		assert.equal(await Asset.count({where: {userId: user.id, storageId: content.storageId}}), 0);
-		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Owned reference source'}));
+		const {group} = await successful(await call('/sources', { requestKey: randomUUID(), title: 'Owned reference source'}));
 		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', imageStorageIds: [content.storageId], destinations: [{network: 'twitter'}]});
 		const composed = await successful(await call('/compose', input));
 		assert.equal(composed.jobs[0].payload.mediaPreparation.sourceAttachments[0].storageId, content.storageId);
@@ -426,14 +438,14 @@ describe('private local publication outbox integration', function () {
 		}
 		const foreign = await app.registerUser({email: 'foreign-content-reference@example.com', name: 'foreign-content-reference', permissions: [CorePermissionName.UserAll]});
 		const other = await app.ms.content.saveData(foreign.id, await sharp(bytes).negate().png().toBuffer(), 'foreign-reference.png', {mimeType: 'image/png', driver: {raw: true}, skipFileCatalog: true});
-		assert.equal((await call('/compose', {...input, requestKey: randomUUID(), imageStorageIds: [other.storageId]})).status, 403);
+		assert.equal((await call('/compose', {...input, contentType: 'nsfw', requestKey: randomUUID(), imageStorageIds: [other.storageId]})).status, 403);
 		assert.equal((await successful(await call('/compose', input))).postId, composed.postId);
 	});
 	it('reuses an existing publication JPEG and its durable social cache without re-encoding', async () => {
 		const png = await sharp({create: {width: 110, height: 75, channels: 3, background: '#6382ab'}}).png().toBuffer();
 		const content = await app.ms.content.saveData(user.id, png, 'trusted-publication.png', {mimeType: 'image/png',
 			driver: {name: 'imageOptimize', module: 'convert', params: {policy: 'publication-jpeg95-v1'}}, skipFileCatalog: true, requirePreview: true});
-		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Trusted JPEG source'}));
+		const {group} = await successful(await call('/sources', { requestKey: randomUUID(), title: 'Trusted JPEG source'}));
 		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', imageStorageIds: [content.storageId], destinations: [{network: 'bluesky'}]});
 		const save = app.ms.content.saveData;
 		let encodes = 0;
@@ -456,7 +468,7 @@ describe('private local publication outbox integration', function () {
 	it('prepares a Patreon preview job and freezes the campaign route without changing producer intent', async () => {
 		const bytes = await sharp({create: {width: 300, height: 200, channels: 3, background: '#b68261'}}).webp().toBuffer();
 		const uploaded = await uploadPreparationImage(bytes, 'image/webp');
-		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Patreon source'}));
+		const {group} = await successful(await call('/sources', { requestKey: randomUUID(), title: 'Patreon source'}));
 		const target = {title: 'Prepared set', audience: 'free_members', teaserText: 'Public preview.'};
 		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', text: 'Public preview.\nProtected link', imageStorageIds: [uploaded.storageId], producer: {type: 'microwave-girls', postId: 901}, destinations: [{network: 'patreon', target}]});
 		const job = (await successful(await call('/compose', input))).jobs[0];
@@ -477,24 +489,24 @@ describe('private local publication outbox integration', function () {
 	it('preserves original producer digest through preparation, routing and replay', async () => {
 		const bytes = await sharp({create: {width: 300, height: 200, channels: 3, background: '#b68261'}}).webp().toBuffer();
 		const uploaded = await uploadPreparationImage(bytes, 'image/webp');
-		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Prepared producer source'}));
-		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', imageStorageIds: [uploaded.storageId], producer: {type: 'microwave-girls', postId: 900}, destinations: [{network: 'telegram', target: {sensitive: false}}]});
+		const {group} = await successful(await call('/sources', { requestKey: randomUUID(), title: 'Prepared producer source'}));
+		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', imageStorageIds: [uploaded.storageId], producer: {type: 'microwave-girls', postId: 900}, destinations: [{network: 'telegram', target: {}}]});
 		const result = await successful(await call('/compose', input));
 		const job = result.jobs[0];
-		const expected = publicationDigest('telegram', '', {text: input.text, attachments: [{storageId: uploaded.storageId, mimeType: 'image/webp'}]}, {sensitive: false});
+		const expected = publicationIntentDigest({contentType: 'nsfw', network: 'telegram', localAccountId: '', target: {}}, {text: input.text, attachments: [{storageId: uploaded.storageId, mimeType: 'image/webp'}]});
 		assert.equal(job.producer.digest, expected);
-		assert.notEqual(job.producer.digest, publicationDigest('telegram', '', job.payload, job.target));
+		assert.notEqual(job.producer.digest, publicationIntentDigest({contentType: 'nsfw', network: 'telegram', localAccountId: '', target: job.target}, job.payload));
 		const account = {network: 'telegram', localAccountId: 'telegram_prepared'};
-		const claimed = (await successful(await call('/claim', {jobId: job.id, groupIds: [group.id], accounts: [account], routes: [{groupId: group.id, ...account, target: {chatId: '-100', sfwChatId: '-200'}}]}))).job;
+		const claimed = (await successful(await call('/claim', {jobId: job.id, groupIds: [group.id], accounts: [account], routes: [{groupId: group.id, ...account, target: {chatId: '-100'}}]}))).job;
 		assert.equal(claimed.producer.digest, expected);
-		assert.equal(claimed.target.chatId, '-200');
+		assert.equal(claimed.target.chatId, '-100');
 		assert.deepEqual(claimed.payload, job.payload);
 		const replayed = (await successful(await call('/compose', input))).jobs[0];
 		assert.equal(replayed.producer.digest, expected);
 		assert.equal(replayed.localAccountId, account.localAccountId);
 	});
 	it('keeps every destination unqueued when media or a later destination is invalid', async () => {
-		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'All-or-nothing preparation'}));
+		const {group} = await successful(await call('/sources', { requestKey: randomUUID(), title: 'All-or-nothing preparation'}));
 		const before = await app.ms.database.models.Post.count({where: {groupId: group.id}});
 		const jobs = app.ms.database.sequelize.models.publicationJob;
 		const invalidText = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', text: 'x'.repeat(301), destinations: [{network: 'threads'}, {network: 'bluesky'}]});
@@ -518,7 +530,7 @@ describe('private local publication outbox integration', function () {
 	it('deduplicates concurrent prepared compose and activates drafts against original refs', async () => {
 		const bytes = await sharp({create: {width: 100, height: 160, channels: 3, background: '#6a8b94'}}).png().toBuffer();
 		const uploaded = await uploadPreparationImage(bytes, 'image/png');
-		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Prepared draft source'}));
+		const {group} = await successful(await call('/sources', { requestKey: randomUUID(), title: 'Prepared draft source'}));
 		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', text: 'Race', imageStorageIds: [uploaded.storageId], destinations: [{network: 'twitter'}]});
 		const raced = await Promise.all(Array.from({length: 3}, () => call('/compose', input).then(successful)));
 		assert.equal(new Set(raced.map(result => result.postId)).size, 1);
@@ -526,7 +538,7 @@ describe('private local publication outbox integration', function () {
 		const content = await app.ms.database.getContentByStorageAndUserId(uploaded.storageId, user.id);
 		const text = await app.ms.content.saveData(user.id, 'Original draft', 'draft.txt', {driver: {raw: true}});
 		const source = await app.ms.group.createPost(user.id, {groupId: group.id, status: PostStatus.Published, contents: [{id: text.id}, {id: content.id}]});
-		const activated = await successful(await call('/compose', {...input, requestKey: randomUUID(), postId: source.id, text: 'Original draft'}));
+		const activated = await successful(await call('/compose', {...input, contentType: 'nsfw', requestKey: randomUUID(), postId: source.id, text: 'Original draft'}));
 		assert.equal(activated.postId, source.id);
 		assert.notEqual(activated.jobs[0].payload.attachments[0].storageId, uploaded.storageId);
 		assert.equal(activated.jobs[0].payload.mediaPreparation.sourceAttachments[0].storageId, uploaded.storageId);
@@ -541,7 +553,7 @@ describe('private local publication outbox integration', function () {
 		}
 		const original = await sharp(raw, {raw: {width: 1800, height: 1800, channels: 3}}).png().toBuffer();
 		const uploaded = await uploadPreparationImage(original, 'image/png');
-		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Network profile source'}));
+		const {group} = await successful(await call('/sources', { requestKey: randomUUID(), title: 'Network profile source'}));
 		const input = composeInput({groupId: group.id, mediaPolicy: 'social-images-v1', imageStorageIds: [uploaded.storageId], destinations: [{network: 'bluesky'}, {network: 'twitter'}]});
 		const result = await successful(await call('/compose', input));
 		const bsky = result.jobs.find(job => job.network === 'bluesky').payload.attachments[0];
@@ -559,18 +571,18 @@ describe('private local publication outbox integration', function () {
 		const foreignUpload = await uploadPreparationImage(foreignBytes, 'image/jpeg', foreignKey);
 		const foreignAsset = await assetModel.findOne({where: {userId: foreign.id, storageId: foreignUpload.storageId}});
 		await record.update({assetId: foreignAsset.id});
-		const retried = await successful(await call('/compose', {...input, requestKey: randomUUID(), destinations: [{network: 'bluesky'}]}));
+		const retried = await successful(await call('/compose', {...input, contentType: 'nsfw', requestKey: randomUUID(), destinations: [{network: 'bluesky'}]}));
 		assert.equal(retried.jobs[0].payload.attachments[0].storageId, bsky.storageId);
 		assert.notEqual(retried.jobs[0].payload.attachments[0].storageId, foreignUpload.storageId);
 		await record.reload();
 		assert.equal(record.assetId, asset.id);
-		assert.equal((await call('/compose', {...input, requestKey: randomUUID(), imageStorageIds: [foreignUpload.storageId]})).status, 403);
+		assert.equal((await call('/compose', {...input, contentType: 'nsfw', requestKey: randomUUID(), imageStorageIds: [foreignUpload.storageId]})).status, 403);
 	});
 
 	it('rolls back the source and all jobs if group privacy changes during preparation', async () => {
 		const bytes = await sharp({create: {width: 107, height: 163, channels: 3, background: '#bed715'}}).png().toBuffer();
 		const uploaded = await uploadPreparationImage(bytes, 'image/png');
-		const {group} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Privacy race source'}));
+		const {group} = await successful(await call('/sources', { requestKey: randomUUID(), title: 'Privacy race source'}));
 		const read = app.ms.storage.getFileStream;
 		let changed = false;
 		app.ms.storage.getFileStream = async (...args) => {
@@ -594,8 +606,8 @@ describe('private local publication outbox integration', function () {
 	});
 
 	it('freezes registered destinations, verifies v4 before effects and isolates HTTP claims/results', async () => {
-		const {group: registeredGroup} = await successful(await call('/sources', {requestKey: randomUUID(), title: 'Registered destination source'}));
-		const local = {sourceGroupId: registeredGroup.id, localKey: 'telegram-main', network: 'telegram', label: 'Local Telegram', localAccountId: 'telegram_local', target: {chatId: '123', sfwChatId: '456'}, enabled: true};
+		const {group: registeredGroup} = await successful(await call('/sources', { requestKey: randomUUID(), title: 'Registered destination source'}));
+		const local = {sourceGroupId: registeredGroup.id, localKey: 'telegram-main', network: 'telegram', label: 'Local Telegram', localAccountId: 'telegram_local', target: {chatId: '456'}, enabled: true};
 		const registered = await successful(await call('/destinations', {destinations: [local]}));
 		const target = registered.destinations[0];
 		assert.equal(target.clientId, registered.clientId);
@@ -607,11 +619,11 @@ describe('private local publication outbox integration', function () {
 		const owned = await successful(await call('/destinations?limit=100'));
 		assert(owned.destinations.some(row => row.id === target.id));
 		assert.equal(owned.destinations[0].socNetAccountId, undefined);
-		const authored = {sensitive: false, chatId: '456'};
+		const authored = {chatId: '456'};
 		const payload = {text: 'Composed text', attachments: [{storageId: imageStorageId, mimeType: 'image/jpeg'}]};
-		const digest = publicationDestinationDigest(target.id, target.clientId, target.network, target.localAccountId, payload, authored);
+		const digest = publicationIntentDigest({contentType: 'nsfw', destinationId: target.id, clientId: target.clientId, network: target.network, localAccountId: target.localAccountId, target: authored, executionMode: 'client'}, payload);
 		const input: any = composeInput({groupId: registeredGroup.id, destinations: [{destinationId: target.id, network: 'telegram', target: authored}], producer: {type: 'microwave-girls', postId: 123, digest}});
-		const wrongGroup = {...input, requestKey: randomUUID(), groupId};
+		const wrongGroup = {...input, contentType: 'nsfw', requestKey: randomUUID(), groupId};
 		assert.equal((await call('/compose', wrongGroup)).status, 403);
 		const result = await successful(await call('/compose', input));
 		const job = result.jobs[0];
@@ -638,7 +650,7 @@ describe('private local publication outbox integration', function () {
 		assert.equal((await call(`/${job.id}/result`, report, otherKey)).status, 403);
 		assert.equal((await successful(await call(`/${job.id}/result`, report))).job.status, 'posted');
 		assert.equal((await successful(await call(`/${job.id}/result`, report))).job.status, 'posted');
-		const changedDigest = {...input, requestKey: randomUUID(), destinations: [{destinationId: target.id, network: 'telegram', target: {sensitive: false}}]};
+		const changedDigest = {...input, contentType: 'nsfw', requestKey: randomUUID(), destinations: [{destinationId: target.id, network: 'telegram', target: {}}]};
 		await successful(await call('/destinations', {destinations: [local]}));
 		changedDigest.producer = {...input.producer, digest: '0'.repeat(64)};
 		assert.equal((await call('/compose', changedDigest)).status, 409);

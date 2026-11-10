@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
 import {encodeSocialImage, preparedMediaDigest, validatePreparedPublication, imageLimit, socialImageMaxEdge, isPublicationJpeg} from '../app/modules/socNetPublishing/imagePreparation.js';
-import {publicationDigest} from '../app/modules/socNetPublishing/producer.js';
+import {publicationIntentDigest} from '../app/modules/socNetPublishing/producer.js';
 
 describe('local publication image preparation', function () {
 	this.timeout(90000);
@@ -110,6 +110,6 @@ describe('local publication image preparation', function () {
 		assert.equal(digest, preparedMediaDigest('twitter', [{...source[0], url: 'https://example.com/ignored'}], attachments));
 		assert.notEqual(digest, preparedMediaDigest('bluesky', source, attachments));
 		assert.notEqual(digest, preparedMediaDigest('twitter', source, [{...attachments[0], storageId: 'different'}]));
-		assert.notEqual(publicationDigest('twitter', '', {text: 'Text', attachments: source}), publicationDigest('twitter', '', {text: 'Text', attachments}));
+		assert.notEqual(publicationIntentDigest({contentType: 'nsfw', network: 'twitter', localAccountId: '', target: {}}, {text: 'Text', attachments: source}), publicationIntentDigest({contentType: 'nsfw', network: 'twitter', localAccountId: '', target: {}}, {text: 'Text', attachments}));
 	});
 });

@@ -19,21 +19,19 @@ export function createDiscordProvider(transport: any) {
 	}
 	return {
 		async verify(credentials: any, target: any = {}) {
-			check(target && Object.keys(target).every(key => ['channelId', 'guildId', 'sfwChannelId'].includes(key)), 'Discord destination parameters are invalid');
+			check(target && Object.keys(target).every(key => ['channelId', 'guildId'].includes(key)), 'Discord destination parameters are invalid');
 			const bot = await identity(credentials);
 			const main = await channel(bot.headers, target.channelId, target.guildId);
-			if (target.sfwChannelId !== undefined) {
-				await channel(bot.headers, target.sfwChannelId, main.guild_id);
-			}
+
 			return {accountIdentity: bot.accountIdentity, username: bot.username,
-				target: {channelId: main.id, guildId: main.guild_id, ...(target.sfwChannelId === undefined ? {} : {sfwChannelId: target.sfwChannelId})}};
+				target: {channelId: main.id, guildId: main.guild_id}};
 		},
 		async publish(account: any, payload: any, loadMedia: any) {
-			check(Object.keys(payload.target).every(key => ['channelId', 'guildId', 'sensitive'].includes(key)), 'Discord publication parameters are invalid');
+			check(Object.keys(payload.target).every(key => ['channelId', 'guildId'].includes(key)), 'Discord publication parameters are invalid');
 			const bot = await identity(account.credentials);
 			check(bot.accountIdentity === account.accountIdentity, 'Discord publishing account changed');
 			const destination = await channel(bot.headers, payload.target.channelId, payload.target.guildId);
-			check(!(payload.target.sensitive ?? true) || destination.nsfw === true, 'Sensitive Discord publication requires an NSFW channel');
+			check(!(payload.contentType === 'nsfw') || destination.nsfw === true, 'Sensitive Discord publication requires an NSFW channel');
 			const images = await loadImages(payload, loadMedia, 8 * 1024 * 1024);
 			const body: any = {content: payload.text, allowed_mentions: {parse: [], users: [], roles: [], replied_user: false}};
 			let options;

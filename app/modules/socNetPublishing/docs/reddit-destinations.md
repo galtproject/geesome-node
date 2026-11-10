@@ -1,24 +1,15 @@
 # Reddit destinations
 
-User setup: one local EraOfWave Reddit account, two destinations targeting
-`r/EraOfWave` (`contentPolicy: nsfw`) and `r/EraOfWave_SFW` (`sfw`). Reddit
-credentials remain on Client. Both destinations use the same localAccountId,
-different stable localKeys and distinct target.subreddit values.
+One local account can back independent subreddit destinations, for example
+r/EraOfWave with contentPolicy nsfw and r/EraOfWave_SFW with contentPolicy sfw.
+They share localAccountId but use different stable localKeys and target.subreddit.
+Credentials stay on Client; Node stores only the public destination identities.
 
-Compose accepts an optional boolean `target.sensitive` for Reddit. SFW requires
-false. True and false are frozen in the existing target/digest representations;
-omission remains omitted for legacy hashes and replay. The client forwards an
-explicit boolean to Reddit's submit nsfw field; no silent default is inserted
-into historical jobs. Existing Discord/Telegram/Rule34 policy behavior is unchanged.
+Compose authors required top-level contentType sfw/nsfw. The same policy helper
+used for every network rejects NSFW→SFW before source writes. Classification is
+frozen on jobs and bound by digest v6, independently of subreddit parameters.
+The client adapter derives Reddit's provider nsfw boolean at send time.
 
-Node issue #1579 covers target normalization and policy validation. Client owns
-multiple subreddit settings/composition and provider flags; its work can run in
-parallel against this contract. Node deploys first. Verification covers separate
-subreddits on one account, pre-write SFW rejection and frozen replay. No schema
-migration is needed beyond the existing content-policy migration.
-
-Verification: 74 targeted PostgreSQL tests and 27 actual Node/PostgreSQL/Kubo
-HTTP tests pass with provider transport mocked. The new HTTP case freezes two
-subreddit endpoints on one account, rejects unsafe SFW creation before source
-writes, and preserves accepted replay. apiDoc and security/scalability inventories
-pass. The full suite was not rerun.
+See [content-policy.md](content-policy.md) for coordinated upgrade, held historical
+intent and backup recovery. The previous optional target classification API is
+removed; producers must require capabilities.contentTypePublishing before compose.
