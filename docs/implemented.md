@@ -12,6 +12,22 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Explicit client publication destinations (#1570)
+
+Node now keeps a bounded owner-only safe destination catalog, with executor
+identity derived from a dedicated API key and optional source-group binding.
+Compose freezes endpoint/account/client and verifies the v4 producer digest;
+legacy claims cannot take destination jobs. Disabled destinations block claims
+but still accept the original client's result. Owners can retire a lost client's
+metadata without transferring credentials. Server execution remains disabled.
+
+See [the contract and upgrade rules](plans/local-social-publishing.md#explicit-destinations-1570).
+Verified with 36 PostgreSQL-backed queue/API/migration tests, 23 actual-node
+HTTP outbox cases using disposable PostgreSQL and Kubo, and a final two-case HTTP
+rerun after the source-group guard. The isolated released-job migration audit
+passes its four applicable checks; generated apiDoc and security inventory pass.
+No real social publication or production update is part of this change.
+
 ## Reuse owned publication images (#1546)
 
 Private group compose now accepts owned local Content references as well as

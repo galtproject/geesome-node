@@ -3,7 +3,7 @@ import {Op, literal} from 'sequelize';
 import {GroupType, PostStatus} from '../group/interface.js';
 import {IGeesomeApp} from '../../interface.js';
 import {getPublicApiContext} from '../api/publicUrls.js';
-import {publicationDigest} from './producer.js';
+import {publicationDestinationDigest, publicationDigest} from './producer.js';
 import {isOwnedQueueGroup} from './sources.js';
 import {createImagePreparation, socialImagePolicy, imageLimit, validatePreparedPublication, preparedMediaDigest} from './imagePreparation.js';
 
@@ -23,7 +23,7 @@ export function isManagedOutbox(group, userId) {
 }
 
 export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
-	const {normalizeRequest, snapshot, plain, problem, boundedInteger, groupIds, jobViews} = helpers;
+	const {normalizeRequest, snapshot, plain, problem, boundedInteger, groupIds, jobViews, resolveDestination, PublicationDestination} = helpers;
 	const sequelize = Job.sequelize;
 	const prepareImages = createImagePreparation(app);
 	const groupInitializations = new Map<number, Promise<any>>();
@@ -113,12 +113,20 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 		}
 		let producer;
 		if (input.producer !== undefined) {
-			if (!input.producer || typeof input.producer !== 'object' || Array.isArray(input.producer) || Object.keys(input.producer).some(key => !['type', 'postId'].includes(key)) || input.producer.type !== 'microwave-girls' || input.destinations.length !== 1) {
+			if (!input.producer || typeof input.producer !== 'object' || Array.isArray(input.producer) || Object.keys(input.producer).some(key => !['type', 'postId', ...(input.destinations.some(item => item?.destinationId !== undefined) ? ['digest'] : [])].includes(key)) || input.producer.type !== 'microwave-girls' || input.destinations.length !== 1) {
 				throw problem(400, 'local_publication_producer_invalid');
 			}
-			producer = {type: 'microwave-girls', postId: boundedInteger(input.producer.postId, 1, Number.MAX_SAFE_INTEGER)};
+			producer = {type: 'microwave-girls', postId: boundedInteger(input.producer.postId, 1, Number.MAX_SAFE_INTEGER), ...(input.producer.digest === undefined ? {} : {digest: input.producer.digest})};
 		}
 		const destinations = input.destinations.map(destination => {
+			if (destination?.destinationId !== undefined) {
+				if (Object.keys(destination).some(key => !['destinationId', 'network', 'target'].includes(key))) {
+					throw problem(400, 'local_publication_input_invalid');
+				}
+				const normalized = normalizeRequest({requestKey: input.requestKey, postId: 1, network: destination.network, target: destination.target,
+					scheduledAt: input.scheduledAt ?? '2000-01-01T00:00:00Z'}, true);
+				return {destinationId: boundedInteger(destination.destinationId, 1, Number.MAX_SAFE_INTEGER), network: normalized.network, target: normalized.target};
+			}
 			if (!destination || Object.keys(destination).some(key => !['network', 'localAccountId', 'target'].includes(key))) {
 				throw problem(400, 'local_publication_input_invalid');
 			}
@@ -129,10 +137,13 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			!input.text.startsWith(destination.target.teaserText) || input.text.length <= destination.target.teaserText.length))) {
 			throw problem(400, 'local_publication_target_invalid');
 		}
-		if (new Set(destinations.map(destination => `${destination.network}:${destination.localAccountId}`)).size !== destinations.length) {
+		if (destinations.some(item => item.destinationId !== undefined) && !destinations.every(item => item.destinationId !== undefined)) {
+			throw problem(400, 'local_publication_input_invalid');
+		}
+		if (new Set(destinations.map(destination => destination.destinationId || `${destination.network}:${destination.localAccountId}`)).size !== destinations.length) {
 			throw problem(400, 'local_publication_destination_duplicate');
 		}
-		const normalized = normalizeRequest({requestKey: input.requestKey, postId: input.postId ?? 1, ...destinations[0], scheduledAt: input.scheduledAt === undefined ? '2000-01-01T00:00:00Z' : input.scheduledAt}, input.groupId !== undefined);
+		const normalized = normalizeRequest({requestKey: input.requestKey, postId: input.postId ?? 1, ...Object.fromEntries(Object.entries(destinations[0]).filter(([key]) => key !== 'destinationId')), scheduledAt: input.scheduledAt === undefined ? '2000-01-01T00:00:00Z' : input.scheduledAt}, input.groupId !== undefined || destinations[0].destinationId !== undefined);
 		return {requestKey: normalized.requestKey, text: input.text, imageStorageIds: input.imageStorageIds, destinations,
 			scheduledAt: input.scheduledAt === undefined ? null : normalized.scheduledAt, postId: input.postId === undefined ? null : normalized.postId, ...(producer ? {producer} : {}), ...(input.groupId === undefined ? {} : {groupId: boundedInteger(input.groupId, 1, Number.MAX_SAFE_INTEGER)}), ...(input.mediaPolicy === undefined ? {} : {mediaPolicy: input.mediaPolicy})};
 	}
@@ -147,9 +158,21 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			if (request.mediaPolicy) {
 				validatePreparedPublication(request);
 			}
+			const resolved = request.destinations[0].destinationId === undefined ? request.destinations : await Promise.all(request.destinations.map(item => resolveDestination(userId, item)));
+			if (resolved.some(item => item.sourceGroupId != null && Number(item.sourceGroupId) !== Number(request.groupId))) {
+				throw problem(403, 'local_publication_source_forbidden');
+			}
 			const imageContents = await images(userId, request.imageStorageIds);
+			if (request.producer && resolved[0].destinationId !== undefined) {
+				const destination = resolved[0];
+				const digest = publicationDestinationDigest(destination.destinationId, destination.clientId, destination.network, destination.localAccountId,
+					{text: request.text, attachments: imageContents}, destination.target);
+				if (request.producer.digest !== digest) {
+					throw problem(409, 'local_publication_destination_changed');
+				}
+			}
 			const group = request.groupId ? await app.ms.group.getGroup(request.groupId) : await ensureGroup(userId);
-			if (!isOwnedQueueGroup(group, userId)) {
+			if (!isOwnedQueueGroup(group, userId) || resolved.some(item => item.sourceGroupId != null && Number(item.sourceGroupId) !== Number(group.id))) {
 				throw problem(403, 'local_publication_source_forbidden');
 			}
 			let existingPost;
@@ -168,7 +191,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 				}
 			}
 			// Every destination and rendition must be ready before a source or job transaction starts.
-			const prepared = request.mediaPolicy ? await prepareImages(userId, imageContents, request.destinations) : null;
+			const prepared = request.mediaPolicy ? await prepareImages(userId, imageContents, resolved) : null;
 			const scheduledAt = request.scheduledAt || new Date().toISOString();
 			let jobs;
 			async function assertPrivateGroup(transaction) {
@@ -181,14 +204,20 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			}
 			async function insertJobs(post, transaction, payload) {
 				await assertPrivateGroup(transaction);
-				jobs = await Job.bulkCreate(request.destinations.map((destination, index) => {
+				for (const destination of resolved.filter(item => item.destinationId !== undefined)) {
+					const current = await PublicationDestination.findOne({where: {id: destination.destinationId, userId, enabled: true, executionMode: 'client'}, transaction, lock: transaction.LOCK.SHARE});
+					if (!current || JSON.stringify(await resolveDestination(userId, request.destinations.find(item => item.destinationId === destination.destinationId), transaction)) !== JSON.stringify(destination)) {
+						throw problem(409, 'local_publication_destination_changed');
+					}
+				}
+				jobs = await Job.bulkCreate(resolved.map((destination, index) => {
 					const attachments = prepared ? prepared.get(imageLimit(destination.network)).map(content => imageAttachment(app, content)) : payload.attachments;
 					const preparedPayload = prepared ? {text: payload.text, attachments, mediaPreparation: {policy: socialImagePolicy,
 						sourceAttachments: payload.attachments, digest: preparedMediaDigest(destination.network, payload.attachments, attachments)}} : payload;
 					return {userId, postId: post.id, ...destination, payload: preparedPayload, scheduledAt, status: 'queued',
 						requestKey: `compose:${createHash('sha256').update(request.requestKey).digest('hex')}:${index}`,
 						requestHash: hash, composeKey: request.requestKey, composeHash: hash, composeIndex: index,
-						...(request.producer ? {producer: {...request.producer, digest: publicationDigest(destination.network, destination.localAccountId, payload, destination.target)}} : {})};
+						...(request.producer ? {producer: {...request.producer, digest: destination.destinationId === undefined ? publicationDigest(destination.network, destination.localAccountId, payload, destination.target) : publicationDestinationDigest(destination.destinationId, destination.clientId, destination.network, destination.localAccountId, payload, destination.target)}} : {})};
 				}), {transaction, returning: true});
 			}
 			try {
@@ -242,10 +271,10 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			const eligible = groups.filter(group => isOwnedQueueGroup(group, userId));
 			const group = selected ? (eligible.length === 1 ? eligible[0] : null) : await getGroup(userId);
 			if (selected && !eligible.length) {
-				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true}, group: null, groups: [], drafts: []};
+				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, publicationDestinations: true}, group: null, groups: [], drafts: []};
 			}
 			if (!selected && !group) {
-				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true}, group: null, drafts: []};
+				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, publicationDestinations: true}, group: null, drafts: []};
 			}
 			if (!selected && !isManagedOutbox(group, userId)) {
 				throw problem(409, 'local_publication_outbox_conflict');
@@ -270,7 +299,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 					drafts.push({postId: post.id, groupId: post.groupId, text: '', attachments: [], createdAt: post.createdAt, unavailable: true, error: 'This draft contains unsupported content. Edit it in GeeSome before scheduling.'});
 				}
 			}
-			return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true}, group: group ? groupView(group) : null, ...(selected ? {groups: eligible.map(groupView)} : {}), drafts};
+			return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, publicationDestinations: true}, group: group ? groupView(group) : null, ...(selected ? {groups: eligible.map(groupView)} : {}), drafts};
 		}
 	};
 }

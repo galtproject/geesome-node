@@ -3,11 +3,12 @@ import {randomUUID} from 'node:crypto';
 import {Sequelize} from 'sequelize';
 import createModels from '../app/modules/localClient/models.js';
 import {getModule, normalizeRequest} from '../app/modules/localClient/index.js';
+import {publicationClientId} from '../app/modules/localClient/destinations.js';
 import registerApi from '../app/modules/localClient/api.js';
 import databaseConfig from '../app/modules/database/config.js';
 import {CorePermissionName} from '../app/modules/database/interface.js';
-import {PostStatus} from '../app/modules/group/interface.js';
-import {publicationDigest} from '../app/modules/localClient/producer.js';
+import {GroupType, PostStatus} from '../app/modules/group/interface.js';
+import {publicationDestinationDigest, publicationDigest} from '../app/modules/localClient/producer.js';
 
 describe('local publication queue', function () {
 	this.timeout(30000);
@@ -35,10 +36,110 @@ describe('local publication queue', function () {
 		source = {id: 1, groupId: 2, status: PostStatus.Published, group: {isPublic: true}};
 		content = [{type: 'text', text: 'Frozen text'}];
 		module = getModule({config: {apiConfig: {publicUrl: 'https://node.example'}}, ms: {group: {
+			getGroup: async id => ({id, creatorId: 1, type: GroupType.Channel, isPublic: false, isOpen: false}),
 			getPost: async () => {sourceReads++; await sequelize.query('SELECT 1'); await sourceHook?.(); return source;},
 			canEditPostInGroup: async () => editable,
 			getPostContentData: async () => content
 		}}} as any, models);
+	});
+
+	const destinationInput = (overrides = {}) => ({localKey: 'main', network: 'threads', label: 'Local profile', localAccountId: 'threads_1', target: {}, enabled: true, ...overrides});
+	async function register(clientId = 'key:1', overrides = {}) {
+		return (await module.registerDestinations(1, clientId, {destinations: [destinationInput(overrides)]})).destinations[0];
+	}
+	async function destinationJob(destination) {
+		const legacy = await module.createJob(1, request());
+		source.userId = 1;
+		source.group = {creatorId: 1, isPublic: false, isOpen: false, type: GroupType.Channel};
+		await models.PublicationJob.update({destinationId: destination.id, clientId: destination.clientId, executionMode: 'client'}, {where: {id: legacy.id}});
+		return legacy;
+	}
+	it('registers destinations idempotently, bounds safe listings and scopes local keys by client and owner', async () => {
+		await models.PublicationDestination.destroy({where: {}});
+		const first = await register();
+		const concurrent = await Promise.all(Array.from({length: 4}, () => register()));
+		assert.deepEqual(concurrent.map(row => row.id), Array(4).fill(first.id));
+		assert.notEqual((await register('key:2')).id, first.id);
+		const foreign = await module.registerDestinations(2, 'key:3', {destinations: [destinationInput()]});
+		assert.notEqual(foreign.destinations[0].id, first.id);
+		const listed = await module.listDestinations(1, {limit: 1});
+		assert.equal(listed.destinations.length, 1);
+		assert.equal(listed.destinations[0].socNetAccountId, undefined);
+		assert.equal(listed.destinations[0].userId, undefined);
+		assert.equal((await module.listDestinations(2)).destinations.length, 1);
+		await assert.rejects(module.listDestinations(1, {limit: 101}), {status: 400});
+		await assert.rejects(register('key:1', {localAccountId: 'other'}), {status: 409});
+		await assert.rejects(register('key:1', {cookie: 'secret'}), {status: 400});
+		await assert.rejects(register('key:1', {target: {accessToken: 'secret'}}), {status: 400});
+		assert.equal(publicationClientId({id: 12}), 'key:12');
+		for (const key of [{}, {id: 1, type: 'password_auth'}, {id: 0}]) {
+			assert.throws(() => publicationClientId(key), {status: 403});
+		}
+	});
+	it('isolates destination claims from other clients and legacy claims and never changes a frozen route', async () => {
+		await models.PublicationDestination.destroy({where: {}});
+		const destination = await register();
+		const job = await destinationJob(destination);
+		assert.equal(await claim(), null);
+		assert.equal(await module.claimDestinationJob(1, 'key:2', {destinationIds: [destination.id]}), null);
+		assert.equal(await module.claimDestinationJob(2, 'key:1', {destinationIds: [destination.id]}), null);
+		await register('key:1', {target: {}, label: 'Renamed'});
+		assert.deepEqual((await module.listJobs(1, {destinationId: destination.id})).map(row => row.id), [job.id]);
+		const results = await Promise.all(Array.from({length: 5}, () => module.claimDestinationJob(1, 'key:1', {destinationIds: [destination.id]})));
+		assert.equal(results.filter(Boolean).length, 1);
+		const claimed = results.find(Boolean);
+		assert.equal(claimed.clientId, 'key:1');
+		assert.equal(claimed.localAccountId, account.localAccountId);
+		await register('key:1', {enabled: false});
+		const result = {claimToken: claimed.claimToken, status: 'posted', remoteId: '123'};
+		await assert.rejects(module.reportResult(1, job.id, result, 'key:2'), {status: 403});
+		assert.equal((await module.reportResult(1, job.id, result, 'key:1')).status, 'posted');
+		assert.equal((await module.reportResult(1, job.id, result, 'key:1')).status, 'posted');
+	});
+	it('blocks disabled destination claims without consuming queued jobs and preserves legacy availability', async () => {
+		await models.PublicationDestination.destroy({where: {}});
+		const destination = await register();
+		const bound = await destinationJob(destination);
+		await register('key:1', {enabled: false});
+		assert.equal(await module.claimDestinationJob(1, 'key:1', {destinationIds: [destination.id], jobId: bound.id}), null);
+		assert.equal((await models.PublicationJob.findByPk(bound.id)).status, 'queued');
+		const legacy = await module.createJob(1, request());
+		assert.equal((await claim()).id, legacy.id);
+		await assert.rejects(module.claimDestinationJob(1, 'key:1', {destinationIds: [destination.id], clientId: 'key:2'}), {status: 400});
+	});
+
+	it('rejects destination jobs whose private source group became public before claim', async () => {
+		await models.PublicationDestination.destroy({where: {}});
+		const destination = await register();
+		const job = await destinationJob(destination);
+		source.group.isPublic = true;
+		assert.equal(await module.claimDestinationJob(1, 'key:1', {destinationIds: [destination.id]}), null);
+		assert.equal((await models.PublicationJob.findByPk(job.id)).status, 'failed');
+	});
+
+
+	it('blocks a destination job when its source was moved to a different private group', async () => {
+		await models.PublicationDestination.destroy({where: {}});
+		const destination = await register('key:1', {sourceGroupId: 2});
+		const job = await destinationJob(destination);
+		source.groupId = 3;
+		assert.equal(await module.claimDestinationJob(1, 'key:1', {destinationIds: [destination.id]}), null);
+		assert.equal((await models.PublicationJob.findByPk(job.id)).status, 'failed');
+	});
+	it('lets the owner retire a lost client destination without exposing a cross-owner operation', async () => {
+		await models.PublicationDestination.destroy({where: {}});
+		const destination = await register();
+		await assert.rejects(module.disableDestination(2, destination.id, {}), {status: 404});
+		await assert.rejects(module.disableDestination(1, destination.id, {enabled: true}), {status: 400});
+		assert.equal((await module.disableDestination(1, destination.id, {})).destination.enabled, false);
+		assert.equal((await module.disableDestination(1, destination.id, {})).destination.id, destination.id);
+	});
+	it('binds v4 digest to destination, executor, original content and resolved target', () => {
+		const payload = {text: 'Frozen', attachments: [{storageId: 'bafy1', mimeType: 'image/jpeg'}]};
+		const digest = publicationDestinationDigest(1, 'key:1', 'telegram', 'local', payload, {chatId: '123', sensitive: false});
+		assert.equal(digest, publicationDestinationDigest(1, 'key:1', 'telegram', 'local', payload, {sensitive: false, chatId: '123'}));
+		assert.notEqual(digest, publicationDestinationDigest(2, 'key:1', 'telegram', 'local', payload, {chatId: '123', sensitive: false}));
+		assert.notEqual(digest, publicationDestinationDigest(1, 'key:2', 'telegram', 'local', payload, {chatId: '123', sensitive: false}));
 	});
 	it('filters network queues before pagination and retains owner scoping', async () => {
 		const older = await module.createJob(1, request());
@@ -369,15 +470,15 @@ describe('local publication queue', function () {
 describe('local publication API authorization', () => {
 	it('requires publishing scope and user group permission on all operations', async () => {
 		const routes = new Map(), calls = [];
-		const module = Object.fromEntries(['createJob','listJobs','claimJob','reportResult','cancelJob','compose','getOutbox','listSources','createSource'].map(name => [name, async (...args) => {calls.push(args); return null;} ]));
+		const module = Object.fromEntries(['createJob','listJobs','claimJob','reportResult','cancelJob','compose','getOutbox','listSources','createSource','listDestinations','registerDestinations','claimDestinationJob','disableDestination'].map(name => [name, async (...args) => {calls.push(args); return null;} ]));
 		let permission = true;
 		registerApi({ms: {api: {
 			onAuthorizedPost: (path, handler) => routes.set(`POST ${path}`, handler),
 			onAuthorizedGet: (path, handler) => routes.set(`GET ${path}`, handler)
 		}}, checkUserCan: async (userId, name) => {assert.equal(name, CorePermissionName.UserGroupManagement); if (!permission) {throw new Error('not_permitted');}}} as any, module as any);
-		assert.equal(routes.size, 9);
+		assert.equal(routes.size, 13);
 		for (const handler of routes.values()) {
-			const req = {user: {id: 7}, apiKey: {scopes: ['assets:write']}, body: {}, query: {}, params: {jobId: 1}};
+			const req = {user: {id: 7}, apiKey: {id: 1, scopes: ['assets:write']}, body: {}, query: {}, params: {jobId: 1}};
 			await assert.rejects(handler(req, {send() {}}), {code: 'insufficient_scope'});
 			req.apiKey.scopes = ['publishing:local', 'assets:write'];
 			permission = false;

@@ -7,6 +7,7 @@ import {ApiProblemError} from '../api/problem.js';
 import {getPublicApiContext} from '../api/publicUrls.js';
 import {PostStatus} from '../group/interface.js';
 import ILocalClientModule from './interface.js';
+import {getDestinationMethods} from './destinations.js';
 import {getOutboxMethods} from './outbox.js';
 import {getSourceMethods, isOwnedQueueGroup} from './sources.js';
 
@@ -21,13 +22,18 @@ export default async function localClient(app: IGeesomeApp) {
 	return module;
 }
 
-export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClientModule {
+export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestination}: any): ILocalClientModule {
 	const sequelize = PublicationJob.sequelize;
+	const destinations = getDestinationMethods(PublicationDestination, {app, normalizeRequest, problem, boundedInteger});
 	return {
-		...getOutboxMethods(app, PublicationJob, {normalizeRequest, snapshot, plain, problem, boundedInteger, groupIds: normalizeGroupIds, jobViews}),
+		listDestinations: destinations.listDestinations,
+		disableDestination: destinations.disableDestination,
+		registerDestinations: destinations.registerDestinations,
+		...getOutboxMethods(app, PublicationJob, {normalizeRequest, snapshot, plain, problem, boundedInteger, groupIds: normalizeGroupIds, jobViews, resolveDestination: destinations.resolveDestination, PublicationDestination}),
 		...getSourceMethods(app, {problem, boundedInteger}),
 		async flushDatabase() {
 			await PublicationJob.destroy({where: {}});
+			await PublicationDestination.destroy({where: {}});
 		},
 		async createJob(userId, input) {
 			const request = normalizeRequest(input);
@@ -55,6 +61,9 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 			const limit = boundedInteger(query.limit ?? 20, 1, 100);
 			const offset = boundedInteger(query.offset ?? 0, 0, 1000000);
 			const where: any = {userId};
+			if (query.destinationId !== undefined) {
+				where.destinationId = boundedInteger(query.destinationId, 1, Number.MAX_SAFE_INTEGER);
+			}
 			if (query.network !== undefined) {
 				if (!networks.includes(query.network)) {
 					throw problem(400, 'local_publication_network_invalid');
@@ -85,23 +94,37 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 			}
 			return jobViews(await PublicationJob.findAll({where, limit, offset, order: [['createdAt', 'DESC'], ['id', 'DESC']]}));
 		},
-		async claimJob(userId, input) {
+		async claimDestinationJob(userId, clientId, input) {
+			assertKeys(input, ['destinationIds', 'jobId']);
+			if (!Array.isArray(input.destinationIds) || input.destinationIds.length > 100) {
+				throw problem(400, 'local_publication_destinations_invalid');
+			}
+			const destinationIds = input.destinationIds.map(id => boundedInteger(id, 1, Number.MAX_SAFE_INTEGER));
+			if (new Set(destinationIds).size !== destinationIds.length) {
+				throw problem(400, 'local_publication_destination_duplicate');
+			}
+			return this.claimJob(userId, {accounts: [], ...(input.jobId === undefined ? {} : {jobId: input.jobId})}, {clientId, destinationIds});
+		},
+		async claimJob(userId, input, clientContext?) {
 			const accounts = normalizeAccounts(input);
 			const groupIds = input.groupIds === undefined ? null : normalizeGroupIds(input.groupIds);
 			const routes = normalizeRoutes(input.routes ?? [], accounts);
 			const jobId = input.jobId === undefined ? null : boundedInteger(input.jobId, 1, Number.MAX_SAFE_INTEGER);
-			if (!accounts.length) {
+			if (!accounts.length && !clientContext) {
 				return null;
 			}
 			// Commit ownership before group APIs run: they can need another DB query.
 			// Keeping the transaction open would deadlock a saturated connection pool.
 			for (let checked = 0; checked < 20; checked++) {
 				const job = await sequelize.transaction(async transaction => {
+					const registered = clientContext ? await PublicationDestination.findAll({where: {userId, clientId: clientContext.clientId,
+						enabled: true, executionMode: 'client', id: {[Op.in]: clientContext.destinationIds}}, transaction, lock: transaction.LOCK.SHARE}) : [];
+					const destinationFilter = clientContext ? {clientId: clientContext.clientId, executionMode: 'client', destinationId: {[Op.in]: registered.map(row => row.id)}} : {destinationId: null};
 					const candidate = await PublicationJob.findOne({
-						where: {userId, status: 'queued', ...(jobId ? {id: jobId} : {scheduledAt: {[Op.lte]: new Date()}}),
+						where: {userId, ...destinationFilter, status: 'queued', ...(jobId ? {id: jobId} : {scheduledAt: {[Op.lte]: new Date()}}),
 							...(groupIds ? {postId: postsInGroups(groupIds)} : {}),
-							[Op.or]: input.routes === undefined ? accounts : routes.map(route => ({network: route.network,
-								localAccountId: {[Op.in]: ['', route.localAccountId]}, postId: postsInGroups([route.groupId])}))},
+							...(clientContext ? {} : {[Op.or]: input.routes === undefined ? accounts : routes.map(route => ({network: route.network,
+								localAccountId: {[Op.in]: ['', route.localAccountId]}, postId: postsInGroups([route.groupId])}))})},
 						order: [['scheduledAt', 'ASC'], ['id', 'ASC']],
 						transaction, lock: transaction.LOCK.UPDATE, skipLocked: true
 					});
@@ -140,7 +163,13 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 				const claimWhere = {id: job.id, userId, status: 'processing', claimToken: job.claimToken};
 				try {
 					const source = await assertSource(app, userId, job.postId);
-					if ((groupIds || input.routes !== undefined) && !isOwnedQueueGroup(source.group, userId)) {
+					if (clientContext) {
+						const destination = await PublicationDestination.findByPk(job.destinationId);
+						if (!destination || destination.sourceGroupId != null && Number(destination.sourceGroupId) !== Number(source.groupId)) {
+							throw problem(403, 'local_publication_source_forbidden');
+						}
+					}
+					if ((clientContext || groupIds || input.routes !== undefined) && !isOwnedQueueGroup(source.group, userId)) {
 						throw problem(403, 'local_publication_source_forbidden');
 					}
 				} catch (error) {
@@ -156,9 +185,12 @@ export function getModule(app: IGeesomeApp, {PublicationJob}: any): ILocalClient
 			}
 			return null;
 		},
-		async reportResult(userId, jobId, input) {
+		async reportResult(userId, jobId, input, clientId?) {
 			return sequelize.transaction(async transaction => {
 				const job = await getOwnedJob(userId, jobId, transaction);
+				if (job.destinationId && job.clientId !== clientId) {
+					throw problem(403, 'local_publication_client_mismatch');
+				}
 				const result = normalizeResult(input, job.network);
 				if (!job.claimToken || job.claimToken !== input.claimToken) {
 					throw problem(409, 'local_publication_claim_invalid');

@@ -67,8 +67,9 @@ network defaults is withdrawn. Imported-source relay remains separate work.
 
 ## Minimal implementation
 
-Reuse the existing Group, Post, Content and PublicationJob models. Do not add a
-client/destination registry, attempt table, automatic retry scheduler or sync bus.
+The original MVP reused Group, Post, Content and PublicationJob without a
+client/destination registry. The explicit-destination extension below adds one
+safe catalog; attempt tables, automatic retries and a sync bus remain out of scope.
 
 ### Private group and uploads
 
@@ -272,3 +273,56 @@ by the social preparer after full decode, byte/dimension, orientation, color and
 embedded-metadata checks. Unsupported provenance or a changed constraint keeps
 the existing encoder. Cache identities and original source refs remain intact.
 No new endpoint, schema, image registry or cache service is introduced.
+
+## Explicit destinations (#1570)
+
+The minimal destination extension supersedes the original registry exclusion for
+new jobs only. `PublicationDestination` stores safe owner-scoped metadata; social
+secrets stay on the executor. A dedicated API key row identifies a client as
+`key:<id>`; no separate device registry or heartbeat is introduced. Password-auth
+session keys cannot register or claim destinations. Use a different key per
+client and a separate producer key for Girls.
+
+- `GET /user/local-publications/destinations?limit=20&offset=0` returns bounded
+  owner-only rows: id, clientId, localKey, sourceGroupId, localAccountId, network,
+  label, executionMode, target and enabled. sourceGroupId is null for global
+  manual destinations, or an immutable owned closed source-group binding.
+- `POST /user/local-publications/destinations` accepts `{destinations:[...]}`
+  with localKey, sourceGroupId (optional), localAccountId, network, label, target,
+  enabled. Client identity comes from the key. Repeating a localKey updates the
+  same row; account/network/sourceGroup identity changes conflict. Removed rows
+  must be explicitly disabled; omission never deletes them. Disabled rows may
+  be retired even after their source group becomes ineligible.
+- `POST /user/local-publications/destinations/:destinationId/disable {}` lets the
+  owner retire lost/revoked-client metadata. It never rebinds credentials or
+  enables another executor. Retire old rows before replacing a connection key;
+  the new key is a new executor. Never reuse a new key to acknowledge old work.
+- Compose destinations `{destinationId,network,target}` resolve and freeze the
+  registered executor/account/endpoint before acceptance. A bound sourceGroupId
+  requires the same explicit groupId. Authored endpoint overrides conflict;
+  sensitive=false resolves registered SFW alternatives. New producer jobs require
+  a canonical v4 digest, checked before content/job effects and again against
+  the transactional route snapshot. Existing receipt retries retain their
+  original request shape and digest version.
+- `POST /user/local-publications/destination-claim {destinationIds,jobId?}` claims
+  only this key's enabled client destinations. Legacy claim always excludes new
+  destination jobs. Both paths retain atomic claims and immutable payloads.
+- Destination results require the original client key and claim token, including
+  after disable; lost/rotated keys cannot impersonate the original executor.
+  Keep unknown sends for manual provider verification; no automatic resend.
+
+Outbox advertises `capabilities.publicationDestinations`. Network-only legacy
+jobs remain supported. Server execution is reserved, disabled and has no worker
+in this stage. There is one queue and no automatic client-to-server fallback.
+
+The v4 producer digest is SHA256 of the JSON object in this insertion order:
+`{version:4,destinationId,clientId,network,localAccountId,text,attachments,target}`.
+Destination ID is numeric; ordered attachments contain only storageId/mimeType;
+target keys are sorted. Download URLs and labels are not identity fields.
+
+Deploy Node first, then client registration, then capable Girls. Apply migration
+`20261110000000-bind-publication-destinations.cjs` for released job tables; the new
+catalog table uses ordinary model sync. Rollback refuses existing destination
+jobs. Downgrading application code without pausing execution is unsafe because
+old claim code does not understand the destination boundary. Do not rewrite
+legacy history/processing/needs_review rows or change their receipts to upgrade.

@@ -10,6 +10,9 @@ export default async function createModels(sequelize: Sequelize) {
 		composeHash: {type: DataTypes.STRING(64)},
 		composeIndex: {type: DataTypes.INTEGER},
 		producer: {type: DataTypes.JSONB},
+			destinationId: {type: DataTypes.INTEGER},
+			clientId: {type: DataTypes.STRING(200)},
+			executionMode: {type: DataTypes.STRING(20)},
 		network: {type: DataTypes.STRING(20), allowNull: false},
 		localAccountId: {type: DataTypes.STRING(200), allowNull: false},
 		target: {type: DataTypes.JSONB, allowNull: false},
@@ -31,5 +34,22 @@ export default async function createModels(sequelize: Sequelize) {
 		]
 	});
 	await PublicationJob.sync({alter: {drop: false}});
-	return {PublicationJob};
+	const PublicationDestination = sequelize.define('publicationDestination', {
+		userId: {type: DataTypes.INTEGER, allowNull: false},
+		clientId: {type: DataTypes.STRING(200), allowNull: false},
+		localKey: {type: DataTypes.STRING(200), allowNull: false},
+		sourceGroupId: {type: DataTypes.INTEGER},
+		localAccountId: {type: DataTypes.STRING(200), allowNull: false},
+		network: {type: DataTypes.STRING(20), allowNull: false},
+		label: {type: DataTypes.STRING(200), allowNull: false},
+		executionMode: {type: DataTypes.STRING(20), allowNull: false, defaultValue: 'client'},
+		socNetAccountId: {type: DataTypes.INTEGER},
+		target: {type: DataTypes.JSONB, allowNull: false},
+		enabled: {type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true}
+	}, {indexes: [
+		{name: 'publication_destinations_client_key_unique', unique: true, fields: ['userId', 'clientId', 'localKey']},
+		{name: 'publication_destinations_owner_idx', fields: ['userId', 'id']}
+	]});
+	await PublicationDestination.sync({});
+	return {PublicationJob, PublicationDestination};
 }
