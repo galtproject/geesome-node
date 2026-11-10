@@ -41,15 +41,30 @@ describe('server publication canonical HTTP integration', function () {
 		management = await app.generateUserApiKey(user.id, {title: 'server management', scopes: ['publishing:manage']});
 	});
 	after(async () => {await app?.stop();globalThis.fetch = originalFetch;});
-	async function setup() {
+	async function setup(extra = {}) {
 		const source = await ok(await call('/sources', {requestKey: randomUUID(), title: 'Private server source'}));
-		const setupInput = {requestKey: randomUUID(), network: 'telegram', label: 'Server fixture Telegram', sourceGroupId: source.group.id, account: {botToken}, target: {chatId: '-100123', sfwChatId: '-100456'}, enabled: true};
+		const setupInput = {requestKey: randomUUID(), network: 'telegram', label: 'Server fixture Telegram', sourceGroupId: source.group.id, account: {botToken}, target: {chatId: '-100123', sfwChatId: '-100456'}, enabled: true, ...extra};
 		assert.equal((await call('/server-destinations', setupInput)).status, 403);
 		const configured = await ok(await call('/server-destinations', setupInput, management));
 		assert.equal((await ok(await call('/server-destinations', setupInput, management))).destination.id, configured.destination.id);
 		assert(!JSON.stringify(configured).includes(botToken));
-		return {group: source.group, destination: configured.destination};
+		return {group: source.group, destination: configured.destination, setupInput};
 	}
+	it('rejects unsafe content before source writes and freezes the accepted policy across edits and replay', async () => {
+		const {group, destination, setupInput} = await setup({contentPolicy: 'sfw', target: {chatId: '-100456'}});
+		assert.equal(destination.contentPolicy, 'sfw');
+		const input = {requestKey: randomUUID(), groupId: group.id, text: 'Explicit safe content', imageStorageIds: [], destinations: [{destinationId: destination.id, network: 'telegram', target: {sensitive: false}}]};
+		const before = await app.ms.database.models.Post.count({where: {groupId: group.id}});
+		for (const target of [{sensitive: true}, {}]) {
+			const rejected = await call('/compose', {...input, destinations: [{...input.destinations[0], target}]});
+			assert.equal(rejected.status, 409);assert.equal((await rejected.json()).code, 'publication_content_policy_forbidden');
+		}
+		assert.equal(await app.ms.database.models.Post.count({where: {groupId: group.id}}), before);
+		const first = await ok(await call('/compose', input));assert.equal(first.jobs[0].contentPolicy, 'sfw');assert.equal(first.jobs[0].target.chatId, '-100456');
+		await ok(await call('/server-destinations', {...setupInput, contentPolicy: 'nsfw'}, management));
+		const replay = await ok(await call('/compose', input));assert.equal(replay.jobs[0].id, first.jobs[0].id);assert.equal(replay.jobs[0].contentPolicy, 'sfw');
+		await ok(await call(`/${first.jobs[0].id}/cancel`, {}));
+	});
 	it('executes private prepared-image server job while preserving client and legacy claim isolation', async () => {
 		const {group, destination} = await setup();
 		const image = await sharp({create: {width: 128, height: 128, channels: 3, background: '#667788'}}).png().toBuffer();

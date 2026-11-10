@@ -1,5 +1,6 @@
 import {isOwnedQueueGroup} from './sources.js';
 import {ApiProblemError} from '../api/problem.js';
+import {normalizeContentPolicy, assertContentPolicy, assertSingleEndpoint} from './contentPolicy.js';
 
 export function publicationClientId(apiKey) {
 	if (!Number.isSafeInteger(Number(apiKey?.id)) || Number(apiKey.id) < 1 || apiKey.type === 'password_auth') {
@@ -36,17 +37,19 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 		return value;
 	}
 	function normalize(row) {
-		if (!row || typeof row !== 'object' || Array.isArray(row) || Object.keys(row).some(key => !['localKey', 'network', 'label', 'localAccountId', 'sourceGroupId', 'target', 'enabled'].includes(key)) ||
+		if (!row || typeof row !== 'object' || Array.isArray(row) || Object.keys(row).some(key => !['localKey', 'network', 'label', 'localAccountId', 'sourceGroupId', 'target', 'enabled', 'contentPolicy'].includes(key)) ||
 			typeof row.label !== 'string' || !row.label.trim() || row.label.length > 200 || /[\u0000-\u001f\u007f]/.test(row.label) || typeof row.enabled !== 'boolean') {
 			throw problem(400, 'local_publication_destination_invalid');
 		}
 		const localKey = identifier(row.localKey);
 		const localAccountId = identifier(row.localAccountId);
 		const target = row.target ?? {};
+		const contentPolicy = normalizeContentPolicy(row.contentPolicy);
 		const allowed = {discord: ['channelId', 'guildId', 'sfwChannelId'], telegram: ['chatId', 'sfwChatId'], patreon: ['campaignId'], reddit: ['subreddit', 'flairId', 'kind']}[row.network] || [];
 		if (!target || typeof target !== 'object' || Array.isArray(target) || Object.keys(target).some(key => !allowed.includes(key))) {
 			throw problem(400, 'local_publication_destination_invalid');
 		}
+		assertSingleEndpoint(contentPolicy, target);
 		if (row.network === 'patreon') {
 			if (typeof target.campaignId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(target.campaignId)) {
 				throw problem(400, 'local_publication_destination_invalid');
@@ -59,7 +62,7 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 					target: resolveDestinationTarget(row.network, target, {sensitive: false}), scheduledAt: '2000-01-01T00:00:00Z'});
 			}
 		}
-		return {localKey, sourceGroupId: row.sourceGroupId == null ? null : boundedInteger(row.sourceGroupId, 1, Number.MAX_SAFE_INTEGER), network: row.network, localAccountId, label: row.label, target, enabled: row.enabled, executionMode: 'client', socNetAccountId: null};
+		return {localKey, sourceGroupId: row.sourceGroupId == null ? null : boundedInteger(row.sourceGroupId, 1, Number.MAX_SAFE_INTEGER), network: row.network, localAccountId, label: row.label, contentPolicy, target, enabled: row.enabled, executionMode: 'client', socNetAccountId: null};
 	}
 	return {
 		async listDestinations(userId, query: any = {}) {
@@ -99,6 +102,9 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 					if (destination.network !== row.network || destination.localAccountId !== row.localAccountId || destination.executionMode !== 'client' || destination.sourceGroupId !== row.sourceGroupId) {
 						throw problem(409, 'local_publication_destination_changed');
 					}
+					if (destination.contentPolicy && !row.contentPolicy) {
+						throw problem(409, 'publication_content_policy_required');
+					}
 					await destination.update(row, {transaction});
 					result.push(destinationView(destination));
 				}
@@ -114,14 +120,15 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 			if (destination.executionMode === 'server' && !transaction) {
 				await loadServerAccount(userId, destination.socNetAccountId, destination.network, destination.accountIdentity);
 			}
+			assertContentPolicy(destination.contentPolicy, destination.network, selection.target);
 			const target = resolveDestinationTarget(destination.network, destination.target, selection.target);
 			const normalized = normalizeRequest({requestKey: 'destination', postId: 1, network: destination.network, localAccountId: destination.executionMode === 'server' ? 'validation' : destination.localAccountId, target, scheduledAt: '2000-01-01T00:00:00Z'});
-			return {destinationId: Number(destination.id), sourceGroupId: destination.sourceGroupId, clientId: destination.clientId, executionMode: destination.executionMode, network: destination.network, localAccountId: destination.localAccountId, target: normalized.target, ...(destination.executionMode === 'server' ? {serverAccountId: destination.socNetAccountId, accountIdentity: destination.accountIdentity} : {})};
+			return {destinationId: Number(destination.id), sourceGroupId: destination.sourceGroupId, clientId: destination.clientId, executionMode: destination.executionMode, contentPolicy: destination.contentPolicy ?? null, network: destination.network, localAccountId: destination.localAccountId, target: normalized.target, ...(destination.executionMode === 'server' ? {serverAccountId: destination.socNetAccountId, accountIdentity: destination.accountIdentity} : {})};
 		}
 	};
 }
 
 export function destinationView(row) {
-	const {id, clientId, localKey, sourceGroupId, localAccountId, network, label, executionMode, accountIdentity, target, enabled} = row.toJSON();
-	return {id, localKey, sourceGroupId, network, label, executionMode, target, enabled, ...(executionMode === 'server' ? {accountIdentity} : {clientId, localAccountId})};
+	const {id, clientId, localKey, sourceGroupId, localAccountId, network, label, executionMode, accountIdentity, target, enabled, contentPolicy} = row.toJSON();
+	return {id, localKey, sourceGroupId, network, label, executionMode, contentPolicy: contentPolicy ?? null, target, enabled, ...(executionMode === 'server' ? {accountIdentity} : {clientId, localAccountId})};
 }
