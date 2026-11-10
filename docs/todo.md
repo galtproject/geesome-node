@@ -472,9 +472,10 @@ Goal: maintain the completed scalability and storage-analyzer foundations using
 production evidence rather than adding speculative models or migrations.
 
 Storage architecture follow-up [#1565](https://github.com/galtproject/geesome-node/issues/1565) after #1563: first audit GC-safe pinned writes in geesome-libs and choose append-only retention
-versus automatic reclamation. Bound long validation/execution in durable worker
-stages where needed; if reclamation remains enabled, reserve GC admission and
-verify cross-process drain/fairness. Keep operation fences through unpinned writes. See [the phased plan](storage-admission-plan.md).
+versus automatic reclamation. Multipart staging, quiet-period scheduling and
+phase timing are delivered in [#1568](storage-idle-gc-uploads.md). Remaining work:
+bound other long validation/execution in durable worker stages, reserve GC
+admission and verify cross-process drain/fairness. Keep operation fences through unpinned writes. See [the phased plan](storage-admission-plan.md).
 
 Remaining work:
 

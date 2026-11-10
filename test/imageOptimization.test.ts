@@ -1,3 +1,4 @@
+import {noteStorageActivity} from '../app/modules/staticSiteGenerator/cleanupActivity.js';
 import {prepareImageBundle, savePreparedImage} from '../app/modules/content/preparedImage.js';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
@@ -22,6 +23,7 @@ async function processCleanupNow(service) {
     for (const row of await service.jobs.list(['retiring', 'gc_pending'], 100)) {
         await row.update({result: {...row.result, cleanupQueuedAt: new Date(1).toISOString()}});
     }
+    noteStorageActivity(service.app, Date.now() - 61000);
     await service.processQueue();
 }
 
@@ -70,6 +72,60 @@ describe('persisted image saving and local site retirement', function () {
                 process.env.GEESOME_IMAGE_RESAVE_TIMINGS = previous;
             }
         }
+    });
+
+    it('accepts durable browser uploads for two owners during GC and imports once per owner afterward', async () => {
+        const bytes = await sharp({create: {width: 19, height: 23, channels: 3, background: '#5c39a2'}}).png().toBuffer();
+        let enter, release;
+        const entered = new Promise<void>(resolve => { enter = resolve; });
+        const held = new Promise<void>(resolve => { release = resolve; });
+        const gc = withStorageFence(app, 'exclusive', async () => {
+            for await (const _item of app.ms.storage.node.repo.gc()) { /* real Kubo GC */ }
+            enter();
+            await held;
+        });
+        await entered;
+        const receipts = [];
+        try {
+            for (const owner of [user, admin]) {
+                const token = await app.generateUserApiKey(owner.id, {scopes: ['assets:write']});
+                const form = new FormData();
+                form.append('file', new Blob([bytes]), 'maintenance.png');
+                form.append('async', 'true');
+                form.append('path', `/uploads/${randomUUID()}.png`);
+                form.append('driver[raw]', 'true');
+                const response = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-file`,
+                    {method: 'POST', headers: {Authorization: `Bearer ${token}`}, body: form});
+                assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+                const receipt = await response.json();
+                assert.ok(receipt.asyncOperationId);
+                const operation = await app.ms.asyncOperation.getAsyncOperation(owner.id, receipt.asyncOperationId);
+                assert.equal(operation.inProcess, true);
+                assert.equal(JSON.parse(operation.output).upload.phase, 'staged');
+                receipts.push({owner, receipt});
+            }
+        } finally { release(); await gc; }
+        for (let attempt = 0; attempt < 30; attempt++) {
+            await app.ms.content.durableUploads.processQueue();
+            const rows = await Promise.all(receipts.map(({owner, receipt}) => app.ms.asyncOperation.getAsyncOperation(owner.id, receipt.asyncOperationId)));
+            if (rows.every(row => !row.inProcess)) {
+                break;
+            }
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        const contents = [];
+        for (const {owner, receipt} of receipts) {
+            const operation = await app.ms.asyncOperation.getAsyncOperation(owner.id, receipt.asyncOperationId);
+            assert.equal(operation.errorMessage, null);
+            assert.equal(operation.inProcess, false);
+            assert.ok(operation.contentId);
+            const content = await app.ms.database.getContent(operation.contentId);
+            assert.equal(content.userId, owner.id);
+            assert.deepEqual(Buffer.from((await app.ms.storage.getFileData(content.storageId)).slice()), bytes);
+            contents.push(content);
+        }
+        assert.equal(contents[0].storageId, contents[1].storageId);
+        assert.notEqual(contents[0].id, contents[1].id);
     });
 
     it('uploads prepared JPEG and previews without encoding, reuses on retry and supplies ordinary resave receipts', async () => {
@@ -546,7 +602,7 @@ describe('persisted image saving and local site retirement', function () {
 
     }
 
-    it('batches twenty receipts behind foreground work, then reclaims once after the persisted maximum even after restart', async () => {
+    it('batches twenty receipts until foreground finishes and the quiet period passes, including after restart', async () => {
         const {cleanupIdleWaitMs, cleanupMaxWaitMs} = await import('../app/modules/staticSiteGenerator/cleanupBatch.js');
         const {SiteReplacements} = await import('../app/modules/staticSiteGenerator/replacements.js');
         const {configureSiteReplacements} = await import('../app/modules/staticSiteGenerator/replacementWorker.js');
@@ -583,7 +639,12 @@ describe('persisted image saving and local site retirement', function () {
             const restarted = new SiteReplacements(app, service.models);
             configureSiteReplacements(app, restarted);
             await restarted.processQueue();
-            assert.equal(calls, 1, 'one GC pass handles all ready receipts despite continuous foreground backlog');
+            assert.equal(calls, 0, 'age alone cannot force GC despite continuous foreground backlog');
+            assert.equal((await restarted.status(user.id, first.id)).status, 'gc_pending');
+            await app.ms.asyncOperation.closeUserOperationQueue(foreground.id);
+            noteStorageActivity(app, Date.now() - cleanupIdleWaitMs - 1000);
+            await restarted.processQueue();
+            assert.equal(calls, 1, 'one GC pass handles the batch after foreground and quiet time');
             assert.equal((await restarted.status(user.id, first.id)).status, 'complete');
         } finally {
             app.ms.storageSpace.collectRetiredSiteBlocks = original;
@@ -696,7 +757,6 @@ describe('persisted image saving and local site retirement', function () {
             await release;
         }));
         await ready;
-        let settled = 0;
         const uploads = Array.from({length: 20}, async (_unused, index) => {
             const png = await sharp({create: {width: 40, height: 60, channels: 3,
                 background: `#${randomUUID().replace(/-/g, '').slice(0, 6)}`}}).png().toBuffer();
@@ -705,16 +765,23 @@ describe('persisted image saving and local site retirement', function () {
             form.append('async', 'true');
             form.append('path', `/parallel-${randomUUID()}/${index}.png`);
             return fetch(`${origin}/user/save-file`, {method: 'POST', headers: {Authorization: `Bearer ${clientTokens[Math.floor(index / 10)]}`},
-                body: form, signal: AbortSignal.timeout(15000)}).finally(() => { settled++; });
+                body: form, signal: AbortSignal.timeout(15000)});
         });
+        let responses;
         try {
-            await new Promise(resolve => setTimeout(resolve, 300));
-            assert.equal(settled, 0, 'pool exhaustion waits rather than rejecting compatible writers');
+            responses = await Promise.all(uploads);
+            assert.equal(responses.length, 20, 'durable acceptance does not need a writer slot');
+            for (const response of responses) {
+                assert.equal(response.status, 200, await response.clone().text());
+                const receipt = await response.clone().json();
+                const operation = await app.ms.asyncOperation.getUserAsyncOperation(receipt.asyncOperationId);
+                assert.equal(operation.inProcess, true);
+                assert.equal(JSON.parse(operation.output).upload.phase, 'staged');
+            }
         } finally {
             unlock();
             await Promise.all(writers);
         }
-        const responses = await Promise.all(uploads);
         const receipts = await Promise.all(responses.map(async response => {
             assert.equal(response.status, 200, await response.clone().text());
             const receipt = await response.json();
@@ -763,6 +830,10 @@ describe('persisted image saving and local site retirement', function () {
             assert.fail('multipart fixture could not acquire the storage worker lock within five seconds');
         })();
         const partial = [];
+        const receivingCount = async () => Number((await app.ms.database.sequelize.query(
+            `SELECT count(*) AS count FROM "userOperationQueues" q JOIN "userAsyncOperations" o ON o.id=q."asyncOperationId"
+                WHERE q.module='durable-upload' AND o."inProcess"=true AND o.output::jsonb->'upload'->>'phase'='receiving'`,
+            {type: QueryTypes.SELECT}))[0].count);
         const sharedCount = async () => Number((await app.ms.database.sequelize.query(
             "SELECT count(*) AS count FROM pg_locks WHERE locktype='advisory' AND classid=17419 AND objid=9301 AND mode='ShareLock' AND granted",
             {type: QueryTypes.SELECT}))[0].count);
@@ -778,10 +849,11 @@ describe('persisted image saving and local site retirement', function () {
                 request.write('--partial\r\nContent-Disposition: form-data; name="file"; filename="partial.png"\r\nContent-Type: image/png\r\n\r\npartial');
                 partial.push(request);
             }
-            for (let attempt = 0; attempt < 100 && await sharedCount() < 10; attempt++) {
+            for (let attempt = 0; attempt < 100 && await receivingCount() < 10; attempt++) {
                 await new Promise(resolve => setTimeout(resolve, 20));
             }
-            assert.equal(await sharedCount(), 10, 'ten uploads can hold the storage fence concurrently');
+            assert.equal(await receivingCount(), 10, 'ten bodies can be received concurrently');
+            assert.equal(await sharedCount(), 0, 'receiving multipart bodies does not occupy storage fences');
         } finally {
             for (const request of partial) {
                 request.destroy();
@@ -789,10 +861,11 @@ describe('persisted image saving and local site retirement', function () {
             releaseWorker();
             await worker;
         }
-        for (let attempt = 0; attempt < 100 && await sharedCount() !== 0; attempt++) {
+        for (let attempt = 0; attempt < 100 && await receivingCount() !== 0; attempt++) {
             await new Promise(resolve => setTimeout(resolve, 20));
         }
-        assert.equal(await sharedCount(), 0, 'disconnects release the storage fence without waiting for a body terminator');
+        assert.equal(await receivingCount(), 0, 'disconnects release reservations without a body terminator');
+        assert.equal(await sharedCount(), 0);
         const uploaded = await Promise.all(Array.from({length: 10}, async (_unused, index) => {
             const form = new FormData();
             form.append('file', new Blob([`recovered-${randomUUID()}`], {type: 'text/plain'}), `recovered-${index}.txt`);
@@ -871,7 +944,7 @@ describe('persisted image saving and local site retirement', function () {
             firstResults = await firstAttempts;
             for (let index = 0; index < clients.length; index++) {
                 assert.equal(await Operation.count({where: {userId: clients[index].owner.id, name: 'save-data'}}),
-                    operationCounts[index], 'saturated requests must not create async operations');
+                    operationCounts[index] + 10, 'each staged request creates exactly one durable operation');
             }
         } finally {
             unlock();
@@ -879,29 +952,15 @@ describe('persisted image saving and local site retirement', function () {
             // Drain every request even when a polling assertion fails.
             await firstAttempts;
         }
-        for (const result of firstResults) {
-            assert.equal(result.status, 'fulfilled', 'transport-uncertain uploads must never be retried');
+        const accepted = firstResults.map(result => {
+            assert.equal(result.status, 'fulfilled', 'each request must return its durable receipt');
             if (result.status === 'fulfilled') {
-                assert.equal(result.value.status, 503);
-                assert.equal(result.value.body.code, 'storage_busy');
-                assert.equal(result.value.retryAfter, '2');
+                assert.equal(result.value.status, 200, JSON.stringify(result.value.body));
+                assert.ok(result.value.body.asyncOperationId);
+                return {status: 'fulfilled' as const, value: result.value.body};
             }
-        }
-        const accepted = await Promise.allSettled(work.map(async item => {
-            for (let attempt = 0; attempt < 4; attempt++) {
-                const response = await upload(item);
-                if (response.status === 200) {
-                    return response.body;
-                }
-                assert.equal(response.status, 503, JSON.stringify(response.body));
-                assert.ok(['storage_busy', 'storage_maintenance_busy'].includes(response.body.code));
-                assert.equal(response.retryAfter, '2');
-                if (attempt < 3) {
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                }
-            }
-            assert.fail('upload exceeded its bounded known-admission retry budget');
-        }));
+            return result;
+        });
         const receipts = clients.map(() => []);
         for (let index = 0; index < accepted.length; index++) {
             const result = accepted[index];
@@ -913,7 +972,7 @@ describe('persisted image saving and local site retirement', function () {
         assert.equal(new Set(receipts.flat().map(receipt => receipt.asyncOperationId)).size, 30);
         for (let index = 0; index < clients.length; index++) {
             assert.equal(await Operation.count({where: {userId: clients[index].owner.id, name: 'save-data'}}),
-                operationCounts[index] + 10, 'rejected attempts must not create duplicate operations');
+                operationCounts[index] + 10, 'staging and import reuse one operation per file');
         }
         for (let clientIndex = 0; clientIndex < clients.length; clientIndex++) {
             for (const receipt of receipts[clientIndex]) {

@@ -67,3 +67,6 @@ can be used for the generated API page, this portal, and module docs.
 - [Manifest examples](./manifests-example.md)
 
 - [Locally prepared images with previews](prepared-image-upload.md): source-bound trusted-client upload and local command.
+
+- [Uploads during storage cleanup](storage-idle-gc-uploads.md): quiet-period GC,
+  persisted phase timing and durable multipart acceptance/restart policy.

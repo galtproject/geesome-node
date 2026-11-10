@@ -24,9 +24,11 @@ export default async (app: IGeesomeApp) => {
 	// app.checkModules([]);
 	const module = getModule(app, await (await import('./models.js')).default(app.ms.database.sequelize));
 	await module.closeAllAsyncOperation();
+	await app.ms.content?.['durableUploads']?.recover();
 	await module.cleanupFinishedAsyncOperations();
 	app.ms.database.registerStorageIdReferenceSource({name: 'active-storage-jobs', count: cid => countStorageHolds(app, cid)});
 	const worker = startIntervalWorker(async () => {
+		await app.ms.content?.['durableUploads']?.processQueue();
 		await app.ms.content?.['processResaveQueue']?.();
 		await app.ms.staticSiteGenerator?.['processPendingRenderRecoveries']?.();
 		await app.ms.staticSiteGenerator?.['processSiteReplacementQueue']?.();
@@ -287,7 +289,7 @@ export function getModule(app: IGeesomeApp, models) {
 			const limit = helpers.parsePositiveInteger(options.limit, Number.MAX_SAFE_INTEGER);
 
 			while (processed < limit) {
-				const waitingQueue = await this.getNextProcessableOperationQueue(moduleName, options.resumeInterrupted);
+				const waitingQueue = await this.getNextProcessableOperationQueue(moduleName, options.resumeInterrupted, options.isPendingOperation);
 				if (!waitingQueue) {
 					return {processed};
 				}
@@ -298,7 +300,7 @@ export function getModule(app: IGeesomeApp, models) {
 			return {processed};
 		}
 
-		async getNextProcessableOperationQueue(moduleName: string, resumeInterrupted = false) {
+		async getNextProcessableOperationQueue(moduleName: string, resumeInterrupted = false, isPendingOperation?: (queue) => boolean) {
 			while (true) {
 				const waitingQueue = await this.getWaitingOperationQueueByModule(moduleName);
 				if (!waitingQueue) {
@@ -307,7 +309,7 @@ export function getModule(app: IGeesomeApp, models) {
 				if (!waitingQueue.asyncOperation) {
 					return waitingQueue;
 				}
-				if (waitingQueue.asyncOperation.inProcess) {
+				if (waitingQueue.asyncOperation.inProcess && !isPendingOperation?.(waitingQueue)) {
 					return null;
 				}
 
@@ -352,6 +354,7 @@ export function getModule(app: IGeesomeApp, models) {
 				}
 				return result;
 			} catch (e) {
+				await options.onError?.(e, waitingQueue, asyncOperation);
 				await this.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
 				await this.errorAsyncOperation(waitingQueue.userId, asyncOperation.id, getErrorMessage(e));
 				return null;
@@ -395,7 +398,7 @@ export function getModule(app: IGeesomeApp, models) {
 		}
 
 		async closeAllAsyncOperation() {
-			return models.UserAsyncOperation.update({inProcess: false, errorType: 'node-restart'}, {where: {inProcess: true}});
+			return models.UserAsyncOperation.update({inProcess: false, errorType: 'node-restart'}, {where: {inProcess: true, [Op.or]: [{module: {[Op.ne]: 'durable-upload'}}, {module: null}]}});
 		}
 
 		async cleanupFinishedAsyncOperations(options: any = {}) {
@@ -409,7 +412,9 @@ export function getModule(app: IGeesomeApp, models) {
 					inProcess: false,
 					module: {[Op.or]: [{[Op.ne]: 'site-replacement'}, {[Op.is]: null}]},
 					[Op.and]: literal(`NOT EXISTS (SELECT 1 FROM "userOperationQueues" AS waiting
-						WHERE waiting."asyncOperationId" = "userAsyncOperation"."id" AND waiting."isWaiting" = true)`),
+						WHERE waiting."asyncOperationId" = "userAsyncOperation"."id" AND (waiting."isWaiting" = true OR
+                            (waiting.module = 'durable-upload' AND
+                                (waiting."inputJson"::jsonb->>'reservedBytes')::bigint > 0)))`),
 					updatedAt: {[Op.lt]: cutoff}
 				},
 				order: [['updatedAt', 'ASC'], ['id', 'ASC']],
