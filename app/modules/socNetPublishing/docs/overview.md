@@ -70,9 +70,19 @@ the node. Discord performs its provider NSFW-channel check; Telegram verifies
 numeric chat permissions. Provider classifications are derived only from
 contentType. Adapters do not retry mutation requests.
 
-The server worker is paused by default. Enable with
-`SOC_NET_PUBLISHING_WORKER=1` (or serverWorker config); the shared interval worker
-starts after initialization without an immediate tick and stops with the app.
+The server worker is enabled by default, including in Docker Compose. Set
+`SOC_NET_PUBLISHING_WORKER=0` in the deployment `.env` to pause it, or set
+`socNetPublishingConfig.serverWorker=false` in application configuration.
+Compose also forwards `SOC_NET_PUBLISHING_INTERVAL_MS` (default 60000) and
+`SOC_NET_PUBLISHING_BATCH_SIZE` (empty uses the queue's bounded default).
+The shared interval worker starts after initialization without an immediate tick
+and stops with the app. Custom `MODULES` lists that include `socNetPublishing`
+must also include `socNetAccount`, or explicitly disable the worker.
+
+After upgrading and recreating the container, existing eligible queued server
+jobs will run automatically. Review or pause queued work before upgrading if
+that is not desired. Failed and needs_review jobs are not automatically resent;
+local-client jobs remain with their registered client executor.
 Claims are short atomic transitions. Disabled destinations, missing credentials
 or unusable accounts cannot starve later healthy work. Source privacy is checked
 again before sends. Current destination policy does not rewrite queued intent.

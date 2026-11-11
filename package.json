@@ -86,6 +86,7 @@
     "test:creator-payments": "node --import tsx --test --test-concurrency=1 test/payments/*.spec.ts",
     "test:creator-membership": "node --import tsx ./node_modules/.bin/mocha --require ./test/setupQuietLogs.cjs test/creatorMembership*.test.ts --timeout 30000",
     "test:creator-membership:docker": "bash bash/test-creator-membership",
+    "test:publishing-worker-config": "node --import tsx --test test/publishingWorkerConfig.test.mjs",
     "test:creator-docker-config": "node --test test/creatorDockerConfig.test.mjs"
   },
   "author": "",
