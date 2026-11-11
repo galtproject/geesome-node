@@ -5,12 +5,8 @@ export default function startPublishingWorker(app, module) {
 	if (config.serverWorker !== true && config.serverWorker !== '1') {
 		return null;
 	}
-	// Main-pack publishing initializes before the later socNet account module.
-	// No immediate tick: dependencies finish loading before normal polling, and
-	// claimServerJob safely does nothing while the account model is unavailable.
-	if (!app.config.modules?.includes('socNetAccount')) {
-		throw new Error('server_publishing_requires_socNetAccount');
-	}
+	// Native group deliveries need no social account module; server claims stay idle
+	// until their account model becomes available.
 	const intervalMs = Math.max(1000, Math.min(3600000, Number(config.intervalMs) || 60000));
 	return startIntervalWorker(() => module.processServerQueue({limit: config.batchSize}), {
 		intervalMs,

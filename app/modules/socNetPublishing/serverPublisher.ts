@@ -2,9 +2,11 @@ import {createServerProviders} from './providers/index.js';
 import {assertContentPolicy} from './contentPolicy.js';
 
 export function createServerPublisher(app, module, options: any = {}) {
+	const native = options.native;
 	const providers = options.providers || createServerProviders({fetch: options.fetch});
 	let pending = null;
 	let running = false;
+	let nativeFirst = true;
 	async function report() {
 		await module.reportResult(pending.userId, pending.id, pending.result, 'server');
 		pending = null;
@@ -22,10 +24,21 @@ export function createServerPublisher(app, module, options: any = {}) {
 				}
 				const limit = Math.max(1, Math.min(20, Number(options.limit) || 3));
 				for (let index = 0; index < limit; index++) {
+					if (nativeFirst && await native?.processNext()) {
+						nativeFirst = false;
+						processed++;
+						continue;
+					}
 					const claimed = await module.claimServerJob();
 					if (!claimed) {
+						if (await native?.processNext()) {
+							nativeFirst = false;
+							processed++;
+							continue;
+						}
 						break;
 					}
+					nativeFirst = true;
 					const {job, account} = claimed;
 					let result;
 					try {
