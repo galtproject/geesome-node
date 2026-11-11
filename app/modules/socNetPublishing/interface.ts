@@ -3,6 +3,7 @@ export default interface ISocNetPublishingModule {
 	stop(): Promise<void>;
 	processServerQueue(input?: any): Promise<any>;
 	claimServerJob(): Promise<any>;
+	updateServerDestinationSettings(userId: number, id: number, input: any): Promise<any>;
 	setupServerDestination(userId: number, input: any): Promise<any>;
 	loadServerAccount(userId: number, accountId: number, network: string, identity: string): Promise<any>;
 	disableDestination(userId: number, id: any, input: any): Promise<any>;

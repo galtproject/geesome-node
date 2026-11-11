@@ -34,3 +34,12 @@ Girls exposes group management in publishing settings and resolves individual
 and group selections in its dialog. Provider-specific authoring flows remain
 explicit; unsupported group members are shown as unavailable rather than omitted.
 No production action is part of feature verification.
+
+Migrated server members can be reverified using
+`POST server-destinations/:destinationId/settings` with the complete safe catalog
+row in `expected`, explicit `enabled` and `contentPolicy`. This requires
+publishing:manage and publishing:local (or an owner session). Stored encrypted
+credentials remain inside Node; identity and endpoint are verified without a
+publication. Only policy/activation can change, never account/source/target/jobs.
+Stale snapshots fail; exact unchanged retries are safe. Enabling may release
+eligible queued jobs, so inspect the queue before operational activation.
