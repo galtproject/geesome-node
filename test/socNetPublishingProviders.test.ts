@@ -119,8 +119,37 @@ describe('server social publication adapters', () => {
 		assert(sent);
 		const body = JSON.parse(sent.options.body.get('payload_json'));
 		assert.deepEqual(body.allowed_mentions, {parse: [], users: [], roles: [], replied_user: false});
+		assert.equal(body.content, undefined);
+		assert.deepEqual(body.embeds, [{title: 'Hello world', image: {url: 'attachment://image.png'}}]);
+		assert.deepEqual(body.attachments, [{id: 0, filename: 'image.png'}]);
 		assert.deepEqual(Buffer.from(await sent.options.body.get('files[0]').arrayBuffer()), png);
 		assert.equal(f.requests.filter(item => item.url.endsWith('/messages')).length, 1);
+	});
+	it('keeps title, support link, tags and image in one Discord card without a plain-text link preview', async () => {
+		const f = fixture('discord');
+		await f.providers.publish('discord', f.account, payload({channelId: '11111'}, {text: 'Editable title\n\nhttps://patreon.com/fixture\n\n#fixture'}));
+		const sent = f.requests.find(item => item.url.endsWith('/messages'));
+		const body = JSON.parse(sent.options.body.get('payload_json'));
+		assert.equal(body.content, undefined);
+		assert.deepEqual(body.embeds, [{title: 'Editable title', description: 'https://patreon.com/fixture\n\n#fixture', url: 'https://patreon.com/fixture', image: {url: 'attachment://image.png'}}]);
+		assert.equal(f.requests.filter(item => item.url.endsWith('/messages')).length, 1);
+	});
+	it('preserves long Discord titles whole and supports text-only and image-only cards', async () => {
+		for (const text of ['x'.repeat(257) + '\nFull caption', 'Text only', '']) {
+			const f = fixture('discord');
+			await f.providers.publish('discord', f.account, payload({channelId: '11111'}, {text, ...(text === 'Text only' ? {attachments: []} : {})}));
+			const sent = f.requests.find(item => item.url.endsWith('/messages'));
+			const body = text === 'Text only' ? JSON.parse(sent.options.body) : JSON.parse(sent.options.body.get('payload_json'));
+			assert.equal(body.content, undefined);
+			if (text.length > 256) {
+				assert.equal(body.embeds[0].title, undefined);
+				assert.equal(body.embeds[0].description, text);
+			} else if (text) {
+				assert.deepEqual(body.embeds, [{title: text}]);
+			} else {
+				assert.deepEqual(body.embeds, [{image: {url: 'attachment://image.png'}}]);
+			}
+		}
 	});
 	it('derives safe provider settings solely from contentType for every server adapter', async () => {
 		const bluesky = fixture('bluesky');await bluesky.providers.publish('bluesky', bluesky.account, payload({}, {contentType: 'sfw'}));

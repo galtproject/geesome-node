@@ -101,3 +101,22 @@ channels of one network. Creation is idempotent, edits compare a revision, and
 saved delivery snapshots remain unchanged. Non-credential group metadata uses
 publishing:local plus owner group management; server credential setup retains
 its separate publishing:manage authorization.
+
+
+## Discord card presentation (#1593)
+
+Server Discord publications use one rich embed instead of plain message content.
+The caption's first line is the card title (up to 256 UTF-16 units); subsequent
+lines are its description. Longer first lines keep the complete caption in the
+description rather than truncating it. When present, the first valid credential-free
+HTTP(S) caption URL links the title; it is never fetched by Node. Selected images
+remain authenticated byte uploads and are referenced as `attachment://image.png`
+or `attachment://image.jpg` inside the same card. No public image URL is needed.
+No plain `content` is sent, so caption links do not create an additional automatic
+link-preview card. Mentions remain disabled and NSFW-channel validation is unchanged.
+The bot needs Discord's Embed Links and Attach Files permissions. Text-only and
+image-only messages use the same card format. Only presentation changes; the
+original caption, intent digest, destination, receipt and one-send rules remain.
+Existing Discord messages are not edited or resent.
+
+Contract: [Discord Create Message and Embed Object](https://docs.discord.com/developers/resources/message).
