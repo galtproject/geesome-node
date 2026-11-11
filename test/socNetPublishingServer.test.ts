@@ -130,4 +130,31 @@ describe('server social publishing foundation', function () {
 			await handler({user: {id: 1}, apiKey: {scopes: ['publishing:manage']}, body: setup()}, {send(value) {assert.equal(value.destination.executionMode, 'server');}});
 		}
 	});
+	it('reverifies stored credentials for settings without changing endpoints or publishing, rejects stale/foreign edits', async () => {
+		const {destination} = await module.setupServerDestination(1, setup());
+		const input = {expected: destination, enabled: true, contentPolicy: 'sfw'};
+		const result = await module.updateServerDestinationSettings(1, destination.id, input);
+		assert.equal(result.destination.enabled, true);assert.equal(result.destination.contentPolicy, 'sfw');
+		assert.equal(result.destination.id, destination.id);assert.deepEqual(result.destination.target, destination.target);
+		assert(!JSON.stringify(result).includes('fixture-bot-secret'));assert.equal(published.length, 0);
+		assert.deepEqual((await module.updateServerDestinationSettings(1, destination.id, input)).destination, result.destination);
+		await assert.rejects(module.updateServerDestinationSettings(2, destination.id, input), {status: 404});
+		await assert.rejects(module.updateServerDestinationSettings(1, destination.id, {...input, expected: {...destination, target: {chatId: '-9'}}, enabled: false}), {status: 409});
+		await assert.rejects(module.updateServerDestinationSettings(1, destination.id, {...input, target: {chatId: '-9'}}), {status: 400});
+		identity = 'bot:99999';await assert.rejects(module.updateServerDestinationSettings(1, destination.id, {expected: result.destination, enabled: false, contentPolicy: 'nsfw'}), {status: 409});
+		assert.equal((await models.PublicationDestination.findByPk(destination.id)).enabled, true);
+	});
+	it('settings route requires explicit management authorization in both namespaces', async () => {
+		const routes = new Map();let calls = 0;
+		registerApi({ms: {api: {onAuthorizedGet() {}, onAuthorizedPost: (path, handler) => routes.set(path, handler)}}, checkUserCan: async () => {}} as any,
+			{updateServerDestinationSettings: async (userId, id) => {assert.equal(userId, 7);assert.equal(id, '9');calls++;return {};}} as any);
+		for (const prefix of ['social-publications', 'local-publications']) {
+			const handler = routes.get('user/' + prefix + '/server-destinations/:destinationId/settings');
+			const request = {user: {id: 7}, apiKey: {type: 'user_manual', scopes: ['publishing:local']}, params: {destinationId: '9'}, body: {}};
+			await assert.rejects(handler(request, {send() {}}), {status: 403});
+			request.apiKey.scopes.push('publishing:manage');await handler(request, {send() {}});
+		}
+		assert.equal(calls, 2);
+	});
+
 });

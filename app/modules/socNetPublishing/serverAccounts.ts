@@ -72,6 +72,40 @@ export function getServerAccountMethods(app, Destination, {normalizeRequest, bou
 			});
 			return {destination: destinationView(destination)};
 		},
+		async updateServerDestinationSettings(userId, id, input) {
+			if (!input || Object.keys(input).some(key => !['expected', 'enabled', 'contentPolicy'].includes(key)) || typeof input.enabled !== 'boolean') {
+				throw problem(400, 'server_publication_settings_invalid');
+			}
+			const contentPolicy = normalizeContentPolicy(input.contentPolicy);
+			const canonical = value => JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]])) : item);
+			return Destination.sequelize.transaction(async transaction => {
+				const row = await Destination.findOne({where: {id: boundedInteger(id, 1, Number.MAX_SAFE_INTEGER), userId, executionMode: 'server'}, transaction, lock: transaction.LOCK.UPDATE});
+				if (!row) {
+					throw problem(404, 'local_publication_destination_not_found');
+				}
+				const expected = destinationView(row);
+				const replay = canonical({...expected, enabled: input.expected?.enabled, contentPolicy: input.expected?.contentPolicy}) === canonical(input.expected) && row.enabled === input.enabled && row.contentPolicy === contentPolicy;
+				if (canonical(expected) !== canonical(input.expected) && !replay) {
+					throw problem(409, 'local_publication_destination_changed');
+				}
+				if (row.sourceGroupId && !isOwnedQueueGroup(await app.ms.group.getGroup(row.sourceGroupId), userId)) {
+					throw problem(403, 'local_publication_source_forbidden');
+				}
+				const account = await this.loadServerAccount(userId, row.socNetAccountId, row.network, row.accountIdentity);
+				let verified;
+				try {
+					verified = await providers.verify(row.network, account.credentials, row.target);
+				} catch {
+					throw problem(400, 'server_publication_verification_failed');
+				}
+				if (verified.accountIdentity !== row.accountIdentity || canonical(verified.target || row.target) !== canonical(row.target)) {
+					throw problem(409, 'local_publication_destination_changed');
+				}
+				await row.update({enabled: input.enabled, contentPolicy}, {transaction});
+				return {destination: destinationView(row)};
+			});
+		},
+
 		async loadServerAccount(userId, accountId, network, identity) {
 			const account = await accounts()?.findOne({where: {id: accountId, userId, socNet: network, accountId: identity}});
 			if (!account?.serverCredentialsEncrypted) {
