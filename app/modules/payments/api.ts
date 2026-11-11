@@ -80,6 +80,27 @@ export default function (app, module) {
 		res.send(await module.engine.reconcile(site.id, reader.id, req.params.id));
 	}), {storageReadOnly: true});
 	/**
+	* @api {get} /v1/payments/admin/:resource/balances Read cached site account and wallet balances
+	* @apiName PaymentsOwnerBalances
+	* @apiGroup Payments
+	* @apiUse ApiKey
+	* @apiParam {String} resource Site owned by the actor.
+	* @apiQuery {Number} [offset=0] Bounded pagination offset.
+	* @apiSuccess {String} source Always database; this route never calls RPC.
+	* @apiSuccess {Number} staleAfterSeconds Age warning threshold for historical snapshots.
+	* @apiSuccess {Boolean} hasMore Another page is available.
+	* @apiSuccess {Number} offset Page offset.
+	* @apiSuccess {Object[]} balances At most 20 user/owner balances, separated by asset and network.
+	* @apiSuccess {String} balances.kind user or owner (effective payout wallet).
+	* @apiSuccess {String} [balances.availableCredit] Unconsumed user ledger credit; null if no lifetime ledger exists.
+	* @apiSuccess {Object} balances.wallet Cached amount, observedAt, stale and sanitized error; unknown amount is null.
+	* @apiError (403) owner_required Group creator and core group management permission required.
+	*/
+	app.ms.api.onAuthorizedGet('payments/admin/:resource/balances', creatorSiteEndpoint(async (req, res) => {
+		await app.ms.membership.owner(req.user.id, req.params.resource);
+		res.send(await module.engine.ownerBalances.read(req.params.resource, req.query));
+	}));
+	/**
 	* @api {get} /v1/payments/admin/:resource/settings Read owner payment settings
 	* @apiName Payments3
 	* @apiGroup Payments

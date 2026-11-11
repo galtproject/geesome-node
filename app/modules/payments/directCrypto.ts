@@ -1,3 +1,4 @@
+import {createOwnerBalances} from './ownerBalances.js';
 import { createCryptoAccounts } from './cryptoAccounts.js';
 import { lockCryptoAllocation, lockCryptoReceipts } from './cryptoLocks.js';
 import { atomicQuote, displayAtomic } from './cryptoAmounts.js';
@@ -13,6 +14,8 @@ const monitoringLifetimeMs = 14 * 86400000;
 
 export function createDirectCrypto({ M, sequelize, serial, resource, grantPaidInvoice, fail, clock, env, adapter, observer = createCryptoObserver(env) }: any) {
 	const treasury = createCryptoTreasury({ M, sequelize, resource, fail, clock, env, observer, adapter });
+	let balanceCache;
+	const ownerBalances = {read:(id, input?) => (balanceCache ||= createOwnerBalances({M, resource, clock, networks:treasury.config.networks})).read(id,input)};
 	const accounts = createCryptoAccounts({M, sequelize, serial, grantPaidInvoice, observer, clock, fail});
 	const dto = (c: any, address: any) => ({ id: c.id, provider: 'direct', status: c.status, lastError: c.lastError || null, monitoringUntil: new Date(new Date(c.createdAt).getTime() + monitoringLifetimeMs), assetId: c.assetId, address: address.address, amount: displayAtomic(c.snapshot.amountAtomic, c.snapshot.decimals), received: displayAtomic(c.receivedAtomic, c.snapshot.decimals), expiresAt: c.expiresAt, priceUsd: c.snapshot.amountCents / 100, optionLabel: c.snapshot.optionLabel, period: c.snapshot.period, currency: c.snapshot.currency, network: c.snapshot.network, decimals: c.snapshot.decimals, contract: c.snapshot.contract, pending: c.snapshot.observedPending || '0', credit: c.snapshot.credit || null });
 	const hash = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -482,7 +485,7 @@ export function createDirectCrypto({ M, sequelize, serial, resource, grantPaidIn
 			return {assetId: row.assetId, currency: asset.currency, network: asset.network, availableCredit: displayAtomic(String(available > 0n ? available : 0n), asset.decimals), pending: displayAtomic(row.snapshot.pendingAtomic || '0', asset.decimals), lastInvoiceAt: row.snapshot.lastInvoiceAt || 0};
 		}).sort((a, b) => b.lastInvoiceAt - a.lastInvoiceAt);
 	}
-	return { balances, reconcile, settings, methods, save, test, invoice, read, run, review, reviews, rescan, treasury };
+	return { ownerBalances, balances, reconcile, settings, methods, save, test, invoice, read, run, review, reviews, rescan, treasury };
 }
 
 function creditPayment(snapshot, received: bigint) {

@@ -146,7 +146,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 * @apiUse ValidationErrors
-	 * @apiDescription Requires publishing:local and group management. Owner-only safe metadata, never credentials. Client key identity is key:API-key-row-ID. Server destinations expose accountIdentity instead of local client fields; provider secrets and account references remain private.
+	 * @apiDescription Requires publishing:local and group management. Owner-only safe metadata, never credentials. Client key identity is key:API-key-row-ID. Server destinations expose accountIdentity instead of local client fields; native geesome destinations expose executionMode native and target.groupId without account/client fields. Provider secrets and account references remain private.
 	 * @apiQuery {Number{1-100}} [limit=20] Page size.
 	 * @apiQuery {Number{0-1000000}} [offset=0] Offset.
 	 * @apiSuccess {Object[]} destinations Safe rows: id/clientId/localKey/sourceGroupId/localAccountId/network/label/executionMode/target/enabled.
@@ -156,21 +156,22 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 		res.send(await module.listDestinations(req.user.id, req.query));
 	});
 	/**
-	 * @api {post} /v1/user/social-publications/destinations Register client destinations
+	 * @api {post} /v1/user/social-publications/destinations Register publication destinations
 	 * @apiName LocalPublicationDestinationRegister
 	 * @apiGroup LocalPublications
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 * @apiUse ValidationErrors
-	 * @apiDescription Requires publishing:local, group management and a dedicated non-password-auth API key. Identity derives from the authenticated key, not request data. Omitted rows remain unchanged. Disable removed rows explicitly. Account/network identity cannot be changed under an existing localKey. Repeating a request updates the same stable rows. No credentials accepted.
+	 * @apiDescription Requires publishing:local, group management and a dedicated non-password-auth API key. Identity derives from the authenticated key, not request data. Omitted rows remain unchanged. Disable removed rows explicitly. Account/network identity cannot be changed under an existing localKey. Repeating a request updates the same stable rows. No credentials accepted. Native Site Group registration uses localKey site-group, network geesome, executionMode native (optional/inferred), target {groupId: owned-public-group-ID}, contentPolicy nsfw, label Site Group and no localAccountId. It reuses one owner destination across API keys. The target and source-group binding are immutable; adding its destination ID to both named publication groups uses the existing group APIs. Native jobs execute inside the Node worker without credentials and are never claimable/reportable by desktop clients.
 	 * @apiBody {Object[]} destinations Maximum 100 rows; empty registers the connection identity only.
 	 * @apiBody {String} destinations.localKey Stable local route key, 1–200 identifier characters.
 	 * @apiBody {Number} [destinations.sourceGroupId] Owned ordinary closed source group; immutable under localKey. Omit for a global manual destination.
-	 * @apiBody {String} destinations.localAccountId Local credential reference, 1–200 identifier characters.
-	 * @apiBody {String} destinations.network Supported network.
+	 * @apiBody {String} [destinations.localAccountId] Required for client delivery; omit for native Site Group. Local credential reference, 1–200 identifier characters.
+	 * @apiBody {String} destinations.network Supported network, including geesome for native Site Group.
+	 * @apiBody {String="client","native"} [destinations.executionMode] Inferred from network; native only for geesome.
 	 * @apiBody {String} destinations.label Display label, 1–200 characters.
 	 * @apiBody {String="sfw","nsfw"} destinations.contentPolicy Required explicit destination policy; sfw accepts only contentType=sfw.
-	 * @apiBody {Object} destinations.target One endpoint: Discord channelId/guildId, Telegram chatId, Patreon campaignId, Reddit subreddit/flairId/kind; otherwise empty. Alternate SFW fields are rejected; configure separate destinations.
+	 * @apiBody {Object} destinations.target One endpoint: Discord channelId/guildId, Telegram chatId, Patreon campaignId, Reddit subreddit/flairId/kind, native geesome numeric groupId; otherwise empty. Alternate SFW fields are rejected; configure separate destinations.
 	 * @apiBody {Boolean} destinations.enabled Explicit enabled state.
 	 * @apiSuccess {String} clientId Authenticated key identity.
 	 * @apiSuccess {Object[]} destinations Registered safe rows.
@@ -319,6 +320,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiQuery {Number{0-1000000}} [offset=0] Page offset.
 	 * @apiSuccess {Number} ownerId Authenticated GeeSome owner ID for connection verification.
 	 * @apiSuccess {Object} capabilities Supported additive publishing features.
+	 * @apiSuccess {Boolean} capabilities.nativeGroupPublishing Supports native geesome destinations targeting one owned public group, without social credentials.
 	 * @apiSuccess {Boolean} capabilities.publicationDestinationGroups Owner-scoped named destination groups with revision-checked metadata updates.
 	 * @apiSuccess {Boolean} capabilities.contentTypePublishing Requires contentType and uses digest v6.
 	 * @apiSuccess {Boolean} capabilities.patreonPublishing Supports explicit Patreon member audience and multi-image preview jobs.

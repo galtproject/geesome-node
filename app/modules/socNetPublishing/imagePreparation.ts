@@ -24,7 +24,7 @@ export function validatePreparedPublication(request) {
 	const text = request.text;
 	const characters = [...text].length;
 	for (const {network, target} of request.destinations) {
-		if (count > (network === 'patreon' ? 20 : ['twitter', 'bluesky'].includes(network) ? 4 : 1) || (['instagram', 'rule34xxx'].includes(network) && count !== 1)) {
+		if (count > (['patreon', 'geesome'].includes(network) ? 20 : ['twitter', 'bluesky'].includes(network) ? 4 : 1) || (['instagram', 'rule34xxx'].includes(network) && count !== 1)) {
 			problem('local_publication_image_count_invalid');
 		}
 		if ((network === 'twitter' && characters > 280) || (network === 'threads' && characters > 500) ||

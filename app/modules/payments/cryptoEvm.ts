@@ -21,14 +21,14 @@ export type EvmAdapterOptions = {
 export function createEvmAdapter(env: NodeJS.ProcessEnv = process.env, options: EvmAdapterOptions = {}) {
 	const config = options.config || automationConfig(env), wallet = options.wallet || managedWallet(env), rpc = options.rpc || createCryptoRpc(env, options.fetcher || fetch, config), fetcher = options.fetcher || fetch;
 	const call = (n: EvmNetwork, m: string, p: unknown[] = []) => rpc.call(n, m, p);
-	const balance = async (n: EvmNetwork, address: string, assetId?: string) => {
+	const balance = async (n: EvmNetwork, address: string, assetId?: string, blockTag = 'latest') => {
 		const contract = assetId ? cryptoAsset(assetId).contract : null;
 		return contract
 			? rpcInteger(await call(n, 'eth_call', [
 				{ to: contract, data: token.encodeFunctionData('balanceOf', [address]) },
-				'latest',
+				blockTag,
 			]))
-			: rpcInteger(await call(n, 'eth_getBalance', [address, 'latest']));
+			: rpcInteger(await call(n, 'eth_getBalance', [address, blockTag]));
 	};
 	const transfer = (to: string, amount: bigint, contract?: string | null): TransactionRequest => contract
 		? { to: contract, data: token.encodeFunctionData('transfer', [to, amount]), value: 0n }
