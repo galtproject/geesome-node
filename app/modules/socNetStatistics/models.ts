@@ -35,5 +35,11 @@ export default async function createModels(sequelize: Sequelize) {
     }
     models[name] = await Model.sync({});
   }
+  const TelegramStatisticsReader = sequelize.define('telegramStatisticsReader', {
+    userId: {type: DataTypes.INTEGER, allowNull: false},
+    destinationId: {type: DataTypes.INTEGER, allowNull: false},
+    accountId: {type: DataTypes.INTEGER, allowNull: false}
+  }, {indexes: [{unique: true, fields: ['userId', 'destinationId']}]});
+  models.TelegramStatisticsReader = await TelegramStatisticsReader.sync({});
   return models;
 }

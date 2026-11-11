@@ -2,6 +2,11 @@ import {IUserAsyncOperation} from "../asyncOperation/interface.js";
 import {IAccount} from "../socNetAccount/interface.js";
 
 export default interface IGeesomeTelegramClient {
+	startStatisticsLogin(userId, clientId, input): Promise<any>;
+	completeStatisticsLogin(userId, clientId, input): Promise<any>;
+	cancelStatisticsLogin(userId, clientId, challengeId): any;
+	getPostStatistics(userId, accountId, target, remoteId): Promise<Record<string, number | null>>;
+
 	runChannelImport(userId, token, accData, channelId, advancedSettings?): Promise<{ result: {asyncOperation: IUserAsyncOperation}, client }>;
 
 	getChannelInfoByUserId(userId, accData, channelId): Promise<{

@@ -32,3 +32,9 @@ The `telegramClient` module connects user Telegram accounts, reads Telegram chan
 - [Social Network Import module overview](../../socNetImport/docs/overview.md)
 - [Async Operation module overview](../../asyncOperation/docs/overview.md)
 - [Social Network Account module](../../../../docs/modules.md)
+
+## Settings login and statistics
+
+The statistics API uses startStatisticsLogin/completeStatisticsLogin/cancelStatisticsLogin around the existing phone/code/2FA login. Pending sessions and app credentials remain in bounded expiring Node memory, bound to owner and management key. Transient attempts never overwrite an existing saved session; only successful login persists the account. Every temporary client disconnects, including failures. Password continuation does not replay the code.
+
+getPostStatistics reads an exact owned account/target/message, verifies the authenticated user, returns available views/reactions/replies/forwards and disconnects. It never increments views or sends a message. Reader selection and history belong to socNetStatistics; credential/account ownership belongs to socNetAccount.
