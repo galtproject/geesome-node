@@ -6,6 +6,8 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 
 ## Documented Modules
 
+- `socNetStatistics`: [daily post/group statistics and client/server collection](../app/modules/socNetStatistics/docs/overview.md)
+
 - `socNetPublishing`: [local and server social publishing](../app/modules/socNetPublishing/docs/overview.md)
 
 - `googleAuthorization`: [private reader login and sessions](../app/modules/googleAuthorization/docs/overview.md)
