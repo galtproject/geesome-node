@@ -2,7 +2,14 @@ import {createTransport, readJson, check, snowflake, didPattern} from '../socNet
 
 export function createStatisticsReader(fetchImpl = fetch) {
 	const transport = createTransport(fetchImpl);
-	const read = (url, headers = {}) => readJson(transport, url, {headers});
+	const read = async (url, headers = {}) => {
+		try {
+			return await readJson(transport, url, {headers});
+		} catch (error) {
+			const status = /HTTP (401|403)/.test(error.message) ? 'access_denied' : /HTTP 429/.test(error.message) ? 'rate_limited' : 'unavailable';
+			throw Object.assign(new Error('social_statistics_read_failed'), {statisticsStatus: status});
+		}
+	};
 	return async ({network, kind, account, target, remoteId}) => {
 		if (network === 'bluesky') {
 			check(didPattern.test(account.accountIdentity || ''), 'Invalid Bluesky identity');
@@ -32,7 +39,9 @@ export function createStatisticsReader(fetchImpl = fetch) {
 			check(typeof token === 'string' && /^[A-Za-z0-9._-]+$/.test(token) && snowflake(target?.channelId) && snowflake(target?.guildId), 'Invalid Discord account');
 			const headers = {authorization: `Bot ${token}`}, root = 'https://discord.com/api/v10';
 			if (kind === 'group') {
-				return null;
+				const guild = await read(`${root}/guilds/${target.guildId}?with_counts=true`, headers);
+				check(guild.id === target.guildId, 'Discord guild changed');
+				return {members: count(guild.approximate_member_count), online: Number.isSafeInteger(guild.approximate_presence_count) ? count(guild.approximate_presence_count) : null};
 			}
 			check(snowflake(remoteId), 'Invalid Discord receipt');
 			const post = await read(`${root}/channels/${target.channelId}/messages/${remoteId}`, headers);

@@ -27,13 +27,15 @@ export function getModule(app, models, options: any = {}) {
 		}
 		return row;
 	}
-	async function latest(userId, kind, id) {
-		const rows = await modelFor(kind).findAll({where: {userId, [keyFor(kind)]: id}, order: [['periodStart', 'DESC']], limit: 2});
-		const current = rows[0]?.toJSON() || null;
+	async function latest(userId, kind, id, guildId = null) {
+		const rows = guildId ? await GroupStat.latestGuildSnapshots(userId, guildId) : await modelFor(kind).findAll({where: {userId, [keyFor(kind)]: id}, order: [['periodStart', 'DESC']], limit: 2});
+		const current = rows[0] ? rows[0].toJSON?.() || {...rows[0]} : null;
 		if (current && kind === 'group') {
-			const before = rows[1]?.metrics?.followers;
+			const metric = typeof current.metrics.members === 'number' ? 'members' : 'followers';
+			const before = rows[1]?.metrics?.[metric];
 			current.previousObservedAt = rows[1]?.observedAt || null;
-			current.followerDelta = typeof current.metrics.followers === 'number' && typeof before === 'number' ? current.metrics.followers - before : null;
+			current.audienceDelta = typeof current.metrics[metric] === 'number' && typeof before === 'number' ? current.metrics[metric] - before : null;
+			current.followerDelta = metric === 'followers' ? current.audienceDelta : null;
 		}
 		return current;
 	}
@@ -52,7 +54,7 @@ export function getModule(app, models, options: any = {}) {
 		if (typeof observation.observedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(observation.observedAt) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== observation.observedAt.slice(0, 10) || date.getTime() > now().getTime() + 300000) {
 			throw problem(400, 'social_statistics_timestamp_invalid');
 		}
-		const fields = observation.kind === 'group' ? ['followers'] : ['likes', 'views', 'replies', 'reposts', 'reactions', 'score'];
+		const fields = observation.kind === 'group' ? row.network === 'discord' ? ['members', 'online'] : ['followers'] : ['likes', 'views', 'replies', 'reposts', 'reactions', 'score'];
 		object(observation.metrics, fields);
 		if (!Object.keys(observation.metrics).length || Object.entries(observation.metrics).some(([name, value]) => value !== null && (!Number.isSafeInteger(value) || name !== 'score' && Number(value) < 0))) {
 			throw problem(400, 'social_statistics_metrics_invalid');
@@ -100,6 +102,9 @@ export function getModule(app, models, options: any = {}) {
 				Job.findAll({where: {...where, status: 'posted', remoteId: {[Op.ne]: null}}, order: [['createdAt', 'DESC'], ['id', 'DESC']], limit: limit + 1, offset}),
 				Destination.findAll({where: destinationWhere, order: [['id', 'ASC']], limit: 51, offset: destinationOffset})
 			]);
+			const asOf = now();
+			const destinationRows = destinations.slice(0, 50);
+			const counts = await Job.publicationCounts(userId, destinationRows.map(row => row.id), asOf);
 			const posts = [];
 			for (const job of jobs.slice(0, limit)) {
 				const post = await app.ms.group.getPostPure(job.postId);
@@ -108,13 +113,36 @@ export function getModule(app, models, options: any = {}) {
 					remoteId: job.remoteId, remoteUrl: job.remoteUrl, text: String(job.payload?.text || '').slice(0, 500), target: job.target, createdAt: job.createdAt,
 					statistics: await latest(userId, 'post', job.id)});
 			}
-			return {period: 'day', timezone: 'UTC', posts, groups: await Promise.all(destinations.slice(0, 50).map(async destination => ({...destinationView(destination), statistics: await latest(userId, 'group', destination.id)}))),
+			const guildAudiences = new Map();
+			const groups = await Promise.all(destinationRows.map(async destination => {
+				const guildId = destination.network === 'discord' ? destination.target?.guildId || null : null;
+				let statistics, sharedDestinations = 1;
+				if (guildId) {
+					if (!guildAudiences.has(guildId)) {
+						guildAudiences.set(guildId, Promise.all([
+							latest(userId, 'group', destination.id, guildId),
+							Destination.count({where: {userId, network: 'discord', 'target.guildId': guildId}})
+						]));
+					}
+					[statistics, sharedDestinations] = await guildAudiences.get(guildId);
+				} else {
+					statistics = await latest(userId, 'group', destination.id);
+				}
+				return {...destinationView(destination), statistics,
+					publicationCounts: {...(counts.get(destination.id) || {last24Hours: 0, last7Days: 0}), asOf: asOf.toISOString()},
+					audience: {kind: destination.network === 'discord' ? 'guildMembers' : 'followers', scopeId: guildId,
+						approximate: destination.network === 'discord', sharedDestinations}};
+			}));
+			return {period: 'day', timezone: 'UTC', posts, groups,
 				nextOffset: jobs.length > limit ? offset + limit : null, nextDestinationOffset: destinations.length > 50 ? destinationOffset + 50 : null};
 		},
 		async history(userId, query) {
 			object(query, ['kind', 'id', 'limit']);
 			kindCheck(query.kind);
-			await entity(userId, query.kind, query.id);
+			const row = await entity(userId, query.kind, query.id);
+			if (query.kind === 'group' && row.network === 'discord' && row.target?.guildId) {
+				return {snapshots: await GroupStat.latestGuildSnapshots(userId, row.target.guildId, integer(query.limit ?? 30, 365))};
+			}
 			return {snapshots: await modelFor(query.kind).findAll({where: {userId, [keyFor(query.kind)]: integer(query.id)}, order: [['periodStart', 'DESC']], limit: integer(query.limit ?? 30, 365)})};
 		},
 		async refresh(userId, query: any = {}) {
@@ -136,8 +164,8 @@ export function getModule(app, models, options: any = {}) {
 				}
 				await save(userId, {kind: query.kind, [keyFor(query.kind)]: owned.id, observedAt: now().toISOString(), metrics}, null, true);
 				return result('updated');
-			} catch {
-				return result('unavailable');
+			} catch (error) {
+				return result(['access_denied', 'rate_limited'].includes(error.statisticsStatus) ? error.statisticsStatus : 'unavailable');
 			}
 		}
 	};

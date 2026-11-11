@@ -76,6 +76,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiBody {String} [remoteUrl] Confirmed credential-free provider URL.
 	 * @apiBody {String} [error] Bounded safe explanation.
 	 * @apiSuccess {Object} job Updated server job.
+	 * @apiSuccess {String} [job.confirmedAt] First accepted posted acknowledgement timestamp, stable on replay.
 	 */
 	api.onAuthorizedPost('user/social-publications/:jobId/server-result', async (req, res) => {
 		await authorizeManagement(req);
@@ -393,6 +394,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiBody {String} [remoteUrl] HTTPS post URL without credentials/query/fragment. Rule34 jobs additionally allow only rule34.xxx/index.php?page=post&s=view&id=remoteId.
 	 * @apiBody {String} [error] Sanitized error, maximum 500 characters; no secrets.
 	 * @apiSuccess {Object} job Updated job.
+	 * @apiSuccess {String} [job.confirmedAt] First accepted posted acknowledgement timestamp, stable on replay.
 	 * @apiError (409) LocalPublicationResultConflict Conflicting terminal result or invalid claim token.
 	 */
 	api.onAuthorizedPost('user/social-publications/:jobId/result', async (req, res) => {

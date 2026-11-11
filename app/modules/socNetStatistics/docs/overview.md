@@ -56,8 +56,7 @@ to use server reads; default module packs already include it.
 
 - Bluesky: followers; post likes/replies/reposts. No views counter.
 - Telegram Bot API: destination member count. Historical post metrics unsupported.
-- Discord: message reactions, separate from likes. Channel followers and views
-  unsupported; guild membership is not mislabeled as channel followers.
+- Discord: approximate guild members and online presence, explicitly scoped to the whole server. Shared guild destinations read one canonical latest snapshot per day across their observations. Message reactions are the primary response metric; channel followers and message views are not supplied.
 
 Local collection coverage is documented in GeeSome Client's `docs/social-statistics.md`.
 The client can read the summary only after this Node update is deployed.
@@ -76,3 +75,40 @@ fixtures; no live credentials or remote publications are needed. The focused
 publication/provider/statistics regression set passed 77 tests. API docs generation,
 security inventory and scalability inventory checks passed. Full Docker suite was
 not run for this slice. Repository-wide `tsc --noEmit` has existing unrelated errors.
+
+## Publication activity and audience scopes (#1599)
+
+Each destination now includes `publicationCounts.last24Hours`, `last7Days` and
+`asOf`. They count distinct nonempty remote IDs from owner/destination posted
+receipts in trailing inclusive 24-hour/7-day intervals ending at one server time.
+The count query is independent of the summary post page, excludes future/failed/
+queued work and uses the partial owner/destination/confirmedAt index. The first
+successful acknowledgement records `confirmedAt` transactionally; replay leaves
+it unchanged. It is the GeeSome confirmation time, not a provider-asserted original
+send time. Historical terminal posted rows are backfilled from the existing
+terminal status `updatedAt`; creation/scheduling timestamps are never substituted.
+Migration `20261111000000-publication-confirmed-at.cjs` upgrades the existing table
+and creates the index concurrently. Run migrations during the normal Node restart
+before deploying the new client. Rollback removes the additive field/index; a
+later re-upgrade reconstructs historical acknowledgement times from terminal rows.
+
+Group metric fields are network-specific: Discord accepts `members`/`online`,
+other networks `followers`. The safe derived `audience` descriptor includes kind,
+scopeId, approximate and sharedDestinations. Discord history and latest/delta use
+one newest observation per UTC day across the owner's destinations in that guild;
+per-channel publication counts remain separate. Approximate member deltas mean
+changes in the estimate, not gross new followers. No external metrics are summed
+across audiences.
+
+Read outcomes distinguish unsupported metrics, access denial and provider rate
+limits; old snapshots remain intact. X collectors remain unconnected; paid X API
+access is not enabled. The client hides empty history actions and labels each
+primary post response correctly (Discord reactions, Reddit score, other likes).
+
+Verification: 85 focused PostgreSQL/provider/account tests and the migration coverage test passed, including migration
+replay/backfill, confirmation replay, count boundaries/isolation/deduplication,
+shared guild history and provider access failures. Migration integrity against the
+disposable model/migration fixture: 20 passed, 0 failed (292 unrelated checks
+skipped because those tables are absent). No live provider calls were made.
+
+The additional full-app migration test is blocked before feature initialization by the local storage dependency import: `@peculiar/webcrypto` does not export `Crypto`. The direct migration rehearsal/audit above passed independently. Repository-wide TypeScript checks retain unrelated pre-existing errors; the changed statistics/account/model/test files have no diagnostics.

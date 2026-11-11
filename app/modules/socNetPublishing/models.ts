@@ -1,7 +1,7 @@
 import {DataTypes, Sequelize} from 'sequelize';
 
 export default async function createModels(sequelize: Sequelize) {
-	const PublicationJob = sequelize.define('publicationJob', {
+	const PublicationJob: any = sequelize.define('publicationJob', {
 		userId: {type: DataTypes.INTEGER, allowNull: false},
 		postId: {type: DataTypes.INTEGER, allowNull: false},
 		requestKey: {type: DataTypes.STRING(128), allowNull: false},
@@ -26,18 +26,35 @@ export default async function createModels(sequelize: Sequelize) {
 		status: {type: DataTypes.STRING(20), allowNull: false, defaultValue: 'queued'},
 		claimToken: {type: DataTypes.STRING(64)},
 		processingAt: {type: DataTypes.DATE},
+		confirmedAt: {type: DataTypes.DATE},
 		remoteId: {type: DataTypes.STRING(500)},
 		remoteUrl: {type: DataTypes.TEXT},
 		error: {type: DataTypes.STRING(500)}
 	}, {
 		indexes: [
 			{name: 'publication_jobs_compose_unique', unique: true, fields: ['userId', 'composeKey', 'composeIndex']},
+			{name: 'publication_jobs_owner_destination_confirmed_idx', fields: ['userId', 'destinationId', 'confirmedAt'], where: {status: 'posted'}},
 			{name: 'publication_jobs_post_idx', fields: ['postId']},
 			{name: 'publication_jobs_owner_request_unique', unique: true, fields: ['userId', 'requestKey']},
 			{name: 'publication_jobs_owner_due_idx', fields: ['userId', 'status', 'scheduledAt', 'id']},
 			{name: 'publication_jobs_owner_created_idx', fields: ['userId', 'createdAt', 'id']}
 		]
 	});
+	PublicationJob.publicationCounts = async (userId, destinationIds, now) => {
+		if (!destinationIds.length) {
+			return new Map();
+		}
+		const generator: any = sequelize.getQueryInterface().queryGenerator;
+		const table = generator.quoteTable(PublicationJob.getTableName());
+		const [rows]: any = await sequelize.query(`SELECT "destinationId",
+			COUNT(DISTINCT "remoteId") FILTER (WHERE "confirmedAt">=:day) AS "last24Hours",
+			COUNT(DISTINCT "remoteId") AS "last7Days"
+			FROM ${table} WHERE "userId"=:userId AND "destinationId" IN (:destinationIds)
+			AND "status"='posted' AND "remoteId" IS NOT NULL AND "remoteId"<>''
+			AND "confirmedAt">=:week AND "confirmedAt"<=:now GROUP BY "destinationId"`,
+			{replacements: {userId, destinationIds, now, day: new Date(now.getTime() - 86400000), week: new Date(now.getTime() - 7 * 86400000)}});
+		return new Map(rows.map(row => [Number(row.destinationId), {last24Hours: Number(row.last24Hours), last7Days: Number(row.last7Days)}]));
+	};
 	await PublicationJob.sync({alter: {drop: false}});
 	const PublicationDestination = sequelize.define('publicationDestination', {
 		userId: {type: DataTypes.INTEGER, allowNull: false},

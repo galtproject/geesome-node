@@ -256,6 +256,11 @@ function modelRows(): ModelRow[] {
 
   return [
     {
+      area: 'social statistics publication counts', source: 'app/modules/socNetPublishing/models.ts', model: 'PublicationJob',
+      indexes: [has(read('app/modules/socNetPublishing/models.ts'), 'publication_jobs_owner_destination_confirmed_idx') ? 'owner/destination/confirmation time, posted-only index' : 'missing confirmation-time index'],
+      notes: ['rolling 24h/7d counts use bounded destination IDs and seven-day range; COUNT DISTINCT remote IDs avoids duplicate receipts; no post-page hydration']
+    },
+    {
       area: 'Local social publication queue',
       source: 'app/modules/socNetPublishing/models.ts',
       model: 'publicationJobs',
@@ -1490,6 +1495,11 @@ function hotspotRows(): HotspotRow[] {
     && has(activityPubModelSource, "fields: ['remoteActorId', 'origin', 'publishedAt', 'id']");
 
   return [
+    {
+      area: 'social statistics', source: 'app/modules/socNetStatistics/index.ts', hotspot: 'destination publication counts and shared Discord audience',
+      observedPattern: 'counts aggregate indexed posted receipts for at most 50 visible destinations; guild history selects one latest observation per UTC day across owner guild destinations',
+      scalabilityRisk: 'no receipt-history download or in-memory post counting; guild JSON target matching scans the owner destination catalog, not all publication jobs'
+    },
     {
       area: 'Large fixture benchmark',
       source: 'check/databaseScalabilityFixture.ts',

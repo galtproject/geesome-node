@@ -269,7 +269,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 				if (!['processing', 'needs_review'].includes(job.status)) {
 					throw problem(409, 'local_publication_not_processing');
 				}
-				await job.update(result, {transaction});
+				await job.update({...result, ...(result.status === 'posted' && !job.confirmedAt ? {confirmedAt: new Date()} : {})}, {transaction});
 				return plain(job);
 			});
 		},
