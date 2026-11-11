@@ -1481,3 +1481,16 @@ removed. The forward-only migration preserves historical identity and outcomes,
 blocks unreviewed alternate endpoint loss and holds pre-v6 jobs for explicit
 reconciliation instead of automatic resend. See the module content-policy guide
 for coordinated rollout and backup recovery requirements.
+
+## Publication destination groups (#1584)
+
+Added owner-scoped named groups of ordered destination IDs, bounded catalog,
+idempotent creation and revision-checked updates in both publication namespaces.
+Groups hold no credentials, support repeated networks, and never mutate jobs or
+individual destination settings. New table uses model sync; see the module's
+[destination group contract](../app/modules/socNetPublishing/docs/destination-groups.md).
+
+Validation: 83 targeted publishing/provider/image/migration tests pass, including
+real PostgreSQL group concurrency and owner isolation. API docs, route-security
+and database-scalability checks pass. TypeScript reports existing project errors;
+no errors reference the new group implementation or tests.

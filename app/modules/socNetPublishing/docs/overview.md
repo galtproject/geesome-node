@@ -82,3 +82,12 @@ needs_review and require owner reconciliation. A failed database acknowledgement
 retries only result persistence, never the provider send. Client/server claim
 and result routes remain isolated. Historical pre-v6 jobs are held for explicit
 recovery rather than automatically sent after the schema upgrade.
+
+## Named destination groups
+
+Node owns first-class [Publication Destination Groups](destination-groups.md).
+They organize explicit destination IDs for producer selection, including several
+channels of one network. Creation is idempotent, edits compare a revision, and
+saved delivery snapshots remain unchanged. Non-credential group metadata uses
+publishing:local plus owner group management; server credential setup retains
+its separate publishing:manage authorization.

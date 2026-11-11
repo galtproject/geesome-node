@@ -59,5 +59,18 @@ export default async function createModels(sequelize: Sequelize) {
 		{name: 'publication_destinations_owner_idx', fields: ['userId', 'id']}
 	]});
 	await PublicationDestination.sync({});
-	return {PublicationJob, PublicationDestination};
+	const PublicationDestinationGroup = sequelize.define('publicationDestinationGroup', {
+		userId: {type: DataTypes.INTEGER, allowNull: false},
+		requestKey: {type: DataTypes.STRING(128), allowNull: false},
+		creationHash: {type: DataTypes.STRING(64), allowNull: false},
+		label: {type: DataTypes.STRING(200), allowNull: false},
+		destinationIds: {type: DataTypes.JSONB, allowNull: false},
+		revision: {type: DataTypes.INTEGER, allowNull: false, defaultValue: 1},
+		enabled: {type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true}
+	}, {indexes: [
+		{name: 'publication_destination_groups_owner_key_unique', unique: true, fields: ['userId', 'requestKey']},
+		{name: 'publication_destination_groups_owner_idx', fields: ['userId', 'id']}
+	]});
+	await PublicationDestinationGroup.sync({});
+	return {PublicationJob, PublicationDestination, PublicationDestinationGroup};
 }
