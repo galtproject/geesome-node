@@ -130,6 +130,8 @@ function notesFor(route: RouteRow, block: string): string[] {
   }
   if (route.moduleName === 'socNetPublishing' && (routeLower.includes('/server-destinations') || routeLower.endsWith('/server-result'))) {
     notes.add('owner + UserGroupManagement; explicit publishing:manage scope or owner password session; write-only app-pass encrypted credentials; provider identity checked before setup; manual result also requires original claim token and never sends');
+  } else if (route.moduleName === 'socNetPublishing' && routeLower.endsWith('/queue-shuffle')) {
+    notes.add('publishing:local and UserGroupManagement; owned private source plus 1–20 enabled owned source-compatible destinations; bounded 10000 future queued jobs; row locks, atomic time-slot permutation per destination; durable owner/key replay prevents repeated shuffle; no due/processing/foreign mutation');
   } else if (route.moduleName === 'socNetPublishing' && routeLower.includes('/destination-groups')) {
     notes.add('publishing:local and UserGroupManagement; owner-only non-credential selection metadata; 1–20 distinct owned destination IDs; idempotent creation and optimistic revision replacement; no nested groups or job mutation');
   } else if (route.moduleName === 'socNetPublishing') {

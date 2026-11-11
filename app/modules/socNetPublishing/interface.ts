@@ -13,6 +13,7 @@ export default interface ISocNetPublishingModule {
 	listDestinations(userId: number, query?: any): Promise<any>;
 	registerDestinations(userId: number, clientId: string, input: any): Promise<any>;
 	claimDestinationJob(userId: number, clientId: string, input: any): Promise<any>;
+	shuffleQueue(userId: number, input: any): Promise<any>;
 	flushDatabase(): Promise<void>;
 	compose(userId: number, input: any): Promise<any>;
 	getOutbox(userId: number, query?: any): Promise<any>;

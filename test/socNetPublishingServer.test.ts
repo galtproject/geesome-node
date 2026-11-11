@@ -77,6 +77,20 @@ describe('server social publishing foundation', function () {
 		const frozen = await queued(sfw, {contentPolicy: 'nsfw', target: {chatId: '-12345'}});
 		await module.processServerQueue();assert.equal(published.length, 1);assert.equal((await frozen.reload()).contentPolicy, 'nsfw');
 	});
+	it('rechecks the due slot after a candidate is rescheduled before its claim lock', async () => {
+		const destination = await registered();const job = await queued(destination);let moved = false;
+		models.PublicationJob.addHook('beforeFind', 'reschedule-before-claim', async options => {
+			if (options.transaction && options.lock && !moved) {
+				moved = true;
+				await job.update({scheduledAt: new Date(Date.now() + 3600000)});
+			}
+		});
+		try {
+			assert.equal(await module.claimServerJob(), null);assert.equal(moved, true);await job.reload();assert.equal(job.status, 'queued');assert.equal(published.length, 0);
+		} finally {
+			models.PublicationJob.removeHook('beforeFind', 'reschedule-before-claim');
+		}
+	});
 	it('isolates server claims, frozen payload, result permissions and outcome state', async () => {
 		const destination = await registered();const job = await queued(destination);
 		assert.equal(await module.claimJob(1, {intentVersion: 6, accounts: [{network: 'telegram', localAccountId: 'anything'}]}), null);
