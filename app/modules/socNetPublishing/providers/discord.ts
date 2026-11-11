@@ -1,6 +1,34 @@
 import {check, secret, snowflake, jsonOptions, loadImages, readJson} from './common.js';
 
 const root = 'https://discord.com/api/v10';
+// The authored caption owns all text. Embed layout adds no promotional content.
+export function discordPublicationEmbed(text: string) {
+	const [title, ...lines] = text.split(/\r?\n/);
+	const embed: any = {};
+	if (title && title.length <= 256) {
+		embed.title = title;
+		const description = lines.join('\n').replace(/^\n+/, '');
+		if (description) {
+			embed.description = description;
+		}
+		for (const candidate of text.match(/https?:\/\/[^\s<>]+/g) || []) {
+			try {
+				const url = new URL(candidate);
+				if (!url.username && !url.password && url.href.length <= 2048) {
+					embed.url = url.href;
+					break;
+				}
+			} catch {
+				// An invalid caption link remains text; never fetch it to resolve a URL.
+			}
+		}
+	} else if (text) {
+		// Discord titles are limited to 256 characters. Keep longer captions whole.
+		embed.description = text;
+	}
+	return embed;
+}
+
 export function createDiscordProvider(transport: any) {
 	async function identity(credentials: any) {
 		const token = secret(credentials?.botToken);
@@ -33,12 +61,14 @@ export function createDiscordProvider(transport: any) {
 			const destination = await channel(bot.headers, payload.target.channelId, payload.target.guildId);
 			check(!(payload.contentType === 'nsfw') || destination.nsfw === true, 'Sensitive Discord publication requires an NSFW channel');
 			const images = await loadImages(payload, loadMedia, 8 * 1024 * 1024);
-			const body: any = {content: payload.text, allowed_mentions: {parse: [], users: [], roles: [], replied_user: false}};
+			const embed = discordPublicationEmbed(payload.text);
+			const body: any = {embeds: [embed], allowed_mentions: {parse: [], users: [], roles: [], replied_user: false}};
 			let options;
 			if (images.length) {
 				const image = images[0];
 				const name = image.mimeType === 'image/jpeg' ? 'image.jpg' : 'image.png';
 				body.attachments = [{id: 0, filename: name}];
+				embed.image = {url: `attachment://${name}`};
 				const form = new FormData();
 				form.append('payload_json', JSON.stringify(body));
 				form.append('files[0]', new Blob([image.bytes], {type: image.mimeType}), name);
