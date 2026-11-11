@@ -130,12 +130,17 @@ function notesFor(route: RouteRow, block: string): string[] {
   }
   if (route.moduleName === 'socNetPublishing' && (routeLower.includes('/server-destinations') || routeLower.endsWith('/server-result'))) {
     notes.add('owner + UserGroupManagement; explicit publishing:manage scope or owner password session; write-only app-pass encrypted credentials; provider identity checked before setup; manual result also requires original claim token and never sends');
+  } else if (route.moduleName === 'socNetPublishing' && routeLower.endsWith('/queue-shuffle')) {
+    notes.add('publishing:local and UserGroupManagement; owned private source plus 1–20 enabled owned source-compatible destinations; bounded 10000 future queued jobs; row locks, atomic time-slot permutation per destination; durable owner/key replay prevents repeated shuffle; no due/processing/foreign mutation');
   } else if (route.moduleName === 'socNetPublishing' && routeLower.includes('/destination-groups')) {
     notes.add('publishing:local and UserGroupManagement; owner-only non-credential selection metadata; 1–20 distinct owned destination IDs; idempotent creation and optimistic revision replacement; no nested groups or job mutation');
   } else if (route.moduleName === 'socNetPublishing') {
     notes.add('publishing:local and UserGroupManagement; compose also requires assets:write; owner-scoped jobs; public-source edit permission or owned ordinary closed source at create/claim; bounded owner-only source selection; authoritative group/network/account routes; opt-in media preparation validates owned originals and uses server-only completed cache; original claim token for results; destination registration and claim bind executor to dedicated non-password API key ID; legacy claim excludes destination jobs; destination results require original client key');
   }
   if (route.moduleName === 'socNetStatistics') {
+    if (routeLower.includes('/telegram-login/') || routeLower.endsWith('/telegram-account')) {
+      notes.add('explicit publishing:manage or owner password session; opaque login challenges bind owner and API key, expire after ten minutes and limit corrections; sessions/API credentials never projected; destination reader must be an owned usable Telegram user account');
+    }
     notes.add('publishing:local and UserGroupManagement; owner-scoped bounded summary/history; dedicated client key binds local observations to client-mode entities; atomic monotonic UTC-day upserts; server refresh delegates to socNetAccount with encrypted owned credentials and fixed provider hosts; no secret projection');
   }
   if (route.moduleName === 'imageComposition') {

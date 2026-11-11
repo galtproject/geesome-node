@@ -7,6 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import {safeTelegramAccount} from '../telegramClient/loginFlow.js';
 import {createStatisticsReader} from './statistics.js';
 import {Op} from "sequelize";
 import pIteration from 'p-iteration';
@@ -43,7 +44,22 @@ export function getModule(app: IGeesomeApp, models, options: any = {}) {
 	// app.checkModules([]);
 
 	class SocNetAccountModule {
+		async listTelegramStatisticsAccounts(userId) {
+			const rows = await models.Account.findAll({where: {userId, socNet: 'telegram', serverCredentialsEncrypted: null}, order: [['id', 'DESC']], limit: 100});
+			return rows.filter(row => row.sessionKey && row.accountId).map(safeTelegramAccount);
+		}
+		async assertTelegramStatisticsAccount(userId, accountId) {
+			const row = await models.Account.findOne({where: {id: accountId, userId, socNet: 'telegram'}});
+			if (!row || !safeTelegramAccount(row).ready || !row.accountId) {
+				throw Object.assign(new Error('social_statistics_telegram_account_required'), {statisticsStatus: 'connection_required'});
+			}
+			return row;
+		}
 		async getStatistics(userId, input) {
+			if (input.network === 'telegram' && input.kind === 'post' && input.readerAccountId) {
+				await this.assertTelegramStatisticsAccount(userId, input.readerAccountId);
+				return app.ms.telegramClient.getPostStatistics(userId, input.readerAccountId, input.target, input.remoteId);
+			}
 			const account = await models.Account.findOne({where: {id: input.accountId, userId, socNet: input.network, accountId: input.accountIdentity}});
 			if (!account?.serverCredentialsEncrypted) {
 				throw new Error('social_statistics_account_unavailable');

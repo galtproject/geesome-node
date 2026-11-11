@@ -79,6 +79,7 @@ const migrationDirs: Record<MigrationModule, string> = {
 
 const coveredMigrations: CoveredMigration[] = [
   {module: 'database', file: '20261110001000-server-social-publishing.cjs', verifies: ['server publication account binding columns', 'server managed credential storage', 'server destination key uniqueness']},
+  {module: 'database', file: '20261111000000-publication-confirmed-at.cjs', verifies: ['first publication acknowledgement time', 'destination confirmation-time index']},
   {module: 'database', file: '20261110003000-publication-content-type.cjs', verifies: ['canonical job content type', 'intent version gate', 'explicit policies']},
   {module: 'database', file: '20261110002000-publication-content-policy.cjs', verifies: ['destination content policy', 'frozen job content policy']},
   {module: 'database', file: '20261110000000-bind-publication-destinations.cjs', verifies: ['publication destination executor snapshot columns']},
@@ -246,6 +247,7 @@ const coveredMigrations: CoveredMigration[] = [
 ];
 
 const expectedColumns: ExpectedColumn[] = [
+  {table: 'publicationJobs', columns: ['confirmedAt'], type: 'timestamp with time zone'},
   {table: 'publicationJobs', columns: ['serverAccountId'], type: 'integer'},
   {table: 'publicationJobs', columns: ['accountIdentity'], type: 'character varying'},
   {table: 'publicationDestinations', columns: ['accountIdentity'], type: 'character varying'},
@@ -315,6 +317,7 @@ const expectedColumns: ExpectedColumn[] = [
 ];
 
 const expectedIndexes: ExpectedIndex[] = [
+  {table: 'publicationJobs', name: 'publication_jobs_owner_destination_confirmed_idx', columns: ['userId', 'destinationId', 'confirmedAt'], predicateIncludes: ["'posted'"]},
   {name: 'publication_destination_groups_owner_key_unique', table: 'publicationDestinationGroups', columns: ['userId', 'requestKey'], unique: true},
   {name: 'publication_destination_groups_owner_idx', table: 'publicationDestinationGroups', columns: ['userId', 'id']},
   {name: 'publication_destinations_server_key_unique', table: 'publicationDestinations', columns: ['userId', 'executionMode', 'localKey'], unique: true, predicateIncludes: ["'server'"]},

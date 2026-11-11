@@ -1,3 +1,4 @@
+import {getQueueShuffleMethods} from './queueShuffle.js';
 import {normalizeContentType} from './contentPolicy.js';
 import {createHash, randomBytes} from 'node:crypto';
 import {isIP} from 'node:net';
@@ -27,7 +28,7 @@ export default async function socNetPublishing(app: IGeesomeApp) {
 	return module;
 }
 
-export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestination, PublicationDestinationGroup}: any, options: any = {}): ISocNetPublishingModule {
+export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestination, PublicationDestinationGroup, PublicationQueueShuffle}: any, options: any = {}): ISocNetPublishingModule {
 	const sequelize = PublicationJob.sequelize;
 	const destinations = getDestinationMethods(PublicationDestination, {app, normalizeRequest, problem, boundedInteger, loadServerAccount: (userId, accountId, network, identity) => serverAccounts.loadServerAccount(userId, accountId, network, identity)});
 	const serverAccounts = getServerAccountMethods(app, PublicationDestination, {normalizeRequest, problem, boundedInteger}, options);
@@ -36,6 +37,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 	let serverScanCursor = null;
 	const module: ISocNetPublishingModule = {
 		...serverAccounts,
+		...getQueueShuffleMethods(app, {PublicationJob, PublicationDestination, PublicationQueueShuffle}, {problem}, options),
 		...getDestinationGroupMethods(PublicationDestinationGroup, PublicationDestination, {problem, boundedInteger}),
 		setCronWorker(worker) { cronWorker = worker; },
 		async stop() { await cronWorker?.stop(); cronWorker = null; },
@@ -49,6 +51,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 		...getOutboxMethods(app, PublicationJob, {normalizeRequest, snapshot, plain, problem, boundedInteger, groupIds: normalizeGroupIds, jobViews, resolveDestination: destinations.resolveDestination, PublicationDestination}),
 		...getSourceMethods(app, {problem, boundedInteger}),
 		async flushDatabase() {
+			await PublicationQueueShuffle?.destroy({where: {}});
 			await PublicationJob.destroy({where: {}});
 			await PublicationDestinationGroup?.destroy({where: {}});
 			await PublicationDestination.destroy({where: {}});
@@ -141,7 +144,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 					if (!enabled) {
 						return null;
 					}
-					const locked = await PublicationJob.findOne({where: {id: candidate.id, intentVersion: 6, executionMode: 'server', status: 'queued'}, transaction, lock: transaction.LOCK.UPDATE, skipLocked: true});
+					const locked = await PublicationJob.findOne({where: {id: candidate.id, intentVersion: 6, executionMode: 'server', status: 'queued', scheduledAt: {[Op.lte]: new Date()}}, transaction, lock: transaction.LOCK.UPDATE, skipLocked: true});
 					if (!locked) {
 						return null;
 					}
@@ -269,7 +272,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 				if (!['processing', 'needs_review'].includes(job.status)) {
 					throw problem(409, 'local_publication_not_processing');
 				}
-				await job.update(result, {transaction});
+				await job.update({...result, ...(result.status === 'posted' && !job.confirmedAt ? {confirmedAt: new Date()} : {})}, {transaction});
 				return plain(job);
 			});
 		},

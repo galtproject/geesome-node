@@ -1,4 +1,4 @@
-import {DataTypes, Sequelize} from 'sequelize';
+import {DataTypes, QueryTypes, Sequelize} from 'sequelize';
 
 export default async function createModels(sequelize: Sequelize) {
   const models: any = {};
@@ -21,7 +21,25 @@ export default async function createModels(sequelize: Sequelize) {
         replacements: {...data, entityId: data[entity], metrics: JSON.stringify(data.metrics)}, transaction
       });
     };
+    if (entity === 'destinationId') {
+      Model.latestGuildSnapshots = async (userId, guildId, limit = 2) => {
+        const generator: any = sequelize.getQueryInterface().queryGenerator;
+        const table = generator.quoteTable(Model.getTableName());
+        const destination = generator.quoteTable(sequelize.models.publicationDestination.getTableName());
+        return sequelize.query(`SELECT DISTINCT ON (s."periodStart") s.* FROM ${table} s
+          JOIN ${destination} d ON d.id=s."destinationId" AND d."userId"=s."userId"
+          WHERE s."userId"=:userId AND d.network='discord' AND d.target->>'guildId'=:guildId
+          ORDER BY s."periodStart" DESC, s."observedAt" DESC, s.id DESC LIMIT :limit`,
+          {replacements: {userId, guildId, limit}, type: QueryTypes.SELECT});
+      };
+    }
     models[name] = await Model.sync({});
   }
+  const TelegramStatisticsReader = sequelize.define('telegramStatisticsReader', {
+    userId: {type: DataTypes.INTEGER, allowNull: false},
+    destinationId: {type: DataTypes.INTEGER, allowNull: false},
+    accountId: {type: DataTypes.INTEGER, allowNull: false}
+  }, {indexes: [{unique: true, fields: ['userId', 'destinationId']}]});
+  models.TelegramStatisticsReader = await TelegramStatisticsReader.sync({});
   return models;
 }

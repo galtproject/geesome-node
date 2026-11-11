@@ -30,7 +30,7 @@ measurement. Paused/disabled destinations retain readable history.
 
 ## API and boundaries
 
-All four `/v1/user/social-statistics` handlers require `publishing:local` plus
+All nine `/v1/user/social-statistics` handlers require `publishing:local` plus
 `UserGroupManagement`. Summary and history are read-only and owner-scoped.
 Summary defaults to 20 latest posted receipts; at most 50 receipts and 50
 destinations are read per page, with independent next offsets. Optional filters
@@ -55,9 +55,8 @@ to use server reads; default module packs already include it.
 ## Available server metrics
 
 - Bluesky: followers; post likes/replies/reposts. No views counter.
-- Telegram Bot API: destination member count. Historical post metrics unsupported.
-- Discord: message reactions, separate from likes. Channel followers and views
-  unsupported; guild membership is not mislabeled as channel followers.
+- Telegram Bot API: destination member count. A separately selected Telegram user account reads historical post views, reactions, replies and forwards.
+- Discord: approximate guild members and online presence, explicitly scoped to the whole server. Shared guild destinations read one canonical latest snapshot per day across their observations. Message reactions are the primary response metric; channel followers and message views are not supplied.
 
 Local collection coverage is documented in GeeSome Client's `docs/social-statistics.md`.
 The client can read the summary only after this Node update is deployed.
@@ -76,3 +75,50 @@ fixtures; no live credentials or remote publications are needed. The focused
 publication/provider/statistics regression set passed 77 tests. API docs generation,
 security inventory and scalability inventory checks passed. Full Docker suite was
 not run for this slice. Repository-wide `tsc --noEmit` has existing unrelated errors.
+
+## Publication activity and audience scopes (#1599)
+
+Each destination now includes `publicationCounts.last24Hours`, `last7Days` and
+`asOf`. They count distinct nonempty remote IDs from owner/destination posted
+receipts in trailing inclusive 24-hour/7-day intervals ending at one server time.
+The count query is independent of the summary post page, excludes future/failed/
+queued work and uses the partial owner/destination/confirmedAt index. The first
+successful acknowledgement records `confirmedAt` transactionally; replay leaves
+it unchanged. It is the GeeSome confirmation time, not a provider-asserted original
+send time. Historical terminal posted rows are backfilled from the existing
+terminal status `updatedAt`; creation/scheduling timestamps are never substituted.
+Migration `20261111000000-publication-confirmed-at.cjs` upgrades the existing table
+and creates the index concurrently. Run migrations during the normal Node restart
+before deploying the new client. Rollback removes the additive field/index; a
+later re-upgrade reconstructs historical acknowledgement times from terminal rows.
+
+Group metric fields are network-specific: Discord accepts `members`/`online`,
+other networks `followers`. The safe derived `audience` descriptor includes kind,
+scopeId, approximate and sharedDestinations. Discord history and latest/delta use
+one newest observation per UTC day across the owner's destinations in that guild;
+per-channel publication counts remain separate. Approximate member deltas mean
+changes in the estimate, not gross new followers. No external metrics are summed
+across audiences.
+
+Read outcomes distinguish unsupported metrics, access denial and provider rate
+limits; old snapshots remain intact. X Cookie collection is implemented in Client with a bounded recent originals timeline; paid X API
+access is not enabled. The client hides empty history actions and labels each
+primary post response correctly (Discord reactions, Reddit score, other likes).
+
+Verification: 85 focused PostgreSQL/provider/account tests and the migration coverage test passed, including migration
+replay/backfill, confirmation replay, count boundaries/isolation/deduplication,
+shared guild history and provider access failures. Migration integrity against the
+disposable model/migration fixture: 20 passed, 0 failed (292 unrelated checks
+skipped because those tables are absent). No live provider calls were made.
+
+The additional full-app migration test is blocked before feature initialization by the local storage dependency import: `@peculiar/webcrypto` does not export `Crypto`. The direct migration rehearsal/audit above passed independently. Repository-wide TypeScript checks retain unrelated pre-existing errors; the changed statistics/account/model/test files have no diagnostics.
+
+## Telegram user readers and Patreon metrics (#1602)
+
+Five additional endpoints list safe Telegram accounts/destinations, start/complete/cancel login, and bind a reader to a destination. Login/binding require explicit publishing:manage (or owner password session), publishing:local and UserGroupManagement. Login challenges are opaque, owner/API-key-bound, expire after ten minutes, limit attempts and disconnect every transport. Phone, API ID/hash, code and optional 2FA reuse telegramClient.login; browser-supplied sessions are rejected. Node alone retains sessions.
+
+The new model-sync telegramStatisticsReader table binds an owned destination to an owned usable user account. Frozen publication intents and bot credentials are unchanged. Telegram post refresh goes through socNetAccount even for client-mode publication receipts; client observations cannot overwrite a bound reader. Missing readers return connection_required. The exact target and message are read without incrementing views, publishing, webhook updates or draining bot updates. Old snapshots survive access errors.
+
+Patreon group observations accept followers (total members) and paidMembers (a subset), validating nonnegative safe integers and paid ≤ total when both are present. Client performs its own credentialed campaign reads.
+
+Verification: 95 focused PostgreSQL/provider/account/login tests passed, including challenge ownership, expiry, 2FA, cancellation, failed-connection cleanup, exact message reads, reader isolation and observation protection. API documentation and security inventory were regenerated. Client additionally verified desktop/narrow login and Summary states with fixture API responses. Real Telegram authentication remains a user action. Repository-wide TypeScript checks retain unrelated errors; changed feature files have no diagnostics. The full Docker suite was not run.

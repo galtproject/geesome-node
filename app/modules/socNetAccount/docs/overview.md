@@ -34,3 +34,7 @@ The `socNetAccount` module stores per-user credential and identity rows for soci
 - [Bluesky module overview](../../bluesky/docs/overview.md)
 - [Telegram Client module overview](../../telegramClient/docs/overview.md)
 - [Twitter Client module overview](../../twitterClient/docs/overview.md)
+
+Server Discord statistics now include approximate guild members/presence through the existing owned bot account, with typed access-denied/rate-limit outcomes. Channel membership and guild audience are not interchangeable. Shared audience history is owned by `socNetStatistics`.
+
+Telegram user readers expose only safe id/label/ready metadata. getStatistics delegates historical Telegram message reads to telegramClient using the selected owned usable user account; bot publication credentials remain separate.

@@ -76,6 +76,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiBody {String} [remoteUrl] Confirmed credential-free provider URL.
 	 * @apiBody {String} [error] Bounded safe explanation.
 	 * @apiSuccess {Object} job Updated server job.
+	 * @apiSuccess {String} [job.confirmedAt] First accepted posted acknowledgement timestamp, stable on replay.
 	 */
 	api.onAuthorizedPost('user/social-publications/:jobId/server-result', async (req, res) => {
 		await authorizeManagement(req);
@@ -249,6 +250,29 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 		res.send(await module.createSource(req.user.id, req.body));
 	});
 	/**
+	 * @api {post} /v1/user/social-publications/queue-shuffle Shuffle future destination queues
+	 * @apiName ShuffleSocialPublicationQueue
+	 * @apiGroup SocialPublishing
+	 * @apiHeader {String} Authorization Bearer owner token with publishing:local scope
+	 * @apiBody {String} requestKey Stable idempotency key, retained after lost replies
+	 * @apiBody {Number} groupId Owned private source group
+	 * @apiBody {Number[]} destinationIds 1–20 distinct owned enabled destination IDs
+	 * @apiDescription Independently permutes future queued v6 jobs per destination in the private source group. Preserves scheduled slots, payloads and routing. Due, processing, finished, deleted-source and foreign jobs are excluded. At most 10000 jobs; larger queues fail without changes. Retries return the original result without reshuffling. Legacy /user/local-publications alias uses identical authorization.
+	 * @apiSuccess {String} requestKey Original request key
+	 * @apiSuccess {Object[]} destinations Per-destination queuedJobs and changedJobs counts
+	 * @apiError (400) publication_queue_shuffle_invalid Invalid request
+	 * @apiError (403) publication_queue_shuffle_source_forbidden Source is not an owned private queue
+	 * @apiError (403) publication_queue_shuffle_destination_forbidden Destination is foreign, disabled or bound to another source
+	 * @apiError (409) publication_queue_shuffle_conflict Key already belongs to another request
+	 * @apiError (409) publication_queue_shuffle_too_large More than 10000 eligible jobs
+	 * @apiSuccessExample {json} Success
+	 * {"requestKey":"shuffle-week-1","destinations":[{"destinationId":1,"queuedJobs":5,"changedJobs":4}]}
+	 */
+	api.onAuthorizedPost('user/social-publications/queue-shuffle', async (req, res) => {
+		await authorize(req);
+		res.send(await module.shuffleQueue(req.user.id, req.body));
+	});
+	/**
 	 * @api {post} /v1/user/social-publications/compose Compose and schedule a private outbox post
 	 * @apiName LocalPublicationCompose
 	 * @apiGroup LocalPublications
@@ -393,6 +417,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiBody {String} [remoteUrl] HTTPS post URL without credentials/query/fragment. Rule34 jobs additionally allow only rule34.xxx/index.php?page=post&s=view&id=remoteId.
 	 * @apiBody {String} [error] Sanitized error, maximum 500 characters; no secrets.
 	 * @apiSuccess {Object} job Updated job.
+	 * @apiSuccess {String} [job.confirmedAt] First accepted posted acknowledgement timestamp, stable on replay.
 	 * @apiError (409) LocalPublicationResultConflict Conflicting terminal result or invalid claim token.
 	 */
 	api.onAuthorizedPost('user/social-publications/:jobId/result', async (req, res) => {

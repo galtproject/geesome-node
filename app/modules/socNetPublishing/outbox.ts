@@ -274,10 +274,10 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			const eligible = groups.filter(group => isOwnedQueueGroup(group, userId));
 			const group = selected ? (eligible.length === 1 ? eligible[0] : null) : await getGroup(userId);
 			if (selected && !eligible.length) {
-				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true}, group: null, groups: [], drafts: []};
+				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true}, group: null, groups: [], drafts: []};
 			}
 			if (!selected && !group) {
-				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true}, group: null, drafts: []};
+				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true}, group: null, drafts: []};
 			}
 			if (!selected && !isManagedOutbox(group, userId)) {
 				throw problem(409, 'local_publication_outbox_conflict');
@@ -302,7 +302,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 					drafts.push({postId: post.id, groupId: post.groupId, text: '', attachments: [], createdAt: post.createdAt, unavailable: true, error: 'This draft contains unsupported content. Edit it in GeeSome before scheduling.'});
 				}
 			}
-			return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true}, group: group ? groupView(group) : null, ...(selected ? {groups: eligible.map(groupView)} : {}), drafts};
+			return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true}, group: group ? groupView(group) : null, ...(selected ? {groups: eligible.map(groupView)} : {}), drafts};
 		}
 	};
 }
