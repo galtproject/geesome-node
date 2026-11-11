@@ -1,3 +1,4 @@
+import {recordTransferBalances} from './walletBalanceSnapshots.js';
 import { Op } from 'sequelize';
 import type { TransactionRequest } from 'ethers-v6';
 import type { EvmNetwork } from './cryptoAutomationConfig.js';
@@ -34,6 +35,17 @@ export function createCryptoTransactionJournal({ M, evm }: {
 	M: any;
 	evm: JournalAdapter;
 }) {
+	async function captureBalances(tx) {
+		if (tx.data.balanceSnapshotsAttempted) {
+			return;
+		}
+		try {
+			await recordTransferBalances(M,evm,tx,tx.data.balanceReceipt);
+			await tx.update({data:{...tx.data,balanceSnapshotsAttempted:true}});
+		} catch {
+			// Optional snapshot failure cannot change a verified transfer outcome.
+		}
+	}
 	async function send(network: EvmNetwork, id: string, index: number, request: TransactionRequest, proof?: TokenTransferProof, maxFee?: bigint) {
 		let tx = await M.crypto_transactions.findByPk(id);
 		if (!tx) {
@@ -60,20 +72,25 @@ export function createCryptoTransactionJournal({ M, evm }: {
 			throw Error('crypto_transaction_failed');
 		}
 		if (tx.state === 'confirmed') {
+			await captureBalances(tx);
 			return true;
 		}
 		const receipt = await evm.receipt(network, tx.hash);
 		if (receipt) {
 			if (!receipt.ok) {
 				await tx.update({ state: 'failed', data: { ...tx.data, balanceReceipt: receipt.receipt } });
+				await captureBalances(tx);
 				throw Error('crypto_transaction_failed');
 			}
 			if (tx.data.proof &&
 				!verifiesTokenTransfer(receipt.receipt.logs || [], tx.sender, tx.data.proof)) {
 				await tx.update({ state: 'failed', data: { ...tx.data, balanceReceipt: receipt.receipt } });
+				await captureBalances(tx);
 				throw Error('crypto_token_transfer_unverified');
 			}
 			await tx.update({ state: 'confirmed', data: { ...tx.data, balanceReceipt: receipt.receipt } });
+			await captureBalances(tx);
+
 			return true;
 		}
 		// Includes "already known" and lost responses: reconcile this exact hash next time.

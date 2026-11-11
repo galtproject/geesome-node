@@ -1528,3 +1528,11 @@ Added owner/key-bound phone/code/2FA login using telegramClient, safe user-accou
 Owner-only `GET /v1/membership/admin/:resource/summary` counts all invoices and invoices with a recorded payment (including refunds), independent of history pagination. Known site accounts combine distinct invoice readers and durable Google site-account records. Successful logins retain the site relationship; startup preserves existing browser sessions before cleanup. Pre-tracking expired or logged-out non-paying readers cannot be reconstructed, so account coverage is explicitly `known`. A new model-sync table requires no existing-table migration.
 
 Verification: disposable PostgreSQL `test/payments/site-summary.spec.ts`, API documentation generation and security route inventory checks. Deploy this API before the consuming website card.
+
+## Saved account and wallet balances (#1608)
+
+Owner-authenticated `GET /v1/payments/admin/:resource/balances` reads only persisted user credit, payment balance checkpoints and wallet snapshots. Paginated rows separate accounts, networks and assets; unknown amounts stay null. Wallet amounts are historical operation-block observations, not live balances. A failed later snapshot preserves the prior amount with an error; older blocks cannot overwrite newer observations.
+
+Payment observations already retain account checkpoints. Verified collection receipts now record sender/recipient balances at the receipt block, including the sender's native gas balance for token transfers. Captures are idempotent per journal event and cannot alter the confirmed transfer outcome. Existing pre-snapshot history is not fabricated. No periodic balance poller, new timer, model or migration is introduced. External wallet activity is outside this event history.
+
+Verification: disposable PostgreSQL owner-balance and managed-payment suites, worker lifecycle tests, API-doc generation, security route inventory and scalability inventory. Deploy alongside the Microwave Girls saved-balances view.
