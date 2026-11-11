@@ -180,6 +180,7 @@ function getModule(config, appPass) {
       activityPub: IGeesomeActivityPubModule,
       bluesky: IGeesomeBlueskyModule,
       socNetPublishing: ISocNetPublishingModule,
+      socNetStatistics: ReturnType<typeof import('./modules/socNetStatistics/index.js').getModule>,
       /** @deprecated Use socNetPublishing. */
       localClient: ISocNetPublishingModule,
       entityJsonManifest: IGeesomeEntityJsonManifestModule

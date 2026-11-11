@@ -9,6 +9,7 @@ The `socNetAccount` module stores per-user credential and identity rows for soci
 - Social account rows with network name, remote account ID, username/phone/full name, app credentials, access tokens, and session keys.
 - Owner-scoped create/update and account lookup by local id or provider identity.
 - Bounded account listing by network.
+- Server statistics reads via `getStatistics(userId, input)`: owner/identity lookup, app-pass credential decryption and fixed-provider adapters in `statistics.ts`. Returns only metrics or unsupported, never secrets.
 - Test/support database flush helpers.
 
 ## Security Boundaries
@@ -23,7 +24,7 @@ The `socNetAccount` module stores per-user credential and identity rows for soci
 ## Boundaries
 
 - Protocol-specific login/fetch logic belongs to client modules such as `telegramClient` and `twitterClient`.
-- Bluesky login, profile lookup, and account ownership verification belong to `bluesky`; this module only stores the resulting user-scoped row.
+- Bluesky import/login and ownership verification belong to `bluesky`. The dedicated server-statistics read adapter also lives here; historical storage and API orchestration belong to `socNetStatistics`.
 - Source/import post identity belongs to `socNetImport`, not account rows.
 - Do not use this module for generic external identity proofs; use `foreignAccounts` for that.
 

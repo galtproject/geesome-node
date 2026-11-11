@@ -545,3 +545,7 @@ owner/composeKey/index prefix. Both use normal page/offset caps and return job
 rows only; they do not call source storage or compose. Nullable producer JSONB
 is bounded typed metadata, never a scan key; no extra queue/index or unbounded
 reconciliation query is introduced.
+
+## Social statistics (#1596)
+
+The new model-sync tables use unique owner/entity/UTC-day indexes for atomic monotonic upserts and reverse daily history lookups. Summary loads at most 50 receipts and 50 destinations per request, never the entire publication history; separate offsets paginate both collections. Source-group filtering uses the existing post/group indexes and owner-scoped job scans. Refresh handles one server entity per HTTP request, without bulk scans or background provider fan-out. No production table schema changes or migrations are required. Storage grows by observed entity-days; no automatic retention is imposed on user history.
