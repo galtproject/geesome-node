@@ -222,6 +222,23 @@ export default function (app, module) {
 		res.send(await module.completeCryptoRefund(req.params.resource, req.params.id, String(req.body.txid || ""), String(req.user.id)));
 	}), { storageReadOnly: true });
 	/**
+	* @api {get} /v1/membership/admin/:resource/summary Get all-time site totals
+	* @apiName MembershipOwnerSummary
+	* @apiGroup Membership
+	* @apiUse ApiKey
+	* @apiParam {String} resource Configured site id owned by the actor.
+	* @apiSuccess {Number} registeredAccounts Distinct known site accounts, including invoice readers and retained site login history. Older expired/logged-out sessions cannot be reconstructed.
+	* @apiSuccess {Number} createdInvoices All created invoices, including expired and cancelled invoices.
+	* @apiSuccess {Number} paidInvoices Invoices with a recorded paidAt, including subsequently refunded invoices.
+	* @apiSuccess {String} accountHistory Always known; pre-tracking account history may be incomplete.
+	* @apiSuccess {String} period Always all-time.
+	* @apiError (403) owner_required Group creator and core group-management permission required.
+	*/
+	app.ms.api.onAuthorizedGet('membership/admin/:resource/summary', creatorSiteEndpoint(async (req, res) => {
+		await module.owner(req.user.id, req.params.resource);
+		res.send(await module.ownerSummary(req.params.resource));
+	}));
+	/**
 	* @api {get} /v1/membership/admin/:resource/invoices List site invoices
 	* @apiName MembershipOwnerInvoices
 	* @apiGroup Membership

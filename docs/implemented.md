@@ -1518,3 +1518,9 @@ Added daily UTC post and destination/group snapshots, owner/client-bound ingesti
 ## Destination activity and Discord audience (#1599)
 
 Added rolling confirmed publication counts on every destination, approximate shared Discord guild audience/presence through socNetAccount, canonical guild history and typed read outcomes. Confirmation replay cannot move publication time. See [statistics module docs](../app/modules/socNetStatistics/docs/overview.md) for migration and validation evidence.
+
+## Website account and payment summary (#1605)
+
+Owner-only `GET /v1/membership/admin/:resource/summary` counts all invoices and invoices with a recorded payment (including refunds), independent of history pagination. Known site accounts combine distinct invoice readers and durable Google site-account records. Successful logins retain the site relationship; startup preserves existing browser sessions before cleanup. Pre-tracking expired or logged-out non-paying readers cannot be reconstructed, so account coverage is explicitly `known`. A new model-sync table requires no existing-table migration.
+
+Verification: disposable PostgreSQL `test/payments/site-summary.spec.ts`, API documentation generation and security route inventory checks. Deploy this API before the consuming website card.

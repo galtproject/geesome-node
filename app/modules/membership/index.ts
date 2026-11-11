@@ -170,7 +170,7 @@ export function createMembership(app, models, dependencies: any = {}) {
 		}
 	};
 	Object.assign(module, siteSettings(app, M, group, owner, publicBrand, (id, transaction) => module.invalidateGroup(id, transaction)));
-	Object.assign(module, ownerPayments(M, app.ms.googleAuthorization.models.Identity, resource));
+	Object.assign(module, ownerPayments(M, app.ms.googleAuthorization.models.Identity, resource, app.ms.googleAuthorization.models.SiteAccount));
 	Object.assign(module, createPublicationDelivery(app, M, module, dependencies));
 	Object.assign(module, refundMethods(M, serial, entitlement, clock));
 	return module as typeof module & ReturnType<typeof createPublicationDelivery> & ReturnType<typeof refundMethods> & ReturnType<typeof siteSettings> & ReturnType<typeof ownerPayments>;
