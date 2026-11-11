@@ -11,12 +11,13 @@ import {PostStatus} from '../group/interface.js';
 import ISocNetPublishingModule from './interface.js';
 import {getServerAccountMethods} from './serverAccounts.js';
 import {createServerPublisher} from './serverPublisher.js';
+import {createNativePublisher} from './nativePublisher.js';
 import {getDestinationGroupMethods} from './destinationGroups.js';
 import {getDestinationMethods} from './destinations.js';
 import {getOutboxMethods} from './outbox.js';
 import {getSourceMethods, isOwnedQueueGroup} from './sources.js';
 
-const networks = ['threads', 'instagram', 'reddit', 'twitter', 'rule34xxx', 'bluesky', 'discord', 'telegram', 'patreon'];
+const networks = ['threads', 'instagram', 'reddit', 'twitter', 'rule34xxx', 'bluesky', 'discord', 'telegram', 'patreon', 'geesome'];
 const statuses = ['queued', 'processing', 'posted', 'failed', 'needs_review', 'cancelled'];
 
 export default async function socNetPublishing(app: IGeesomeApp) {
@@ -32,6 +33,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 	const sequelize = PublicationJob.sequelize;
 	const destinations = getDestinationMethods(PublicationDestination, {app, normalizeRequest, problem, boundedInteger, loadServerAccount: (userId, accountId, network, identity) => serverAccounts.loadServerAccount(userId, accountId, network, identity)});
 	const serverAccounts = getServerAccountMethods(app, PublicationDestination, {normalizeRequest, problem, boundedInteger}, options);
+	const native = createNativePublisher(app, {PublicationJob, PublicationDestination});
 	let cronWorker = null;
 	let publisher;
 	let serverScanCursor = null;
@@ -42,7 +44,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 		setCronWorker(worker) { cronWorker = worker; },
 		async stop() { await cronWorker?.stop(); cronWorker = null; },
 		async processServerQueue(input = {}) {
-			publisher ||= createServerPublisher(app, module, options);
+			publisher ||= createServerPublisher(app, module, {...options, native});
 			return publisher.process(input);
 		},
 		listDestinations: destinations.listDestinations,
@@ -58,6 +60,9 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 		},
 		async createJob(userId, input) {
 			const request = normalizeRequest(input);
+			if (request.network === 'geesome') {
+				throw problem(400, 'local_publication_destination_required');
+			}
 			const requestHash = createHash('sha256').update(JSON.stringify(request)).digest('hex');
 			const where = {userId, requestKey: request.requestKey};
 			const existing = await PublicationJob.findOne({where});
@@ -256,7 +261,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 		async reportResult(userId, jobId, input, clientId?) {
 			return sequelize.transaction(async transaction => {
 				const job = await getOwnedJob(userId, jobId, transaction);
-				if (job.executionMode === 'server' ? clientId !== 'server' : job.destinationId && job.clientId !== clientId) {
+				if (job.executionMode === 'native' || (job.executionMode === 'server' ? clientId !== 'server' : job.destinationId && job.clientId !== clientId)) {
 					throw problem(403, 'local_publication_client_mismatch');
 				}
 				const result = normalizeResult(input, job.network);
@@ -384,6 +389,23 @@ export function normalizeRequest(input: any, allowUnbound = false): any {
 	const network = identifier(input.network, 20);
 	if (!networks.includes(network)) {
 		throw problem(400, 'local_publication_network_invalid');
+	}
+	if (network === 'geesome') {
+		if (input.localAccountId !== undefined && input.localAccountId !== null && input.localAccountId !== '') {
+			throw problem(400, 'local_publication_target_invalid');
+		}
+		if (typeof input.scheduledAt !== 'string' || !/T.*(?:Z|[+-]\d\d:\d\d)$/.test(input.scheduledAt) || !Number.isFinite(Date.parse(input.scheduledAt))) {
+			throw problem(400, 'local_publication_schedule_invalid');
+		}
+		const target = input.target ?? {};
+		assertKeys(target, ['groupId']);
+		if (target.groupId === undefined && allowUnbound) {
+			return {requestKey, postId, network, localAccountId: null, contentType, scheduledAt: new Date(input.scheduledAt).toISOString(), target: {}};
+		}
+		if (!Number.isSafeInteger(target.groupId) || target.groupId < 1) {
+			throw problem(400, 'local_publication_target_invalid');
+		}
+		return {requestKey, postId, network, localAccountId: null, contentType, scheduledAt: new Date(input.scheduledAt).toISOString(), target: {groupId: target.groupId}};
 	}
 	const localAccountId = allowUnbound && (input.localAccountId === undefined || input.localAccountId === '') ? '' : identifier(input.localAccountId, 200);
 	if (typeof input.scheduledAt !== 'string' || !/T.*(?:Z|[+-]\d\d:\d\d)$/.test(input.scheduledAt) || !Number.isFinite(Date.parse(input.scheduledAt))) {

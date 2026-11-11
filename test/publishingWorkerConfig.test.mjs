@@ -79,7 +79,9 @@ test('default runtime starts a delayed worker, processes a batch and stops clean
     await worker?.stop();
   }
 });
-test('explicit opt-out does not start a worker; enabled custom modules require socNetAccount', () => {
+test('explicit opt-out stays off and native publishing starts without socNetAccount', async () => {
   assert.equal(startCron({config: {...runtime({SOC_NET_PUBLISHING_WORKER: '0'}), modules: []}}, {}), null);
-  assert.throws(() => startCron({config: {...runtime(), modules: ['socNetPublishing']}}, {}), /server_publishing_requires_socNetAccount/);
+  const worker = startCron({config: {...runtime(), modules: ['socNetPublishing']}}, {async processServerQueue() {}});
+  assert(worker);
+  await worker.stop();
 });

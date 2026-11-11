@@ -1,6 +1,7 @@
 import {isOwnedQueueGroup} from './sources.js';
 import {ApiProblemError} from '../api/problem.js';
 import {normalizeContentPolicy, assertContentPolicy} from './contentPolicy.js';
+import {assertNativeTarget} from './nativePublisher.js';
 
 export function publicationClientId(apiKey) {
 	if (!Number.isSafeInteger(Number(apiKey?.id)) || Number(apiKey.id) < 1 || apiKey.type === 'password_auth') {
@@ -27,15 +28,19 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 		return value;
 	}
 	function normalize(row) {
-		if (!row || typeof row !== 'object' || Array.isArray(row) || Object.keys(row).some(key => !['localKey', 'network', 'label', 'localAccountId', 'sourceGroupId', 'target', 'enabled', 'contentPolicy'].includes(key)) ||
+		if (!row || typeof row !== 'object' || Array.isArray(row) || Object.keys(row).some(key => !['localKey', 'network', 'label', 'localAccountId', 'sourceGroupId', 'target', 'enabled', 'contentPolicy', 'executionMode'].includes(key)) ||
 			typeof row.label !== 'string' || !row.label.trim() || row.label.length > 200 || /[\u0000-\u001f\u007f]/.test(row.label) || typeof row.enabled !== 'boolean') {
 			throw problem(400, 'local_publication_destination_invalid');
 		}
 		const localKey = identifier(row.localKey);
-		const localAccountId = identifier(row.localAccountId);
+		const native = row.network === 'geesome';
+		if (row.executionMode !== undefined && row.executionMode !== (native ? 'native' : 'client') || native && (row.localAccountId !== undefined || localKey !== 'site-group')) {
+			throw problem(400, 'local_publication_destination_invalid');
+		}
+		const localAccountId = native ? null : identifier(row.localAccountId);
 		const target = row.target ?? {};
 		const contentPolicy = normalizeContentPolicy(row.contentPolicy);
-		const allowed = {discord: ['channelId', 'guildId'], telegram: ['chatId'], patreon: ['campaignId'], reddit: ['subreddit', 'flairId', 'kind']}[row.network] || [];
+		const allowed = {discord: ['channelId', 'guildId'], telegram: ['chatId'], patreon: ['campaignId'], reddit: ['subreddit', 'flairId', 'kind'], geesome: ['groupId']}[row.network] || [];
 		if (!target || typeof target !== 'object' || Array.isArray(target) || Object.keys(target).some(key => !allowed.includes(key))) {
 			throw problem(400, 'local_publication_destination_invalid');
 		}
@@ -48,7 +53,7 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 			normalizeRequest({contentType: 'nsfw', requestKey: 'registration', postId: 1, network: row.network, localAccountId, target: validationTarget, scheduledAt: '2000-01-01T00:00:00Z'});
 
 		}
-		return {localKey, sourceGroupId: row.sourceGroupId == null ? null : boundedInteger(row.sourceGroupId, 1, Number.MAX_SAFE_INTEGER), network: row.network, localAccountId, label: row.label, contentPolicy, target, enabled: row.enabled, executionMode: 'client', socNetAccountId: null};
+		return {localKey, sourceGroupId: row.sourceGroupId == null ? null : boundedInteger(row.sourceGroupId, 1, Number.MAX_SAFE_INTEGER), network: row.network, localAccountId, label: row.label, contentPolicy, target, enabled: row.enabled, executionMode: native ? 'native' : 'client', socNetAccountId: null};
 	}
 	return {
 		async listDestinations(userId, query: any = {}) {
@@ -71,6 +76,9 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 				throw problem(400, 'local_publication_destinations_invalid');
 			}
 			const rows = input.destinations.map(normalize);
+			for (const row of rows.filter(item => item.executionMode === 'native')) {
+				await assertNativeTarget(app, userId, row.target);
+			}
 			for (const row of rows.filter(item => item.enabled && item.sourceGroupId !== null)) {
 				const group = await app.ms.group.getGroup(row.sourceGroupId);
 				if (!isOwnedQueueGroup(group, userId)) {
@@ -82,10 +90,15 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 			}
 			const destinations = await Destination.sequelize.transaction(async transaction => {
 				const result = [];
+				if (rows.some(row => row.executionMode === 'native')) {
+					await Destination.sequelize.query('SELECT pg_advisory_xact_lock(163129, :owner)', {replacements: {owner: userId}, transaction});
+				}
 				for (const row of rows) {
-					const [destination] = await Destination.findOrCreate({where: {userId, clientId, localKey: row.localKey}, defaults: row, transaction});
+					const native = row.executionMode === 'native';
+					const where = native ? {userId, executionMode: 'native'} : {userId, clientId, localKey: row.localKey};
+					const [destination] = await Destination.findOrCreate({where, defaults: {...row, clientId: native ? null : clientId}, transaction});
 					await destination.reload({transaction, lock: transaction.LOCK.UPDATE});
-					if (destination.network !== row.network || destination.localAccountId !== row.localAccountId || destination.executionMode !== 'client' || destination.sourceGroupId !== row.sourceGroupId) {
+					if (destination.network !== row.network || destination.localAccountId !== row.localAccountId || destination.executionMode !== row.executionMode || destination.sourceGroupId !== row.sourceGroupId || native && Number(destination.target.groupId) !== Number(row.target.groupId)) {
 						throw problem(409, 'local_publication_destination_changed');
 					}
 
@@ -98,11 +111,14 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 		},
 		async resolveDestination(userId, selection, transaction?) {
 			const destination = await Destination.findOne({where: {id: boundedInteger(selection.destinationId, 1, Number.MAX_SAFE_INTEGER), userId}, transaction});
-			if (!destination || !destination.enabled || !['client', 'server'].includes(destination.executionMode) || destination.network !== selection.network) {
+			if (!destination || !destination.enabled || !['client', 'server', 'native'].includes(destination.executionMode) || destination.network !== selection.network) {
 				throw problem(409, 'local_publication_destination_unavailable');
 			}
 			if (destination.executionMode === 'server' && !transaction) {
 				await loadServerAccount(userId, destination.socNetAccountId, destination.network, destination.accountIdentity);
+			}
+			if (destination.executionMode === 'native' && !transaction) {
+				await assertNativeTarget(app, userId, destination.target);
 			}
 			assertContentPolicy(selection.contentType, destination.contentPolicy);
 			const target = resolveDestinationTarget(destination.network, destination.target, selection.target);
@@ -114,5 +130,5 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 
 export function destinationView(row) {
 	const {id, clientId, localKey, sourceGroupId, localAccountId, network, label, executionMode, accountIdentity, target, enabled, contentPolicy} = row.toJSON();
-	return {id, localKey, sourceGroupId, network, label, executionMode, contentPolicy, target, enabled, ...(executionMode === 'server' ? {accountIdentity} : {clientId, localAccountId})};
+	return {id, localKey, sourceGroupId, network, label, executionMode, contentPolicy, target, enabled, ...(executionMode === 'server' ? {accountIdentity} : executionMode === 'native' ? {} : {clientId, localAccountId})};
 }

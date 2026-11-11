@@ -59,6 +59,30 @@ describe('publication queue shuffle', function () {
 		const before = await snapshot();const result = await service.shuffleQueue(1, input({destinationIds: [first.id]}));
 		assert.equal(result.destinations[0].queuedJobs, 0);assert.deepEqual(await snapshot(), before);assert.equal(other.length + outside.length, 6);
 	});
+	it('shuffles the native site queue independently from social schedules and excludes protected native jobs', async () => {
+		const native = await models.PublicationDestination.create({userId: 1, localKey: 'site-group', network: 'geesome', executionMode: 'native', label: 'Site Group', target: {groupId: 123}, enabled: true});
+		const site = await jobs(native), social = await jobs(first), outside = await jobs(native, {groupId: otherGroup.id}), protectedJobs = await jobs(native);
+		for (const job of [...site, ...outside, ...protectedJobs]) {
+			await job.update({network: 'geesome', executionMode: 'native', target: {groupId: 123}});
+		}
+		await protectedJobs[0].update({status: 'processing'});await protectedJobs[1].update({status: 'posted'});await protectedJobs[2].update({userId: 2});
+		const before = await snapshot();
+		const result = await service.shuffleQueue(1, input({destinationIds: [native.id, first.id]}));
+		assert.deepEqual(result.destinations.map(row => row.queuedJobs), [3, 3]);
+		const after = await snapshot();
+		for (const rows of [site, social]) {
+			const ids = rows.map(row => row.id), oldSlots = before.filter(row => ids.includes(row.id)).map(row => +row.scheduledAt), newSlots = after.filter(row => ids.includes(row.id)).map(row => +row.scheduledAt);
+			assert.deepEqual([...newSlots].sort(), [...oldSlots].sort());assert.notDeepEqual(newSlots, oldSlots);
+		}
+		const protectedIds = [...outside, ...protectedJobs].map(row => row.id);
+		assert.deepEqual(after.filter(row => protectedIds.includes(row.id)), before.filter(row => protectedIds.includes(row.id)));
+		for (const row of after) {
+			const original = before.find(item => item.id === row.id);
+			for (const key of ['network', 'executionMode', 'target', 'payload', 'requestHash', 'destinationId']) {
+				assert.deepEqual(row[key], original[key]);
+			}
+		}
+	});
 	it('replays lost replies and concurrent retries exactly once, rejecting changed scope under the same key', async () => {
 		await jobs(first);await jobs(second);const body = input();
 		const results = await Promise.all([service.shuffleQueue(1, body), service.shuffleQueue(1, body)]);
