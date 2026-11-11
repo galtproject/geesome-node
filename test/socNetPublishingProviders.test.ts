@@ -6,7 +6,7 @@ const did = 'did:plc:aaaaaaaaaaaaaaaaaaaaaaaa';
 const png = Buffer.from('89504e470d0a1a0a01020304', 'hex');
 const reference = {storageId: 'QmOwnedImage', mimeType: 'image/png', url: 'https://untrusted.invalid/never-fetch'};
 const image = {bytes: png, mimeType: 'image/png'};
-const payload = (target: any = {}, overrides: any = {}) => ({text: 'Hello world', attachments: [reference], target, ...overrides});
+const payload = (target: any = {}, overrides: any = {}) => ({contentType: 'nsfw', text: 'Hello world', attachments: [reference], target, ...overrides});
 const response = (body: any, status = 200) => new Response(JSON.stringify(body), {status, headers: {'content-type': 'application/json'}});
 
 function fixture(network: string, override?: (path: string, options: any) => any) {
@@ -92,7 +92,7 @@ describe('server social publication adapters', () => {
 	it('publishes Bluesky frozen bytes with facets, UTF-8 offsets and sensitive labels once', async () => {
 		const f = fixture('bluesky');
 		const text = '🙂 @artist.bsky.social #art example.com';
-		const result = await f.providers.publish('bluesky', f.account, payload({sensitive: true}, {text}));
+		const result = await f.providers.publish('bluesky', f.account, payload({}, {text}));
 		assert.equal(result.remoteId, `at://${did}/app.bsky.feed.post/post123`);
 		assert.equal(f.mediaReads(), 1);
 		const creates = f.requests.filter(item => item.url.endsWith('createRecord'));
@@ -104,16 +104,16 @@ describe('server social publication adapters', () => {
 		assert.deepEqual(record.labels.values, [{val: 'porn'}]);
 		assert(!f.requests.some(item => item.url.startsWith('https://untrusted.invalid')));
 	});
-	it('checks Discord bot, both channels and canonical guild at setup without publishing', async () => {
+	it('checks Discord bot, configured channel and canonical guild at setup without publishing', async () => {
 		const f = fixture('discord');
-		const connected = await f.providers.verify('discord', f.credentials, {channelId: '11111', sfwChannelId: '22222'});
-		assert.deepEqual(connected, {accountIdentity: 'bot:12345', username: 'artist-bot', target: {channelId: '11111', guildId: '99999', sfwChannelId: '22222'}});
-		assert.equal(f.requests.length, 3);
+		const connected = await f.providers.verify('discord', f.credentials, {channelId: '11111'});
+		assert.deepEqual(connected, {accountIdentity: 'bot:12345', username: 'artist-bot', target: {channelId: '11111', guildId: '99999'}});
+		assert.equal(f.requests.length, 2);
 		assert.equal(f.mediaReads(), 0);
 	});
 	it('uploads Discord bytes, preserves endpoint and disables all automatic mentions', async () => {
 		const f = fixture('discord');
-		const result = await f.providers.publish('discord', f.account, payload({channelId: '11111', guildId: '99999', sensitive: true}));
+		const result = await f.providers.publish('discord', f.account, payload({channelId: '11111', guildId: '99999'}));
 		assert.equal(result.remoteId, '76543');
 		const sent = f.requests.find(item => item.url.endsWith('/messages'));
 		assert(sent);
@@ -122,9 +122,17 @@ describe('server social publication adapters', () => {
 		assert.deepEqual(Buffer.from(await sent.options.body.get('files[0]').arrayBuffer()), png);
 		assert.equal(f.requests.filter(item => item.url.endsWith('/messages')).length, 1);
 	});
+	it('derives safe provider settings solely from contentType for every server adapter', async () => {
+		const bluesky = fixture('bluesky');await bluesky.providers.publish('bluesky', bluesky.account, payload({}, {contentType: 'sfw'}));
+		const record = JSON.parse(bluesky.requests.find(item => item.url.endsWith('createRecord')).options.body).record;assert.equal(record.labels, undefined);
+		const discord = fixture('discord', path => path.endsWith('/11111') ? response({id: '11111', guild_id: '99999', type: 0, nsfw: false}) : undefined);
+		await discord.providers.publish('discord', discord.account, payload({channelId: '11111'}, {contentType: 'sfw'}));assert(discord.requests.some(item => item.url.endsWith('/messages')));
+		const telegram = fixture('telegram');await telegram.providers.publish('telegram', telegram.account, payload({chatId: '-10098765'}, {contentType: 'sfw'}));
+		assert.equal(telegram.requests.find(item => item.url.endsWith('/sendPhoto')).options.body.get('has_spoiler'), 'false');
+	});
 	it('rejects sensitive Discord content in non-NSFW channel before reading images', async () => {
 		const f = fixture('discord', path => path.endsWith('/11111') ? response({id: '11111', guild_id: '99999', type: 0, nsfw: false}) : undefined);
-		await assert.rejects(f.providers.publish('discord', f.account, payload({channelId: '11111', sensitive: true})), /NSFW/);
+		await assert.rejects(f.providers.publish('discord', f.account, payload({channelId: '11111'})), /NSFW/);
 		assert.equal(f.mediaReads(), 0);
 		assert(!f.requests.some(item => item.url.endsWith('/messages')));
 	});
@@ -136,7 +144,7 @@ describe('server social publication adapters', () => {
 	});
 	it('sends Telegram photo with spoiler and plain caption, requiring exact message/chat acknowledgement', async () => {
 		const f = fixture('telegram');
-		const result = await f.providers.publish('telegram', f.account, payload({chatId: '-10098765', sensitive: true}));
+		const result = await f.providers.publish('telegram', f.account, payload({chatId: '-10098765'}));
 		assert.deepEqual(result, {remoteId: '84', remoteUrl: 'https://t.me/artist_channel/84'});
 		const sent = f.requests.find(item => item.url.endsWith('/sendPhoto'));
 		assert(sent);
@@ -148,7 +156,7 @@ describe('server social publication adapters', () => {
 	});
 	it('sends text-only Telegram without parse mode and marks sensitive text as spoiler', async () => {
 		const f = fixture('telegram');
-		await f.providers.publish('telegram', f.account, payload({chatId: '-10098765', sensitive: true}, {attachments: []}));
+		await f.providers.publish('telegram', f.account, payload({chatId: '-10098765'}, {attachments: []}));
 		const sent = f.requests.find(item => item.url.endsWith('/sendMessage'));
 		const body = JSON.parse(sent.options.body);
 		assert.equal(body.parse_mode, undefined);

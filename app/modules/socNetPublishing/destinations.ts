@@ -1,6 +1,6 @@
 import {isOwnedQueueGroup} from './sources.js';
 import {ApiProblemError} from '../api/problem.js';
-import {normalizeContentPolicy, assertContentPolicy, assertSingleEndpoint} from './contentPolicy.js';
+import {normalizeContentPolicy, assertContentPolicy} from './contentPolicy.js';
 
 export function publicationClientId(apiKey) {
 	if (!Number.isSafeInteger(Number(apiKey?.id)) || Number(apiKey.id) < 1 || apiKey.type === 'password_auth') {
@@ -11,16 +11,6 @@ export function publicationClientId(apiKey) {
 
 export function resolveDestinationTarget(network, configured, authored: any = {}) {
 	const target = {...configured};
-	if (authored.sensitive === false) {
-		if (network === 'discord' && target.sfwChannelId) {
-			target.channelId = target.sfwChannelId;
-		}
-		if (network === 'telegram' && target.sfwChatId) {
-			target.chatId = target.sfwChatId;
-		}
-	}
-	delete target.sfwChannelId;
-	delete target.sfwChatId;
 	for (const key of Object.keys(target)) {
 		if (authored[key] !== undefined && authored[key] !== target[key]) {
 			throw new ApiProblemError(409, 'local_publication_destination_changed', 'Destination endpoint does not match');
@@ -45,22 +35,18 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 		const localAccountId = identifier(row.localAccountId);
 		const target = row.target ?? {};
 		const contentPolicy = normalizeContentPolicy(row.contentPolicy);
-		const allowed = {discord: ['channelId', 'guildId', 'sfwChannelId'], telegram: ['chatId', 'sfwChatId'], patreon: ['campaignId'], reddit: ['subreddit', 'flairId', 'kind']}[row.network] || [];
+		const allowed = {discord: ['channelId', 'guildId'], telegram: ['chatId'], patreon: ['campaignId'], reddit: ['subreddit', 'flairId', 'kind']}[row.network] || [];
 		if (!target || typeof target !== 'object' || Array.isArray(target) || Object.keys(target).some(key => !allowed.includes(key))) {
 			throw problem(400, 'local_publication_destination_invalid');
 		}
-		assertSingleEndpoint(contentPolicy, target);
 		if (row.network === 'patreon') {
 			if (typeof target.campaignId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(target.campaignId)) {
 				throw problem(400, 'local_publication_destination_invalid');
 			}
 		} else {
-			const validationTarget = row.network === 'rule34xxx' ? {tags: 'registration', source: 'https://example.com', rating: 's'} : resolveDestinationTarget(row.network, target);
-			normalizeRequest({requestKey: 'registration', postId: 1, network: row.network, localAccountId, target: validationTarget, scheduledAt: '2000-01-01T00:00:00Z'});
-			if (target.sfwChannelId || target.sfwChatId) {
-				normalizeRequest({requestKey: 'registration', postId: 1, network: row.network, localAccountId,
-					target: resolveDestinationTarget(row.network, target, {sensitive: false}), scheduledAt: '2000-01-01T00:00:00Z'});
-			}
+			const validationTarget = row.network === 'rule34xxx' ? {tags: 'registration', source: 'https://example.com'} : resolveDestinationTarget(row.network, target);
+			normalizeRequest({contentType: 'nsfw', requestKey: 'registration', postId: 1, network: row.network, localAccountId, target: validationTarget, scheduledAt: '2000-01-01T00:00:00Z'});
+
 		}
 		return {localKey, sourceGroupId: row.sourceGroupId == null ? null : boundedInteger(row.sourceGroupId, 1, Number.MAX_SAFE_INTEGER), network: row.network, localAccountId, label: row.label, contentPolicy, target, enabled: row.enabled, executionMode: 'client', socNetAccountId: null};
 	}
@@ -102,9 +88,7 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 					if (destination.network !== row.network || destination.localAccountId !== row.localAccountId || destination.executionMode !== 'client' || destination.sourceGroupId !== row.sourceGroupId) {
 						throw problem(409, 'local_publication_destination_changed');
 					}
-					if (destination.contentPolicy && !row.contentPolicy) {
-						throw problem(409, 'publication_content_policy_required');
-					}
+
 					await destination.update(row, {transaction});
 					result.push(destinationView(destination));
 				}
@@ -120,15 +104,15 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 			if (destination.executionMode === 'server' && !transaction) {
 				await loadServerAccount(userId, destination.socNetAccountId, destination.network, destination.accountIdentity);
 			}
-			assertContentPolicy(destination.contentPolicy, destination.network, selection.target);
+			assertContentPolicy(selection.contentType, destination.contentPolicy);
 			const target = resolveDestinationTarget(destination.network, destination.target, selection.target);
-			const normalized = normalizeRequest({requestKey: 'destination', postId: 1, network: destination.network, localAccountId: destination.executionMode === 'server' ? 'validation' : destination.localAccountId, target, scheduledAt: '2000-01-01T00:00:00Z'});
-			return {destinationId: Number(destination.id), sourceGroupId: destination.sourceGroupId, clientId: destination.clientId, executionMode: destination.executionMode, contentPolicy: destination.contentPolicy ?? null, network: destination.network, localAccountId: destination.localAccountId, target: normalized.target, ...(destination.executionMode === 'server' ? {serverAccountId: destination.socNetAccountId, accountIdentity: destination.accountIdentity} : {})};
+			const normalized = normalizeRequest({contentType: selection.contentType, requestKey: 'destination', postId: 1, network: destination.network, localAccountId: destination.executionMode === 'server' ? 'validation' : destination.localAccountId, target, scheduledAt: '2000-01-01T00:00:00Z'});
+			return {destinationId: Number(destination.id), sourceGroupId: destination.sourceGroupId, clientId: destination.clientId, executionMode: destination.executionMode, contentPolicy: destination.contentPolicy, contentType: selection.contentType, network: destination.network, localAccountId: destination.localAccountId, target: normalized.target, ...(destination.executionMode === 'server' ? {serverAccountId: destination.socNetAccountId, accountIdentity: destination.accountIdentity} : {})};
 		}
 	};
 }
 
 export function destinationView(row) {
 	const {id, clientId, localKey, sourceGroupId, localAccountId, network, label, executionMode, accountIdentity, target, enabled, contentPolicy} = row.toJSON();
-	return {id, localKey, sourceGroupId, network, label, executionMode, contentPolicy: contentPolicy ?? null, target, enabled, ...(executionMode === 'server' ? {accountIdentity} : {clientId, localAccountId})};
+	return {id, localKey, sourceGroupId, network, label, executionMode, contentPolicy, target, enabled, ...(executionMode === 'server' ? {accountIdentity} : {clientId, localAccountId})};
 }

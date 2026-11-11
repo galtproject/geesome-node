@@ -33,7 +33,7 @@ export function createBlueskyProvider(transport: any) {
 			return {accountIdentity: connected.did, username: connected.handle, target: {}};
 		},
 		async publish(account: any, payload: any, loadMedia: any) {
-			check(Object.keys(payload.target).every(key => key === 'sensitive'), 'Bluesky publication target is invalid');
+			check(Object.keys(payload.target).length === 0, 'Bluesky publication target is invalid');
 			const connected = await session(account.credentials);
 			check(connected.did === account.accountIdentity, 'Bluesky publishing account changed');
 			const images = await loadImages(payload, loadMedia, 2000000);
@@ -57,7 +57,7 @@ export function createBlueskyProvider(transport: any) {
 				blobs.push({alt: '', image: blob});
 			}
 			const record = buildBlueskyFeedPostRecord({text: payload.text, facets, ...(blobs.length ? {embed: buildBlueskyImageEmbed(blobs)} : {})});
-			if (payload.target.sensitive ?? true) {
+			if (payload.contentType === 'nsfw') {
 				record.labels = {$type: 'com.atproto.label.defs#selfLabels', values: [{val: 'porn'}]};
 			}
 			let result;
