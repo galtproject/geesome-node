@@ -5,7 +5,7 @@ const refundFields = ['id', 'resourceId', 'readerId', 'invoiceId', 'reason', 'de
 const periodFields = ['invoiceId', 'startsAt', 'endsAt', 'revoked'];
 
 /** Owner-only projections. Related records must never widen the selected resource. */
-export function ownerPayments(M, identities, resource) {
+export function ownerPayments(M, identities, resource, siteAccounts) {
 	const page = (input) => ({limit: 50, offset: Math.max(0, Math.min(100000, Math.trunc(Number(input.offset) || 0)))});
 	async function context(id, invoices, readerIds) {
 		const invoiceIds = invoices.map(row => row.id);
@@ -27,6 +27,18 @@ export function ownerPayments(M, identities, resource) {
 			reader: related.readers.get(row.readerId) || null, period: related.periods.get(row.id) || null};
 	}
 	return {
+		async ownerSummary(id) {
+			await resource(id);
+			const sequelize = M.invoices.sequelize;
+			const quote = model => sequelize.getQueryInterface().queryGenerator.quoteTable(model.getTableName());
+			const [rows] = await sequelize.query(`SELECT
+				(SELECT COUNT(*) FROM (SELECT "readerId" FROM ${quote(M.invoices)} WHERE "resourceId" = :id
+				 UNION SELECT "identityId"::text FROM ${quote(siteAccounts)} WHERE "siteId" = :id) accounts) AS "registeredAccounts",
+				COUNT(*) AS "createdInvoices", COUNT("paidAt") AS "paidInvoices"
+				FROM ${quote(M.invoices)} WHERE "resourceId" = :id`, {replacements: {id}});
+			return {registeredAccounts: Number(rows[0]['registeredAccounts']), createdInvoices: Number(rows[0]['createdInvoices']),
+				paidInvoices: Number(rows[0]['paidInvoices']), accountHistory: 'known', period: 'all-time'};
+		},
 		async ownerInvoices(id, input: any = {}) {
 			await resource(id);
 			const rows = await M.invoices.findAll({where: {resourceId: id}, order: [['createdAt', 'DESC'], ['id', 'DESC']],

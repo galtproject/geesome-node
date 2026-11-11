@@ -12,6 +12,12 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Publication queue shuffle (#1603)
+
+Owner-authorized, idempotent per-destination permutation of future queued
+publication time slots is implemented with transactional replay and claim locks.
+See [contract, rollout and verification](publication-queue-shuffle.md).
+
 ## Reddit destination content policy (#1579)
 
 Reddit now accepts optional boolean `target.sensitive`; explicit SFW destinations
@@ -1516,3 +1522,9 @@ Added rolling confirmed publication counts on every destination, approximate sha
 ## Social collectors and Telegram settings login (#1602)
 
 Added owner/key-bound phone/code/2FA login using telegramClient, safe user-account selection per Telegram destination, and exact historical message reads through socNetAccount. Patreon observations now accept total/paid members. 95 focused tests passed; see [module overview](../app/modules/socNetStatistics/docs/overview.md) for security boundaries and validation limits.
+
+## Website account and payment summary (#1605)
+
+Owner-only `GET /v1/membership/admin/:resource/summary` counts all invoices and invoices with a recorded payment (including refunds), independent of history pagination. Known site accounts combine distinct invoice readers and durable Google site-account records. Successful logins retain the site relationship; startup preserves existing browser sessions before cleanup. Pre-tracking expired or logged-out non-paying readers cannot be reconstructed, so account coverage is explicitly `known`. A new model-sync table requires no existing-table migration.
+
+Verification: disposable PostgreSQL `test/payments/site-summary.spec.ts`, API documentation generation and security route inventory checks. Deploy this API before the consuming website card.
