@@ -251,6 +251,9 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'publicationDestinations', columns: ['accountIdentity'], type: 'character varying'},
   {table: 'publicationDestinations', columns: ['contentPolicy'], type: 'character varying'},
   {table: 'publicationJobs', columns: ['contentType'], type: 'character varying'},
+  // Destination groups are model-sync-only new tables, not an upgrade migration.
+  {table: 'publicationDestinationGroups', columns: ['destinationIds'], type: 'jsonb'},
+  {table: 'publicationDestinationGroups', columns: ['revision'], type: 'integer'},
   {table: 'publicationJobs', columns: ['intentVersion'], type: 'integer'},
   {table: 'publicationJobs', columns: ['contentPolicy'], type: 'character varying'},
   {table: 'socNetAccounts', columns: ['serverCredentialsEncrypted'], type: 'text'},
@@ -312,6 +315,8 @@ const expectedColumns: ExpectedColumn[] = [
 ];
 
 const expectedIndexes: ExpectedIndex[] = [
+  {name: 'publication_destination_groups_owner_key_unique', table: 'publicationDestinationGroups', columns: ['userId', 'requestKey'], unique: true},
+  {name: 'publication_destination_groups_owner_idx', table: 'publicationDestinationGroups', columns: ['userId', 'id']},
   {name: 'publication_destinations_server_key_unique', table: 'publicationDestinations', columns: ['userId', 'executionMode', 'localKey'], unique: true, predicateIncludes: ["'server'"]},
   {name: 'payments_hd_accounts_resource_unique', table: 'payments_crypto_hd_accounts', columns: ['walletFingerprint', 'readerId', 'resourceId'], unique: true},
   {name: 'payments_crypto_hd_accounts_wallet_fingerprint_index', table: 'payments_crypto_hd_accounts', columns: ['walletFingerprint', 'index'], unique: true},

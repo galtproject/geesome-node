@@ -10,6 +10,7 @@ import {PostStatus} from '../group/interface.js';
 import ISocNetPublishingModule from './interface.js';
 import {getServerAccountMethods} from './serverAccounts.js';
 import {createServerPublisher} from './serverPublisher.js';
+import {getDestinationGroupMethods} from './destinationGroups.js';
 import {getDestinationMethods} from './destinations.js';
 import {getOutboxMethods} from './outbox.js';
 import {getSourceMethods, isOwnedQueueGroup} from './sources.js';
@@ -26,7 +27,7 @@ export default async function socNetPublishing(app: IGeesomeApp) {
 	return module;
 }
 
-export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestination}: any, options: any = {}): ISocNetPublishingModule {
+export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestination, PublicationDestinationGroup}: any, options: any = {}): ISocNetPublishingModule {
 	const sequelize = PublicationJob.sequelize;
 	const destinations = getDestinationMethods(PublicationDestination, {app, normalizeRequest, problem, boundedInteger, loadServerAccount: (userId, accountId, network, identity) => serverAccounts.loadServerAccount(userId, accountId, network, identity)});
 	const serverAccounts = getServerAccountMethods(app, PublicationDestination, {normalizeRequest, problem, boundedInteger}, options);
@@ -35,6 +36,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 	let serverScanCursor = null;
 	const module: ISocNetPublishingModule = {
 		...serverAccounts,
+		...getDestinationGroupMethods(PublicationDestinationGroup, PublicationDestination, {problem, boundedInteger}),
 		setCronWorker(worker) { cronWorker = worker; },
 		async stop() { await cronWorker?.stop(); cronWorker = null; },
 		async processServerQueue(input = {}) {
@@ -48,6 +50,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 		...getSourceMethods(app, {problem, boundedInteger}),
 		async flushDatabase() {
 			await PublicationJob.destroy({where: {}});
+			await PublicationDestinationGroup?.destroy({where: {}});
 			await PublicationDestination.destroy({where: {}});
 		},
 		async createJob(userId, input) {
