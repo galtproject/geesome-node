@@ -12,6 +12,12 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Publication queue shuffle (#1603)
+
+Owner-authorized, idempotent per-destination permutation of future queued
+publication time slots is implemented with transactional replay and claim locks.
+See [contract, rollout and verification](publication-queue-shuffle.md).
+
 ## Reddit destination content policy (#1579)
 
 Reddit now accepts optional boolean `target.sensitive`; explicit SFW destinations

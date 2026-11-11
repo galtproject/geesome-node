@@ -89,5 +89,12 @@ export default async function createModels(sequelize: Sequelize) {
 		{name: 'publication_destination_groups_owner_idx', fields: ['userId', 'id']}
 	]});
 	await PublicationDestinationGroup.sync({});
-	return {PublicationJob, PublicationDestination, PublicationDestinationGroup};
+	const PublicationQueueShuffle = sequelize.define('publicationQueueShuffle', {
+		userId: {type: DataTypes.INTEGER, allowNull: false},
+		requestKey: {type: DataTypes.STRING(128), allowNull: false},
+		requestHash: {type: DataTypes.STRING(64), allowNull: false},
+		result: {type: DataTypes.JSONB, allowNull: false}
+	}, {indexes: [{name: 'publication_queue_shuffle_owner_key_unique', unique: true, fields: ['userId', 'requestKey']}]});
+	await PublicationQueueShuffle.sync({});
+	return {PublicationJob, PublicationDestination, PublicationDestinationGroup, PublicationQueueShuffle};
 }
