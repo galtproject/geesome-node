@@ -1494,3 +1494,13 @@ Validation: 83 targeted publishing/provider/image/migration tests pass, includin
 real PostgreSQL group concurrency and owner isolation. API docs, route-security
 and database-scalability checks pass. TypeScript reports existing project errors;
 no errors reference the new group implementation or tests.
+
+## Stored server destination settings (#1587)
+
+Added owner/manage-only policy and activation revalidation using encrypted stored
+credentials. Exact safe catalog snapshots prevent stale endpoint/account edits;
+provider identity and endpoint are reverified without publication. The settings
+operation never changes jobs, source or credentials. Both namespaces share the
+authorization. Fifty targeted PostgreSQL/API tests pass; API documentation and
+security route inventory checks pass. Live activation requires a deployed Node
+and an explicitly supplied management key; no production publication was tested.

@@ -43,6 +43,25 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 		res.send(await module.setupServerDestination(req.user.id, req.body));
 	});
 	/**
+	 * @api {post} /v1/user/social-publications/server-destinations/:destinationId/settings Reverify server destination settings
+	 * @apiName ServerPublicationDestinationSettings
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Owner session or publishing:manage plus publishing:local required. Reuses encrypted credentials internally and verifies the existing provider identity/endpoint without posting. Changes only enabled/contentPolicy, preserves source/account/target/jobs. Stale snapshots return 409. Legacy namespace alias shares authorization.
+	 * @apiParam {Number} destinationId Owned server destination.
+	 * @apiBody {Object} expected Exact safe destination from catalog, used for conflict checking.
+	 * @apiBody {Boolean} enabled Explicit activation state.
+	 * @apiBody {String="sfw","nsfw"} contentPolicy Explicit content policy.
+	 * @apiSuccess {Object} destination Safe destination metadata; no credentials.
+	 */
+	api.onAuthorizedPost('user/social-publications/server-destinations/:destinationId/settings', async (req, res) => {
+		await authorizeManagement(req);
+		res.send(await module.updateServerDestinationSettings(req.user.id, req.params.destinationId, req.body));
+	});
+
+	/**
 	 * @api {post} /v1/user/social-publications/:jobId/server-result Resolve a server publication result
 	 * @apiName ServerPublicationResult
 	 * @apiGroup LocalPublications
