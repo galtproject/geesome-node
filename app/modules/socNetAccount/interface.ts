@@ -1,6 +1,8 @@
 import {IListParams} from "../database/interface.js";
 
 export default interface IGeesomeSocNetAccount {
+	getStatistics(userId, input: {accountId: number; accountIdentity: string; network: string; kind: 'post' | 'group'; target: any; remoteId?: string}): Promise<Record<string, number | null> | null>;
+
 	createOrUpdateAccount(userId, accData): Promise<IAccount>;
 
 	getAccount(userId, socNet, accountData): Promise<IAccount>;

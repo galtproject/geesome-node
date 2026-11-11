@@ -135,6 +135,9 @@ function notesFor(route: RouteRow, block: string): string[] {
   } else if (route.moduleName === 'socNetPublishing') {
     notes.add('publishing:local and UserGroupManagement; compose also requires assets:write; owner-scoped jobs; public-source edit permission or owned ordinary closed source at create/claim; bounded owner-only source selection; authoritative group/network/account routes; opt-in media preparation validates owned originals and uses server-only completed cache; original claim token for results; destination registration and claim bind executor to dedicated non-password API key ID; legacy claim excludes destination jobs; destination results require original client key');
   }
+  if (route.moduleName === 'socNetStatistics') {
+    notes.add('publishing:local and UserGroupManagement; owner-scoped bounded summary/history; dedicated client key binds local observations to client-mode entities; atomic monotonic UTC-day upserts; server refresh delegates to socNetAccount with encrypted owned credentials and fixed provider hosts; no secret projection');
+  }
   if (route.moduleName === 'imageComposition') {
     notes.add('module enforces actor-owned catalog Content and dependency authorization');
     if (routeLower.endsWith('/image-compositions') && route.method === 'GET') {

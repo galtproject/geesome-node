@@ -1504,3 +1504,7 @@ operation never changes jobs, source or credentials. Both namespaces share the
 authorization. Fifty targeted PostgreSQL/API tests pass; API documentation and
 security route inventory checks pass. Live activation requires a deployed Node
 and an explicitly supplied management key; no production publication was tested.
+
+## Social statistics (#1596)
+
+Added daily UTC post and destination/group snapshots, owner/client-bound ingestion, bounded summary/history and server refresh through `socNetAccount.getStatistics()`. No credentials enter the statistics module; no publication worker changes. See [module docs](../app/modules/socNetStatistics/docs/overview.md) for provider coverage and validation.

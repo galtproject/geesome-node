@@ -7,6 +7,7 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import {createStatisticsReader} from './statistics.js';
 import {Op} from "sequelize";
 import pIteration from 'p-iteration';
 import {IGeesomeApp} from "../../interface.js";
@@ -37,10 +38,28 @@ export default async (app: IGeesomeApp) => {
 	return module;
 }
 
-export function getModule(app: IGeesomeApp, models) {
+export function getModule(app: IGeesomeApp, models, options: any = {}) {
+	const readStatistics = options.reader || createStatisticsReader(options.fetch);
 	// app.checkModules([]);
 
 	class SocNetAccountModule {
+		async getStatistics(userId, input) {
+			const account = await models.Account.findOne({where: {id: input.accountId, userId, socNet: input.network, accountId: input.accountIdentity}});
+			if (!account?.serverCredentialsEncrypted) {
+				throw new Error('social_statistics_account_unavailable');
+			}
+			let decoded;
+			try {
+				decoded = JSON.parse(await app.decryptTextWithAppPass(account.serverCredentialsEncrypted));
+			} catch {
+				throw new Error('social_statistics_account_unavailable');
+			}
+			if (decoded.network !== input.network || decoded.accountIdentity !== input.accountIdentity || !decoded.credentials) {
+				throw new Error('social_statistics_account_unavailable');
+			}
+			return readStatistics({network: input.network, kind: input.kind, account: {accountIdentity: account.accountId, credentials: decoded.credentials}, target: input.target, remoteId: input.remoteId});
+		}
+
 		async createOrUpdateAccount(userId, accData) {
 			if (Object.hasOwn(accData, 'serverCredentialsEncrypted')) {
 				throw new Error('server_publishing_account_dedicated_setup_required');
