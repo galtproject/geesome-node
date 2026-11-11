@@ -87,7 +87,7 @@ export function validatePayload(network: string, payload: any) {
 	const maximum = network === 'bluesky' ? 300 : network === 'discord' ? 2000 : payload.attachments.length ? 1024 : 4096;
 	const length = network === 'bluesky' ? [...new Intl.Segmenter('en', {granularity: 'grapheme'}).segment(payload.text)].length : payload.text.length;
 	check(length <= maximum && (network !== 'bluesky' || Buffer.byteLength(payload.text) <= 3000), 'Server publication text exceeds provider limits');
-	check(payload.target.sensitive === undefined || typeof payload.target.sensitive === 'boolean', 'Server publication sensitivity is invalid');
+	check(['sfw', 'nsfw'].includes(payload.contentType), 'Server publication sensitivity is invalid');
 }
 
 export async function loadImages(payload: any, loadMedia: any, maxBytes: number) {

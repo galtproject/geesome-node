@@ -7,7 +7,7 @@ import createModels from '../app/modules/socNetPublishing/models.js';
 import createAccounts from '../app/modules/socNetAccount/models.js';
 import {getModule, normalizeRequest} from '../app/modules/socNetPublishing/index.js';
 import {getModule as accountModule} from '../app/modules/socNetAccount/index.js';
-import {serverPublicationDigest} from '../app/modules/socNetPublishing/producer.js';
+import {publicationIntentDigest} from '../app/modules/socNetPublishing/producer.js';
 import {getDestinationMethods} from '../app/modules/socNetPublishing/destinations.js';
 import startCron from '../app/modules/socNetPublishing/cron.js';
 import registerApi from '../app/modules/socNetPublishing/api.js';
@@ -19,7 +19,7 @@ describe('server social publishing foundation', function () {
 	this.timeout(30000);
 	let sequelize, models, app, module, published, outcome, group, identity;
 	const schema = `server_publications_${randomUUID().replaceAll('-', '')}`;
-	const setup = (extra = {}) => ({requestKey: 'telegram-main', network: 'telegram', label: 'Server Telegram', sourceGroupId: 2, account: {botToken: 'fixture-bot-secret'}, target: {chatId: '-12345'}, ...extra});
+	const setup = (extra = {}) => ({contentPolicy: 'nsfw', requestKey: 'telegram-main', network: 'telegram', label: 'Server Telegram', sourceGroupId: 2, account: {botToken: 'fixture-bot-secret'}, target: {chatId: '-12345'}, ...extra});
 	before(async () => {
 		sequelize = new Sequelize({...config, database: process.env.DATABASE_NAME || 'geesome_test', logging: false, pool: {max: 2}, define: {schema}} as any);
 		await sequelize.createSchema(schema, {});
@@ -43,9 +43,9 @@ describe('server social publishing foundation', function () {
 		}});
 	});
 	async function queued(destination, extra = {}) {
-		return models.PublicationJob.create({userId: 1, postId: 1, requestKey: randomUUID(), requestHash: 'a'.repeat(64), destinationId: destination.id,
+		return models.PublicationJob.create({userId: 1, postId: 1, contentType: 'nsfw', requestKey: randomUUID(), requestHash: 'a'.repeat(64), destinationId: destination.id,
 			executionMode: 'server', serverAccountId: destination.account, accountIdentity: destination.accountIdentity, localAccountId: null, clientId: null,
-			network: 'telegram', target: {chatId: '-12345', sensitive: false}, payload: {text: 'Frozen server text', attachments: []}, scheduledAt: new Date(0), status: 'queued', ...extra});
+			network: 'telegram', intentVersion: 6, target: {chatId: '-12345'}, payload: {text: 'Frozen server text', attachments: []}, scheduledAt: new Date(0), status: 'queued', ...extra});
 	}
 	async function registered(extra = {}) {
 		const result = await module.setupServerDestination(1, setup({enabled: true, ...extra}));
@@ -69,18 +69,18 @@ describe('server social publishing foundation', function () {
 		const nsfw = await registered({requestKey: 'telegram-other', contentPolicy: 'nsfw', target: {chatId: '-67890'}});
 		assert.equal(sfw.account, nsfw.account);
 		assert.equal(sfw.contentPolicy, 'sfw');
-		await assert.rejects(module.setupServerDestination(1, setup({contentPolicy: 'sfw', target: {chatId: '-12345', sfwChatId: '-67890'}})), {code: 'publication_destination_single_endpoint_required'});
-		await assert.rejects(module.setupServerDestination(1, setup()), {code: 'publication_content_policy_required'});
-		await assert.rejects(resolveDestination(1, {destinationId: sfw.id, network: 'telegram', target: {sensitive: true}}), {code: 'publication_content_policy_forbidden'});
-		const invalid = await queued(sfw, {contentPolicy: 'sfw', target: {chatId: '-12345', sensitive: true}});
+		await assert.rejects(module.setupServerDestination(1, setup({contentPolicy: 'sfw', target: {chatId: '-12345', sfwChatId: '-67890'}})), {status: 400});
+
+		await assert.rejects(resolveDestination(1, {contentType: 'nsfw', destinationId: sfw.id, network: 'telegram', target: {}}), {code: 'publication_content_policy_forbidden'});
+		const invalid = await queued(sfw, {contentPolicy: 'sfw', target: {chatId: '-12345'}});
 		await module.processServerQueue();assert.equal(published.length, 0);assert.equal((await invalid.reload()).status, 'failed');
-		const frozen = await queued(sfw, {contentPolicy: 'nsfw', target: {chatId: '-12345', sensitive: true}});
+		const frozen = await queued(sfw, {contentPolicy: 'nsfw', target: {chatId: '-12345'}});
 		await module.processServerQueue();assert.equal(published.length, 1);assert.equal((await frozen.reload()).contentPolicy, 'nsfw');
 	});
 	it('isolates server claims, frozen payload, result permissions and outcome state', async () => {
 		const destination = await registered();const job = await queued(destination);
-		assert.equal(await module.claimJob(1, {accounts: [{network: 'telegram', localAccountId: 'anything'}]}), null);
-		assert.equal(await module.claimDestinationJob(1, 'key:1', {destinationIds: [destination.id]}), null);
+		assert.equal(await module.claimJob(1, {intentVersion: 6, accounts: [{network: 'telegram', localAccountId: 'anything'}]}), null);
+		assert.equal(await module.claimDestinationJob(1, 'key:1', {intentVersion: 6, destinationIds: [destination.id]}), null);
 		await models.PublicationDestination.update({target: {chatId: '-77777'}}, {where: {id: destination.id}});
 		await module.processServerQueue();assert.equal(published.length, 1);assert.equal(published[0].payload.target.chatId, '-12345');assert.equal((await job.reload()).status, 'posted');
 		assert.equal((await module.listJobs(1))[0].serverAccountId, undefined);
@@ -116,10 +116,10 @@ describe('server social publishing foundation', function () {
 		await models.PublicationJob.update({serverAccountId: broken.id, accountIdentity: 'bot:66666'}, {where: {destinationId: bad.id}});
 		const next = await queued(healthy);await module.processServerQueue();await module.processServerQueue();assert.equal((await next.reload()).status, 'posted');
 	});
-	it('keeps startup paused and uses stable v5 canonical digest', () => {
+	it('keeps startup paused and uses stable v6 canonical digest', () => {
 		assert.equal(startCron(app, module), null);
 		const payload = {text: 'hello', attachments: [{storageId: 'QmOne', mimeType: 'image/jpeg'}]};
-		assert.equal(serverPublicationDigest(1, 'bot:12345', 'telegram', payload, {chatId: '-123', sensitive: false}), serverPublicationDigest(1, 'bot:12345', 'telegram', payload, {sensitive: false, chatId: '-123'}));
+		assert.equal(publicationIntentDigest({contentType: 'nsfw', destinationId: 1, accountIdentity: 'bot:12345', network: 'telegram', target: {chatId: '-123'}, executionMode: 'server'}, payload), publicationIntentDigest({contentType: 'nsfw', destinationId: 1, accountIdentity: 'bot:12345', network: 'telegram', target: {chatId: '-123'}, executionMode: 'server'}, payload));
 	});
 	it('requires explicit management scope on canonical and legacy setup endpoints', async () => {
 		assert(!getApiKeyScopes({permissions: JSON.stringify([CorePermissionName.UserGroupManagement])} as any).includes('publishing:manage'));

@@ -30,11 +30,11 @@ export function createServerPublisher(app, module, options: any = {}) {
 					let result;
 					try {
 						try {
-							assertContentPolicy(job.contentPolicy, job.network, job.target);
+							assertContentPolicy(job.contentType, job.contentPolicy);
 						} catch (error) {
 							throw Object.assign(error, {ambiguous: false});
 						}
-						const published = await providers.publish(job.network, account, {...job.payload, target: job.target},
+						const published = await providers.publish(job.network, account, {...job.payload, target: job.target, contentType: job.contentType},
 							(attachment, maxBytes) => loadOwnedMedia(app, job.userId, attachment, maxBytes));
 						if (!published?.remoteId) {
 							throw Object.assign(new Error(), {ambiguous: true});

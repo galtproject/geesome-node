@@ -37,19 +37,18 @@ export function createTelegramProvider(transport: any) {
 	}
 	return {
 		async verify(credentials: any, target: any = {}) {
-			check(target && Object.keys(target).every(key => ['chatId', 'sfwChatId'].includes(key)), 'Telegram destination parameters are invalid');
+			check(target && Object.keys(target).every(key => ['chatId'].includes(key)), 'Telegram destination parameters are invalid');
 			const bot = await identity(credentials);
 			const main = await chat(bot, target.chatId, true);
-			const sfw = target.sfwChatId === undefined ? null : await chat(bot, target.sfwChatId, true);
-			return {accountIdentity: bot.accountIdentity, username: bot.username, target: {chatId: String(main.id), ...(sfw ? {sfwChatId: String(sfw.id)} : {})}};
+			return {accountIdentity: bot.accountIdentity, username: bot.username, target: {chatId: String(main.id)}};
 		},
 		async publish(account: any, payload: any, loadMedia: any) {
-			check(Object.keys(payload.target).every(key => ['chatId', 'sensitive'].includes(key)) && typeof payload.target.chatId === 'string' && /^-?[1-9][0-9]{0,19}$/.test(payload.target.chatId), 'Telegram publication needs a frozen numeric chat');
+			check(Object.keys(payload.target).every(key => ['chatId'].includes(key)) && typeof payload.target.chatId === 'string' && /^-?[1-9][0-9]{0,19}$/.test(payload.target.chatId), 'Telegram publication needs a frozen numeric chat');
 			const bot = await identity(account.credentials);
 			check(bot.accountIdentity === account.accountIdentity, 'Telegram publishing account changed');
 			const destination = await chat(bot, payload.target.chatId, payload.attachments.length > 0);
 			const images = await loadImages(payload, loadMedia, 10000000);
-			const sensitive = payload.target.sensitive ?? true;
+			const sensitive = payload.contentType === 'nsfw';
 			let method, options;
 			if (images.length) {
 				method = 'sendPhoto';

@@ -79,6 +79,7 @@ const migrationDirs: Record<MigrationModule, string> = {
 
 const coveredMigrations: CoveredMigration[] = [
   {module: 'database', file: '20261110001000-server-social-publishing.cjs', verifies: ['server publication account binding columns', 'server managed credential storage', 'server destination key uniqueness']},
+  {module: 'database', file: '20261110003000-publication-content-type.cjs', verifies: ['canonical job content type', 'intent version gate', 'explicit policies']},
   {module: 'database', file: '20261110002000-publication-content-policy.cjs', verifies: ['destination content policy', 'frozen job content policy']},
   {module: 'database', file: '20261110000000-bind-publication-destinations.cjs', verifies: ['publication destination executor snapshot columns']},
   {
@@ -249,6 +250,8 @@ const expectedColumns: ExpectedColumn[] = [
   {table: 'publicationJobs', columns: ['accountIdentity'], type: 'character varying'},
   {table: 'publicationDestinations', columns: ['accountIdentity'], type: 'character varying'},
   {table: 'publicationDestinations', columns: ['contentPolicy'], type: 'character varying'},
+  {table: 'publicationJobs', columns: ['contentType'], type: 'character varying'},
+  {table: 'publicationJobs', columns: ['intentVersion'], type: 'integer'},
   {table: 'publicationJobs', columns: ['contentPolicy'], type: 'character varying'},
   {table: 'socNetAccounts', columns: ['serverCredentialsEncrypted'], type: 'text'},
   {table: 'publicationJobs', columns: ['destinationId'], type: 'integer'},
@@ -495,6 +498,16 @@ const storageObjectMetadataColumns = [
 ];
 
 const countChecks: CountCheck[] = [
+  {
+    name: 'publication jobs have canonical classification without old target fields',
+    requirements: [{table: 'publicationJobs', columns: ['contentType', 'contentPolicy', 'target', 'network']}],
+    sql: `SELECT COUNT(*) AS count FROM "publicationJobs" WHERE "contentType" IS NULL OR "contentType" NOT IN ('sfw','nsfw') OR "contentPolicy" IS NULL OR "contentPolicy" NOT IN ('sfw','nsfw') OR target ? 'sensitive' OR (network='rule34xxx' AND target ? 'rating')`,
+  },
+  {
+    name: 'publication destinations have explicit content policy and one endpoint',
+    requirements: [{table: 'publicationDestinations', columns: ['contentPolicy', 'target']}],
+    sql: `SELECT COUNT(*) AS count FROM "publicationDestinations" WHERE "contentPolicy" IS NULL OR "contentPolicy" NOT IN ('sfw','nsfw') OR target ? 'sfwChannelId' OR target ? 'sfwChatId'`,
+  },
   {
     name: 'managed payment indexes are positive and resource assignments are unique',
     requirements: [{table: 'payments_crypto_hd_accounts', columns: ['walletFingerprint', 'readerId', 'resourceId', 'index']}],

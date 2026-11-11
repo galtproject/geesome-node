@@ -12,6 +12,14 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Reddit destination content policy (#1579)
+
+Reddit now accepts optional boolean `target.sensitive`; explicit SFW destinations
+require false. Distinct subreddit destinations can share one local account while
+freezing their separate endpoints, policies and jobs. Legacy omitted sensitivity,
+digests and accepted retries remain unchanged. Credentials stay on Client.
+See [Reddit setup](../app/modules/socNetPublishing/docs/reddit-destinations.md).
+
 ## Explicit publication content policy (#1575)
 
 Destinations now expose nullable `contentPolicy`: `sfw` accepts only explicitly
@@ -1461,3 +1469,15 @@ uploads use bounded persistent local staging and ordinary async receipts, then
 execute under the existing deletion fence. Restart resumes unstarted jobs and
 quarantines unknown imports without replay. See [operations and rollout](storage-idle-gc-uploads.md)
 and [implementation/verification plan](storage-idle-gc-upload-plan.md).
+
+
+## Canonical publication content type (#1581)
+
+Publishing uses required top-level contentType sfw/nsfw, freezes it on jobs and
+binds it with digest v6. A shared network-independent helper rejects only
+NSFW content in SFW destinations. Server adapters derive provider settings at
+send time. Internal target classification and alternate endpoint dispatch are
+removed. The forward-only migration preserves historical identity and outcomes,
+blocks unreviewed alternate endpoint loss and holds pre-v6 jobs for explicit
+reconciliation instead of automatic resend. See the module content-policy guide
+for coordinated rollout and backup recovery requirements.
