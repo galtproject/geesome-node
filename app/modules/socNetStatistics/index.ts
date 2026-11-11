@@ -1,3 +1,4 @@
+import {getTelegramReaderMethods} from './telegramReaders.js';
 import {Op} from 'sequelize';
 import {IGeesomeApp} from '../../interface.js';
 import {ApiProblemError} from '../api/problem.js';
@@ -13,7 +14,7 @@ export default async function socNetStatistics(app: IGeesomeApp) {
 }
 
 export function getModule(app, models, options: any = {}) {
-	const {SocialPostStatistic: PostStat, SocialGroupStatistic: GroupStat} = models;
+	const {SocialPostStatistic: PostStat, SocialGroupStatistic: GroupStat, TelegramStatisticsReader: Reader} = models;
 	const sequelize = PostStat.sequelize;
 	const Job = sequelize.models.publicationJob;
 	const Destination = sequelize.models.publicationDestination;
@@ -39,7 +40,7 @@ export function getModule(app, models, options: any = {}) {
 		}
 		return current;
 	}
-	async function save(userId, observation, clientId, server = false, transaction?) {
+	async function save(userId, observation, clientId, server: boolean | string = false, transaction?) {
 		object(observation, ['kind', 'jobId', 'destinationId', 'observedAt', 'metrics']);
 		kindCheck(observation.kind);
 		const key = keyFor(observation.kind);
@@ -47,24 +48,32 @@ export function getModule(app, models, options: any = {}) {
 			throw problem(400, 'social_statistics_input_invalid');
 		}
 		const row = await entity(userId, observation.kind, observation[key], transaction);
-		if (server ? row.executionMode !== 'server' : row.executionMode !== 'client' || row.clientId !== clientId) {
+		if (server === 'telegramUser' ? row.network !== 'telegram' || observation.kind !== 'post' : server ? row.executionMode !== 'server' : row.executionMode !== 'client' || row.clientId !== clientId) {
+			throw problem(403, 'social_statistics_executor_forbidden');
+		}
+		if (!server && observation.kind === 'post' && row.network === 'telegram' && await Reader.findOne({where: {userId, destinationId: row.destinationId}, transaction})) {
 			throw problem(403, 'social_statistics_executor_forbidden');
 		}
 		const date = new Date(observation.observedAt);
 		if (typeof observation.observedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(observation.observedAt) || !Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== observation.observedAt.slice(0, 10) || date.getTime() > now().getTime() + 300000) {
 			throw problem(400, 'social_statistics_timestamp_invalid');
 		}
-		const fields = observation.kind === 'group' ? row.network === 'discord' ? ['members', 'online'] : ['followers'] : ['likes', 'views', 'replies', 'reposts', 'reactions', 'score'];
+		const fields = observation.kind === 'group' ? row.network === 'discord' ? ['members', 'online'] : row.network === 'patreon' ? ['followers', 'paidMembers'] : ['followers'] : ['likes', 'views', 'replies', 'reposts', 'reactions', 'score'];
 		object(observation.metrics, fields);
 		if (!Object.keys(observation.metrics).length || Object.entries(observation.metrics).some(([name, value]) => value !== null && (!Number.isSafeInteger(value) || name !== 'score' && Number(value) < 0))) {
+			throw problem(400, 'social_statistics_metrics_invalid');
+		}
+		if (row.network === 'patreon' && typeof observation.metrics.paidMembers === 'number' && typeof observation.metrics.followers === 'number' && observation.metrics.paidMembers > observation.metrics.followers) {
 			throw problem(400, 'social_statistics_metrics_invalid');
 		}
 		await modelFor(observation.kind).recordObservation({userId, [key]: row.id, periodStart: date.toISOString().slice(0, 10), observedAt: date, metrics: observation.metrics}, transaction);
 	}
 	return {
+		...getTelegramReaderMethods(app, Reader, Destination),
 		async flushDatabase() {
 			await PostStat.destroy({where: {}});
 			await GroupStat.destroy({where: {}});
+			await Reader.destroy({where: {}});
 		},
 		async record(userId, clientId, input) {
 			object(input, ['observations']);
@@ -149,23 +158,28 @@ export function getModule(app, models, options: any = {}) {
 			object(query, ['kind', 'id']);
 			kindCheck(query.kind);
 			const owned = await entity(userId, query.kind, query.id);
-			if (owned.executionMode !== 'server') {
+			const telegramUser = owned.network === 'telegram' && query.kind === 'post';
+			const reader = telegramUser ? await Reader.findOne({where: {userId, destinationId: owned.destinationId}}) : null;
+			if (telegramUser && !reader) {
+				return {results: [{kind: query.kind, id: owned.id, status: 'connection_required'}]};
+			}
+			if (owned.executionMode !== 'server' && !telegramUser) {
 				throw problem(403, 'social_statistics_executor_forbidden');
 			}
 			const result = status => ({results: [{kind: query.kind, id: owned.id, status}]});
 			try {
-				const destination = query.kind === 'group' ? owned : await Destination.findOne({where: {id: owned.destinationId, userId, executionMode: 'server'}});
-				if (!destination || query.kind === 'post' && (owned.serverAccountId !== destination.socNetAccountId || owned.accountIdentity !== destination.accountIdentity)) {
+				const destination = query.kind === 'group' ? owned : await Destination.findOne({where: {id: owned.destinationId, userId}});
+				if (!destination || query.kind === 'post' && !telegramUser && (owned.serverAccountId !== destination.socNetAccountId || owned.accountIdentity !== destination.accountIdentity)) {
 					throw problem(409, 'social_statistics_destination_changed');
 				}
-				const metrics = await app.ms.socNetAccount.getStatistics(userId, {accountId: destination.socNetAccountId, accountIdentity: destination.accountIdentity, network: owned.network, kind: query.kind, target: query.kind === 'post' ? owned.target : destination.target, remoteId: owned.remoteId});
+				const metrics = await app.ms.socNetAccount.getStatistics(userId, {accountId: destination.socNetAccountId, accountIdentity: destination.accountIdentity, network: owned.network, kind: query.kind, target: query.kind === 'post' ? owned.target : destination.target, remoteId: owned.remoteId, readerAccountId: reader?.accountId});
 				if (metrics === null) {
 					return result('unsupported');
 				}
-				await save(userId, {kind: query.kind, [keyFor(query.kind)]: owned.id, observedAt: now().toISOString(), metrics}, null, true);
+				await save(userId, {kind: query.kind, [keyFor(query.kind)]: owned.id, observedAt: now().toISOString(), metrics}, null, telegramUser ? 'telegramUser' : true);
 				return result('updated');
 			} catch (error) {
-				return result(['access_denied', 'rate_limited'].includes(error.statisticsStatus) ? error.statisticsStatus : 'unavailable');
+				return result(['access_denied', 'rate_limited', 'connection_required'].includes(error.statisticsStatus) ? error.statisticsStatus : 'unavailable');
 			}
 		}
 	};

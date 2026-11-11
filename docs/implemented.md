@@ -1512,3 +1512,7 @@ Added daily UTC post and destination/group snapshots, owner/client-bound ingesti
 ## Destination activity and Discord audience (#1599)
 
 Added rolling confirmed publication counts on every destination, approximate shared Discord guild audience/presence through socNetAccount, canonical guild history and typed read outcomes. Confirmation replay cannot move publication time. See [statistics module docs](../app/modules/socNetStatistics/docs/overview.md) for migration and validation evidence.
+
+## Social collectors and Telegram settings login (#1602)
+
+Added owner/key-bound phone/code/2FA login using telegramClient, safe user-account selection per Telegram destination, and exact historical message reads through socNetAccount. Patreon observations now accept total/paid members. 95 focused tests passed; see [module overview](../app/modules/socNetStatistics/docs/overview.md) for security boundaries and validation limits.

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {Sequelize, DataTypes} from 'sequelize';
+import createAccounts from '../app/modules/socNetAccount/models.js';
 import createStatisticsModels from '../app/modules/socNetStatistics/models.js';
 import createPublishingModels from '../app/modules/socNetPublishing/models.js';
 import {getModule} from '../app/modules/socNetStatistics/index.js';
@@ -12,13 +13,14 @@ import databaseConfig from '../app/modules/database/config.js';
 describe('daily social statistics', function () {
 	this.timeout(30000);
 	const schema = `statistics_${randomUUID().replaceAll('-', '')}`;
-	let sequelize, models, publishing, module, destination, job, serverCalls;
+	let sequelize, models, publishing, accounts, module, destination, job, serverCalls;
 	const observed = (kind, id, metrics, observedAt = '2026-11-10T12:00:00Z') => ({kind, [kind === 'post' ? 'jobId' : 'destinationId']: id, observedAt, metrics});
 	before(async () => {
 		sequelize = new Sequelize({...databaseConfig, database: process.env.DATABASE_NAME || 'geesome_test', logging: false, define: {schema}} as any);
 		await sequelize.createSchema(schema, {});
 		publishing = await createPublishingModels(sequelize);
 		models = await createStatisticsModels(sequelize);
+		accounts = await createAccounts(sequelize);
 		await sequelize.define('post', {userId: DataTypes.INTEGER, groupId: DataTypes.INTEGER}).sync({});
 	});
 	after(async () => {
@@ -30,11 +32,12 @@ describe('daily social statistics', function () {
 			await model.destroy({where: {}, truncate: true});
 		}
 		serverCalls = [];
+		await accounts.Account.destroy({where: {}, truncate: true});
 		await sequelize.models.post.destroy({where: {}, truncate: true});
 		await sequelize.models.post.create({id: 4, userId: 1, groupId: 2});
 		destination = await publishing.PublicationDestination.create({userId: 1, clientId: 'key:1', localKey: 'main', localAccountId: 'threads_1', sourceGroupId: 2, network: 'threads', label: 'Main', contentPolicy: 'nsfw', executionMode: 'client', target: {}});
 		job = await publishing.PublicationJob.create({userId: 1, postId: 4, destinationId: destination.id, clientId: 'key:1', executionMode: 'client', requestKey: randomUUID(), requestHash: 'hash', network: 'threads', target: {}, payload: {text: 'Caption'}, scheduledAt: new Date(), status: 'posted', remoteId: '123'});
-		module = getModule({ms: {group: {getPostPure: async () => ({groupId: 2})}, socNetAccount: {getStatistics: async (userId, input) => {serverCalls.push({userId, input});return input.kind === 'group' ? {followers: 30} : null;}}}}, models, {now: () => new Date('2026-11-11T23:00:00Z')});
+		module = getModule({ms: {group: {getPostPure: async () => ({groupId: 2})}, socNetAccount: {listTelegramStatisticsAccounts: accountModule({} as any, accounts).listTelegramStatisticsAccounts, assertTelegramStatisticsAccount: accountModule({} as any, accounts).assertTelegramStatisticsAccount, getStatistics: async (userId, input) => {serverCalls.push({userId, input});return input.kind === 'group' ? {followers: 30} : input.readerAccountId ? {views: 17, reactions: 2, replies: 0, reposts: 1, likes: null} : null;}}}}, models, {now: () => new Date('2026-11-11T23:00:00Z')});
 	});
 	it('updates the same UTC day, ignores delayed/equal observations and inserts a new day with net delta', async () => {
 		await module.record(1, 'key:1', {observations: [observed('group', destination.id, {followers: 100})]});
@@ -82,10 +85,10 @@ describe('daily social statistics', function () {
 		assert.deepEqual(serverCalls[0].input.target, {chatId: '-123'});
 		assert.equal((await module.summary(1)).groups[0].statistics.metrics.followers, 30);
 		await job.update({executionMode: 'server', network: 'telegram', serverAccountId: 9, accountIdentity: 'bot:123'});
-		assert.equal((await module.refresh(1, {kind: 'post', id: job.id})).results[0].status, 'unsupported');
+		assert.equal((await module.refresh(1, {kind: 'post', id: job.id})).results[0].status, 'connection_required');
 		await job.update({serverAccountId: 10});
-		assert.equal((await module.refresh(1, {kind: 'post', id: job.id})).results[0].status, 'unavailable');
-		assert.equal(serverCalls.length, 2);
+		assert.equal((await module.refresh(1, {kind: 'post', id: job.id})).results[0].status, 'connection_required');
+		assert.equal(serverCalls.length, 1);
 		await assert.rejects(module.refresh(2, {kind: 'group', id: destination.id}), /entity_not_found/);
 	});
 	it('bounds and paginates receipts, destinations and source/network filters', async () => {
@@ -139,6 +142,34 @@ describe('daily social statistics', function () {
 		assert.equal(group.audience.sharedDestinations, 1);
 		assert.equal((await module.history(1, {kind: 'group', id: destination.id})).snapshots.length, 0);
 	});
+	it('binds only owned usable Telegram users and reads client or server receipts through Node', async () => {
+		const account = await accounts.Account.create({userId: 1, socNet: 'telegram', accountId: '777', sessionKey: 'private-session', apiKey: 'a'.repeat(32), apiId: '123', username: 'reader', isEncrypted: false});
+		const foreign = await accounts.Account.create({userId: 2, socNet: 'telegram', accountId: '888', sessionKey: 'foreign', isEncrypted: false});
+		await destination.update({network: 'telegram', target: {chatId: '-100123'}});
+		await job.update({network: 'telegram', target: {chatId: '-100123'}});
+		assert.equal((await module.refresh(1, {kind: 'post', id: job.id})).results[0].status, 'connection_required');
+		await assert.rejects(module.bindTelegramReader(1, destination.id, {accountId: foreign.id}));
+		await assert.rejects(module.bindTelegramReader(2, destination.id, {accountId: foreign.id}));
+		await module.bindTelegramReader(1, destination.id, {accountId: account.id});
+		await assert.rejects(module.record(1, 'key:1', {observations: [observed('post', job.id, {views: 999})]}), /executor_forbidden/);
+		const settings = await module.telegramSettings(1);
+		assert.equal(settings.destinations[0].accountId, account.id);
+		assert.equal(settings.accounts.length, 1);
+		assert.doesNotMatch(JSON.stringify(settings), /private|sessionKey|apiKey/);
+		assert.equal((await module.refresh(1, {kind: 'post', id: job.id})).results[0].status, 'updated');
+		assert.equal(serverCalls.at(-1).input.readerAccountId, account.id);
+		assert.deepEqual((await module.summary(1)).posts[0].statistics.metrics, {views: 17, reactions: 2, replies: 0, reposts: 1, likes: null});
+		await module.bindTelegramReader(1, destination.id, {accountId: null});
+		assert.equal((await module.refresh(1, {kind: 'post', id: job.id})).results[0].status, 'connection_required');
+		await account.update({isEncrypted: true});
+		await assert.rejects(module.bindTelegramReader(1, destination.id, {accountId: account.id}));
+	});
+	it('stores Patreon paid audience separately and rejects paid counts on another network', async () => {
+		await assert.rejects(module.record(1, 'key:1', {observations: [observed('group', destination.id, {followers: 10, paidMembers: 2})]}));
+		await destination.update({network: 'patreon'});
+		await module.record(1, 'key:1', {observations: [observed('group', destination.id, {followers: 10, paidMembers: 2})]});
+		assert.equal((await module.summary(1)).groups[0].statistics.metrics.paidMembers, 2);
+	});
 	it('account module decrypts only owned matching server identities and never returns credentials', async () => {
 		const Account = sequelize.define('statisticsAccountFixture', {userId: DataTypes.INTEGER, socNet: DataTypes.STRING, accountId: DataTypes.STRING, serverCredentialsEncrypted: DataTypes.TEXT});
 		await Account.sync({});
@@ -155,9 +186,12 @@ describe('daily social statistics', function () {
 	it('authorizes every API route and binds local observations to a dedicated key', async () => {
 		const routes = [], invocations = [];
 		registerApi({checkUserCan: async () => {}, ms: {api: {onAuthorizedGet: (path, handler) => routes.push({path, handler}), onAuthorizedPost: (path, handler) => routes.push({path, handler})}}}, {summary: async () => ({}), history: async () => ({}), refresh: async () => ({}), record: async (...args) => {invocations.push(args);return {};}});
-		assert.equal(routes.length, 4);
+		assert.equal(routes.length, 9);
 		for (const route of routes) {
 			await assert.rejects(route.handler({user: {id: 1}, apiKey: {id: 7, scopes: ['assets:write']}, body: {}, query: {}}, {send() {}}));
+		}
+		for (const route of routes.filter(row => row.path.includes('/telegram-login/') || row.path.endsWith('/telegram-account'))) {
+			await assert.rejects(route.handler({user: {id: 1}, apiKey: {id: 7, scopes: ['publishing:local']}, body: {}, params: {}}, {send() {}}), {status: 403});
 		}
 		const observation = routes.find(row => row.path.endsWith('/observations'));
 		await observation.handler({user: {id: 1}, apiKey: {id: 7, scopes: ['publishing:local']}, body: {observations: []}}, {send() {}});

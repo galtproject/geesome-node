@@ -7,12 +7,13 @@
  * [Basic Agreement](ipfs/QmaCiXUmSrP16Gz8Jdzq6AJESY1EAANmmwha15uR3c1bsS)).
  */
 
+import {createTelegramLoginFlow} from './loginFlow.js';
 import _ from 'lodash';
 import debug from 'debug';
 import bigInt from 'big-integer';
-import {Api, TelegramClient} from "telegram";
-import {computeCheck} from "telegram/Password";
-import {StringSession} from "telegram/sessions";
+import {Api, TelegramClient, utils} from "telegram";
+import {computeCheck} from "telegram/Password.js";
+import {StringSession} from "telegram/sessions/index.js";
 import commonHelper from "geesome-libs/src/common.js";
 import IGeesomeSocNetAccount from "../socNetAccount/interface.js";
 import IGeesomeSocNetImport from "../socNetImport/interface.js";
@@ -30,15 +31,65 @@ export default async (app: IGeesomeApp) => {
 	return module;
 }
 
-function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
+export function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 	app.checkModules(['asyncOperation', 'group', 'content', 'socNetAccount', 'socNetImport']);
 
 	const socNet = 'telegram';
 	const socNetImport = app.ms['socNetImport'] as IGeesomeSocNetImport;
 	const socNetAccount = app.ms['socNetAccount'] as IGeesomeSocNetAccount;
 
+	let loginFlow;
 	class TelegramClientModule implements IGeesomeTelegramClient {
-		async login(userId, loginData) {
+		startStatisticsLogin(userId, clientId, input) { return loginFlow.start(userId, clientId, input); }
+		completeStatisticsLogin(userId, clientId, input) { return loginFlow.complete(userId, clientId, input); }
+		cancelStatisticsLogin(userId, clientId, challengeId) { return loginFlow.cancel(userId, clientId, challengeId); }
+		async getPostStatistics(userId, accountId, target, remoteId) {
+			if (!/^(?:-?[1-9][0-9]{0,19}|@[A-Za-z][A-Za-z0-9_]{4,31})$/.test(target?.chatId || '') || !/^[1-9][0-9]{0,9}$/.test(remoteId || '') || Number(remoteId) > 2147483647) {
+				throw new Error('social_statistics_target_invalid');
+			}
+			const client = await this.getClient(userId, {id: accountId});
+			try {
+				const me: any = await client.getMe();
+				if (String(me.id) !== client['account'].accountId || me.bot === true) {
+					throw new Error('social_statistics_account_changed');
+				}
+				let entity;
+				try {
+					entity = await client.getEntity(target.chatId);
+				} catch {
+					if (target.chatId.startsWith('@')) {
+						throw Object.assign(new Error('social_statistics_channel_unavailable'), {statisticsStatus: 'access_denied'});
+					}
+					const dialogs = await client.getDialogs({limit: 100});
+					entity = dialogs.map(dialog => dialog.entity).find(value => value && utils.getPeerId(value) === target.chatId);
+				}
+				if (!entity || (target.chatId.startsWith('@') ? String(entity['username'] || '').toLowerCase() !== target.chatId.slice(1).toLowerCase() : utils.getPeerId(entity) !== target.chatId)) {
+					throw Object.assign(new Error('social_statistics_channel_unavailable'), {statisticsStatus: 'access_denied'});
+				}
+				const messages = await client.getMessages(entity, {ids: [Number(remoteId)]});
+				const message: any = messages.find(value => value?.id === Number(remoteId));
+				if (!message || message.className === 'MessageEmpty') {
+					throw new Error('social_statistics_message_unavailable');
+				}
+				const count = value => Number.isSafeInteger(value) && value >= 0 ? value : null;
+				const reactions = message.reactions?.results;
+				return {likes: null, views: count(message.views), replies: count(message.replies?.replies), reposts: count(message.forwards),
+					reactions: Array.isArray(reactions) && reactions.every(row => count(row.count) !== null) ? reactions.reduce((sum, row) => sum + row.count, 0) : null};
+			} catch (error) {
+				const reason = String(error.errorMessage || error.message || '');
+				if (/AUTH_KEY_UNREGISTERED|SESSION_REVOKED|SESSION_EXPIRED|USER_DEACTIVATED|AUTH_KEY_DUPLICATED|account_changed/.test(reason)) {
+					error.statisticsStatus = 'connection_required';
+				} else if (/CHANNEL_PRIVATE|CHAT_ADMIN_REQUIRED|USER_BANNED_IN_CHANNEL|PEER_ID_INVALID/.test(reason)) {
+					error.statisticsStatus = 'access_denied';
+				} else if (/FLOOD_WAIT/.test(reason)) {
+					error.statisticsStatus = 'rate_limited';
+				}
+				throw error;
+			} finally {
+				await client.disconnect();
+			}
+		}
+		async login(userId, loginData, options: any = {}) {
 			let {id: accountId, phoneNumber, apiId, apiKey, password, dcId, qrToken, phoneCode, phoneCodeHash, isEncrypted, sessionKey, encryptedSessionKey, stage, forceSMS, byQrCode} = loginData;
 			apiId = parseInt(apiId);
 			stage = parseInt(stage);
@@ -50,9 +101,10 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 				acc = await socNetAccount.getAccount(userId, socNet, {phoneNumber});
 			}
 
-			sessionKey = isEncrypted ? sessionKey : (acc && acc.sessionKey || '');
+			sessionKey = options.transientSession !== undefined ? options.transientSession : isEncrypted ? sessionKey : (acc && acc.sessionKey || '');
 			const stringSession = new StringSession(sessionKey);
 			const client = new TelegramClient(stringSession, apiId, apiKey, {});
+			options.onClient?.(client);
 
 			if (isEncrypted) {
 				sessionKey = encryptedSessionKey;
@@ -68,25 +120,21 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 				if (!isEncrypted) {
 					sessionKey = client.session.save();
 				}
-				log('user', user);
+				log('authorized Telegram user');
 				const username = user ? user.username : null;
 				const fullName = user ? user['firstName'] + ' ' + user['lastName'] : null;
-				try {
-					acc = await socNetAccount.createOrUpdateAccount(userId, {
-						id: acc ? acc.id : null,
-						accountId: user.id.toString(),
-						phoneNumber,
-						apiId,
-						apiKey,
-						sessionKey,
-						username,
-						fullName,
-						isEncrypted,
-						socNet,
-					});
-				} catch (e) {
-					console.warn('handleAuthorized createOrUpdateAccount', e);
-				}
+				acc = await socNetAccount.createOrUpdateAccount(userId, {
+					id: acc ? acc.id : null,
+					accountId: user.id.toString(),
+					phoneNumber,
+					apiId,
+					apiKey,
+					sessionKey,
+					username,
+					fullName,
+					isEncrypted,
+					socNet,
+				});
 				return {client, result: {response, sessionKey: client.session.save(), account: acc}};
 			}
 
@@ -97,9 +145,8 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 					if (!error.message.includes('SESSION_PASSWORD_NEEDED')) {
 						throw error;
 					}
-					console.error('handlePasswordAuth', error);
 					if (!password) {
-						if (response.token) {
+						if (response?.token) {
 							response = {
 								...response,
 								token: response.token.toString("base64url"),
@@ -115,6 +162,10 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 			};
 
 			let response;
+			if (stage === 3 && password) {
+				const parameters = await client.invoke(new Api.account.GetPassword());
+				return handleAuthorized(await client.invoke(new Api.auth.CheckPassword({password: await computeCheck(parameters, password)})));
+			}
 			if (phoneCodeHash) {
 				return handlePasswordAuth(
 					response,
@@ -175,20 +226,15 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 				}
 			} else {
 				response = await client.sendCode({apiId, apiHash: apiKey}, phoneNumber, forceSMS);
-				try {
+				if (!options.transient) {
 					if (!isEncrypted) {
 						sessionKey = client.session.save();
 					}
 					const existAccount = await socNetAccount.getAccount(userId, socNet, {phoneNumber});
 					acc = await this.createOrUpdateAccount(userId, {
-						id: existAccount ? existAccount.id : null,
-						phoneNumber,
-						sessionKey,
-						isEncrypted,
-						socNet
+						id: existAccount ? existAccount.id : null, phoneNumber, apiId, apiKey,
+						sessionKey, isEncrypted, socNet
 					});
-				} catch (e) {
-					console.error('sendCode error', e);
 				}
 				return {client, result: {response, sessionKey: client.session.save(), account: acc}};
 			}
@@ -209,8 +255,13 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 			}
 			const client = new TelegramClient(new StringSession(sessionKey), parseInt(apiId, 10), apiHash, {});
 			client['account'] = acc;
-			await client.connect();
-			return client;
+			try {
+				await client.connect();
+				return client;
+			} catch (error) {
+				await client.disconnect();
+				throw error;
+			}
 		}
 
 		async getUserInfoByUserId(userId, accData, userName) {
@@ -507,5 +558,7 @@ function getModule(app: IGeesomeApp): IGeesomeTelegramClient {
 		}
 	}
 
-	return new TelegramClientModule();
+	const module = new TelegramClientModule();
+	loginFlow = createTelegramLoginFlow(module.login.bind(module));
+	return module;
 }
