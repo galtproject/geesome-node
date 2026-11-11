@@ -1508,3 +1508,7 @@ and an explicitly supplied management key; no production publication was tested.
 ## Social statistics (#1596)
 
 Added daily UTC post and destination/group snapshots, owner/client-bound ingestion, bounded summary/history and server refresh through `socNetAccount.getStatistics()`. No credentials enter the statistics module; no publication worker changes. See [module docs](../app/modules/socNetStatistics/docs/overview.md) for provider coverage and validation.
+
+## Destination activity and Discord audience (#1599)
+
+Added rolling confirmed publication counts on every destination, approximate shared Discord guild audience/presence through socNetAccount, canonical guild history and typed read outcomes. Confirmation replay cannot move publication time. See [statistics module docs](../app/modules/socNetStatistics/docs/overview.md) for migration and validation evidence.

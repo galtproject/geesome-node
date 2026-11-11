@@ -21,7 +21,7 @@ export default function registerApi(app, module) {
 	 * @apiQuery {Number{0-1000000}} [offset=0] Posted receipt offset.
 	 * @apiQuery {Number{0-1000000}} [destinationOffset=0] Destination offset, page size 50.
 	 * @apiSuccess {Object[]} posts Posted receipts with caption, source group, provider identity and latest statistics.
-	 * @apiSuccess {Object[]} groups Safe destination metadata with latest followers and previous-day net delta.
+	 * @apiSuccess {Object[]} groups Safe destination metadata with latest audience metrics, typed audience scope, and publicationCounts (last24Hours, last7Days, asOf). Counts are distinct confirmed remote IDs per destination, independent of receipt pagination.
 	 * @apiSuccess {Number} nextOffset Next receipt offset or null.
 	 * @apiSuccess {Number} nextDestinationOffset Next destination offset or null.
 	 * @apiSuccess {String} timezone UTC.
@@ -61,7 +61,7 @@ export default function registerApi(app, module) {
 	 * @apiBody {Number} [observations.jobId] Posted job ID for post kind.
 	 * @apiBody {Number} [observations.destinationId] Destination ID for group kind.
 	 * @apiBody {String} observations.observedAt ISO UTC timestamp, at most five minutes in future.
-	 * @apiBody {Object} observations.metrics Post: likes/views/replies/reposts/reactions/score; group: followers. Safe integer or null; only score may be negative. At least one field.
+	 * @apiBody {Object} observations.metrics Post: likes/views/replies/reposts/reactions/score; group: followers/members/online. Safe integer or null; only score may be negative. At least one field.
 	 * @apiSuccess {Number} accepted Validated observations, including harmless stale replays.
 	 */
 	app.ms.api.onAuthorizedPost('user/social-statistics/observations', async (req, res) => {
@@ -78,7 +78,7 @@ export default function registerApi(app, module) {
 	 * @apiDescription Owner-only publishing:local plus group management. Reads fixed provider endpoints with encrypted server accounts. Never publishes. Processes one owned server entity per request. Failed/unsupported providers preserve stored history and return safe per-entity status.
 	 * @apiBody {String="post","group"} kind Entity kind.
 	 * @apiBody {Number} id Owned server job or destination ID.
-	 * @apiSuccess {Object[]} results Entity kind/id and updated, unavailable or unsupported status.
+	 * @apiSuccess {Object[]} results Entity kind/id and updated, unavailable, unsupported, access_denied or rate_limited status.
 	 */
 	app.ms.api.onAuthorizedPost('user/social-statistics/refresh', async (req, res) => {
 		await authorize(req);

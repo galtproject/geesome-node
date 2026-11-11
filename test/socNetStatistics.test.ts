@@ -100,6 +100,45 @@ describe('daily social statistics', function () {
 		await assert.rejects(module.summary(1, {groupId: '1 OR 1=1'}));
 		await assert.rejects(module.summary(1, {network: 'arbitrary'}));
 	});
+	it('counts all confirmed receipts by destination, with rolling boundaries and distinct remote IDs', async () => {
+		const asOf = new Date('2026-11-11T23:00:00Z');
+		const add = (remoteId, ageHours, extra = {}) => publishing.PublicationJob.create({...job.toJSON(), id: undefined, requestKey: randomUUID(), remoteId, createdAt: new Date('2020-01-01'), confirmedAt: new Date(asOf.getTime() - ageHours * 3600000), ...extra});
+		await add('day', 1);
+		await add('day', 2); // One confirmed remote publication, even with duplicate receipts.
+		await add('boundary-day', 24);
+		await add('week', 25);
+		await add('boundary-week', 168);
+		await add('old', 169);
+		await add('future', -1);
+		await add('failed', 1, {status: 'failed'});
+		await add('foreign', 1, {userId: 2});
+		await add('other-destination', 1, {destinationId: destination.id + 50});
+		const summary = await module.summary(1, {limit: 1});
+		assert.equal(summary.posts.length, 1);
+		assert.deepEqual(summary.groups[0].publicationCounts, {last24Hours: 2, last7Days: 4, asOf: asOf.toISOString()});
+		assert.deepEqual((await module.summary(1, {offset: 5, limit: 1})).groups[0].publicationCounts, summary.groups[0].publicationCounts);
+	});
+	it('describes shared Discord guild scope and persists member observations without calling them followers', async () => {
+		await destination.update({network: 'discord', target: {guildId: '123', channelId: '456'}});
+		const safe = await publishing.PublicationDestination.create({...destination.toJSON(), id: undefined, localKey: 'safe', target: {guildId: '123', channelId: '789'}});
+		await module.record(1, 'key:1', {observations: [observed('group', destination.id, {members: 100, online: 10}), observed('group', destination.id, {members: 104, online: 12}, '2026-11-11T12:00:00Z')]});
+		const group = (await module.summary(1)).groups[0];
+		assert.deepEqual(group.audience, {kind: 'guildMembers', scopeId: '123', approximate: true, sharedDestinations: 2});
+		assert.equal(group.statistics.audienceDelta, 4);
+		assert.equal(group.statistics.followerDelta, null);
+		assert.equal((await module.summary(1)).groups[1].statistics.metrics.members, 104);
+		await module.record(1, 'key:1', {observations: [observed('group', safe.id, {members: 105, online: 13}, '2026-11-11T13:00:00Z')]});
+		assert.equal((await module.summary(1)).groups[0].statistics.metrics.members, 105);
+		assert.equal((await module.summary(1)).groups[1].statistics.audienceDelta, 5);
+		assert.equal((await module.history(1, {kind: 'group', id: safe.id})).snapshots.length, 2);
+	});
+	it('keeps a legacy local Discord destination without guild ID readable', async () => {
+		await destination.update({network: 'discord', target: {channelId: '456'}});
+		const group = (await module.summary(1)).groups[0];
+		assert.equal(group.audience.scopeId, null);
+		assert.equal(group.audience.sharedDestinations, 1);
+		assert.equal((await module.history(1, {kind: 'group', id: destination.id})).snapshots.length, 0);
+	});
 	it('account module decrypts only owned matching server identities and never returns credentials', async () => {
 		const Account = sequelize.define('statisticsAccountFixture', {userId: DataTypes.INTEGER, socNet: DataTypes.STRING, accountId: DataTypes.STRING, serverCredentialsEncrypted: DataTypes.TEXT});
 		await Account.sync({});
@@ -137,5 +176,19 @@ describe('server social statistics provider reads', () => {
 		assert.equal(await reader({...input, kind: 'post'}), null);
 		await assert.rejects(reader({...input, target: {chatId: '-123/evil'}}));
 		assert.equal(requests.length, 1);
+	});
+});
+
+
+describe('Discord guild audience adapter', () => {
+	it('reads approximate server membership/presence and returns permission errors safely', async () => {
+		const input = {network: 'discord', kind: 'group', account: {credentials: {botToken: 'private_token'}}, target: {guildId: '123', channelId: '456'}, remoteId: undefined};
+		const reader = createStatisticsReader(async (url, options) => {
+			assert.equal(url, 'https://discord.com/api/v10/guilds/123?with_counts=true');
+			assert.equal(new Headers(options.headers).get('authorization'), 'Bot private_token');
+			return new Response(JSON.stringify({id: '123', approximate_member_count: 100, approximate_presence_count: 5}));
+		});
+		assert.deepEqual(await reader(input), {members: 100, online: 5});
+		await assert.rejects(createStatisticsReader(async () => new Response('secret', {status: 403}))(input), (error: any) => error.statisticsStatus === 'access_denied' && !error.message.includes('secret'));
 	});
 });

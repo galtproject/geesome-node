@@ -316,8 +316,10 @@ describe('local publication queue', function () {
 		const result = {claimToken: job.claimToken, status: 'posted', remoteId: 'remote1', remoteUrl: 'https://www.threads.net/post/1'};
 		await assert.rejects(module.reportResult(2, job.id, result), {status: 404});
 		await assert.rejects(module.reportResult(1, job.id, {...result, claimToken: 'bad'}), {status: 409});
-		assert.equal((await module.reportResult(1, job.id, result)).status, 'posted');
-		assert.equal((await module.reportResult(1, job.id, result)).status, 'posted');
+		const confirmed = await module.reportResult(1, job.id, result);
+		assert.equal(confirmed.status, 'posted');
+		assert(Number.isFinite(new Date(confirmed.confirmedAt).getTime()));
+		assert.equal(new Date((await module.reportResult(1, job.id, result)).confirmedAt).getTime(), new Date(confirmed.confirmedAt).getTime());
 		await assert.rejects(module.reportResult(1, job.id, {...result, remoteId: 'different'}), {status: 409});
 	});
 	it('allows explicit manual resolution of needs_review but never reclaims it', async () => {

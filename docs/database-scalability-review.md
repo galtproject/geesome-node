@@ -549,3 +549,7 @@ reconciliation query is introduced.
 ## Social statistics (#1596)
 
 The new model-sync tables use unique owner/entity/UTC-day indexes for atomic monotonic upserts and reverse daily history lookups. Summary loads at most 50 receipts and 50 destinations per request, never the entire publication history; separate offsets paginate both collections. Source-group filtering uses the existing post/group indexes and owner-scoped job scans. Refresh handles one server entity per HTTP request, without bulk scans or background provider fan-out. No production table schema changes or migrations are required. Storage grows by observed entity-days; no automatic retention is imposed on user history.
+
+### Destination publication activity (#1599)
+
+Rolling per-destination counts use a posted-only `(userId,destinationId,confirmedAt)` index, a seven-day time bound and at most 50 destination IDs. Counts deduplicate remote publication receipts and do not depend on post pagination. Shared Discord audience history uses owner-scoped destination joins and one newest observation per day. Existing job confirmation timestamps are backfilled from terminal status times; index creation is concurrent and covered by migration-integrity checks.
