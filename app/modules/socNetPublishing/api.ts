@@ -67,6 +67,59 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
 	}
 	/**
+	 * @api {get} /v1/user/social-publications/destination-groups List publication destination groups
+	 * @apiName PublicationDestinationGroups
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Owner-scoped non-credential metadata. Requires publishing:local and group management. Members are ordered destination IDs, including repeated networks; no nested groups or credentials. Disabled members remain visible and must never be silently skipped by producers. Legacy namespace aliases share the handler.
+	 * @apiQuery {Number{1-100}} [limit=20] Page size.
+	 * @apiQuery {Number{0-1000000}} [offset=0] Offset.
+	 * @apiSuccess {Object[]} groups Safe id/label/destinationIds/revision/enabled rows.
+	 */
+	api.onAuthorizedGet('user/social-publications/destination-groups', async (req, res) => {
+		await authorize(req);
+		res.send(await module.listDestinationGroups(req.user.id, req.query));
+	});
+	/**
+	 * @api {post} /v1/user/social-publications/destination-groups Create a publication destination group
+	 * @apiName PublicationDestinationGroupCreate
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Requires publishing:local and group management. Every member must belong to the authenticated owner. This only stores selection metadata, never credentials or jobs. A repeated creation key returns the same group without resetting later edits; conflicting creation data returns 409.
+	 * @apiBody {String} requestKey Owner idempotency key, 1–128 identifier characters.
+	 * @apiBody {String} label Display label, 1–200 characters.
+	 * @apiBody {Number[]} destinationIds Ordered 1–20 distinct owned destination IDs. Repeated networks are permitted.
+	 * @apiBody {Boolean} enabled Whether new intents may select the group.
+	 * @apiSuccess {Object} group Safe group, revision 1 on creation.
+	 */
+	api.onAuthorizedPost('user/social-publications/destination-groups', async (req, res) => {
+		await authorize(req);
+		res.send(await module.createDestinationGroup(req.user.id, req.body));
+	});
+	/**
+	 * @api {post} /v1/user/social-publications/destination-groups/:groupId Update a publication destination group
+	 * @apiName PublicationDestinationGroupUpdate
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Requires publishing:local and group management. Compare revision before replacement; a stale edit returns 409. An exact lost-response replay of the last update succeeds. Set enabled=false to retire a group without deleting history. Accepted/frozen delivery intents retain their original destination snapshots after edits.
+	 * @apiParam {Number} groupId Owned publication destination group ID, distinct from a private source channel ID.
+	 * @apiBody {Number} revision Current revision from the catalog.
+	 * @apiBody {String} label Display label, 1–200 characters.
+	 * @apiBody {Number[]} destinationIds Ordered 1–20 distinct owned destination IDs.
+	 * @apiBody {Boolean} enabled Explicit selection state.
+	 * @apiSuccess {Object} group Safe updated group and revision.
+	 */
+	api.onAuthorizedPost('user/social-publications/destination-groups/:groupId', async (req, res) => {
+		await authorize(req);
+		res.send(await module.updateDestinationGroup(req.user.id, req.params.groupId, req.body));
+	});
+	/**
 	 * @api {get} /v1/user/social-publications/destinations List publication destinations
 	 * @apiName LocalPublicationDestinations
 	 * @apiGroup LocalPublications
@@ -223,6 +276,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiQuery {Number{0-1000000}} [offset=0] Page offset.
 	 * @apiSuccess {Number} ownerId Authenticated GeeSome owner ID for connection verification.
 	 * @apiSuccess {Object} capabilities Supported additive publishing features.
+	 * @apiSuccess {Boolean} capabilities.publicationDestinationGroups Owner-scoped named destination groups with revision-checked metadata updates.
 	 * @apiSuccess {Boolean} capabilities.contentTypePublishing Requires contentType and uses digest v6.
 	 * @apiSuccess {Boolean} capabilities.patreonPublishing Supports explicit Patreon member audience and multi-image preview jobs.
 	 * @apiSuccess {Boolean} capabilities.networkQueues Supports network-filtered publication queue pages.
