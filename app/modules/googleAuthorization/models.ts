@@ -17,7 +17,18 @@ export default async function (sequelize) {
     expiresAt: { type: DataTypes.DATE, allowNull: false }
   }, { indexes: [{ fields: ['expiresAt'] }] });
   (Identity as any).lockSubject = (subject, transaction) => sequelize.query('SELECT pg_advisory_xact_lock(hashtextextended(:identity, 0))', { replacements: { identity: `google:${subject}` }, transaction });
+  const SiteAccount = sequelize.define('loginSiteAccount', {
+    siteId: { type: DataTypes.STRING(30), primaryKey: true },
+    identityId: { type: DataTypes.UUID, primaryKey: true }
+  });
+  await SiteAccount.sync({});
   await Identity.sync({});
   await Challenge.sync({});
-  return { Identity, Challenge, Session: await defineBrowserSessions(sequelize) };
+  const Session = await defineBrowserSessions(sequelize);
+  // Preserve known site relationships before session rotation, logout or expiry.
+  const quote = value => sequelize.getQueryInterface().queryGenerator.quoteTable(value.getTableName());
+  await sequelize.query(`INSERT INTO ${quote(SiteAccount)} ("siteId", "identityId", "createdAt", "updatedAt")
+    SELECT "siteId", "identityId", MIN("createdAt"), MAX("updatedAt") FROM ${quote(Session)}
+    GROUP BY "siteId", "identityId" ON CONFLICT DO NOTHING`);
+  return { Identity, Challenge, Session, SiteAccount };
 }

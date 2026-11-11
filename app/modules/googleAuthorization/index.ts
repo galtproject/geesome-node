@@ -92,6 +92,7 @@ export function createGoogleAuthorization(app, models, dependencies: any = {}) {
 				if (!await app.ms.database.models.User.findByPk(identity.userId, { transaction })) {
 					siteProblem(403, 'reader_account_unavailable');
 				}
+				await models.SiteAccount.findOrCreate({ where: { siteId: site.id, identityId: identity.id }, transaction });
 				const previous = readBrowserCookie(req, '__Host-geesome_session');
 				if (previous) {
 					await models.Session.destroy({ where: { siteId: site.id, tokenHash: tokenHash(previous) }, transaction });
