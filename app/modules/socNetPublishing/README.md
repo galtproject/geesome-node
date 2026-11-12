@@ -100,8 +100,8 @@ is not the publishing client.
 
 Register a confidential OAuth application and obtain user authorization with
 `basic user stash publish` scopes. New DeviantArt applications require Authorization
-Code with PKCE. Initial OAuth consent/token exchange happens outside this setup
-endpoint; the setup form accepts the resulting credentials:
+Code with PKCE. Prefer the managed OAuth flow below; the original advanced setup
+endpoint still accepts externally obtained credentials:
 
 ```json
 {
@@ -185,3 +185,64 @@ Provider behavior and encrypted PostgreSQL lifecycle are covered in
 [identity](https://deviantart.readme.io/reference/user_whoami),
 [upload](https://deviantart.readme.io/reference/stash_submit),
 [publish](https://deviantart.readme.io/reference/stash_publish).
+
+
+## Managed DeviantArt account connection
+
+The client discovers `capabilities.deviantartOAuth` and offers Connect DeviantArt.
+Enter a confidential application's Client ID and Client Secret under advanced
+settings, select the destination label/private source/content policy, then approve
+access in the provider window. No access/refresh token is copied through the
+browser. The existing encrypted server-account mechanism owns the resulting grant;
+local social sessions are not moved.
+
+Configure the exact public HTTPS callback in the application's redirect whitelist:
+
+```text
+https://example.com/v1/user/social-publications/deviantart/oauth/callback
+```
+
+The server derives this URI from `apiConfig.publicUrl`, or an operator can set
+`DEVIANTART_OAUTH_REDIRECT_URI` when a separately hosted site proxies the callback.
+The override accepts HTTPS only, the exact canonical callback path, and no
+credentials, port, query or fragment. It is forwarded by Docker Compose. The
+client cannot supply a callback URL. Configure the site's reverse proxy to pass
+this exact GET path to the node's `/v1/user/social-publications/deviantart/oauth/callback`
+route and disable proxy access logs on it to keep authorization code/state out
+of URL logs. Node also suppresses its optional request access log for this path.
+Do not rewrite or append query parameters.
+
+The owner-authorized `POST /user/social-publications/deviantart/oauth/start` takes
+`requestKey`, `label`, optional `sourceGroupId`, explicit `contentPolicy`, optional
+`enabled` (false by default), `clientId` and `clientSecret`. It returns
+`flowId`, `authorizationUrl`, `expiresAt` and the exact `redirectUri`. Open the
+provider URL in a separate window and poll authenticated
+`GET /user/social-publications/deviantart/oauth/:flowId` for safe status and, when
+connected, the destination view. Both require UserGroupManagement plus explicit
+`publishing:manage` or an owner password session. The callback itself is public,
+protected by a random one-use state and S256 PKCE rather than a browser session.
+There is no return-to URL or arbitrary redirect.
+
+The new model-sync `publicationOAuthFlow` table stores hashed random state,
+owner binding, ten-minute expiry and app-pass-encrypted application credentials /
+PKCE verifier. No existing-table migration is required. Pending flows survive
+worker restarts; callbacks claim atomically across processes and exchange the
+code once. Expired pending/processing flows are scrubbed on subsequent OAuth
+operations, old records are pruned, and each owner is limited to ten live flows.
+Connected/failed records clear the encrypted flow secret immediately; account
+credentials remain in the existing encrypted account record. Provider denial,
+malformed replies, token-exchange timeout and setup rejection return generic
+failure without reflecting query values or provider messages. Callback HTML has
+no-store, no-referrer and a restrictive CSP. It never publishes artwork.
+
+A crash after callback claim can leave `processing` until expiry. Reauthorize with
+a fresh flow after expiration; never repeat the one-use authorization code. A
+lost code-exchange response or failure to persist the new grant also requires
+fresh consent. The client may stop polling when its page closes; the accepted
+server callback remains bound to the original owner/setup, and the safe destination
+catalog is the source of truth after completion. No automated live consent or
+publication is part of deployment verification.
+
+`test/deviantartOAuth.test.ts` verifies real PostgreSQL owner isolation, encrypted
+PKCE state, concurrent callbacks, restart-before-callback, denial, expiry,
+malformed/unknown outcomes, bounds and API/header/access-log protections.

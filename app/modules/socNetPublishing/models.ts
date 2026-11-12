@@ -96,5 +96,16 @@ export default async function createModels(sequelize: Sequelize) {
 		result: {type: DataTypes.JSONB, allowNull: false}
 	}, {indexes: [{name: 'publication_queue_shuffle_owner_key_unique', unique: true, fields: ['userId', 'requestKey']}]});
 	await PublicationQueueShuffle.sync({});
-	return {PublicationJob, PublicationDestination, PublicationDestinationGroup, PublicationQueueShuffle};
+	const PublicationOAuthFlow = sequelize.define('publicationOAuthFlow', {
+		id: {type: DataTypes.STRING(64), primaryKey: true},
+		stateHash: {type: DataTypes.STRING(64), allowNull: false, unique: true},
+		userId: {type: DataTypes.INTEGER, allowNull: false},
+		status: {type: DataTypes.STRING(20), allowNull: false},
+		expiresAt: {type: DataTypes.DATE, allowNull: false},
+		secretEncrypted: {type: DataTypes.TEXT},
+		destinationId: {type: DataTypes.INTEGER},
+		error: {type: DataTypes.STRING(100)}
+	}, {indexes: [{name: 'publication_oauth_owner_expiry_idx', fields: ['userId', 'expiresAt']}]});
+	await PublicationOAuthFlow.sync({});
+	return {PublicationJob, PublicationDestination, PublicationDestinationGroup, PublicationQueueShuffle, PublicationOAuthFlow};
 }

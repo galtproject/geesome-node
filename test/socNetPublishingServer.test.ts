@@ -137,7 +137,7 @@ describe('server social publishing foundation', function () {
 	});
 	it('requires explicit management scope on canonical and legacy setup endpoints', async () => {
 		assert(!getApiKeyScopes({permissions: JSON.stringify([CorePermissionName.UserGroupManagement])} as any).includes('publishing:manage'));
-		const routes = new Map();registerApi({ms: {api: {onAuthorizedPost: (path, handler) => routes.set(path, handler), onAuthorizedGet() {}}}, checkUserCan: async () => {}} as any, module);
+		const routes = new Map();registerApi({ms: {api: {onGet() {}, onAuthorizedPost: (path, handler) => routes.set(path, handler), onAuthorizedGet() {}}}, checkUserCan: async () => {}} as any, module);
 		for (const prefix of ['social-publications','local-publications']) {
 			const handler = routes.get(`user/${prefix}/server-destinations`);assert(handler);
 			await assert.rejects(handler({user: {id: 1}, apiKey: {scopes: ['publishing:local']}, body: setup()}, {send() {}}), {code: 'insufficient_scope'});
@@ -160,7 +160,7 @@ describe('server social publishing foundation', function () {
 	});
 	it('settings route requires explicit management authorization in both namespaces', async () => {
 		const routes = new Map();let calls = 0;
-		registerApi({ms: {api: {onAuthorizedGet() {}, onAuthorizedPost: (path, handler) => routes.set(path, handler)}}, checkUserCan: async () => {}} as any,
+		registerApi({ms: {api: {onGet() {}, onAuthorizedGet() {}, onAuthorizedPost: (path, handler) => routes.set(path, handler)}}, checkUserCan: async () => {}} as any,
 			{updateServerDestinationSettings: async (userId, id) => {assert.equal(userId, 7);assert.equal(id, '9');calls++;return {};}} as any);
 		for (const prefix of ['social-publications', 'local-publications']) {
 			const handler = routes.get('user/' + prefix + '/server-destinations/:destinationId/settings');

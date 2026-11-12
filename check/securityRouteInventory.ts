@@ -130,7 +130,11 @@ function notesFor(route: RouteRow, block: string): string[] {
   if (routeLower.includes('/static-site-generator/recover/')) {
     notes.add('owner + user:save_data + content:write; exact node-restart operation CAS; frozen source/replacement or proven saved result; three persisted recovery attempts; original input/receipts retained');
   }
-  if (route.moduleName === 'socNetPublishing' && (routeLower.includes('/server-destinations') || routeLower.endsWith('/server-result'))) {
+  if (route.moduleName === 'socNetPublishing' && routeLower.endsWith('/deviantart/oauth/callback')) {
+    notes.add('public provider callback; random single-use hashed state and PKCE bind encrypted durable owner flow; ten-minute expiry; atomic claim; fixed configured HTTPS redirect; no browser login/API key required; no-store/no-referrer fixed HTML; no URL access logging; never publishes');
+  } else if (route.moduleName === 'socNetPublishing' && routeLower.includes('/deviantart/oauth/')) {
+    notes.add('owner + UserGroupManagement; explicit publishing:manage scope or owner password session; encrypted app credentials/PKCE verifier; owner-only flow status; no token projection; bounded pending flows; fixed configured callback; no publication');
+  } else if (route.moduleName === 'socNetPublishing' && (routeLower.includes('/server-destinations') || routeLower.endsWith('/server-result'))) {
     notes.add('owner + UserGroupManagement; explicit publishing:manage scope or owner password session; write-only app-pass encrypted credentials; provider identity checked before setup; manual result also requires original claim token and never sends');
   } else if (route.moduleName === 'socNetPublishing' && routeLower.endsWith('/queue-shuffle')) {
     notes.add('publishing:local and UserGroupManagement; owned private source plus 1–20 enabled owned source-compatible destinations; bounded 10000 future queued jobs; row locks, atomic time-slot permutation per destination; durable owner/key replay prevents repeated shuffle; no due/processing/foreign mutation');
@@ -238,7 +242,7 @@ function parseFile(filePath: string): RouteRow[] {
     cleanRoute.notes = notesFor(cleanRoute, block);
     return cleanRoute;
   });
-  const aliasesRows = moduleName === 'socNetPublishing' ? canonical.map(route => ({...route, route: route.route.replace('/user/social-publications', '/user/local-publications'), notes: [...route.notes, 'legacy URL alias; same handler and authorization']})) : [];
+  const aliasesRows = moduleName === 'socNetPublishing' ? canonical.filter(route => !route.route.endsWith('/deviantart/oauth/callback')).map(route => ({...route, route: route.route.replace('/user/social-publications', '/user/local-publications'), notes: [...route.notes, 'legacy URL alias; same handler and authorization']})) : [];
   return canonical.concat(aliasesRows).sort((a, b) => `${a.moduleName}:${a.route}:${a.method}`.localeCompare(`${b.moduleName}:${b.route}:${b.method}`));
 }
 
