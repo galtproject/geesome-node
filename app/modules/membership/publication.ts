@@ -1,3 +1,5 @@
+import {normalizeSubgroupAlias} from '../group/subgroupConfig.js';
+import {readVerifiedPublicationInventory} from '../staticSiteGenerator/membershipPublicationInventory.js';
 import {fn, col} from 'sequelize';
 import {createGuestSelectionCache} from './guestSelectionCache.js';
 import {siteProblem} from '../api/browserSession.js';
@@ -50,6 +52,24 @@ export function createPublicationDelivery(app, M, membership, dependencies: any 
 		},
 		async getStorageResponseHeaders(storageId) {
 			return await this.isStorageIdAllowed(storageId) ? {'X-Robots-Tag': 'noindex, nofollow', 'Cache-Control': 'public, max-age=31536000, immutable'} : {};
+		},
+		async currentSubgroupSnapshot(siteId, alias, suffixPath = '') {
+			try {
+				normalizeSubgroupAlias(alias);
+			} catch {
+				siteProblem(404, 'subgroup_not_found');
+			}
+			const row = await membership.resource(siteId);
+			await membership.owner(row.ownerId, row.id, row);
+			if (!row.postsEnabled || typeof suffixPath !== 'string' || !/^(?:page\/[1-9][0-9]*\/|posts\/[1-9][0-9]*\/)?$/.test(suffixPath)) {
+				siteProblem(404, 'subgroup_not_found');
+			}
+			const manifest = await publicationView(siteId);
+			const path = suffixPath + 'index.html';
+			if (!readVerifiedPublicationInventory(manifest, siteId, 'public') || !Object.hasOwn(manifest.subgroups || {}, alias) || !manifest.subgroups[alias].paths.includes(path)) {
+				siteProblem(404, 'subgroup_not_found');
+			}
+			return `https://${row.domain}/ipfs/${manifest.public}/${alias}/${suffixPath}`;
 		},
 		async currentSnapshot(siteId, readerId, postId?, page = 1, account = false) {
 			const row = await membership.resource(siteId);

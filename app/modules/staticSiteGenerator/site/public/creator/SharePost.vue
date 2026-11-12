@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {ref, onBeforeUnmount} from 'vue';
 import {publicPostShareUrl, copyPostLink} from './share.ts';
-const props = defineProps<{id: string | number; domain?: string; postUrl: string}>();
+const props = defineProps<{id: string | number; domain?: string; postUrl: string; sectionAlias?: string}>();
 const emit = defineEmits<{notify: [value: {message: string; failed: boolean}]}>();
 const busy = ref(false);
 let active = true;
@@ -12,7 +12,7 @@ async function share() {
     }
     busy.value = true;
     try {
-        const url = publicPostShareUrl(props.id, props.domain, props.postUrl, location.href);
+        const url = publicPostShareUrl(props.id, props.domain, props.postUrl, location.href, props.sectionAlias);
         const copied = await copyPostLink(url, navigator);
         if (active) {
             emit('notify', {message: copied ? 'Copied to clipboard' : 'Could not copy the link. Please try again.', failed: !copied});

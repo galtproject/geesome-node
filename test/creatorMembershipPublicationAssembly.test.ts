@@ -56,6 +56,51 @@ suite('incremental snapshot assembly on real Kubo', function () {
 		assert.deepEqual([...next.artifacts].sort(), [...fresh.artifacts].sort());
 		return next;
 	}
+	it('mounts one public subgroup in both roots and removes it on the next valid revision', async () => {
+		await fixture(1);
+		row.ownerId = 11;
+		const image = normalizePublicationCid((await storage.saveFileByData('feed-public-image')).id);
+		const childPosts = Array.from({length: 21}, (_, index) => ({id: index + 100, groupId: 2, publishedAt: new Date(index), status: 'published', contents: [
+			{type: 'text', text: `Feed item ${index}`, mimeType: 'text/html'},
+			{storageId: image, mimeType: 'image/png', postsContents: {isPrivate: false}}
+		]}));
+		let available = true, childScans = 0;
+		app.ms.group.getRenderableSubgroups = async () => available ? [{parentGroupId: 1, subgroupId: 2, alias: 'feed', config: {tabLabel: 'Latest'}, group: {id: 2, title: 'Feed', creatorId: 11, type: 'channel', isPublic: true}}] : [];
+		app.ms.group.getPostContentDataWithUrl = async post => post.contents;
+		app.ms.group.forEachHydratedGroupPostBatch = async (id, _options, fn) => {
+			if (Number(id) === 2) {
+				childScans++;
+				await fn({groupPosts: childPosts, refCount: childPosts.length});
+			} else {
+				await fn({groupPosts: source, refCount: source.length});
+			}
+		};
+		const first = await build();
+		assert.equal(childScans, 1, 'child built once for both parent variants');
+		assert.equal(first.manifest.subgroups.feed.paths.length, 23);
+		assert.equal(new Set(first.manifest.subgroups.feed.paths).size, 23);
+		assert(first.artifacts.has(image));
+		assert.equal(await storage.getFileDataText(`${first.manifest.subgroups.feed.root}/media/${hashPublicationInput(image)}.png`), 'feed-public-image');
+		for (const variant of ['public', 'full']) {
+			assert.equal(normalizePublicationCid((await storage.node.files.stat(`/ipfs/${first.manifest[variant]}/feed`)).cid), first.manifest.subgroups.feed.root);
+			assert((await storage.getFileDataText(`${first.manifest[variant]}/feed/page/2/index.html`)).includes('Feed item 20'));
+			assert((await storage.getFileDataText(`${first.manifest[variant]}/index.html`)).includes('>Latest</a>'));
+		}
+		const replay = await build(first.manifest);
+		assert.equal(replay.manifest.public, first.manifest.public, 'retry reproduces identical root without duplicate posts');
+		assert.equal(replay.manifest.full, first.manifest.full);
+		available = false;
+		const removed = await build(replay.manifest);
+		assert.equal(removed.manifest.subgroups, undefined);
+		for (const variant of ['public', 'full']) {
+			await assert.rejects(() => storage.node.files.stat(`/ipfs/${removed.manifest[variant]}/feed`));
+			assert(!(await storage.getFileDataText(`${removed.manifest[variant]}/index.html`)).includes('>Latest</a>'));
+			assert((await storage.getFileDataText(`${removed.manifest[variant]}/posts/1/index.html`)).includes('Post 1'));
+			assert.deepEqual(removed.manifest.media[variant], first.manifest.media[variant]);
+			assert.equal(await storage.getFileDataText(`${removed.manifest[variant]}/media/${removed.manifest.media[variant][0]}`), 'preview-1');
+		}
+		assert((await storage.getFileDataText(`${first.manifest.public}/feed/index.html`)).includes('Feed item 0'), 'historical immutable root remains readable');
+	});
 	it('clones without nesting; no-op and text edits avoid all unchanged-path RPCs', async () => {
 		await fixture(46);
 		const first = await build();

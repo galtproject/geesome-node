@@ -12,6 +12,17 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Public subgroup feeds and template tabs (#1613)
+
+Owned channels can link public child channels through a model-sync
+`GroupSubgroup` table with separate alias, bounded JSON display settings and
+revision checks. Creator publications render one public child level beneath its
+alias, mount the same immutable subtree in both snapshots, and expose optional
+template tabs above posts. Existing transactional source invalidation refreshes
+parents after child or relation changes; no additional worker is introduced.
+Private children are omitted and subgroup selectors always use the verified
+public parent root. See [API, templates and rollout](../app/modules/group/SUBGROUPS.md).
+
 ## Publication queue shuffle (#1603)
 
 Owner-authorized, idempotent per-destination permutation of future queued

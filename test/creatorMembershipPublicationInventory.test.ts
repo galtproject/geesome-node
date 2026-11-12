@@ -28,6 +28,20 @@ describe('membership complete inventory boundary', () => {
 			assert.equal(readVerifiedPublicationInventory(broken, 'wave', 'public'), null);
 		}
 	});
+	it('requires an explicitly declared validated subtree and complete path inventory', () => {
+		const subgroups = {feed: {subgroupId: 7, root: cid, paths: ['index.html', 'posts/12/index.html', 'page/2/index.html']}};
+		const entries = [{path: 'index.html', cid, kind: 'file' as const}, {path: 'feed', cid, kind: 'opaque-subtree' as const}];
+		const inventory = canonicalMembershipPublicationInventory(entries, subgroups);
+		const manifest: any = {version: 2, public: cid, subgroups, files: {public: {'index.html': {cid}}}, media: {public: []}, assembly: {public: assemblyCapability('wave', 'public', cid, inventory)}};
+		assert.deepEqual(readVerifiedPublicationInventory(manifest, 'wave', 'public'), inventory);
+		assert.throws(() => canonicalMembershipPublicationInventory(entries), /invalid_publication_inventory/);
+		assert.throws(() => canonicalMembershipPublicationInventory(entries.slice(0, 1), subgroups), /invalid_publication_inventory/);
+		for (const mutate of [m => {m.subgroups = {'../feed': subgroups.feed};}, m => {m.subgroups.feed.paths.push('../secret');}, m => {m.subgroups.feed.root = 'invalid';}, m => {delete m.subgroups.feed;}]) {
+			const broken = structuredClone(manifest);
+			mutate(broken);
+			assert.equal(readVerifiedPublicationInventory(broken, 'wave', 'public'), null);
+		}
+	});
 	it('propagates partial clone failure without mutating or retrying the destination', async () => {
 		const calls = [];
 		const storage: any = {copyFileFromId: async (...args) => {calls.push(args); throw new Error('partial_clone');}, makeDir: () => assert.fail('no fallback after clone')};

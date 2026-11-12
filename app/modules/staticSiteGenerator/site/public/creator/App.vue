@@ -34,6 +34,8 @@ const polished = computed(() => Boolean(props.initialState.snapshot.canonicalPat
 const presentation = computed(() => normalizeSitePresentation(resource.value.presentation));
 const presentedResource = computed(() => ({...resource.value,presentation:presentation.value}));
 const navigation = computed(() => props.initialState.snapshot.navigation);
+const section = computed(() => props.initialState.section);
+const tabs = computed(() => (props.initialState.tabs || []).map(tab => ({...tab, href: props.initialState.snapshot.homePath + tab.href.replace(/^\/+/, '')})));
 const single = computed(() => props.initialState.path.startsWith('/posts/'));
 const selected = computed(() => options.value.find(option => option.id === selectedOption.value) || options.value[0] || {});
 const joinLabel = computed(() => {
@@ -73,12 +75,17 @@ function join() {
             </template>
             <template #membership><MembershipChoice v-if="enabled" :resource="presentedResource" :active="active" :expired="expired" :active-until="activeUntil" :busy="busy" @join="join" /></template>
             <template #social-links><SocialLinks :polished="polished" :resource="presentedResource" /></template>
+            <template #tabs>
+                <nav v-if="tabs.length" class="creator-tabs" aria-label="Site sections" data-testid="site-sections">
+                    <a v-for="tab in tabs" :key="tab.alias" :href="tab.href" :aria-current="tab.alias === (section?.alias || '') ? 'page' : undefined" :data-testid="`section-tab-${tab.alias || 'home'}`">{{ tab.label }}</a>
+                </nav>
+            </template>
             <template #posts>
                 <AccountPanel v-if="accountPath" :checked="checked" :account="account" :active="active" :active-until="activeUntil" :enabled="enabled" @login="loginModal()" @checkout="checkout" @refund="requestRefund" @resume="resumePayment" @logout="logout" />
                 <template v-else>
-                    <a v-if="single" :href="publicPath('/')" class="back-link">← All posts</a>
-                    <h2 v-else class="feed-heading">{{ navigation?.newer ? presentation.copy.archiveHeading : presentation.copy.feedHeading }}</h2>
-                    <PostCard :subscribe-label="presentation.copy.subscribe" :polished="polished" :domain="resource.domain" v-for="post in posts" :key="post.id" :post="post" :single="single" :post-url="publicPath(`/posts/${encodeURIComponent(post.id)}`)" :checked="checked" :active="active" :expired="expired" @gallery="showGallery" @share="sharePost" @checkout="checkout" @notify="notify" />
+                    <a v-if="single" :href="section?.homePath || publicPath('/')" class="back-link">← All posts</a>
+                    <h2 v-else class="feed-heading">{{ section?.label || (navigation?.newer ? presentation.copy.archiveHeading : presentation.copy.feedHeading) }}</h2>
+                    <PostCard :subscribe-label="presentation.copy.subscribe" :polished="polished" :domain="resource.domain" :section-alias="section?.alias" v-for="post in posts" :key="post.id" :post="post" :single="single" :post-url="publicPath(`/posts/${encodeURIComponent(post.id)}`)" :checked="Boolean(section) || checked" :active="Boolean(section) || active" :expired="expired" @gallery="showGallery" @share="sharePost" @checkout="checkout" @notify="notify" />
                     <section v-if="!posts.length" class="account-panel"><h2>New work is on the way</h2><p>Find the latest updates through the links above.</p></section>
                 </template>
             </template>
@@ -89,7 +96,7 @@ function join() {
                         <a v-if="navigation.newer" :href="navigation.newer" data-testid="newer-posts">← Newer posts</a>
                         <a v-if="navigation.older" :href="navigation.older" class="older-posts" data-testid="older-posts">Older posts →</a>
                     </nav>
-                    <button v-else-if="!single && nextOffset !== null" type="button" class="load-more" :disabled="busy" data-testid="load-more" @click="more">{{ busy ? 'Loading…' : 'Load more' }}</button>
+                    <button v-else-if="!section && !single && nextOffset !== null" type="button" class="load-more" :disabled="busy" data-testid="load-more" @click="more">{{ busy ? 'Loading…' : 'Load more' }}</button>
                 </template>
             </template>
             <template #footer>
