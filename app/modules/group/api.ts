@@ -10,6 +10,59 @@ export default (app: IGeesomeApp, groupModule: IGeesomeGroupModule) => {
         return callback();
     }
 
+    /**
+     * @api {get} /v1/user/group/:parentGroupId/subgroups List subgroup links
+     * @apiName GroupSubgroupsList
+     * @apiGroup UserGroup
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiParam {Number} parentGroupId Owned local parent channel id.
+     * @apiDescription Owner-only route metadata. A private parent is allowed; these responses are never anonymous public group discovery.
+     * @apiSuccess {Object[]} subgroups Links containing parentGroupId, subgroupId, alias, config and revision.
+     */
+    app.ms.api.onAuthorizedGet('user/group/:parentGroupId/subgroups', async (req, res) => {
+        res.send(await groupModule.listSubgroups(req.user.id, req.params.parentGroupId), 200);
+    }, {storageReadOnly: true});
+
+    /**
+     * @api {post} /v1/user/group/:parentGroupId/subgroups Save subgroup link
+     * @apiName GroupSubgroupsSave
+     * @apiGroup UserGroup
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiUse ValidationErrors
+     * @apiParam {Number} parentGroupId Owned local parent channel id.
+     * @apiBody {Number} subgroupId Distinct owned public local unencrypted channel id.
+     * @apiBody {String} alias Non-reserved lowercase route segment, at most 64 characters.
+     * @apiBody {Object} [config] Display settings; only tabLabel and order are accepted.
+     * @apiBody {String} [config.tabLabel] Tab label of 1–80 characters.
+     * @apiBody {Number} [config.order] Integer display order from 0 to 1000.
+     * @apiBody {Number} [revision] Current link revision; required when changing an existing link.
+     * @apiDescription Links have no permission inheritance and render only one level. Replaying identical create/update data returns the current link without duplicating it. Alias or stale revision conflicts return 409.
+     * @apiSuccess {Object} subgroup Link containing parentGroupId, subgroupId, alias, config and revision.
+     * @apiError subgroup_alias_conflict The alias already belongs to another subgroup.
+     * @apiError subgroup_changed Refresh the link revision before editing.
+     */
+    app.ms.api.onAuthorizedPost('user/group/:parentGroupId/subgroups', async (req, res) => {
+        res.send(await groupModule.saveSubgroup(req.user.id, req.params.parentGroupId, req.body), 200);
+    });
+
+    /**
+     * @api {post} /v1/user/group/:parentGroupId/subgroups/:subgroupId/remove Remove subgroup link
+     * @apiName GroupSubgroupsRemove
+     * @apiGroup UserGroup
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiParam {Number} parentGroupId Owned local parent channel id.
+     * @apiParam {Number} subgroupId Linked subgroup id.
+     * @apiBody {Number} revision Current link revision.
+     * @apiDescription Removes only the relation, never the groups or accepted posts. A missing relation returns removed true for lost-response replay. Stale revisions return 409.
+     * @apiSuccess {Boolean} removed True when the relation is absent.
+     */
+    app.ms.api.onAuthorizedPost('user/group/:parentGroupId/subgroups/:subgroupId/remove', async (req, res) => {
+        res.send(await groupModule.removeSubgroup(req.user.id, req.params.parentGroupId, {...req.body, subgroupId: req.params.subgroupId}), 200);
+    });
+
 
     /**
      * @api {post} /v1/group/get Get group by params

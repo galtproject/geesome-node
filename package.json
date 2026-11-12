@@ -62,6 +62,7 @@
     "test:ssg-offline": "node --import tsx check/staticSiteOfflineBrowser.ts",
     "test:ssg-creator-types": "vue-tsc --noEmit -p app/modules/staticSiteGenerator/site/tsconfig.json",
     "test:ssg-membership-browser": "bash bash/test-membership-site-browser",
+    "test:ssg-subgroup-browser": "bash bash/test-subgroup-feed-browser",
     "test:ssg-membership-pagination-browser": "bash bash/test-membership-site-browser --pagination",
     "test:ssg-gallery-loading": "node --test check/galleryImageLoader.test.mjs && node --import tsx check/staticSiteGalleryLoading.mjs",
     "test:docker": "bash bash/docker-test",

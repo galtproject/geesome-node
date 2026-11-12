@@ -6,7 +6,7 @@ defineProps<{presentation:SitePresentation; resource:CreatorResource; polished:b
 </script>
 <template>
     <HtmlShell v-if="presentation.template.id === 'html-shell'" :html="presentation.template.html" :site="resource">
-        <template v-for="name in ['brand','account','cover','profile','membership','social-links','pagination','footer']" :key="name" #[name]><slot :name="name" /></template>
+        <template v-for="name in ['brand','account','cover','profile','membership','social-links','tabs','pagination','footer']" :key="name" #[name]><slot :name="name" /></template>
         <template #posts><div v-if="enabled || accountPath" class="member-feed"><slot name="posts" /><slot name="status" /></div></template>
     </HtmlShell>
     <template v-else>
@@ -18,7 +18,7 @@ defineProps<{presentation:SitePresentation; resource:CreatorResource; polished:b
             <slot v-else name="social-links" />
             <div v-if="enabled || accountPath" class="member-feed">
                 <template v-if="accountPath"><slot name="posts" /></template>
-                <template v-else><template v-for="block in presentation.layout.main" :key="block"><slot :name="block === 'post-feed' ? 'posts' : block" /></template></template>
+                <template v-else><template v-for="block in presentation.layout.main" :key="block"><slot v-if="block === 'post-feed'" name="tabs" /><slot :name="block === 'post-feed' ? 'posts' : block" /></template></template>
                 <slot name="status" />
             </div>
         </main>

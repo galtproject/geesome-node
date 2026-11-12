@@ -59,6 +59,7 @@ function modelRows(): ModelRow[] {
   const imageCompositionOperationSource = read('app/modules/imageComposition/models/imageCompositionOperation.ts');
   const postEventSource = read('app/modules/group/models/postEvent.ts');
   const groupSource = read('app/modules/group/models/group.ts');
+  const subgroupSource = read('app/modules/group/models/groupSubgroup.ts');
   const groupModuleSource = read('app/modules/group/index.ts');
   const contentProjectionHelperSource = read('app/modules/group/contentProjectionHelpers.ts');
   const contentSource = read('app/modules/database/models/content.ts');
@@ -783,6 +784,16 @@ function modelRows(): ModelRow[] {
             : 'user content-bot lists are capped for the API; add a userId index before this table grows materially')
           : 'content-bot API lists can return every row for a user',
       ],
+    },
+    {
+      area: 'Subgroup routes',
+      source: 'app/modules/group/models/groupSubgroup.ts',
+      model: 'GroupSubgroup',
+      indexes: [
+        has(subgroupSource, "fields: ['parentGroupId', 'alias']") && has(subgroupSource, "fields: ['parentGroupId', 'subgroupId']") ? 'unique parent/alias and parent/child indexes' : 'missing parent uniqueness indexes',
+        has(subgroupSource, "fields: ['subgroupId']") ? 'reverse child-to-parent invalidation index' : 'missing reverse subgroup index',
+      ],
+      notes: ['owner API bounds each parent to 100 links; one-level renderer hydrates published posts in batches of 100 with a 10000-reference limit; generated HTML still scales with the complete bounded feed'],
     },
     {
       area: 'Group permissions',

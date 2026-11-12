@@ -2,7 +2,7 @@ import {CID} from 'multiformats/cid';
 import {parseFragment, type DefaultTreeAdapterMap} from 'parse5';
 
 export type ShellNode = {text: string} | {slot: string} | {tag: string; attrs: Record<string, string>; children: ShellNode[]};
-export const shellSlots = ['brand','account','cover','profile','membership','social-links','posts','pagination','footer'] as const;
+export const shellSlots = ['brand','account','cover','profile','membership','social-links','tabs','posts','pagination','footer'] as const;
 export const shellClasses = ['container','grid','sidebar-left','sidebar-right','single-column','stack','row','gap-sm','gap-md','gap-lg','panel','text-muted','text-center'] as const;
 const containers = ['div','section','header','footer','main','aside','nav'];
 const phrasing = ['span','strong','em','br','a','img'];

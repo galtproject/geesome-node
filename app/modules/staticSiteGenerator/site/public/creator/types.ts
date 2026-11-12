@@ -30,5 +30,7 @@ export interface MembershipAccount {
 }
 export interface PublicState {
     resource: CreatorResource; posts: CreatorPost[]; nextOffset: number | null; path: string;
+    tabs?: {alias: string; label: string; href: string}[];
+    section?: {kind: 'group-feed'; alias: string; label: string; homePath: string};
     snapshot: {canonicalPath?: string; full: boolean; entryPath: string; homePath: string; accountPath: string; nextPage?: string; navigation?: {newer?: string; older?: string; home: string}};
 }
