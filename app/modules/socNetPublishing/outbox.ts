@@ -137,8 +137,16 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			const normalized = normalizeRequest({contentType: input.contentType, requestKey: input.requestKey, postId: 1, ...destination, scheduledAt: input.scheduledAt === undefined ? '2000-01-01T00:00:00Z' : input.scheduledAt}, input.groupId !== undefined);
 			return {network: normalized.network, localAccountId: normalized.localAccountId, target: normalized.target};
 		});
-		if (destinations.some(destination => destination.network === 'geesome' && destination.destinationId === undefined)) {
+		if (destinations.some(destination => ['geesome', 'deviantart'].includes(destination.network) && destination.destinationId === undefined)) {
 			throw problem(400, 'local_publication_destination_required');
+		}
+		if (destinations.some(destination => destination.network === 'deviantart')) {
+			if (input.imageStorageIds.length !== 1) {
+				throw problem(400, 'local_publication_image_count_invalid');
+			}
+			if (input.text.length > 50000) {
+				throw problem(400, 'local_publication_text_too_long');
+			}
 		}
 		if (destinations.some(destination => destination.network === 'patreon' && (!input.imageStorageIds.length ||
 			!input.text.startsWith(destination.target.teaserText) || input.text.length <= destination.target.teaserText.length))) {
@@ -277,10 +285,10 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			const eligible = groups.filter(group => isOwnedQueueGroup(group, userId));
 			const group = selected ? (eligible.length === 1 ? eligible[0] : null) : await getGroup(userId);
 			if (selected && !eligible.length) {
-				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true}, group: null, groups: [], drafts: []};
+				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true, deviantartPublishing: true}, group: null, groups: [], drafts: []};
 			}
 			if (!selected && !group) {
-				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true}, group: null, drafts: []};
+				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true, deviantartPublishing: true}, group: null, drafts: []};
 			}
 			if (!selected && !isManagedOutbox(group, userId)) {
 				throw problem(409, 'local_publication_outbox_conflict');
@@ -305,7 +313,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 					drafts.push({postId: post.id, groupId: post.groupId, text: '', attachments: [], createdAt: post.createdAt, unavailable: true, error: 'This draft contains unsupported content. Edit it in GeeSome before scheduling.'});
 				}
 			}
-			return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true}, group: group ? groupView(group) : null, ...(selected ? {groups: eligible.map(groupView)} : {}), drafts};
+			return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true, deviantartPublishing: true}, group: group ? groupView(group) : null, ...(selected ? {groups: eligible.map(groupView)} : {}), drafts};
 		}
 	};
 }

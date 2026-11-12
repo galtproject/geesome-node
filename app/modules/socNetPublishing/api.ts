@@ -29,12 +29,12 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiUse ValidationErrors
 	 * @apiDescription Owner-only setup with explicit publishing:manage scope or owner password session. Verifies the provider identity without publication and encrypts credentials using node app-pass. Existing requestKey preserves account identity and source scope. enabled defaults false. No secret appears in response. Same routes are available under legacy /user/local-publications for compatibility.
 	 * @apiBody {String} requestKey Stable owner setup key, 1–128 identifier characters.
-	 * @apiBody {String="bluesky","discord","telegram"} network Server network.
+	 * @apiBody {String="bluesky","discord","telegram","deviantart"} network Server network.
 	 * @apiBody {String} label Display name, 1–200 characters.
 	 * @apiBody {Number} [sourceGroupId] Owned private source group, or omitted for global destination.
-	 * @apiBody {Object} account Bluesky identifier/appPassword, or Discord/Telegram botToken. Write-only; fixed provider hosts.
+	 * @apiBody {Object} account Bluesky identifier/appPassword, Discord/Telegram botToken, or DeviantArt accessToken/clientId/clientSecret/refreshToken (confidential OAuth application, scopes basic user stash publish). First DeviantArt connection requires a current accessToken; stored accounts refresh automatically. Write-only; fixed provider hosts.
 	 * @apiBody {String="sfw","nsfw"} contentPolicy Content restriction. sfw accepts only contentType=sfw; nsfw accepts both. Required explicitly.
-	 * @apiBody {Object} target One endpoint: Discord channelId/guildId, Telegram chatId, Bluesky empty. Alternate SFW fields are rejected; configure separate destinations.
+	 * @apiBody {Object} target One endpoint: Discord channelId/guildId, Telegram chatId, Bluesky/DeviantArt empty. Alternate SFW fields are rejected; configure separate destinations.
 	 * @apiBody {Boolean} [enabled=false] Explicitly enable new tasks and claims.
 	 * @apiSuccess {Object} destination Safe registered destination metadata and accountIdentity; never credentials or internal account reference.
 	 */
@@ -286,7 +286,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiBody {String} requestKey Owner-scoped compose idempotency key.
 	 * @apiBody {String} text New text (maximum 40000 characters).
 	 * @apiBody {String[]} imageStorageIds Owned Asset or local Content storage IDs (maximum 20).
-	 * @apiBody {Object} [destinations.target] Each Patreon destination target requires title (1–200 chars), audience (free_members or paid_members), teaserText (nonempty exact prefix of text, maximum 10000 chars) and campaignId (positive decimal, up to 20 digits). Unbound group jobs may defer campaignId to the local route. Prepared Patreon jobs allow up to 20 preview images. No Cookie credentials accepted.
+	 * @apiBody {Object} [destinations.target] DeviantArt requires a server destinationId, exactly one JPEG/PNG image, title (1–50 Unicode characters), explicit Boolean isAiGenerated, optional tags (maximum 30 unique ASCII letter/number/underscore tags, 1–64 characters each) and optional Boolean noAi (defaults true). Check capabilities.deviantartPublishing before offering this provider. Each Patreon destination target requires title (1–200 chars), audience (free_members or paid_members), teaserText (nonempty exact prefix of text, maximum 10000 chars) and campaignId (positive decimal, up to 20 digits). Unbound group jobs may defer campaignId to the local route. Prepared Patreon jobs allow up to 20 preview images. No Cookie credentials accepted.
 	 * @apiBody {Object[]} destinations New rows use destinationId/network/target and freeze the registered client route. Legacy rows use network/localAccountId/target selections (1–20). With explicit groupId only, omit localAccountId to defer local account selection until claim.
 	 * @apiBody {String} [scheduledAt] ISO instant with timezone; omit to send now.
 	 * @apiBody {Object} [producer] For one destination only: type=microwave-girls and positive postId. Stored with server-computed canonical original-intent digest, preserved when a claim resolves an unbound account/route; no URL or credential.
@@ -367,7 +367,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiDescription Requires publishing:local. Only the authenticated owner's jobs are returned; claim tokens are included for manual resolution. Processing jobs are never automatically requeued.
 	 * @apiQuery {Number{1-100}} [limit=20] Page size.
 	 * @apiQuery {Number{0-1000000}} [offset=0] Page offset.
-	 * @apiQuery {String="threads","instagram","reddit","twitter","rule34xxx","bluesky","discord","telegram","patreon"} [network] Filter a single network before pagination, intersected with owner and source filters.
+	 * @apiQuery {String="threads","instagram","reddit","twitter","rule34xxx","bluesky","discord","telegram","patreon","deviantart"} [network] Filter a single network before pagination, intersected with owner and source filters.
 	 * @apiQuery {Number} [destinationId] Filter a single destination before pagination, intersected with ownership.
 	 * @apiQuery {String="queued","processing","posted","failed","needs_review","cancelled"} [status] Filter.
 	 * @apiQuery {String} [groupIds] Comma-separated distinct positive group IDs (maximum 100), intersected with owner filters. Empty selects no jobs.

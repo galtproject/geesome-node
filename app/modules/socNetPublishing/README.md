@@ -88,3 +88,100 @@ Focused PostgreSQL coverage lives in `test/socNetPublishingNative.test.ts` and
 `test/publicationQueueShuffle.test.ts`; worker startup/config coverage lives in
 `test/publishingWorkerConfig.test.mjs`. The native suite invokes the real group
 `createPost` and Post model with disposable SQL fixtures and stubbed storage/auth.
+
+## DeviantArt server publishing
+
+DeviantArt is a server-only destination (`network: deviantart`, `executionMode:
+server`). Discover `capabilities.deviantartPublishing` in the outbox response before
+showing its setup form. Existing nodes without that capability cannot run these
+jobs. No new schema or migration is required. The separate `geesome-client`
+application owns its connection catalog, badges and queue display; `@geesome/ui`
+is not the publishing client.
+
+Register a confidential OAuth application and obtain user authorization with
+`basic user stash publish` scopes. New DeviantArt applications require Authorization
+Code with PKCE. Initial OAuth consent/token exchange happens outside this setup
+endpoint; the setup form accepts the resulting credentials:
+
+```json
+{
+  "requestKey": "deviantart-main",
+  "network": "deviantart",
+  "label": "DeviantArt",
+  "account": {
+    "accessToken": "<current-user-access-token>",
+    "clientId": "<application-id>",
+    "clientSecret": "<application-secret>",
+    "refreshToken": "<user-refresh-token>"
+  },
+  "target": {},
+  "contentPolicy": "sfw",
+  "enabled": true
+}
+```
+
+Send this to the existing owner-authorized server-destinations endpoint. Setup
+calls `user/whoami` without publishing and binds the stable user UUID, rather than
+a mutable username. Credentials use the existing app-pass encryption and never
+appear in destination, job or account listing responses. First connection (or a
+new setup key without a saved account binding) requires a current access token:
+it refuses expired credentials without rotating an unpersisted refresh token.
+
+For known accounts, setup, settings verification and worker execution renew on
+HTTP 401. Rotation reloads current credentials under a per-owner advisory lock,
+persists both tokens, then verifies identity before any upload. Concurrent stale
+snapshots reuse the latest valid token. Rotated credentials commit separately
+from destination settings, so a later stale-settings conflict cannot discard the
+refresh token. A bounded encrypted history of retired refresh-token fingerprints
+prevents replaying a recently superseded setup pair over the current one. Explicit
+new credentials may reconnect an account. A failed database write after the
+provider rotates tokens prevents sending, and may require fresh OAuth consent.
+Refresh tokens themselves expire; reauthorize if the grant is revoked or expired.
+
+Compose through the existing endpoint with the returned destination ID:
+
+```json
+{
+  "requestKey": "deviantart-picture-1",
+  "contentType": "sfw",
+  "text": "Description of the artwork",
+  "imageStorageIds": ["<owned-image-storage-id>"],
+  "mediaPolicy": "social-images-v1",
+  "destinations": [{
+    "destinationId": 123,
+    "network": "deviantart",
+    "target": {
+      "title": "Artwork title",
+      "tags": ["digital_art"],
+      "isAiGenerated": false,
+      "noAi": true
+    }
+  }]
+}
+```
+
+Exactly one owned JPEG/PNG is sent (maximum 10 MiB); `social-images-v1` can prepare
+other supported owned image inputs as JPEG. The title is required and limited by
+this integration to 50 Unicode characters. Up to 30 unique tags use ASCII letters,
+numbers or underscores (1–64 characters each). `isAiGenerated` is required per
+publication and is never inferred from media or account identity. `noAi` defaults
+to true. Titles, tags and disclosure flags stay frozen in the job target and
+intent digest. `contentType: nsfw` sets `is_mature=true` and `mature_level=strict`;
+SFW sets `is_mature=false`. Free original downloads are disabled.
+
+Delivery uploads to `stash/submit`, then publishes its returned item ID via
+`stash/publish`. Only a confirmed success with a valid deviation UUID and safe
+DeviantArt artwork URL completes the job. An upload failure can leave an
+unpublished Sta.sh item but never triggers automatic publication retries. A
+publish timeout, server error or malformed receipt is `needs_review`: inspect the
+provider and resolve the original job; never blindly recreate it. Explicit HTTP
+4xx rejections are known failures. Statistics may filter DeviantArt jobs, but
+automatic DeviantArt metric collection is not implemented.
+
+Provider behavior and encrypted PostgreSQL lifecycle are covered in
+`test/deviantartPublishing.test.ts` and
+`test/deviantartPublishingServer.test.ts`. References:
+[OAuth](https://deviantart.readme.io/docs/authentication),
+[identity](https://deviantart.readme.io/reference/user_whoami),
+[upload](https://deviantart.readme.io/reference/stash_submit),
+[publish](https://deviantart.readme.io/reference/stash_publish).

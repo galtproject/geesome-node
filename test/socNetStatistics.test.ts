@@ -103,6 +103,23 @@ describe('daily social statistics', function () {
 		await assert.rejects(module.summary(1, {groupId: '1 OR 1=1'}));
 		await assert.rejects(module.summary(1, {network: 'arbitrary'}));
 	});
+	it('filters DeviantArt receipts and destinations while reporting metric collection unsupported', async () => {
+		const identity = 'deviantart:12345678-1234-1234-1234-123456789abc';
+		const account = await accounts.Account.create({userId: 1, socNet: 'deviantart', accountId: identity, serverCredentialsEncrypted: 'encrypted-fixture'});
+		await destination.update({network: 'deviantart', executionMode: 'server', socNetAccountId: account.id, accountIdentity: identity});
+		await job.update({network: 'deviantart', executionMode: 'server', serverAccountId: account.id, accountIdentity: identity});
+		const socNetAccount = accountModule({decryptTextWithAppPass: async () => JSON.stringify({network: 'deviantart', accountIdentity: identity, credentials: {accessToken: 'private'}})} as any, accounts, {
+			reader: createStatisticsReader(async () => {throw Error('Unsupported statistics must not call the provider');})
+		});
+		const statistics = getModule({ms: {group: {getPostPure: async () => ({groupId: 2})}, socNetAccount}}, models);
+		const summary = await statistics.summary(1, {network: 'deviantart'});
+		assert.equal(summary.posts.length, 1);assert.equal(summary.groups.length, 1);
+		assert.equal(summary.posts[0].network, 'deviantart');assert.equal(summary.groups[0].network, 'deviantart');
+		assert.equal((await statistics.refresh(1, {kind: 'post', id: job.id})).results[0].status, 'unsupported');
+		assert.equal((await statistics.refresh(1, {kind: 'group', id: destination.id})).results[0].status, 'unsupported');
+		assert.equal(await models.SocialPostStatistic.count(), 0);assert.equal(await models.SocialGroupStatistic.count(), 0);
+		assert(!JSON.stringify(summary).includes('private'));
+	});
 	it('counts all confirmed receipts by destination, with rolling boundaries and distinct remote IDs', async () => {
 		const asOf = new Date('2026-11-11T23:00:00Z');
 		const add = (remoteId, ageHours, extra = {}) => publishing.PublicationJob.create({...job.toJSON(), id: undefined, requestKey: randomUUID(), remoteId, createdAt: new Date('2020-01-01'), confirmedAt: new Date(asOf.getTime() - ageHours * 3600000), ...extra});
