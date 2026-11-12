@@ -52,7 +52,7 @@ free HTTP(S) source. The client adapter derives its provider rating.
 
 Outbox capabilities include `contentTypePublishing:true`, `socialPublishingApi`,
 `publicationDestinations`, `serverPublishing`, `networkQueues`,
-`ownedImageReferences` and `patreonPublishing`. Consumers require the new
+`ownedImageReferences`, `patreonPublishing` and `deviantartPublishing`. Consumers require the new
 classification capability before creating intent.
 
 ## Execution and outcomes
@@ -64,11 +64,13 @@ endpoint once within the selected private source group. Authored endpoint fields
 remain authoritative. Routes have a single endpoint and no alternate dispatch
 rules. Existing direct-client queues remain supported with canonical contentType.
 
-Server adapters publish Bluesky, Discord and Telegram through fixed provider
+Server adapters publish Bluesky, Discord, Telegram and DeviantArt through fixed provider
 origins. They verify the frozen account identity and load owned media through
 the node. Discord performs its provider NSFW-channel check; Telegram verifies
 numeric chat permissions. Provider classifications are derived only from
-contentType. Adapters do not retry mutation requests.
+contentType. Adapters do not retry mutation requests. DeviantArt requires a server
+destination and explicit title/AI disclosure per image; see the
+[DeviantArt setup, OAuth rotation and delivery contract](../README.md#deviantart-server-publishing).
 
 The server worker is enabled by default, including in Docker Compose. Set
 `SOC_NET_PUBLISHING_WORKER=0` in the deployment `.env` to pause it, or set
@@ -120,3 +122,16 @@ original caption, intent digest, destination, receipt and one-send rules remain.
 Existing Discord messages are not edited or resent.
 
 Contract: [Discord Create Message and Embed Object](https://docs.discord.com/developers/resources/message).
+
+
+## Managed DeviantArt OAuth
+
+`deviantartOAuth` advertises managed start/status/callback connection. Owner
+management authorization starts an encrypted ten-minute S256 PKCE flow; a public
+fixed HTTPS callback atomically consumes its hashed random state and stores the
+verified grant through existing server-account setup. Credentials never reach
+browser responses, redirects or callback access logs. New model-sync pending-flow
+tables need no existing-table migration. See [setup and recovery](../README.md#managed-deviantart-account-connection)
+for server callback configuration, proxy logging, expiry and reauthorization after
+an interrupted one-use exchange. Source jobs and publication worker behavior are
+unchanged.

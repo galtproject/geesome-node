@@ -12,6 +12,43 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Managed DeviantArt OAuth connection (#1623)
+
+Owner-authorized start/status endpoints and a public single-use-state/S256-PKCE
+callback connect a confidential application without manually copying user tokens.
+Pending owner/setup/application state is encrypted in a new model-sync table,
+expires after ten minutes and survives restarts before callback. Claims prevent
+concurrent code exchanges; callback HTML and optional access logging avoid
+credential-bearing URL reflection. Configurable exact HTTPS callback routing
+supports a separate public reverse proxy. Existing encrypted account refresh,
+frozen destination policy and publication semantics remain unchanged.
+
+Verification: eight PostgreSQL OAuth lifecycle/API cases, 62 related provider,
+server-account and statistics cases, 39 local publication cases; API-doc
+compilation and security route inventory. No live consent/token exchange or
+publication was performed. An interrupted callback after atomic claim requires
+fresh authorization after expiry and never automatically repeats code exchange.
+
+## DeviantArt server publishing (#1621)
+
+Server destinations support DeviantArt with verified stable account UUIDs,
+app-pass-encrypted confidential OAuth credentials, serialized refresh-token
+rotation and frozen one-image publication targets. Setup and the desktop client's
+connection catalog are capability-gated through `deviantartPublishing`; the
+separate `geesome-client` owns provider badges, OAuth fields and queue display.
+Explicit AI disclosure, noAI, bounded titles/tags and contentType-derived mature
+settings accompany Sta.sh upload/publish. Unknown publication outcomes retain
+manual review. Statistics filtering includes DeviantArt, while metrics collection
+reports unsupported. No migration is required.
+
+Focused provider, encrypted PostgreSQL lifecycle and existing social
+publishing/statistics coverage passed. apiDoc generation and security route
+inventory checks passed. The expanded canonical HTTP suite cannot initialize
+host js-ipfs because installed `@peculiar/webcrypto` lacks the named `Crypto`
+export; its provider/SQL tests pass independently. No live DeviantArt publication
+was attempted without account credentials. See the
+[setup and delivery contract](../app/modules/socNetPublishing/README.md#deviantart-server-publishing).
+
 ## Public subgroup feeds and template tabs (#1613)
 
 Owned channels can link public child channels through a model-sync

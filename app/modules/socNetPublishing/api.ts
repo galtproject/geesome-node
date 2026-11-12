@@ -21,6 +21,83 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 		}
 	}
 	/**
+	 * @api {post} /v1/user/social-publications/deviantart/oauth/start Start DeviantArt account authorization
+	 * @apiName DeviantArtOAuthStart
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Owner management authorization required. Creates an encrypted, owner-bound ten-minute PKCE flow. No provider publication occurs. Callback URI is fixed by server configuration; client-provided callback URLs are rejected.
+	 * @apiBody {String} requestKey Stable destination setup key.
+	 * @apiBody {String} label Destination label (1–200 characters).
+	 * @apiBody {Number} [sourceGroupId] Owned private source group.
+	 * @apiBody {String="sfw","nsfw"} contentPolicy Explicit content restriction.
+	 * @apiBody {Boolean} [enabled=false] Enable new jobs after successful consent.
+	 * @apiBody {String} clientId Confidential OAuth application ID.
+	 * @apiBody {String} clientSecret Write-only OAuth application secret.
+	 * @apiSuccess {String} flowId Opaque owner-scoped status identifier.
+	 * @apiSuccess {String} authorizationUrl Open in a separate browser window.
+	 * @apiSuccess {String} expiresAt Expiration instant.
+	 * @apiSuccess {String} redirectUri Exact server-configured whitelist entry.
+	 */
+	api.onAuthorizedPost('user/social-publications/deviantart/oauth/start', async (req, res) => {
+		await authorizeManagement(req);
+		res.setHeader('Cache-Control', 'no-store');
+		res.send(await module.startDeviantArtOAuth(req.user.id, req.body));
+	});
+	/**
+	 * @api {get} /v1/user/social-publications/deviantart/oauth/callback Complete DeviantArt consent
+	 * @apiName DeviantArtOAuthCallback
+	 * @apiGroup LocalPublications
+	 * @apiUse ValidationErrors
+	 * @apiDescription Public provider return route. A random single-use state binds the pending owner and PKCE verifier; no browser login or API key is required here. Fixed text HTML never contains tokens, provider errors or redirects. Consent denial consumes the state. Callback replay never repeats token exchange or destination setup.
+	 * @apiQuery {String} state Opaque pending-flow state.
+	 * @apiQuery {String} [code] Provider authorization code.
+	 * @apiQuery {String} [error] Consent denial indicator (never reflected).
+	 * @apiSuccess {String} html Generic completion page; poll the authorized status route for results.
+	 */
+	app.ms.api.onGet('user/social-publications/deviantart/oauth/callback', async (req, res) => {
+		res.setHeader('Cache-Control', 'no-store');
+		res.setHeader('Referrer-Policy', 'no-referrer');
+		res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
+		res.setHeader('X-Content-Type-Options', 'nosniff');
+		res.setHeader('Content-Type', 'text/html; charset=utf-8');
+		let connected = false;
+		try {
+			const rawQuery = req.stream?.url?.split('?')[1];
+			if (rawQuery) {
+				const params = new URLSearchParams(rawQuery);
+				if (['state', 'code', 'error'].some(key => params.getAll(key).length > 1)) {
+					throw new Error('duplicate_callback_parameter');
+				}
+			}
+			connected = (await module.completeDeviantArtOAuth(req.query)).status === 'connected';
+		} catch {
+			// Never reflect the provider code, state, or request details in callback output.
+		}
+		res.send(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DeviantArt connection</title><body><h1>${connected ? 'DeviantArt connected' : 'Connection not completed'}</h1><p>Return to your client to check the connection. You can close this window.</p></body></html>`);
+	});
+	/**
+	 * @api {get} /v1/user/social-publications/deviantart/oauth/:flowId Read DeviantArt connection status
+	 * @apiName DeviantArtOAuthStatus
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Same owner management authorization as start. Returns only safe status/destination metadata. Foreign or unknown identifiers return 404; expires after ten minutes. No credentials are returned.
+	 * @apiParam {String} flowId Opaque identifier from start.
+	 * @apiSuccess {String="pending","processing","connected","failed","expired"} status Current flow state.
+	 * @apiSuccess {String} flowId Opaque identifier.
+	 * @apiSuccess {String} expiresAt Flow expiration.
+	 * @apiSuccess {Object} [destination] Connected safe destination.
+	 * @apiSuccess {String} [error] Generic error identifier.
+	 */
+	api.onAuthorizedGet('user/social-publications/deviantart/oauth/:flowId', async (req, res) => {
+		await authorizeManagement(req);
+		res.setHeader('Cache-Control', 'no-store');
+		res.send(await module.getDeviantArtOAuth(req.user.id, req.params.flowId));
+	});
+	/**
 	 * @api {post} /v1/user/social-publications/server-destinations Configure a server publication destination
 	 * @apiName ServerPublicationDestinationSetup
 	 * @apiGroup LocalPublications
@@ -29,12 +106,12 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiUse ValidationErrors
 	 * @apiDescription Owner-only setup with explicit publishing:manage scope or owner password session. Verifies the provider identity without publication and encrypts credentials using node app-pass. Existing requestKey preserves account identity and source scope. enabled defaults false. No secret appears in response. Same routes are available under legacy /user/local-publications for compatibility.
 	 * @apiBody {String} requestKey Stable owner setup key, 1–128 identifier characters.
-	 * @apiBody {String="bluesky","discord","telegram"} network Server network.
+	 * @apiBody {String="bluesky","discord","telegram","deviantart"} network Server network.
 	 * @apiBody {String} label Display name, 1–200 characters.
 	 * @apiBody {Number} [sourceGroupId] Owned private source group, or omitted for global destination.
-	 * @apiBody {Object} account Bluesky identifier/appPassword, or Discord/Telegram botToken. Write-only; fixed provider hosts.
+	 * @apiBody {Object} account Bluesky identifier/appPassword, Discord/Telegram botToken, or DeviantArt accessToken/clientId/clientSecret/refreshToken (confidential OAuth application, scopes basic user stash publish). First DeviantArt connection requires a current accessToken; stored accounts refresh automatically. Write-only; fixed provider hosts.
 	 * @apiBody {String="sfw","nsfw"} contentPolicy Content restriction. sfw accepts only contentType=sfw; nsfw accepts both. Required explicitly.
-	 * @apiBody {Object} target One endpoint: Discord channelId/guildId, Telegram chatId, Bluesky empty. Alternate SFW fields are rejected; configure separate destinations.
+	 * @apiBody {Object} target One endpoint: Discord channelId/guildId, Telegram chatId, Bluesky/DeviantArt empty. Alternate SFW fields are rejected; configure separate destinations.
 	 * @apiBody {Boolean} [enabled=false] Explicitly enable new tasks and claims.
 	 * @apiSuccess {Object} destination Safe registered destination metadata and accountIdentity; never credentials or internal account reference.
 	 */
@@ -286,7 +363,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiBody {String} requestKey Owner-scoped compose idempotency key.
 	 * @apiBody {String} text New text (maximum 40000 characters).
 	 * @apiBody {String[]} imageStorageIds Owned Asset or local Content storage IDs (maximum 20).
-	 * @apiBody {Object} [destinations.target] Each Patreon destination target requires title (1–200 chars), audience (free_members or paid_members), teaserText (nonempty exact prefix of text, maximum 10000 chars) and campaignId (positive decimal, up to 20 digits). Unbound group jobs may defer campaignId to the local route. Prepared Patreon jobs allow up to 20 preview images. No Cookie credentials accepted.
+	 * @apiBody {Object} [destinations.target] DeviantArt requires a server destinationId, exactly one JPEG/PNG image, title (1–50 Unicode characters), explicit Boolean isAiGenerated, optional tags (maximum 30 unique ASCII letter/number/underscore tags, 1–64 characters each) and optional Boolean noAi (defaults true). Check capabilities.deviantartPublishing before offering this provider. Each Patreon destination target requires title (1–200 chars), audience (free_members or paid_members), teaserText (nonempty exact prefix of text, maximum 10000 chars) and campaignId (positive decimal, up to 20 digits). Unbound group jobs may defer campaignId to the local route. Prepared Patreon jobs allow up to 20 preview images. No Cookie credentials accepted.
 	 * @apiBody {Object[]} destinations New rows use destinationId/network/target and freeze the registered client route. Legacy rows use network/localAccountId/target selections (1–20). With explicit groupId only, omit localAccountId to defer local account selection until claim.
 	 * @apiBody {String} [scheduledAt] ISO instant with timezone; omit to send now.
 	 * @apiBody {Object} [producer] For one destination only: type=microwave-girls and positive postId. Stored with server-computed canonical original-intent digest, preserved when a claim resolves an unbound account/route; no URL or credential.
@@ -367,7 +444,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiDescription Requires publishing:local. Only the authenticated owner's jobs are returned; claim tokens are included for manual resolution. Processing jobs are never automatically requeued.
 	 * @apiQuery {Number{1-100}} [limit=20] Page size.
 	 * @apiQuery {Number{0-1000000}} [offset=0] Page offset.
-	 * @apiQuery {String="threads","instagram","reddit","twitter","rule34xxx","bluesky","discord","telegram","patreon"} [network] Filter a single network before pagination, intersected with owner and source filters.
+	 * @apiQuery {String="threads","instagram","reddit","twitter","rule34xxx","bluesky","discord","telegram","patreon","deviantart"} [network] Filter a single network before pagination, intersected with owner and source filters.
 	 * @apiQuery {Number} [destinationId] Filter a single destination before pagination, intersected with ownership.
 	 * @apiQuery {String="queued","processing","posted","failed","needs_review","cancelled"} [status] Filter.
 	 * @apiQuery {String} [groupIds] Comma-separated distinct positive group IDs (maximum 100), intersected with owner filters. Empty selects no jobs.

@@ -1,3 +1,5 @@
+import {getDeviantArtOAuthMethods} from './deviantartOAuth.js';
+import {normalizeDeviantArtTarget} from './deviantartTarget.js';
 import {getQueueShuffleMethods} from './queueShuffle.js';
 import {normalizeContentType} from './contentPolicy.js';
 import {createHash, randomBytes} from 'node:crypto';
@@ -17,7 +19,7 @@ import {getDestinationMethods} from './destinations.js';
 import {getOutboxMethods} from './outbox.js';
 import {getSourceMethods, isOwnedQueueGroup} from './sources.js';
 
-const networks = ['threads', 'instagram', 'reddit', 'twitter', 'rule34xxx', 'bluesky', 'discord', 'telegram', 'patreon', 'geesome'];
+const networks = ['threads', 'instagram', 'reddit', 'twitter', 'rule34xxx', 'bluesky', 'discord', 'telegram', 'patreon', 'geesome', 'deviantart'];
 const statuses = ['queued', 'processing', 'posted', 'failed', 'needs_review', 'cancelled'];
 
 export default async function socNetPublishing(app: IGeesomeApp) {
@@ -29,7 +31,7 @@ export default async function socNetPublishing(app: IGeesomeApp) {
 	return module;
 }
 
-export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestination, PublicationDestinationGroup, PublicationQueueShuffle}: any, options: any = {}): ISocNetPublishingModule {
+export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestination, PublicationDestinationGroup, PublicationQueueShuffle, PublicationOAuthFlow}: any, options: any = {}): ISocNetPublishingModule {
 	const sequelize = PublicationJob.sequelize;
 	const destinations = getDestinationMethods(PublicationDestination, {app, normalizeRequest, problem, boundedInteger, loadServerAccount: (userId, accountId, network, identity) => serverAccounts.loadServerAccount(userId, accountId, network, identity)});
 	const serverAccounts = getServerAccountMethods(app, PublicationDestination, {normalizeRequest, problem, boundedInteger}, options);
@@ -39,6 +41,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 	let serverScanCursor = null;
 	const module: ISocNetPublishingModule = {
 		...serverAccounts,
+		...getDeviantArtOAuthMethods(app, {PublicationOAuthFlow, PublicationDestination}, serverAccounts, options),
 		...getQueueShuffleMethods(app, {PublicationJob, PublicationDestination, PublicationQueueShuffle}, {problem}, options),
 		...getDestinationGroupMethods(PublicationDestinationGroup, PublicationDestination, {problem, boundedInteger}),
 		setCronWorker(worker) { cronWorker = worker; },
@@ -53,6 +56,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 		...getOutboxMethods(app, PublicationJob, {normalizeRequest, snapshot, plain, problem, boundedInteger, groupIds: normalizeGroupIds, jobViews, resolveDestination: destinations.resolveDestination, PublicationDestination}),
 		...getSourceMethods(app, {problem, boundedInteger}),
 		async flushDatabase() {
+			await PublicationOAuthFlow?.destroy({where: {}});
 			await PublicationQueueShuffle?.destroy({where: {}});
 			await PublicationJob.destroy({where: {}});
 			await PublicationDestinationGroup?.destroy({where: {}});
@@ -60,7 +64,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 		},
 		async createJob(userId, input) {
 			const request = normalizeRequest(input);
-			if (request.network === 'geesome') {
+			if (['geesome', 'deviantart'].includes(request.network)) {
 				throw problem(400, 'local_publication_destination_required');
 			}
 			const requestHash = createHash('sha256').update(JSON.stringify(request)).digest('hex');
@@ -412,6 +416,9 @@ export function normalizeRequest(input: any, allowUnbound = false): any {
 		throw problem(400, 'local_publication_schedule_invalid');
 	}
 	const target = input.target ?? {};
+	if (network === 'deviantart') {
+		return {requestKey, postId, network, localAccountId, contentType, scheduledAt: new Date(input.scheduledAt).toISOString(), target: normalizeDeviantArtTarget(target)};
+	}
 	if (network === 'patreon') {
 		assertKeys(target, ['title', 'audience', 'teaserText', 'campaignId']);
 		const title = textField(target.title, 200);
