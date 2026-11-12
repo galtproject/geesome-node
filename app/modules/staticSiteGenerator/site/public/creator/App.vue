@@ -84,7 +84,7 @@ function join() {
                 <AccountPanel v-if="accountPath" :checked="checked" :account="account" :active="active" :active-until="activeUntil" :enabled="enabled" @login="loginModal()" @checkout="checkout" @refund="requestRefund" @resume="resumePayment" @logout="logout" />
                 <template v-else>
                     <a v-if="single" :href="section?.homePath || publicPath('/')" class="back-link">← All posts</a>
-                    <h2 v-else class="feed-heading">{{ section?.label || (navigation?.newer ? presentation.copy.archiveHeading : presentation.copy.feedHeading) }}</h2>
+                    <h2 v-else-if="!tabs.length || presentation.template.id === 'html-shell'" class="feed-heading">{{ section?.label || (navigation?.newer ? presentation.copy.archiveHeading : presentation.copy.feedHeading) }}</h2>
                     <PostCard :subscribe-label="presentation.copy.subscribe" :polished="polished" :domain="resource.domain" :section-alias="section?.alias" v-for="post in posts" :key="post.id" :post="post" :single="single" :post-url="publicPath(`/posts/${encodeURIComponent(post.id)}`)" :checked="Boolean(section) || checked" :active="Boolean(section) || active" :expired="expired" @gallery="showGallery" @share="sharePost" @checkout="checkout" @notify="notify" />
                     <section v-if="!posts.length" class="account-panel"><h2>New work is on the way</h2><p>Find the latest updates through the links above.</p></section>
                 </template>
