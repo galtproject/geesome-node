@@ -1,3 +1,5 @@
+import {buildSubgroupFeed} from './subgroupFeed.js';
+import {normalizeSitePresentation} from './site/presentation.js';
 import {creatorSitemap} from './site/creatorSeo.js';
 import {createPublicationBuildMetrics} from './publicationMetrics.js';
 import type {PublicationVariantMetrics} from './publicationMetrics.js';
@@ -32,7 +34,9 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 			artifacts.add(normalizePublicationCid(source));
 		}
 	}
-	const branding = {brand, options, description, resourceId: row.id, domain: row.domain};
+	const subgroups = app.ms.group.getRenderableSubgroups ? await app.ms.group.getRenderableSubgroups(row.ownerId, Number(row.groupId)) : [];
+	const tabs = subgroups.length ? [{alias: '', label: normalizeSitePresentation(brand.presentation).copy.feedHeading, href: '/'}, ...subgroups.map(subgroup => ({alias: subgroup.alias, label: subgroup.config.tabLabel || subgroup.group.title, href: `/${subgroup.alias}/`}))] : undefined;
+	const branding = {brand, options, description, resourceId: row.id, domain: row.domain, tabs};
 	const saveGeneratedBody = async body => {
 		await renew();
 		metrics.bodySaves++;
@@ -58,6 +62,18 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 	const paths = creatorPagePaths(layout);
 	const manifest: any = {version: 2, public: null, full: null, layout, pagePaths: paths, pageCount: paths.length,
 		assembly: {}, files: {public: {}, full: {}}, media: {public: [], full: []}, posts: Object.fromEntries(snapshot.map(post => [post.id, []]))};
+	if (subgroups.length) {
+		manifest.subgroups = {};
+		for (const subgroup of subgroups) {
+			await renew();
+			const feed = await buildSubgroupFeed(app, {...(row.get ? row.get({plain: true}) : row), data: {...row.data, displayTitle: title}, options}, subgroup, {directory: await beginDirectory(`subgroup-${subgroup.alias}`), renew, tabs});
+			manifest.subgroups[subgroup.alias] = {subgroupId: Number(subgroup.subgroupId), root: normalizePublicationCid(feed.root), paths: feed.paths};
+			for (const artifact of feed.artifacts) {
+				artifacts.add(normalizePublicationCid(artifact));
+			}
+			artifacts.add(normalizePublicationCid(feed.root));
+		}
+	}
 	const byId = new Map(snapshot.map(post => [String(post.id), post]));
 	const prepareStart = performance.now();
 	const bundle = await buildBrowserClient();
@@ -67,7 +83,7 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 	for (const full of [false, true]) {
 		const variantStart = performance.now();
 		const variant = full ? 'full' : 'public';
-		const inventory: InventoryEntry[] = [];
+		const inventory: InventoryEntry[] = Object.entries(manifest.subgroups || {}).map(([path, entry]: [string, any]) => ({path, cid: entry.root, kind: 'opaque-subtree'}));
 		const verified = assemblyMode === 'repair' ? null : readVerifiedPublicationInventory(previous, row.id, variant);
 		const oldEntries = new Map<string, InventoryEntry>((verified?.entries || []).map(entry => [entry.path, entry]));
 		const registeredMediaNames = new Set<string>();
@@ -101,6 +117,9 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 			return result;
 		};
 		const renderData: any = membershipRenderData({title, ...branding}, [], full);
+		if (tabs) {
+			renderData.creator.tabs = tabs;
+		}
 		const compileStart = performance.now();
 		const {css, renderPage} = await siteRenderer.prepareRender(renderData);
 		metrics.prepareMs += performance.now() - compileStart;
@@ -135,6 +154,9 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 		const render = async (site, posts, path, route, single = false, page = 1) => {
 			const data = membershipRenderData({...site, canonicalPath: '/' + path.replace(/index\.html$/, '')}, posts, full, single, page, 1);
 			const canonical = `https://${row.domain}/${path.replace(/index\.html$/, '')}`;
+			if (tabs) {
+				(data.creator as any).tabs = tabs;
+			}
 			await prepareGeneratedFile(path, [data, route, canonical], () => {
 				Object.assign(renderData, data);
 				return renderPage(route, [['meta', {name: 'og:title', content: title}], ['link', {rel: 'canonical', href: canonical}],
@@ -165,17 +187,20 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 		}
 		const accountSite = {title, ...branding, canonicalPath: '/account/', relativeRoot: '../', homeUrl: '../', entryPath: `${membershipBase}/account/`};
 		const account = membershipRenderData(accountSite, [], full);
+		if (tabs) {
+			(account.creator as any).tabs = tabs;
+		}
 		account.creator.path = '/account/subscription';
 		await prepareGeneratedFile('account/index.html', account, () => {
 			Object.assign(renderData, account);
 			return renderPage('/', [['meta', {name: 'og:title', content: title}], ['meta', {name: 'robots', content: 'noindex,nofollow'}]]);
 		});
-		const sitemap = creatorSitemap(row.domain, full ? [] : [...paths, ...snapshot.map(post => `posts/${post.id}/index.html`)]);
+		const sitemap = creatorSitemap(row.domain, full ? [] : [...paths, ...snapshot.map(post => `posts/${post.id}/index.html`), ...Object.keys(manifest.subgroups || {}).map(alias => `${alias}/index.html`)]);
 		await prepareGeneratedFile('sitemap.xml', sitemap, () => sitemap);
 		const robots = full ? 'User-agent: *\nDisallow: /\n' : `User-agent: *\nDisallow: /account/\nDisallow: /api/\nSitemap: https://${row.domain}/sitemap.xml\n`;
 		await prepareGeneratedFile('robots.txt', robots, () => robots);
 		manifest.media[variant] = [...registeredMediaNames];
-		const desired = canonicalMembershipPublicationInventory(inventory);
+		const desired = canonicalMembershipPublicationInventory(inventory, manifest.subgroups || {});
 		let clone = assemblyMode === 'incremental' && supportsKuboTreeCloning(app.ms.storage) ? verified : null;
 		let reason: PublicationVariantMetrics['reason'] = assemblyMode !== 'incremental' ? 'forced' : !verified ? 'inventory' : !clone ? 'adapter' : null;
 		if (clone) {

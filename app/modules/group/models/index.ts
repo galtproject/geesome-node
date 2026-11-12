@@ -11,6 +11,7 @@ import {Sequelize} from 'sequelize';
 export default async function (sequelize: Sequelize, appModels) {
 
   appModels.Group = await (await import('./group.js')).default(sequelize, appModels);
+  appModels.GroupSubgroup = await (await import('./groupSubgroup.js')).default(sequelize, appModels);
   appModels.GroupPermission = await (await import('./groupPermission.js')).default(sequelize, appModels);
   appModels.GroupRead = await (await import('./groupRead.js')).default(sequelize, appModels);
   appModels.Post = await (await import('./post.js')).default(sequelize, appModels);

@@ -1,4 +1,5 @@
 import {Op} from 'sequelize';
+import {normalizeSubgroupAlias} from '../group/subgroupConfig.js';
 
 export function createMembershipPublicationStaging(app, M, clock) {
 	const database = app.ms.database.sequelize, stagingJournal = M.publication_staging;
@@ -72,9 +73,16 @@ export function publicationStagingPath(jobId, leaseToken, variant) {
 }
 
 export function parsePublicationStagingPath(path, expectedJobId?) {
-	const match = typeof path === 'string' && path.match(/^\/membership-([a-f0-9-]{36})-([a-f0-9-]{36})-(public|full)$/);
+	const match = typeof path === 'string' && path.match(/^\/membership-([a-f0-9-]{36})-([a-f0-9-]{36})-(public|full|subgroup-[a-z0-9-]{1,64})$/);
 	if (!match || (expectedJobId !== undefined && match[1] !== expectedJobId)) {
 		throw new Error('invalid_publication_staging_path');
+	}
+	if (match[3].startsWith('subgroup-')) {
+		try {
+			normalizeSubgroupAlias(match[3].slice(9));
+		} catch {
+			throw new Error('invalid_publication_staging_path');
+		}
 	}
 	return {jobId: match[1], leaseToken: match[2], variant: match[3]};
 }

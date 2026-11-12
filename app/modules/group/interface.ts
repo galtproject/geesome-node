@@ -8,6 +8,10 @@ import {IUserListResponse} from "../../interface.js";
 import type {RichTextDocument} from "../../richText.js";
 
 export default interface IGeesomeGroupModule {
+	listSubgroups(userId: number, parentGroupId: number): Promise<{subgroups: IGroupSubgroup[]}>;
+	getRenderableSubgroups(userId: number, parentGroupId: number): Promise<(IGroupSubgroup & {group: any})[]>;
+	saveSubgroup(userId: number, parentGroupId: number, input: {subgroupId: number; alias: string; config?: {tabLabel?: string; order?: number}; revision?: number}): Promise<{subgroup: IGroupSubgroup}>;
+	removeSubgroup(userId: number, parentGroupId: number, input: {subgroupId: number; revision: number}): Promise<{removed: boolean}>;
 	stop(): Promise<void>;
 
 	checkGroupId(groupId, createIfNotExist?): Promise<number>;
@@ -229,6 +233,14 @@ export default interface IGeesomeGroupModule {
 	getGroupsWhere(filters): any;
 
 	getPostsWhere(filters): any;
+}
+
+export interface IGroupSubgroup {
+	parentGroupId: number;
+	subgroupId: number;
+	alias: string;
+	config: {tabLabel?: string; order?: number};
+	revision: number;
 }
 
 export interface IGroupListResponse {

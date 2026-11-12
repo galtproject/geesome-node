@@ -208,6 +208,9 @@ export function useMembershipSession(initialState: PublicState) {
         }
     }
     onMounted(() => {
+        if (initialState.section?.kind === 'group-feed') {
+            return;
+        }
         if (enabled.value || accountPath.value) {
             run(updateAccess);
             refresh = setInterval(() => run(updateAccess), 60000);

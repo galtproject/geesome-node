@@ -1,14 +1,29 @@
 import {hashPublicationInput, normalizePublicationCid} from './publicationIdentity.js';
+import {normalizeSubgroupAlias} from '../group/subgroupConfig.js';
 import type {InventoryEntry, PublicationInventory} from './publicationTreeAssembly.js';
 
 const baseDirectories = ['account', 'media', 'page', 'posts', 'public'];
 const managedFile = /^(index\.html|sitemap\.xml|robots\.txt|style\.css|public\/client\.js|account\/index\.html|posts\/[1-9][0-9]*\/index\.html|page\/[1-9][0-9]*\/index\.html|media\/[a-f0-9]{64}\.[a-zA-Z0-9_-]+)$/;
 
-export function canonicalMembershipPublicationInventory(entries: InventoryEntry[]): PublicationInventory {
+export function validatePublicationSubgroups(subgroups = {}) {
+	if (!subgroups || typeof subgroups !== 'object' || Array.isArray(subgroups)) {
+		throw new Error('invalid_publication_inventory');
+	}
+	for (const [alias, entry] of Object.entries(subgroups) as [string, any][]) {
+		if (normalizeSubgroupAlias(alias) !== alias || !Number.isSafeInteger(entry?.subgroupId) || entry.subgroupId < 1 || normalizePublicationCid(entry.root) !== entry.root || !Array.isArray(entry.paths) || !entry.paths.includes('index.html') || new Set(entry.paths).size !== entry.paths.length || entry.paths.some(path => typeof path !== 'string' || !/^(index\.html|page\/[1-9][0-9]*\/index\.html|posts\/[1-9][0-9]*\/index\.html)$/.test(path))) {
+			throw new Error('invalid_publication_inventory');
+		}
+	}
+	return subgroups;
+}
+
+export function canonicalMembershipPublicationInventory(entries: InventoryEntry[], subgroups = {}): PublicationInventory {
+	validatePublicationSubgroups(subgroups);
 	const files = new Set<string>(), directories = new Set(baseDirectories);
 	for (const entry of entries) {
-		if (!entry || !managedFile.test(entry.path) || files.has(entry.path) ||
-			!['file', 'opaque-subtree'].includes(entry.kind) || (entry.kind === 'opaque-subtree' && !entry.path.startsWith('media/')) || normalizePublicationCid(entry.cid) !== entry.cid) {
+		const subgroup = subgroups[entry?.path];
+		if (!entry || (!managedFile.test(entry.path) && !subgroup) || files.has(entry.path) ||
+			!['file', 'opaque-subtree'].includes(entry.kind) || (subgroup ? entry.kind !== 'opaque-subtree' || entry.cid !== subgroup.root : entry.kind === 'opaque-subtree' && !entry.path.startsWith('media/')) || normalizePublicationCid(entry.cid) !== entry.cid) {
 			throw new Error('invalid_publication_inventory');
 		}
 		files.add(entry.path);
@@ -17,6 +32,9 @@ export function canonicalMembershipPublicationInventory(entries: InventoryEntry[
 			directories.add(parent);
 			parent = parent.includes('/') ? parent.slice(0, parent.lastIndexOf('/')) : '';
 		}
+	}
+	if (Object.keys(subgroups).some(alias => !files.has(alias))) {
+		throw new Error('invalid_publication_inventory');
 	}
 	for (const path of directories) {
 		if (files.has(path)) {
@@ -37,12 +55,12 @@ export function readVerifiedPublicationInventory(manifest, resourceId, variant):
 		if (manifest?.version !== 2 || value?.version !== 1 || value.resourceId !== resourceId || value.variant !== variant || value.root !== manifest[variant] || normalizePublicationCid(value.root) !== value.root) {
 			return null;
 		}
-		const inventory = canonicalMembershipPublicationInventory(value.inventory.entries);
+		const inventory = canonicalMembershipPublicationInventory(value.inventory.entries, manifest.subgroups || {});
 		if (hashPublicationInput(inventory) !== value.digest || hashPublicationInput(value.inventory.directories) !== hashPublicationInput(inventory.directories)) {
 			return null;
 		}
 		const files = Object.entries(manifest.files[variant]).map(([path, file]: [string, any]) => ({path, cid: file.cid})).sort((a, b) => a.path.localeCompare(b.path, 'en'));
-		const managed = inventory.entries.filter(entry => !entry.path.startsWith('media/')).map(({path, cid}) => ({path, cid}));
+		const managed = inventory.entries.filter(entry => !entry.path.startsWith('media/') && !manifest.subgroups?.[entry.path]).map(({path, cid}) => ({path, cid}));
 		const media = inventory.entries.filter(entry => entry.path.startsWith('media/')).map(entry => entry.path.slice(6)).sort();
 		if (hashPublicationInput(files) !== hashPublicationInput(managed) || hashPublicationInput([...manifest.media[variant]].sort()) !== hashPublicationInput(media)) {
 			return null;

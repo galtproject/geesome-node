@@ -18,6 +18,13 @@ Issue: [#880 Review database scalability for large groups](https://github.com/ga
 
 ## Status
 
+Subgroup routes (#1613) add a model-sync relation table with unique parent/alias
+and parent/child indexes plus a reverse child index for publication invalidation.
+Each parent is limited to 100 links. Public child posts use the existing bounded
+hydration iterator (100 per batch, 10000 references maximum); the complete static
+feed is still held during rendering and produces one page per post. This is a
+bounded initial implementation, not an unlimited-feed scalability claim.
+
 Implementation work is landing slice-by-slice on `codex/database-scalability-review`. The findings table below is the inventory; this section is the running log of what has shipped so future readers see the doc in context.
 
 | Slice | Decision / Finding | Commit |

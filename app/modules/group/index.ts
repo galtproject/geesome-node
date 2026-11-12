@@ -39,6 +39,7 @@ import {
 	isProjectedRichTextContent
 } from './contentProjectionHelpers.js';
 import {getPostInputContents, stripPostContentInputFields} from './postContentInputHelpers.js';
+import {getSubgroupMethods} from './subgroups.js';
 const {extend, pick, isUndefined, some, uniqBy, clone, orderBy, sumBy} = _;
 const log = debug('geesome:app:group');
 const groupDerivedStateQueueModuleName = 'group-derived-state';
@@ -224,6 +225,7 @@ export default async (app: IGeesomeApp) => {
 
 export function getModule(app: IGeesomeApp, models) {
 	const {communicator} = app.ms;
+	const subgroups = getSubgroupMethods(app, models);
 	let derivedStateQueueProcessPromise: Promise<any> | null = null;
 	let derivedStateQueueWorker: IBackgroundWorker | null = null;
 	let stopped = false;
@@ -242,6 +244,18 @@ export function getModule(app: IGeesomeApp, models) {
 	}
 
 	class GroupModule implements IGeesomeGroupModule {
+		listSubgroups(userId, parentGroupId) {
+			return subgroups.listSubgroups(userId, parentGroupId);
+		}
+		getRenderableSubgroups(userId, parentGroupId) {
+			return subgroups.getRenderableSubgroups(userId, parentGroupId);
+		}
+		saveSubgroup(userId, parentGroupId, input) {
+			return subgroups.saveSubgroup(userId, parentGroupId, input);
+		}
+		removeSubgroup(userId, parentGroupId, input) {
+			return subgroups.removeSubgroup(userId, parentGroupId, input);
+		}
 		async createGroup(userId, groupData, options: {reuseOwnedStaticAccount?: boolean} = {}) {
 			groupData = normalizePrivateGroupData(app, groupData);
 			log('groupData', groupData);

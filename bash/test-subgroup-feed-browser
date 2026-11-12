@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+export SUBGROUP_FEED_BROWSER_EVIDENCE="${SUBGROUP_FEED_BROWSER_EVIDENCE:-$PWD/test/.geesome-test-output/subgroup-feed-browser}"
+: "${GEESOME_BROWSER_IMAGE:?Set GEESOME_BROWSER_IMAGE to a Playwright image with /work/node_modules/playwright}"
+node --import tsx test/subgroupFeedBrowserFixture.mjs
+docker run --rm --entrypoint node \
+  -v "$PWD/test/subgroupFeedBrowser.mjs:/work/subgroupFeedBrowser.mjs:ro" \
+  -v "$SUBGROUP_FEED_BROWSER_EVIDENCE:/evidence" \
+  "$GEESOME_BROWSER_IMAGE" /work/subgroupFeedBrowser.mjs

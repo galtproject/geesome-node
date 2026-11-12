@@ -1,6 +1,7 @@
 import {isGuestSelectionRequest} from './guestSelectionCache.js';
 import {readFileSync} from 'node:fs';
 import {configuredSite, assertSiteOrigin, creatorSiteEndpoint, siteProblem} from '../api/browserSession.js';
+import {normalizeSubgroupAlias} from '../group/subgroupConfig.js';
 const membershipClient = readFileSync(new URL('../staticSiteGenerator/site/public/membership.js', import.meta.url), 'utf8');
 
 export default function registerPublicationApi(app, module) {
@@ -103,4 +104,46 @@ export default function registerPublicationApi(app, module) {
 		res.setHeader('X-Content-Type-Options', 'nosniff');
 		res.stream.end(membershipClient);
 	}));
+	/**
+	 * @api {get} /v1/membership/site/:alias Resolve a public subgroup section
+	 * @apiName MembershipSubgroupSnapshot
+	 * @apiGroup Membership
+	 * @apiHeader {String} Host Configured site host.
+	 * @apiParam {String} alias Configured subgroup alias.
+	 * @apiSuccess (302) {String} Location Current public snapshot section URL.
+	 * @apiDescription HEAD and /:alias/page/:subgroupPage and /:alias/posts/:subgroupPost use the same public selection. Only declared, available subgroup paths resolve. Membership cookies never select a full/private snapshot for these sections. Direct external document navigation is permitted with the same origin checks as the root selector; cross-site API fetches remain forbidden.
+	 * @apiError (404) subgroup_not_found Alias or generated path is unavailable.
+	 */
+	const subgroupSelect = creatorSiteEndpoint(async (req, res) => {
+		res.setHeader('Cache-Control', 'private, no-store');
+		let alias;
+		try {
+			alias = normalizeSubgroupAlias(req.params.alias);
+		} catch {
+			siteProblem(404, 'subgroup_not_found');
+		}
+		let suffix = '';
+		for (const [key, prefix] of [['subgroupPage', 'page'], ['subgroupPost', 'posts']]) {
+			if (req.params[key] !== undefined) {
+				if (!/^[1-9][0-9]*$/.test(String(req.params[key]))) {
+					siteProblem(404, 'subgroup_not_found');
+				}
+				suffix = `${prefix}/${req.params[key]}/`;
+			}
+		}
+		const documentNavigation = ['GET', 'HEAD'].includes(req.stream.method)
+			&& req.headers['sec-fetch-mode'] === 'navigate' && req.headers['sec-fetch-dest'] === 'document';
+		const siteRequest = documentNavigation ? {...req, headers: {...req.headers, 'sec-fetch-site': 'none'}} : req;
+		const site = await configuredSite(app, siteRequest, false);
+		const location = await module.currentSubgroupSnapshot(site.id, alias, suffix);
+		res.setHeader('Location', location);
+		res.writeHead(302, {});
+		res.stream.end();
+	});
+	app.ms.api.onGet('membership/site/:alias', subgroupSelect);
+	app.ms.api.onHead('membership/site/:alias', subgroupSelect);
+	app.ms.api.onGet('membership/site/:alias/page/:subgroupPage', subgroupSelect);
+	app.ms.api.onHead('membership/site/:alias/page/:subgroupPage', subgroupSelect);
+	app.ms.api.onGet('membership/site/:alias/posts/:subgroupPost', subgroupSelect);
+	app.ms.api.onHead('membership/site/:alias/posts/:subgroupPost', subgroupSelect);
 }
