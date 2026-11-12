@@ -52,6 +52,7 @@ try {
         await page.goto(origin+'/site/feed/');
         await page.getByTestId('section-tab-feed').waitFor();
         assert.equal(await page.getByTestId('section-tab-feed').getAttribute('aria-current'),'page');
+        assert.equal(await page.locator('.feed-heading').count(),0);
         assert.equal(await page.getByTestId('subscribe-post').count(),0);
         assert.equal(await page.getByTestId('load-more').count(),0);
         await loadedImage(page);
@@ -81,6 +82,7 @@ try {
         await page.getByTestId('section-tab-home').click();
         await page.waitForURL('**/site/');
         assert.equal(await page.getByTestId('section-tab-home').getAttribute('aria-current'),'page');
+        assert.equal(await page.locator('.feed-heading').count(),0);
         await page.goto(origin+'/empty/feed/');
         await page.getByText('New work is on the way',{exact:true}).waitFor();
         await capture(page,name,'empty','An empty public subgroup keeps section navigation and shows an explicit empty Feed state.');

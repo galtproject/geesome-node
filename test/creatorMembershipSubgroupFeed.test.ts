@@ -19,6 +19,7 @@ describe('public subgroup Feed rendering', function () {
 		assert(!html.includes('subscribe-post'));
 		assert(!html.includes('data-testid="load-more"'));
 		assert(html.indexOf('data-testid="site-sections"') < html.indexOf('<article'));
+		assert(!html.includes('class="feed-heading"'));
 		assert(html.includes('href="../" data-testid="section-tab-home"'));
 		assert(html.includes('href="../feed/" aria-current="page" data-testid="section-tab-feed"'));
 		assert(html.includes('href="./page/2/"'));
@@ -54,6 +55,9 @@ describe('public subgroup Feed rendering', function () {
 		const example = readFileSync(new URL('../examples/creator-shell.html', import.meta.url), 'utf8');
 		const oldShell = example.replace(/\s*<geesome-slot name="tabs"><\/geesome-slot>/, '');
 		parseHtmlShell(oldShell);
+		fixture.row.data.presentation = {schemaVersion: 1, template: {id: 'html-shell', version: 1, html: oldShell}} as any;
+		await buildSubgroupFeed(fixture.app, fixture.row, fixture.subgroup, {directory: '/staging/legacy', renew: async () => {}, tabs: fixture.tabs});
+		assert(fixture.files.get('/staging/legacy/index.html').toString().includes('class="feed-heading"'));
 		fixture.row.data.presentation = {schemaVersion: 1, template: {id: 'html-shell', version: 1, html: oldShell.replace('<geesome-slot name="posts">', '<geesome-slot name="tabs"></geesome-slot><geesome-slot name="posts">')}} as any;
 		const result = await buildSubgroupFeed(fixture.app, fixture.row, fixture.subgroup, {directory: '/staging/empty', renew: async () => {}, tabs: fixture.tabs});
 		assert.deepEqual(result.paths, ['index.html']);

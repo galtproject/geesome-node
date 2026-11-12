@@ -67,6 +67,8 @@ Focused PostgreSQL coverage: `test/groupSubgroups.test.ts`.
 ## Site template and publication
 
 The standard creator layout displays tabs above posts when subgroups exist.
+In that layout, the tabs identify the current section, so the repeated feed
+heading is omitted. Untabbed pages and custom HTML shells retain their headings.
 For a custom HTML template, insert the optional slot at the desired position:
 
 ```html
