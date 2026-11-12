@@ -24,12 +24,12 @@ export function validatePreparedPublication(request) {
 	const text = request.text;
 	const characters = [...text].length;
 	for (const {network, target} of request.destinations) {
-		if (count > (['patreon', 'geesome'].includes(network) ? 20 : ['twitter', 'bluesky'].includes(network) ? 4 : 1) || (['instagram', 'rule34xxx'].includes(network) && count !== 1)) {
+		if (count > (['patreon', 'geesome'].includes(network) ? 20 : ['twitter', 'bluesky'].includes(network) ? 4 : 1) || (['instagram', 'rule34xxx', 'deviantart'].includes(network) && count !== 1)) {
 			problem('local_publication_image_count_invalid');
 		}
 		if ((network === 'twitter' && characters > 280) || (network === 'threads' && characters > 500) ||
 			(network === 'instagram' && characters > 2200) || (network === 'discord' && text.length > 2000) ||
-			(network === 'telegram' && text.length > (count ? 1024 : 4096)) || (network === 'reddit' && characters > 39000)) {
+			(network === 'telegram' && text.length > (count ? 1024 : 4096)) || (network === 'reddit' && characters > 39000) || (network === 'deviantart' && text.length > 50000)) {
 			problem('local_publication_text_too_long');
 		}
 		if (network === 'bluesky' && (Buffer.byteLength(text, 'utf8') > 3000 || [...new Intl.Segmenter('en', {granularity: 'grapheme'}).segment(text)].length > 300)) {

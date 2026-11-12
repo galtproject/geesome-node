@@ -2,6 +2,7 @@ import {Buffer} from 'node:buffer';
 
 export class ServerPublicationError extends Error {
 	readonly ambiguous: boolean;
+	httpStatus?: number;
 	constructor(message: string, ambiguous = false) {
 		super(message);
 		this.name = 'ServerPublicationError';
@@ -38,7 +39,7 @@ export function createTransport(fetchImpl: typeof fetch = fetch) {
 				throw new ServerPublicationError('Social provider connection did not confirm completion', mayPublish);
 			}
 			if (!response.ok) {
-				throw new ServerPublicationError(`Social provider rejected request (HTTP ${Number(response.status) || 0})`, mayPublish && (response.status >= 500 || response.status < 400));
+				throw Object.assign(new ServerPublicationError(`Social provider rejected request (HTTP ${Number(response.status) || 0})`, mayPublish && (response.status >= 500 || response.status < 400)), {httpStatus: response.status});
 			}
 			try {
 				check(Number(response.headers.get('content-length')) <= 1024 * 1024 && response.body, 'Social provider response is unavailable', mayPublish);
@@ -84,7 +85,8 @@ export function validatePayload(network: string, payload: any) {
 	check(payload && typeof payload.text === 'string' && Array.isArray(payload.attachments) && payload.target && typeof payload.target === 'object', 'Server publication payload is invalid');
 	check(payload.text.trim() || payload.attachments.length, 'Server publication is empty');
 	check(payload.attachments.length <= (network === 'bluesky' ? 4 : 1), 'Server publication image count is invalid');
-	const maximum = network === 'bluesky' ? 300 : network === 'discord' ? 2000 : payload.attachments.length ? 1024 : 4096;
+	check(network !== 'deviantart' || payload.attachments.length === 1, 'DeviantArt requires exactly one image');
+	const maximum = network === 'deviantart' ? 50000 : network === 'bluesky' ? 300 : network === 'discord' ? 2000 : payload.attachments.length ? 1024 : 4096;
 	const length = network === 'bluesky' ? [...new Intl.Segmenter('en', {granularity: 'grapheme'}).segment(payload.text)].length : payload.text.length;
 	check(length <= maximum && (network !== 'bluesky' || Buffer.byteLength(payload.text) <= 3000), 'Server publication text exceeds provider limits');
 	check(['sfw', 'nsfw'].includes(payload.contentType), 'Server publication sensitivity is invalid');

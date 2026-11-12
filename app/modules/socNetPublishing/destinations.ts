@@ -32,6 +32,9 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 			typeof row.label !== 'string' || !row.label.trim() || row.label.length > 200 || /[\u0000-\u001f\u007f]/.test(row.label) || typeof row.enabled !== 'boolean') {
 			throw problem(400, 'local_publication_destination_invalid');
 		}
+		if (row.network === 'deviantart') {
+			throw problem(400, 'local_publication_destination_required');
+		}
 		const localKey = identifier(row.localKey);
 		const native = row.network === 'geesome';
 		if (row.executionMode !== undefined && row.executionMode !== (native ? 'native' : 'client') || native && (row.localAccountId !== undefined || localKey !== 'site-group')) {

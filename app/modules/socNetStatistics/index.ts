@@ -4,7 +4,7 @@ import {IGeesomeApp} from '../../interface.js';
 import {ApiProblemError} from '../api/problem.js';
 import {destinationView} from '../socNetPublishing/destinations.js';
 
-const networks = ['threads', 'instagram', 'reddit', 'twitter', 'rule34xxx', 'bluesky', 'discord', 'telegram', 'patreon'];
+const networks = ['threads', 'instagram', 'reddit', 'twitter', 'rule34xxx', 'bluesky', 'discord', 'telegram', 'patreon', 'deviantart'];
 export default async function socNetStatistics(app: IGeesomeApp) {
 	app.checkModules(['api', 'database', 'socNetPublishing']);
 	const models = await (await import('./models.js')).default(app.ms.database.sequelize);
