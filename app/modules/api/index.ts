@@ -1,3 +1,4 @@
+import {isSensitiveOAuthCallback} from './sensitiveOAuthCallback.js';
 import {beginStorageActivity} from '../staticSiteGenerator/cleanupActivity.js';
 import _ from 'lodash';
 import morgan from 'morgan';
@@ -102,7 +103,7 @@ async function getModule(app: IGeesomeApp, version, port, host, admissionTimeout
 	service.use(bodyParser.urlencoded({extended: true}));
 	service.use(bearerToken());
 	if (helpers.isAccessLogEnabled()) {
-		service.use(morgan('combined'));
+		service.use(morgan('combined', {skip: req => isSensitiveOAuthCallback(req.originalUrl || req.url)}));
 	}
 	service.use((req, res, next) => {
 		const requestId = getRequestId(req.headers['x-request-id'] as string);

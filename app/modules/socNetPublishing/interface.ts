@@ -1,4 +1,7 @@
 export default interface ISocNetPublishingModule {
+	startDeviantArtOAuth(userId: number, input: any): Promise<any>;
+	getDeviantArtOAuth(userId: number, flowId: string): Promise<any>;
+	completeDeviantArtOAuth(input: any): Promise<any>;
 	setCronWorker(worker: any): void;
 	stop(): Promise<void>;
 	processServerQueue(input?: any): Promise<any>;

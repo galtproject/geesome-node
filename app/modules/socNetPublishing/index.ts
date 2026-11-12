@@ -1,3 +1,4 @@
+import {getDeviantArtOAuthMethods} from './deviantartOAuth.js';
 import {normalizeDeviantArtTarget} from './deviantartTarget.js';
 import {getQueueShuffleMethods} from './queueShuffle.js';
 import {normalizeContentType} from './contentPolicy.js';
@@ -30,7 +31,7 @@ export default async function socNetPublishing(app: IGeesomeApp) {
 	return module;
 }
 
-export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestination, PublicationDestinationGroup, PublicationQueueShuffle}: any, options: any = {}): ISocNetPublishingModule {
+export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestination, PublicationDestinationGroup, PublicationQueueShuffle, PublicationOAuthFlow}: any, options: any = {}): ISocNetPublishingModule {
 	const sequelize = PublicationJob.sequelize;
 	const destinations = getDestinationMethods(PublicationDestination, {app, normalizeRequest, problem, boundedInteger, loadServerAccount: (userId, accountId, network, identity) => serverAccounts.loadServerAccount(userId, accountId, network, identity)});
 	const serverAccounts = getServerAccountMethods(app, PublicationDestination, {normalizeRequest, problem, boundedInteger}, options);
@@ -40,6 +41,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 	let serverScanCursor = null;
 	const module: ISocNetPublishingModule = {
 		...serverAccounts,
+		...getDeviantArtOAuthMethods(app, {PublicationOAuthFlow, PublicationDestination}, serverAccounts, options),
 		...getQueueShuffleMethods(app, {PublicationJob, PublicationDestination, PublicationQueueShuffle}, {problem}, options),
 		...getDestinationGroupMethods(PublicationDestinationGroup, PublicationDestination, {problem, boundedInteger}),
 		setCronWorker(worker) { cronWorker = worker; },
@@ -54,6 +56,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 		...getOutboxMethods(app, PublicationJob, {normalizeRequest, snapshot, plain, problem, boundedInteger, groupIds: normalizeGroupIds, jobViews, resolveDestination: destinations.resolveDestination, PublicationDestination}),
 		...getSourceMethods(app, {problem, boundedInteger}),
 		async flushDatabase() {
+			await PublicationOAuthFlow?.destroy({where: {}});
 			await PublicationQueueShuffle?.destroy({where: {}});
 			await PublicationJob.destroy({where: {}});
 			await PublicationDestinationGroup?.destroy({where: {}});

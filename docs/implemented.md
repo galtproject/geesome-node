@@ -12,6 +12,23 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Managed DeviantArt OAuth connection (#1623)
+
+Owner-authorized start/status endpoints and a public single-use-state/S256-PKCE
+callback connect a confidential application without manually copying user tokens.
+Pending owner/setup/application state is encrypted in a new model-sync table,
+expires after ten minutes and survives restarts before callback. Claims prevent
+concurrent code exchanges; callback HTML and optional access logging avoid
+credential-bearing URL reflection. Configurable exact HTTPS callback routing
+supports a separate public reverse proxy. Existing encrypted account refresh,
+frozen destination policy and publication semantics remain unchanged.
+
+Verification: eight PostgreSQL OAuth lifecycle/API cases, 62 related provider,
+server-account and statistics cases, 39 local publication cases; API-doc
+compilation and security route inventory. No live consent/token exchange or
+publication was performed. An interrupted callback after atomic claim requires
+fresh authorization after expiry and never automatically repeats code exchange.
+
 ## DeviantArt server publishing (#1621)
 
 Server destinations support DeviantArt with verified stable account UUIDs,

@@ -510,21 +510,22 @@ describe('local publication queue', function () {
 describe('local publication API authorization', () => {
 	it('requires publishing scope and user group permission on all operations', async () => {
 		const routes = new Map(), calls = [];
-		const module = Object.fromEntries(['createJob','listJobs','claimJob','reportResult','cancelJob','compose','getOutbox','listSources','createSource','listDestinations','registerDestinations','claimDestinationJob','disableDestination','setupServerDestination','updateServerDestinationSettings','listDestinationGroups','createDestinationGroup','updateDestinationGroup'].map(name => [name, async (...args) => {calls.push(args); return null;} ]));
+		const module = Object.fromEntries(['shuffleQueue','createJob','listJobs','claimJob','reportResult','cancelJob','compose','getOutbox','listSources','createSource','listDestinations','registerDestinations','claimDestinationJob','disableDestination','setupServerDestination','updateServerDestinationSettings','startDeviantArtOAuth','getDeviantArtOAuth','listDestinationGroups','createDestinationGroup','updateDestinationGroup'].map(name => [name, async (...args) => {calls.push(args); return null;} ]));
 		let permission = true;
 		registerApi({ms: {api: {
+			onGet() {},
 			onAuthorizedPost: (path, handler) => routes.set(`POST ${path}`, handler),
 			onAuthorizedGet: (path, handler) => routes.set(`GET ${path}`, handler)
 		}}, checkUserCan: async (userId, name) => {assert.equal(name, CorePermissionName.UserGroupManagement); if (!permission) {throw new Error('not_permitted');}}} as any, module as any);
-		assert.equal(routes.size, 38);
+		assert.equal(routes.size, 44);
 		for (const [path, handler] of routes.entries()) {
 			const req = {user: {id: 7}, apiKey: {id: 1, scopes: ['assets:write']}, body: {}, query: {}, params: {jobId: 1}};
-			await assert.rejects(handler(req, {send() {}}), {code: 'insufficient_scope'});
+			await assert.rejects(handler(req, {send() {}, setHeader() {}}), {code: 'insufficient_scope'});
 			req.apiKey.scopes = ['publishing:local', 'assets:write', 'publishing:manage'];
 			permission = false;
-			await assert.rejects(handler(req, {send() {}}), /not_permitted/);
+			await assert.rejects(handler(req, {send() {}, setHeader() {}}), /not_permitted/);
 			permission = true;
-			await handler(req, {send() {}});
+			await handler(req, {send() {}, setHeader() {}});
 			assert.equal(calls.at(-1)[0], 7);
 		}
 	});

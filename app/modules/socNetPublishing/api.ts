@@ -21,6 +21,83 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 		}
 	}
 	/**
+	 * @api {post} /v1/user/social-publications/deviantart/oauth/start Start DeviantArt account authorization
+	 * @apiName DeviantArtOAuthStart
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Owner management authorization required. Creates an encrypted, owner-bound ten-minute PKCE flow. No provider publication occurs. Callback URI is fixed by server configuration; client-provided callback URLs are rejected.
+	 * @apiBody {String} requestKey Stable destination setup key.
+	 * @apiBody {String} label Destination label (1–200 characters).
+	 * @apiBody {Number} [sourceGroupId] Owned private source group.
+	 * @apiBody {String="sfw","nsfw"} contentPolicy Explicit content restriction.
+	 * @apiBody {Boolean} [enabled=false] Enable new jobs after successful consent.
+	 * @apiBody {String} clientId Confidential OAuth application ID.
+	 * @apiBody {String} clientSecret Write-only OAuth application secret.
+	 * @apiSuccess {String} flowId Opaque owner-scoped status identifier.
+	 * @apiSuccess {String} authorizationUrl Open in a separate browser window.
+	 * @apiSuccess {String} expiresAt Expiration instant.
+	 * @apiSuccess {String} redirectUri Exact server-configured whitelist entry.
+	 */
+	api.onAuthorizedPost('user/social-publications/deviantart/oauth/start', async (req, res) => {
+		await authorizeManagement(req);
+		res.setHeader('Cache-Control', 'no-store');
+		res.send(await module.startDeviantArtOAuth(req.user.id, req.body));
+	});
+	/**
+	 * @api {get} /v1/user/social-publications/deviantart/oauth/callback Complete DeviantArt consent
+	 * @apiName DeviantArtOAuthCallback
+	 * @apiGroup LocalPublications
+	 * @apiUse ValidationErrors
+	 * @apiDescription Public provider return route. A random single-use state binds the pending owner and PKCE verifier; no browser login or API key is required here. Fixed text HTML never contains tokens, provider errors or redirects. Consent denial consumes the state. Callback replay never repeats token exchange or destination setup.
+	 * @apiQuery {String} state Opaque pending-flow state.
+	 * @apiQuery {String} [code] Provider authorization code.
+	 * @apiQuery {String} [error] Consent denial indicator (never reflected).
+	 * @apiSuccess {String} html Generic completion page; poll the authorized status route for results.
+	 */
+	app.ms.api.onGet('user/social-publications/deviantart/oauth/callback', async (req, res) => {
+		res.setHeader('Cache-Control', 'no-store');
+		res.setHeader('Referrer-Policy', 'no-referrer');
+		res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
+		res.setHeader('X-Content-Type-Options', 'nosniff');
+		res.setHeader('Content-Type', 'text/html; charset=utf-8');
+		let connected = false;
+		try {
+			const rawQuery = req.stream?.url?.split('?')[1];
+			if (rawQuery) {
+				const params = new URLSearchParams(rawQuery);
+				if (['state', 'code', 'error'].some(key => params.getAll(key).length > 1)) {
+					throw new Error('duplicate_callback_parameter');
+				}
+			}
+			connected = (await module.completeDeviantArtOAuth(req.query)).status === 'connected';
+		} catch {
+			// Never reflect the provider code, state, or request details in callback output.
+		}
+		res.send(`<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DeviantArt connection</title><body><h1>${connected ? 'DeviantArt connected' : 'Connection not completed'}</h1><p>Return to your client to check the connection. You can close this window.</p></body></html>`);
+	});
+	/**
+	 * @api {get} /v1/user/social-publications/deviantart/oauth/:flowId Read DeviantArt connection status
+	 * @apiName DeviantArtOAuthStatus
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Same owner management authorization as start. Returns only safe status/destination metadata. Foreign or unknown identifiers return 404; expires after ten minutes. No credentials are returned.
+	 * @apiParam {String} flowId Opaque identifier from start.
+	 * @apiSuccess {String="pending","processing","connected","failed","expired"} status Current flow state.
+	 * @apiSuccess {String} flowId Opaque identifier.
+	 * @apiSuccess {String} expiresAt Flow expiration.
+	 * @apiSuccess {Object} [destination] Connected safe destination.
+	 * @apiSuccess {String} [error] Generic error identifier.
+	 */
+	api.onAuthorizedGet('user/social-publications/deviantart/oauth/:flowId', async (req, res) => {
+		await authorizeManagement(req);
+		res.setHeader('Cache-Control', 'no-store');
+		res.send(await module.getDeviantArtOAuth(req.user.id, req.params.flowId));
+	});
+	/**
 	 * @api {post} /v1/user/social-publications/server-destinations Configure a server publication destination
 	 * @apiName ServerPublicationDestinationSetup
 	 * @apiGroup LocalPublications

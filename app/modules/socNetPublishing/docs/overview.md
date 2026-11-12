@@ -122,3 +122,16 @@ original caption, intent digest, destination, receipt and one-send rules remain.
 Existing Discord messages are not edited or resent.
 
 Contract: [Discord Create Message and Embed Object](https://docs.discord.com/developers/resources/message).
+
+
+## Managed DeviantArt OAuth
+
+`deviantartOAuth` advertises managed start/status/callback connection. Owner
+management authorization starts an encrypted ten-minute S256 PKCE flow; a public
+fixed HTTPS callback atomically consumes its hashed random state and stores the
+verified grant through existing server-account setup. Credentials never reach
+browser responses, redirects or callback access logs. New model-sync pending-flow
+tables need no existing-table migration. See [setup and recovery](../README.md#managed-deviantart-account-connection)
+for server callback configuration, proxy logging, expiry and reauthorization after
+an interrupted one-use exchange. Source jobs and publication worker behavior are
+unchanged.
