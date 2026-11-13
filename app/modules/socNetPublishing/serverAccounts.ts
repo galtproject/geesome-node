@@ -173,9 +173,10 @@ export function getServerAccountMethods(app, Destination, {normalizeRequest, bou
 				if (row.accountIdentity !== before.accountIdentity || canonical(row.target) !== canonical(before.target)) {
 					throw problem(409, 'local_publication_destination_changed');
 				}
-				const expected = destinationView(row);
-				const replay = canonical({...expected, enabled: input.expected?.enabled, contentPolicy: input.expected?.contentPolicy}) === canonical(input.expected) && row.enabled === input.enabled && row.contentPolicy === contentPolicy;
-				if (canonical(expected) !== canonical(input.expected) && !replay) {
+				const {defaultDelayMinutes: _defaultDelayMinutes, ...expected} = destinationView(row);
+				const {defaultDelayMinutes: _inputDelayMinutes, ...inputExpected} = input.expected || {};
+				const replay = canonical({...expected, enabled: input.expected?.enabled, contentPolicy: input.expected?.contentPolicy}) === canonical(inputExpected) && row.enabled === input.enabled && row.contentPolicy === contentPolicy;
+				if (canonical(expected) !== canonical(inputExpected) && !replay) {
 					throw problem(409, 'local_publication_destination_changed');
 				}
 				if (row.sourceGroupId && !isOwnedQueueGroup(await app.ms.group.getGroup(row.sourceGroupId), userId)) {

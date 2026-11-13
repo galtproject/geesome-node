@@ -146,9 +146,12 @@ describe('server social publishing foundation', function () {
 	});
 	it('reverifies stored credentials for settings without changing endpoints or publishing, rejects stale/foreign edits', async () => {
 		const {destination} = await module.setupServerDestination(1, setup());
-		const input = {expected: destination, enabled: true, contentPolicy: 'sfw'};
+		await models.PublicationDestination.update({defaultDelayMinutes: 240}, {where: {id: destination.id}});
+		const {defaultDelayMinutes: _interval, ...legacyDestination} = destination;
+		const input = {expected: legacyDestination, enabled: true, contentPolicy: 'sfw'};
 		const result = await module.updateServerDestinationSettings(1, destination.id, input);
 		assert.equal(result.destination.enabled, true);assert.equal(result.destination.contentPolicy, 'sfw');
+		assert.equal(result.destination.defaultDelayMinutes, 240);
 		assert.equal(result.destination.id, destination.id);assert.deepEqual(result.destination.target, destination.target);
 		assert(!JSON.stringify(result).includes('fixture-bot-secret'));assert.equal(published.length, 0);
 		assert.deepEqual((await module.updateServerDestinationSettings(1, destination.id, input)).destination, result.destination);

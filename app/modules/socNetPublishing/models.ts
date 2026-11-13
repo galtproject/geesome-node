@@ -65,6 +65,7 @@ export default async function createModels(sequelize: Sequelize) {
 		network: {type: DataTypes.STRING(20), allowNull: false},
 		accountIdentity: {type: DataTypes.STRING(200)},
 		label: {type: DataTypes.STRING(200), allowNull: false},
+		defaultDelayMinutes: {type: DataTypes.INTEGER, allowNull: true},
 		contentPolicy: {type: DataTypes.STRING(20), allowNull: false, defaultValue: 'nsfw'},
 		executionMode: {type: DataTypes.STRING(20), allowNull: false, defaultValue: 'client'},
 		socNetAccountId: {type: DataTypes.INTEGER},
