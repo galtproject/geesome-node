@@ -157,7 +157,7 @@ describe('server social publication adapters', () => {
 		const discord = fixture('discord', path => path.endsWith('/11111') ? response({id: '11111', guild_id: '99999', type: 0, nsfw: false}) : undefined);
 		await discord.providers.publish('discord', discord.account, payload({channelId: '11111'}, {contentType: 'sfw'}));assert(discord.requests.some(item => item.url.endsWith('/messages')));
 		const telegram = fixture('telegram');await telegram.providers.publish('telegram', telegram.account, payload({chatId: '-10098765'}, {contentType: 'sfw'}));
-		assert.equal(telegram.requests.find(item => item.url.endsWith('/sendPhoto')).options.body.get('has_spoiler'), 'false');
+		assert.equal(telegram.requests.find(item => item.url.endsWith('/sendPhoto')).options.body.get('has_spoiler'), null);
 	});
 	it('rejects sensitive Discord content in non-NSFW channel before reading images', async () => {
 		const f = fixture('discord', path => path.endsWith('/11111') ? response({id: '11111', guild_id: '99999', type: 0, nsfw: false}) : undefined);
@@ -171,27 +171,36 @@ describe('server social publication adapters', () => {
 		assert.equal(f.requests.filter(item => item.url.endsWith('/getChatMember')).length, 1);
 		assert(!f.requests.some(item => /\/send/.test(item.url)));
 	});
-	it('sends Telegram photo with spoiler and plain caption, requiring exact message/chat acknowledgement', async () => {
-		const f = fixture('telegram');
-		const result = await f.providers.publish('telegram', f.account, payload({chatId: '-10098765'}));
-		assert.deepEqual(result, {remoteId: '84', remoteUrl: 'https://t.me/artist_channel/84'});
-		const sent = f.requests.find(item => item.url.endsWith('/sendPhoto'));
-		assert(sent);
-		assert.equal(sent.options.body.get('chat_id'), '-10098765');
-		assert.equal(sent.options.body.get('caption'), 'Hello world');
-		assert.equal(sent.options.body.get('has_spoiler'), 'true');
-		assert.equal(sent.options.body.get('parse_mode'), null);
-		assert.equal(f.requests.filter(item => item.url.endsWith('/sendPhoto')).length, 1);
-	});
-	it('sends text-only Telegram without parse mode and marks sensitive text as spoiler', async () => {
-		const f = fixture('telegram');
-		await f.providers.publish('telegram', f.account, payload({chatId: '-10098765'}, {attachments: []}));
-		const sent = f.requests.find(item => item.url.endsWith('/sendMessage'));
-		const body = JSON.parse(sent.options.body);
-		assert.equal(body.parse_mode, undefined);
-		assert.deepEqual(body.entities, [{type: 'spoiler', offset: 0, length: 11}]);
-		assert.equal(f.mediaReads(), 0);
-	});
+	for (const contentType of ['sfw', 'nsfw']) {
+		it(`sends ${contentType} Telegram photos without spoilers and requires exact acknowledgement`, async () => {
+			const f = fixture('telegram');
+			const result = await f.providers.publish('telegram', f.account, payload({chatId: '-10098765'}, {contentType}));
+			assert.deepEqual(result, {remoteId: '84', remoteUrl: 'https://t.me/artist_channel/84'});
+			const sent = f.requests.find(item => item.url.endsWith('/sendPhoto'));
+			assert(sent);
+			assert.equal(sent.options.body.get('chat_id'), '-10098765');
+			assert.equal(sent.options.body.get('caption'), 'Hello world');
+			assert.equal(sent.options.body.get('has_spoiler'), null);
+			assert.equal(sent.options.body.get('caption_entities'), null);
+			assert.equal(sent.options.body.get('parse_mode'), null);
+			assert.deepEqual(Buffer.from(await sent.options.body.get('photo').arrayBuffer()), png);
+			assert.equal(f.requests.filter(item => item.url.endsWith('/sendPhoto')).length, 1);
+		});
+		it(`sends ${contentType} Telegram text without spoilers or parse mode`, async () => {
+			const f = fixture('telegram');
+			const text = 'a < b 😀 ||literal||';
+			await f.providers.publish('telegram', f.account, payload({chatId: '-10098765'}, {contentType, attachments: [], text}));
+			const sent = f.requests.find(item => item.url.endsWith('/sendMessage'));
+			const body = JSON.parse(sent.options.body);
+			assert.equal(body.chat_id, '-10098765');
+			assert.equal(body.text, text);
+			assert.equal(body.parse_mode, undefined);
+			assert.equal(body.entities, undefined);
+			assert.deepEqual(body.link_preview_options, {is_disabled: true});
+			assert.equal(f.requests.filter(item => item.url.endsWith('/sendMessage')).length, 1);
+			assert.equal(f.mediaReads(), 0);
+		});
+	}
 	it('refuses Telegram bot without channel post rights before uploading or sending', async () => {
 		const f = fixture('telegram', path => path.endsWith('/getChatMember') ? response({ok: true, result: {user: {id: 12345}, status: 'administrator', can_post_messages: false}}) : undefined);
 		await assert.rejects(f.providers.publish('telegram', f.account, payload({chatId: '-10098765'})), /cannot publish/);

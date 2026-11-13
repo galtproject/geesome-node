@@ -85,7 +85,7 @@ describe('server publication canonical HTTP integration', function () {
 		assert.equal((await ok(await call('/claim', {accounts: [{network: 'telegram', localAccountId: 'fake'}]}))).job, null);
 		assert.equal((await ok(await call('/destination-claim', {destinationIds: [destination.id]}))).job, null);
 		assert.equal((await call(`/${job.id}/result`, {claimToken: 'fake', status: 'posted', remoteId: '123'})).status, 403);
-		await app.ms.socNetPublishing.processServerQueue();assert.equal(sends.length, 1);assert.equal(sends[0].chatId, '-100456');assert.equal(sends[0].spoiler, 'true');assert(sends[0].bytes > 0);
+		await app.ms.socNetPublishing.processServerQueue();assert.equal(sends.length, 1);assert.equal(sends[0].chatId, '-100456');assert.equal(sends[0].spoiler, null);assert(sends[0].bytes > 0);
 		const projected = (await ok(await call(`?ids=${job.id}`))).jobs[0];assert.equal(projected.status, 'posted');assert.equal(projected.remoteId, '123');
 		assert.equal((await ok(await call('/compose', input))).jobs[0].id, job.id);await app.ms.socNetPublishing.processServerQueue();assert.equal(sends.length, 1);
 		const alias = await originalFetch(`${base}/user/local-publications?ids=${job.id}`, {headers: {Authorization: `Bearer ${producer}`}});

@@ -12,6 +12,18 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Telegram publications without spoilers (#1626)
+
+Server Telegram photo and text sends omit automatic spoilers for both content
+types, matching the local adapter. Frozen content policy, destination, bot identity,
+permissions and receipt checks remain enforced. Existing messages are untouched;
+server destinations require a Node deployment update.
+
+Verification: 21 isolated provider tests, 12 PostgreSQL server/account tests and
+four publishing-worker configuration tests passed. The HTTP integration test could
+not complete initialization because the host test environment lacks a reachable
+IPFS API. No live publication or production deployment was performed.
+
 ## Managed DeviantArt OAuth connection (#1623)
 
 Owner-authorized start/status endpoints and a public single-use-state/S256-PKCE
