@@ -1,3 +1,4 @@
+import {normalizeSourceImageSet, validateSourceImageSet} from './sourceImageSet.js';
 import {normalizeContentType} from './contentPolicy.js';
 import {createHash} from 'node:crypto';
 import {Op, literal} from 'sequelize';
@@ -100,7 +101,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 		return records;
 	}
 	function normalize(input) {
-		if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['contentType', 'requestKey', 'text', 'imageStorageIds', 'destinations', 'scheduledAt', 'postId', 'producer', 'groupId', 'mediaPolicy'].includes(key))) {
+		if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['contentType', 'requestKey', 'text', 'imageStorageIds', 'destinations', 'scheduledAt', 'postId', 'producer', 'groupId', 'mediaPolicy', 'sourceImageSet'].includes(key))) {
 			throw problem(400, 'local_publication_input_invalid');
 		}
 		if (input.mediaPolicy !== undefined && input.mediaPolicy !== socialImagePolicy) {
@@ -137,6 +138,10 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			const normalized = normalizeRequest({contentType: input.contentType, requestKey: input.requestKey, postId: 1, ...destination, scheduledAt: input.scheduledAt === undefined ? '2000-01-01T00:00:00Z' : input.scheduledAt}, input.groupId !== undefined);
 			return {network: normalized.network, localAccountId: normalized.localAccountId, target: normalized.target};
 		});
+		const sourceImageSet = input.sourceImageSet === undefined ? undefined : normalizeSourceImageSet(input.sourceImageSet);
+		if (sourceImageSet && destinations.some(destination => destination.network !== 'geesome')) {
+			throw problem(400, 'publication_image_set_destination_invalid');
+		}
 		if (destinations.some(destination => ['geesome', 'deviantart'].includes(destination.network) && destination.destinationId === undefined)) {
 			throw problem(400, 'local_publication_destination_required');
 		}
@@ -160,7 +165,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 		}
 		const normalized = normalizeRequest({contentType: input.contentType, requestKey: input.requestKey, postId: input.postId ?? 1, ...Object.fromEntries(Object.entries(destinations[0]).filter(([key]) => key !== 'destinationId')), scheduledAt: input.scheduledAt === undefined ? '2000-01-01T00:00:00Z' : input.scheduledAt}, input.groupId !== undefined || destinations[0].destinationId !== undefined);
 		return {contentType: normalizeContentType(input.contentType), requestKey: normalized.requestKey, text: input.text, imageStorageIds: input.imageStorageIds, destinations,
-			scheduledAt: input.scheduledAt === undefined ? null : normalized.scheduledAt, postId: input.postId === undefined ? null : normalized.postId, ...(producer ? {producer} : {}), ...(input.groupId === undefined ? {} : {groupId: boundedInteger(input.groupId, 1, Number.MAX_SAFE_INTEGER)}), ...(input.mediaPolicy === undefined ? {} : {mediaPolicy: input.mediaPolicy})};
+			...(sourceImageSet ? {sourceImageSet} : {}), scheduledAt: input.scheduledAt === undefined ? null : normalized.scheduledAt, postId: input.postId === undefined ? null : normalized.postId, ...(producer ? {producer} : {}), ...(input.groupId === undefined ? {} : {groupId: boundedInteger(input.groupId, 1, Number.MAX_SAFE_INTEGER)}), ...(input.mediaPolicy === undefined ? {} : {mediaPolicy: input.mediaPolicy})};
 	}
 	return {
 		async compose(userId, input) {
@@ -177,10 +182,13 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			if (resolved.some(item => item.sourceGroupId != null && Number(item.sourceGroupId) !== Number(request.groupId))) {
 				throw problem(403, 'local_publication_source_forbidden');
 			}
+			if (request.sourceImageSet) {
+				await validateSourceImageSet(app, userId, request.sourceImageSet);
+			}
 			const imageContents = await images(userId, request.imageStorageIds);
 			if (request.producer && resolved[0].destinationId !== undefined) {
 				const destination = resolved[0];
-				const digest = publicationIntentDigest(destination, {text: request.text, attachments: imageContents});
+				const digest = publicationIntentDigest(destination, {text: request.text, attachments: imageContents, ...(request.sourceImageSet ? {sourceImageSet: request.sourceImageSet} : {})});
 				if (request.producer.digest !== digest) {
 					throw problem(409, 'local_publication_destination_changed');
 				}
@@ -226,12 +234,13 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 				}
 				jobs = await Job.bulkCreate(resolved.map((destination, index) => {
 					const attachments = prepared ? prepared.get(imageLimit(destination.network)).map(content => imageAttachment(app, content)) : payload.attachments;
-					const preparedPayload = prepared ? {text: payload.text, attachments, mediaPreparation: {policy: socialImagePolicy,
-						sourceAttachments: payload.attachments, digest: preparedMediaDigest(destination.network, payload.attachments, attachments)}} : payload;
+					const sourcePayload = {...payload, ...(request.sourceImageSet ? {sourceImageSet: request.sourceImageSet} : {})};
+					const preparedPayload = prepared ? {...sourcePayload, attachments, mediaPreparation: {policy: socialImagePolicy,
+						sourceAttachments: payload.attachments, digest: preparedMediaDigest(destination.network, payload.attachments, attachments)}} : sourcePayload;
 					return {userId, postId: post.id, ...destination, intentVersion: 6, contentType: request.contentType, payload: preparedPayload, scheduledAt, status: 'queued',
 						requestKey: `compose:${createHash('sha256').update(request.requestKey).digest('hex')}:${index}`,
 						requestHash: hash, composeKey: request.requestKey, composeHash: hash, composeIndex: index,
-						...(request.producer ? {producer: {...request.producer, digest: publicationIntentDigest(destination, payload)}} : {})};
+						...(request.producer ? {producer: {...request.producer, digest: publicationIntentDigest(destination, sourcePayload)}} : {})};
 				}), {transaction, returning: true});
 			}
 			try {
@@ -285,10 +294,10 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			const eligible = groups.filter(group => isOwnedQueueGroup(group, userId));
 			const group = selected ? (eligible.length === 1 ? eligible[0] : null) : await getGroup(userId);
 			if (selected && !eligible.length) {
-				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true, deviantartPublishing: true, deviantartOAuth: true}, group: null, groups: [], drafts: []};
+				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true, sourceImageSetLinks: true, deviantartPublishing: true, deviantartOAuth: true}, group: null, groups: [], drafts: []};
 			}
 			if (!selected && !group) {
-				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true, deviantartPublishing: true, deviantartOAuth: true}, group: null, drafts: []};
+				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true, sourceImageSetLinks: true, deviantartPublishing: true, deviantartOAuth: true}, group: null, drafts: []};
 			}
 			if (!selected && !isManagedOutbox(group, userId)) {
 				throw problem(409, 'local_publication_outbox_conflict');
@@ -313,7 +322,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 					drafts.push({postId: post.id, groupId: post.groupId, text: '', attachments: [], createdAt: post.createdAt, unavailable: true, error: 'This draft contains unsupported content. Edit it in GeeSome before scheduling.'});
 				}
 			}
-			return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true, deviantartPublishing: true, deviantartOAuth: true}, group: group ? groupView(group) : null, ...(selected ? {groups: eligible.map(groupView)} : {}), drafts};
+			return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true, sourceImageSetLinks: true, deviantartPublishing: true, deviantartOAuth: true}, group: group ? groupView(group) : null, ...(selected ? {groups: eligible.map(groupView)} : {}), drafts};
 		}
 	};
 }

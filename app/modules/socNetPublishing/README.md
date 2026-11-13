@@ -7,7 +7,7 @@ Discover `capabilities.nativeGroupPublishing` through the existing outbox API.
 
 ## Setup
 
-Deploy the Node API and worker together, then the Girls integration. No schema
+Deploy the Node API and worker together, then the producer integration. No schema
 migration or additional service is required. `SOC_NET_PUBLISHING_WORKER=0`
 explicitly disables all automatic publishing; otherwise the normal worker is
 enabled by default. Native delivery does not require the `socNetAccount` module.
@@ -43,6 +43,31 @@ group's other destination IDs and order. Do not create separate site destination
 The private source queue group remains separate from this public target.
 
 ## Delivery and recovery
+
+Compose accepts optional `sourceImageSet: {groupId, postId}` when all destinations
+are native `geesome` destinations. Discover `capabilities.sourceImageSetLinks`
+before sending it. Both IDs are positive safe integers and reference an owned,
+published, visible post in a private membership parent group. No gallery URL or
+arbitrary metadata is accepted. The frozen reference is stored in job payload and
+native post `propertiesJson.sourceImageSet`; no new table or migration is needed.
+
+For producer digest v6, append `sourceImageSet` after `target` only when present,
+with object keys ordered as `groupId`, `postId`. Omission preserves the previous
+digest byte for byte. Compose replay includes the reference in its existing
+request hash. Retry and queue shuffle preserve the accepted reference.
+
+Feed rendering emits a `Image set (N pics)` link (or `Image set` when the total is unknown) only if the source belongs to the
+same site's parent group and is present in its current public collection
+snapshot. N comes from the source collection total image count, not the Feed selection. Relative `posts/<native-id>/` links work at all Feed route depths and
+inside immutable snapshots. Hidden/deleted sources lose their link on the next
+publication; previously published immutable snapshots remain available. The
+destination page applies ordinary membership access checks; full gallery links
+and private content never enter this reference. Old jobs and posts remain
+unchanged and do not receive guessed links.
+
+Compose validates ownership of the referenced source; it does not require the
+source parent to be linked to every target Feed. A reference to another owned
+site is retained but produces no link on this site's snapshot.
 
 Native jobs use the existing schedule and worker batch cap. Native and external
 server work alternate while both queues are busy. Desktop clients cannot claim

@@ -122,6 +122,25 @@ describe('native Site Group publishing', function () {
 		assert.equal((await module.compose(1, body)).jobs[0].id, job.id);
 		await module.processServerQueue();assert.equal(await Post.count({where: {groupId: 3}}), 1);
 	});
+	it('freezes a source image set across compose replay and native delivery', async () => {
+		const destination = await registered();
+		const set = {id: 42, groupId: 2, userId: 1, status: 'published', group: sourceGroup, propertiesJson: JSON.stringify({membership: {title: 'Source set'}})};
+		const originalGet = app.ms.group.getPost;
+		app.ms.group.getPost = async (userId, id) => id === 42 ? set : originalGet(userId, id);
+		const body = {requestKey: randomUUID(), contentType: 'sfw', groupId: 2, text: 'Preview', imageStorageIds: ['QmFirst'],
+			sourceImageSet: {groupId: 2, postId: 42}, destinations: [{destinationId: destination.id, network: 'geesome', target: {}}]};
+		const composed = await module.compose(1, body);
+		const job = await models.PublicationJob.findByPk(composed.jobs[0].id);
+		assert.deepEqual(job.payload.sourceImageSet, body.sourceImageSet);
+		set.propertiesJson = JSON.stringify({membership: {hidden: true}});
+		assert.equal((await module.compose(1, body)).jobs[0].id, job.id);
+		await assert.rejects(module.compose(1, {...body, sourceImageSet: {groupId: 2, postId: 43}}), {code: 'local_publication_request_conflict'});
+		await module.processServerQueue();await job.reload();
+		assert.equal(job.status, 'posted');
+		const created = await app.ms.group.getPostPure(job.remoteId);
+		assert.deepEqual(JSON.parse(created.propertiesJson).sourceImageSet, body.sourceImageSet);
+		await module.processServerQueue();assert.equal(await Post.count({where: {groupId: 3}}), 1);
+	});
 	it('interleaves sustained native and social backlogs within the existing batch cap', async () => {
 		const order = [];
 		const worker = createServerPublisher(app, {
