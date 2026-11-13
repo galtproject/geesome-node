@@ -226,11 +226,28 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiDescription Requires publishing:local and group management. Owner-only safe metadata, never credentials. Client key identity is key:API-key-row-ID. Server destinations expose accountIdentity instead of local client fields; native geesome destinations expose executionMode native and target.groupId without account/client fields. Provider secrets and account references remain private.
 	 * @apiQuery {Number{1-100}} [limit=20] Page size.
 	 * @apiQuery {Number{0-1000000}} [offset=0] Offset.
-	 * @apiSuccess {Object[]} destinations Safe rows: id/clientId/localKey/sourceGroupId/localAccountId/network/label/executionMode/target/enabled.
+	 * @apiSuccess {Object[]} destinations Safe rows: id/clientId/localKey/sourceGroupId/localAccountId/network/label/executionMode/target/enabled/defaultDelayMinutes. Null interval uses the producer fallback.
 	 */
 	api.onAuthorizedGet('user/social-publications/destinations', async (req, res) => {
 		await authorize(req);
 		res.send(await module.listDestinations(req.user.id, req.query));
+	});
+	/**
+	 * @api {post} /v1/user/social-publications/destinations/:destinationId/schedule-settings Set destination posting interval
+	 * @apiName PublicationDestinationSchedule
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Requires publishing:local and group management. Owner-scoped for client, server and native destinations. A stale expected value returns 409; exact retries succeed. Registration preserves this setting. Existing jobs keep their accepted schedule.
+	 * @apiParam {Number} destinationId Owned destination ID.
+	 * @apiBody {Number} defaultDelayMinutes One of 10,30,60,120,240,480,720 or null to use the producer fallback.
+	 * @apiBody {Number} expectedDefaultDelayMinutes Last catalog value, including null.
+	 * @apiSuccess {Object} destination Safe metadata including nullable defaultDelayMinutes.
+	 */
+	api.onAuthorizedPost('user/social-publications/destinations/:destinationId/schedule-settings', async (req, res) => {
+		await authorize(req);
+		res.send(await module.updateDestinationSchedule(req.user.id, req.params.destinationId, req.body));
 	});
 	/**
 	 * @api {post} /v1/user/social-publications/destinations Register publication destinations

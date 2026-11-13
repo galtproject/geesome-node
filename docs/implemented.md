@@ -1617,3 +1617,11 @@ Owner-authenticated `GET /v1/payments/admin/:resource/balances` reads only persi
 Payment observations already retain account checkpoints. Verified collection receipts now record sender/recipient balances at the receipt block, including the sender's native gas balance for token transfers. Captures are idempotent per journal event and cannot alter the confirmed transfer outcome. Existing pre-snapshot history is not fabricated. No periodic balance poller, new timer, model or migration is introduced. External wallet activity is outside this event history.
 
 Verification: disposable PostgreSQL owner-balance and managed-payment suites, worker lifecycle tests, API-doc generation, security route inventory and scalability inventory. Deploy alongside the Microwave Girls saved-balances view.
+
+## Destination posting intervals
+
+Owner-scoped schedule settings expose nullable defaultDelayMinutes on every destination.
+Supported intervals are 10/30/60/120/240/480/720 minutes; null preserves producer fallback.
+Compare-and-set updates allow exact retries and reject stale writes. Registration and
+account changes preserve settings. Existing jobs are unchanged. Deploy the additive
+20261113000000 migration before updated code; rollback may drop only these defaults.

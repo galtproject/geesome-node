@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {normalizeSourceImageSet, validateSourceImageSet} from '../app/modules/socNetPublishing/sourceImageSet.js';
+import {getOutboxMethods} from '../app/modules/socNetPublishing/outbox.js';
 import {publicationIntentDigest} from '../app/modules/socNetPublishing/producer.js';
 
 describe('publication source image set', () => {
@@ -30,5 +31,24 @@ describe('publication source image set', () => {
 		const linked = publicationIntentDigest(intent, {...payload, sourceImageSet: {groupId: 10, postId: 42}});
 		assert.notEqual(linked, legacy);
 		assert.notEqual(linked, publicationIntentDigest(intent, {...payload, sourceImageSet: {groupId: 10, postId: 43}}));
+	});
+});
+
+
+describe('outbox capability compatibility', () => {
+	it('advertises Image set links and destination intervals for empty and populated source selections', async () => {
+		const group = {id: 10, creatorId: 7, name: 'local-publications-7', type: 'channel', isPublic: false, isOpen: false,
+			propertiesJson: JSON.stringify({localPublishingOutbox: 'local-publications-v1'})};
+		const sequelize = {getQueryInterface: () => ({queryGenerator: {quoteTable: () => 'publication_jobs'}})};
+		for (const mode of ['no-source', 'missing-selected-source', 'managed-source']) {
+			const app: any = {ms: {database: {models: {Group: {findAll: async () => []}, Post: {findAll: async () => []}}},
+				group: {getGroupByParams: async () => mode === 'managed-source' ? group : null}}};
+			const methods = getOutboxMethods(app, {sequelize, getTableName: () => 'publication_jobs'}, {
+				boundedInteger: value => Number(value), groupIds: value => value
+			});
+			const result = await methods.getOutbox(7, mode === 'missing-selected-source' ? {groupIds: [999]} : {});
+			assert.equal(result.capabilities.sourceImageSetLinks, true, mode);
+			assert.equal(result.capabilities.destinationScheduleDefaults, true, mode);
+		}
 	});
 });

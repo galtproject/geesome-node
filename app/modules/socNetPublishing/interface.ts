@@ -9,6 +9,7 @@ export default interface ISocNetPublishingModule {
 	updateServerDestinationSettings(userId: number, id: number, input: any): Promise<any>;
 	setupServerDestination(userId: number, input: any): Promise<any>;
 	loadServerAccount(userId: number, accountId: number, network: string, identity: string): Promise<any>;
+	updateDestinationSchedule(userId: number, id: any, input: any): Promise<any>;
 	disableDestination(userId: number, id: any, input: any): Promise<any>;
 	listDestinationGroups(userId: number, query?: any): Promise<any>;
 	createDestinationGroup(userId: number, input: any): Promise<any>;
