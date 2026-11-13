@@ -66,7 +66,7 @@ export async function buildMembershipSnapshots(app, row, title, {renew, beginDir
 		manifest.subgroups = {};
 		for (const subgroup of subgroups) {
 			await renew();
-			const feed = await buildSubgroupFeed(app, {...(row.get ? row.get({plain: true}) : row), data: {...row.data, displayTitle: title}, options}, subgroup, {directory: await beginDirectory(`subgroup-${subgroup.alias}`), renew, tabs});
+			const feed = await buildSubgroupFeed(app, {...(row.get ? row.get({plain: true}) : row), data: {...row.data, displayTitle: title}, options}, subgroup, {directory: await beginDirectory(`subgroup-${subgroup.alias}`), renew, tabs, parentPosts: new Map(snapshot.map(post => [String(post.id), {imageCount: post.imageCount}]))});
 			manifest.subgroups[subgroup.alias] = {subgroupId: Number(subgroup.subgroupId), root: normalizePublicationCid(feed.root), paths: feed.paths};
 			for (const artifact of feed.artifacts) {
 				artifacts.add(normalizePublicationCid(artifact));
@@ -276,5 +276,6 @@ async function snapshotPost(app, post) {
 	}
 	const preview = previews.find(item => item.mime.startsWith('image/'));
 	return {socialImageUrl: preview ? `/ipfs/${preview.storageId}` : undefined, id: String(post.id), date: new Date(post.publishedAt || 0).getTime(), title: String(m.title || '').slice(0, 500), teaser: String(m.teaser ?? m.description ?? '').slice(0, 10000),
+		imageCount: Number.isSafeInteger(m.imageCount) && m.imageCount > 0 ? m.imageCount : undefined,
 		fullText: String(m.fullText ?? m.description ?? '').slice(0, 100000), free: m.free === true, full: media, previews};
 }

@@ -63,7 +63,7 @@ describe('publication queue shuffle', function () {
 		const native = await models.PublicationDestination.create({userId: 1, localKey: 'site-group', network: 'geesome', executionMode: 'native', label: 'Site Group', target: {groupId: 123}, enabled: true});
 		const site = await jobs(native), social = await jobs(first), outside = await jobs(native, {groupId: otherGroup.id}), protectedJobs = await jobs(native);
 		for (const job of [...site, ...outside, ...protectedJobs]) {
-			await job.update({network: 'geesome', executionMode: 'native', target: {groupId: 123}});
+			await job.update({network: 'geesome', executionMode: 'native', target: {groupId: 123}, payload: {...job.payload, sourceImageSet: {groupId: 10, postId: 42}}});
 		}
 		await protectedJobs[0].update({status: 'processing'});await protectedJobs[1].update({status: 'posted'});await protectedJobs[2].update({userId: 2});
 		const before = await snapshot();
@@ -125,7 +125,7 @@ describe('publication queue shuffle', function () {
 	});
 	it('requires publishing scope in both URL namespaces and forwards only the authenticated owner', async () => {
 		const routes = new Map(), calls = [];
-		registerApi({ms: {api: {onAuthorizedGet() {}, onAuthorizedPost: (path, handler) => routes.set(path, handler)}}, checkUserCan: async () => {}} as any,
+		registerApi({ms: {api: {onGet() {}, onAuthorizedGet() {}, onAuthorizedPost: (path, handler) => routes.set(path, handler)}}, checkUserCan: async () => {}} as any,
 			{shuffleQueue: async (...args) => {calls.push(args);return {};}} as any);
 		for (const prefix of ['social-publications', 'local-publications']) {
 			const handler = routes.get(`user/${prefix}/queue-shuffle`);
