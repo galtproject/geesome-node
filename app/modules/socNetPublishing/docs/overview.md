@@ -67,7 +67,8 @@ rules. Existing direct-client queues remain supported with canonical contentType
 Server adapters publish Bluesky, Discord, Telegram and DeviantArt through fixed provider
 origins. They verify the frozen account identity and load owned media through
 the node. Discord performs its provider NSFW-channel check; Telegram verifies
-numeric chat permissions. Provider classifications are derived only from
+numeric chat permissions and publishes both SFW and NSFW photos/text without
+spoilers. Provider classifications are derived only from
 contentType. Adapters do not retry mutation requests. DeviantArt requires a server
 destination and explicit title/AI disclosure per image; see the
 [DeviantArt setup, OAuth rotation and delivery contract](../README.md#deviantart-server-publishing).
@@ -135,3 +136,11 @@ tables need no existing-table migration. See [setup and recovery](../README.md#m
 for server callback configuration, proxy logging, expiry and reauthorization after
 an interrupted one-use exchange. Source jobs and publication worker behavior are
 unchanged.
+
+## Telegram visible publications (#1626)
+
+Both local and server Telegram adapters publish photos and text without automatic
+spoilers, including NSFW content. Classification, destination policy, frozen chat,
+account identity, permissions and result checks remain enforced. Existing messages
+are not edited or resent. Deploy the updated Node server for server destinations;
+updating the local client alone does not change server execution.

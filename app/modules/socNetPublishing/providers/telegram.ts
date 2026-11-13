@@ -48,7 +48,6 @@ export function createTelegramProvider(transport: any) {
 			check(bot.accountIdentity === account.accountIdentity, 'Telegram publishing account changed');
 			const destination = await chat(bot, payload.target.chatId, payload.attachments.length > 0);
 			const images = await loadImages(payload, loadMedia, 10000000);
-			const sensitive = payload.contentType === 'nsfw';
 			let method, options;
 			if (images.length) {
 				method = 'sendPhoto';
@@ -56,13 +55,11 @@ export function createTelegramProvider(transport: any) {
 				const form = new FormData();
 				form.append('chat_id', String(destination.id));
 				form.append('caption', payload.text);
-				form.append('has_spoiler', String(sensitive));
 				form.append('photo', new Blob([image.bytes], {type: image.mimeType}), image.mimeType === 'image/jpeg' ? 'image.jpg' : 'image.png');
 				options = {method: 'POST', body: form};
 			} else {
 				method = 'sendMessage';
-				options = jsonOptions({chat_id: String(destination.id), text: payload.text, link_preview_options: {is_disabled: true},
-					...(sensitive ? {entities: [{type: 'spoiler', offset: 0, length: payload.text.length}]} : {})});
+				options = jsonOptions({chat_id: String(destination.id), text: payload.text, link_preview_options: {is_disabled: true}});
 			}
 			const result = await api(bot.token, method, options, true);
 			check(Number.isSafeInteger(result.message_id) && result.message_id > 0 && Number.isSafeInteger(result.chat?.id) && result.chat.id === destination.id, 'Telegram did not confirm the message and chat ID', true);
