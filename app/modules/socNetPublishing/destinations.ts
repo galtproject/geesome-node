@@ -63,6 +63,24 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 			const rows = await Destination.findAll({where: {userId}, limit: boundedInteger(query.limit ?? 20, 1, 100), offset: boundedInteger(query.offset ?? 0, 0, 1000000), order: [['id', 'ASC']]});
 			return {destinations: rows.map(destinationView)};
 		},
+		async updateDestinationSchedule(userId, id, input) {
+			const valid = value => value === null || [10, 30, 60, 120, 240, 480, 720].includes(value);
+			if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['defaultDelayMinutes', 'expectedDefaultDelayMinutes'].includes(key)) || !valid(input.defaultDelayMinutes) || !valid(input.expectedDefaultDelayMinutes)) {
+				throw problem(400, 'local_publication_destination_invalid');
+			}
+			return Destination.sequelize.transaction(async transaction => {
+				const destination = await Destination.findOne({where: {id: boundedInteger(id, 1, Number.MAX_SAFE_INTEGER), userId}, transaction, lock: transaction.LOCK.UPDATE});
+				if (!destination) {
+					throw problem(404, 'local_publication_destination_not_found');
+				}
+				const current = destination.defaultDelayMinutes ?? null;
+				if (current !== input.expectedDefaultDelayMinutes && current !== input.defaultDelayMinutes) {
+					throw problem(409, 'local_publication_destination_changed');
+				}
+				await destination.update({defaultDelayMinutes: input.defaultDelayMinutes}, {transaction});
+				return {destination: destinationView(destination)};
+			});
+		},
 		async disableDestination(userId, id, input) {
 			if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) {
 				throw problem(400, 'local_publication_input_invalid');
@@ -132,6 +150,6 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 }
 
 export function destinationView(row) {
-	const {id, clientId, localKey, sourceGroupId, localAccountId, network, label, executionMode, accountIdentity, target, enabled, contentPolicy} = row.toJSON();
-	return {id, localKey, sourceGroupId, network, label, executionMode, contentPolicy, target, enabled, ...(executionMode === 'server' ? {accountIdentity} : executionMode === 'native' ? {} : {clientId, localAccountId})};
+	const {id, clientId, localKey, sourceGroupId, localAccountId, network, label, executionMode, accountIdentity, target, enabled, contentPolicy, defaultDelayMinutes} = row.toJSON();
+	return {id, localKey, sourceGroupId, network, label, executionMode, contentPolicy, target, enabled, defaultDelayMinutes: defaultDelayMinutes ?? null, ...(executionMode === 'server' ? {accountIdentity} : executionMode === 'native' ? {} : {clientId, localAccountId})};
 }

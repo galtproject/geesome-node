@@ -66,7 +66,7 @@ describe('publication destination groups', function () {
 		const routes = new Map();
 		const calls = [];
 		const module = Object.fromEntries(['listDestinationGroups', 'createDestinationGroup', 'updateDestinationGroup'].map(name => [name, async (...args) => {calls.push({name, args});return {groups: []};}]));
-		registerApi({ms: {api: {onAuthorizedGet: (path, handler) => routes.set('GET ' + path, handler), onAuthorizedPost: (path, handler) => routes.set('POST ' + path, handler)}}, checkUserCan: async () => {}} as any, module as any);
+		registerApi({ms: {api: {onGet() {}, onAuthorizedGet: (path, handler) => routes.set('GET ' + path, handler), onAuthorizedPost: (path, handler) => routes.set('POST ' + path, handler)}}, checkUserCan: async () => {}} as any, module as any);
 		for (const prefix of ['social-publications', 'local-publications']) {
 			for (const route of ['GET user/' + prefix + '/destination-groups', 'POST user/' + prefix + '/destination-groups', 'POST user/' + prefix + '/destination-groups/:groupId']) {
 				const handler = routes.get(route);
