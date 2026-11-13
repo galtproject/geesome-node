@@ -12,7 +12,7 @@ before source writes and again while freezing destination identity; server
 workers check only frozen job classification and policy.
 
 Classification is absent from target parameters. Provider adapters translate it
-at send time: Bluesky labels, Discord NSFW-channel checks, Telegram spoilers,
+at send time: Bluesky labels, Discord NSFW-channel checks,
 and client provider flags. Rule34 remains client-only and derives provider
 rating `s` for SFW or `e` for NSFW. There are no network exceptions to policy.
 
@@ -61,3 +61,6 @@ null. Attachments retain order; target keys sort lexicographically. URLs and
 filenames do not enter the digest. Digest v6 binds classification independently
 of provider target parameters. Original producer intent remains frozen when
 images are prepared or an unbound local route is selected.
+
+Telegram publishes both content types without photo spoiler flags or text spoiler
+entities. Destination policy still applies.
