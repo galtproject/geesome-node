@@ -226,11 +226,28 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiDescription Requires publishing:local and group management. Owner-only safe metadata, never credentials. Client key identity is key:API-key-row-ID. Server destinations expose accountIdentity instead of local client fields; native geesome destinations expose executionMode native and target.groupId without account/client fields. Provider secrets and account references remain private.
 	 * @apiQuery {Number{1-100}} [limit=20] Page size.
 	 * @apiQuery {Number{0-1000000}} [offset=0] Offset.
-	 * @apiSuccess {Object[]} destinations Safe rows: id/clientId/localKey/sourceGroupId/localAccountId/network/label/executionMode/target/enabled.
+	 * @apiSuccess {Object[]} destinations Safe rows: id/clientId/localKey/sourceGroupId/localAccountId/network/label/executionMode/target/enabled/defaultDelayMinutes. Null interval uses the producer fallback.
 	 */
 	api.onAuthorizedGet('user/social-publications/destinations', async (req, res) => {
 		await authorize(req);
 		res.send(await module.listDestinations(req.user.id, req.query));
+	});
+	/**
+	 * @api {post} /v1/user/social-publications/destinations/:destinationId/schedule-settings Set destination posting interval
+	 * @apiName PublicationDestinationSchedule
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Requires publishing:local and group management. Owner-scoped for client, server and native destinations. A stale expected value returns 409; exact retries succeed. Registration preserves this setting. Existing jobs keep their accepted schedule.
+	 * @apiParam {Number} destinationId Owned destination ID.
+	 * @apiBody {Number} defaultDelayMinutes One of 10,30,60,120,240,480,720 or null to use the producer fallback.
+	 * @apiBody {Number} expectedDefaultDelayMinutes Last catalog value, including null.
+	 * @apiSuccess {Object} destination Safe metadata including nullable defaultDelayMinutes.
+	 */
+	api.onAuthorizedPost('user/social-publications/destinations/:destinationId/schedule-settings', async (req, res) => {
+		await authorize(req);
+		res.send(await module.updateDestinationSchedule(req.user.id, req.params.destinationId, req.body));
 	});
 	/**
 	 * @api {post} /v1/user/social-publications/destinations Register publication destinations
@@ -363,6 +380,9 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiBody {String} requestKey Owner-scoped compose idempotency key.
 	 * @apiBody {String} text New text (maximum 40000 characters).
 	 * @apiBody {String[]} imageStorageIds Owned Asset or local Content storage IDs (maximum 20).
+	 * @apiBody {Object} [sourceImageSet] Optional source collection reference, supported only for native geesome destinations. Requires capabilities.sourceImageSetLinks. Frozen into payload and producer digest; no gallery URL is accepted.
+	 * @apiBody {Number} sourceImageSet.groupId Owned private membership parent group ID.
+	 * @apiBody {Number} sourceImageSet.postId Published visible native membership post ID in that group.
 	 * @apiBody {Object} [destinations.target] DeviantArt requires a server destinationId, exactly one JPEG/PNG image, title (1–50 Unicode characters), explicit Boolean isAiGenerated, optional tags (maximum 30 unique ASCII letter/number/underscore tags, 1–64 characters each) and optional Boolean noAi (defaults true). Check capabilities.deviantartPublishing before offering this provider. Each Patreon destination target requires title (1–200 chars), audience (free_members or paid_members), teaserText (nonempty exact prefix of text, maximum 10000 chars) and campaignId (positive decimal, up to 20 digits). Unbound group jobs may defer campaignId to the local route. Prepared Patreon jobs allow up to 20 preview images. No Cookie credentials accepted.
 	 * @apiBody {Object[]} destinations New rows use destinationId/network/target and freeze the registered client route. Legacy rows use network/localAccountId/target selections (1–20). With explicit groupId only, omit localAccountId to defer local account selection until claim.
 	 * @apiBody {String} [scheduledAt] ISO instant with timezone; omit to send now.
@@ -398,6 +418,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiSuccess {Number} ownerId Authenticated GeeSome owner ID for connection verification.
 	 * @apiSuccess {Object} capabilities Supported additive publishing features.
 	 * @apiSuccess {Boolean} capabilities.nativeGroupPublishing Supports native geesome destinations targeting one owned public group, without social credentials.
+	 * @apiSuccess {Boolean} capabilities.sourceImageSetLinks Supports frozen sourceImageSet references and same-site Feed collection links.
 	 * @apiSuccess {Boolean} capabilities.publicationDestinationGroups Owner-scoped named destination groups with revision-checked metadata updates.
 	 * @apiSuccess {Boolean} capabilities.contentTypePublishing Requires contentType and uses digest v6.
 	 * @apiSuccess {Boolean} capabilities.patreonPublishing Supports explicit Patreon member audience and multi-image preview jobs.

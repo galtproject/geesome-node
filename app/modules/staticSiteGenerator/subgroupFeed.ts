@@ -1,3 +1,4 @@
+import {normalizeSourceImageSet} from '../socNetPublishing/sourceImageSet.js';
 import {membershipRenderData, membershipBase} from './membershipRenderData.js';
 import siteRenderer from './site/index.js';
 import {buildBrowserClient} from './site/browserBundle.js';
@@ -13,7 +14,7 @@ type FeedTab = {alias: string; label: string; href: string};
 const postsPerPage = 20;
 
 /** Render an already validated public child without reading its parent's posts. */
-export async function buildSubgroupFeed(app, resourceRow, subgroup, {directory, renew, tabs}: {directory: string; renew: () => Promise<unknown>; tabs: FeedTab[]}) {
+export async function buildSubgroupFeed(app, resourceRow, subgroup, {directory, renew, tabs, parentPosts = new Map<string, {imageCount?: number}>()}: {directory: string; renew: () => Promise<unknown>; tabs: FeedTab[]; parentPosts?: Map<string, {imageCount?: number}>}) {
 	const {group, alias, subgroupId} = subgroup;
 	normalizeSubgroupAlias(alias);
 	if (!group || Number(group.id) !== Number(subgroupId) || Number(group.creatorId) !== Number(resourceRow.ownerId)
@@ -54,7 +55,14 @@ export async function buildSubgroupFeed(app, resourceRow, subgroup, {directory, 
 					media.push({mime, storageId: normalizePublicationCid(content.storageId), extension: helpers.getContentExtension(content), name: String(content.name || '').slice(0, 200)});
 				}
 			}
-			posts.push({id: String(post.id), date: new Date(post.publishedAt || 0).getTime(), title: heading.trim().slice(0, 200) || `Post ${post.id}`,
+			let sourceImageSet;
+			try {
+				const source = normalizeSourceImageSet(JSON.parse(post.propertiesJson || '{}').sourceImageSet);
+				if (source.groupId === Number(resourceRow.groupId) && parentPosts.has(String(source.postId))) {
+					sourceImageSet = source;
+				}
+			} catch {}
+			posts.push({sourceImageSet, id: String(post.id), date: new Date(post.publishedAt || 0).getTime(), title: heading.trim().slice(0, 200) || `Post ${post.id}`,
 				teaser: description, fullText: description, free: true, media});
 		}
 	});
@@ -105,7 +113,8 @@ export async function buildSubgroupFeed(app, resourceRow, subgroup, {directory, 
 			...(page > 1 ? {newer: page === 2 ? prefix : `${prefix}page/${page - 1}/`} : {}),
 			...(page < pageCount ? {older: `${prefix}page/${page + 1}/`} : {})};
 		const cards = selected.map(post => ({...post, postUrl: `${prefix}posts/${post.id}/`,
-			media: post.media.map(item => item.storageId ? {mime: item.mime, name: item.name, url: prefix + copied.get(item.storageId)} : item)}));
+			media: [...post.media.map(item => item.storageId ? {mime: item.mime, name: item.name, url: prefix + copied.get(item.storageId)} : item),
+				...(post.sourceImageSet ? [{mime: 'text/uri-list', view: 'link', name: sourceImageSetLabel(parentPosts.get(String(post.sourceImageSet.postId))), url: `${parentRoot}posts/${post.sourceImageSet.postId}/`}] : [])]}));
 		const canonicalPath = `/${alias}/${path.replace(/index\.html$/, '')}`;
 		const data: any = membershipRenderData({...branding, relativeRoot: prefix, homeUrl: parentRoot, entryPath: membershipBase + '/', canonicalPath, navigation}, cards, false, single, page, pageCount);
 		for (const post of data.creator.posts) {
@@ -130,4 +139,9 @@ export async function buildSubgroupFeed(app, resourceRow, subgroup, {directory, 
 	const root = normalizePublicationCid(await storage.getDirectoryId(directory));
 	artifacts.add(root);
 	return {root, artifacts, paths};
+}
+
+function sourceImageSetLabel(source) {
+	const count = source?.imageCount;
+	return Number.isSafeInteger(count) && count > 0 ? `Image set (${count} pics)` : 'Image set';
 }

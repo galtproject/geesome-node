@@ -12,6 +12,27 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Feed links to source image sets (#1629)
+
+Native compose accepts an optional numeric source reference and binds it to the
+existing immutable request and producer digest. Delivery stores the reference in
+post properties. Feed rendering resolves it against the same publication's
+visible parent collection snapshot and reuses the existing link action:
+`Image set (103 pics)`, or `Image set` when the source total is unknown. Counts
+come from collection metadata rather than the selected Feed images. No schema,
+private gallery URL, new worker or URL parser expansion is involved.
+
+Hidden/deleted or foreign-parent sources produce no link. Old publications
+preserve their existing hashes and are not automatically backfilled. See the
+[queue contract](../app/modules/socNetPublishing/README.md#delivery-and-recovery).
+
+Verification: 9 focused reference/digest/renderer tests and 18 PostgreSQL native
+delivery/shuffle tests passed. Docker browser validation exercised the actual
+collection-link click at desktop and narrow widths, producing 16 captures with
+no broken images or horizontal overflow; source and destination states were
+visually reviewed. Creator typecheck, apiDoc generation, route inventory and
+database scalability inventory checks passed.
+
 ## Telegram publications without spoilers (#1626)
 
 Server Telegram photo and text sends omit automatic spoilers for both content
@@ -1596,3 +1617,11 @@ Owner-authenticated `GET /v1/payments/admin/:resource/balances` reads only persi
 Payment observations already retain account checkpoints. Verified collection receipts now record sender/recipient balances at the receipt block, including the sender's native gas balance for token transfers. Captures are idempotent per journal event and cannot alter the confirmed transfer outcome. Existing pre-snapshot history is not fabricated. No periodic balance poller, new timer, model or migration is introduced. External wallet activity is outside this event history.
 
 Verification: disposable PostgreSQL owner-balance and managed-payment suites, worker lifecycle tests, API-doc generation, security route inventory and scalability inventory. Deploy alongside the Microwave Girls saved-balances view.
+
+## Destination posting intervals
+
+Owner-scoped schedule settings expose nullable defaultDelayMinutes on every destination.
+Supported intervals are 10/30/60/120/240/480/720 minutes; null preserves producer fallback.
+Compare-and-set updates allow exact retries and reject stale writes. Registration and
+account changes preserve settings. Existing jobs are unchanged. Deploy the additive
+20261113000000 migration before updated code; rollback may drop only these defaults.

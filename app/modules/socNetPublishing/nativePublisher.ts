@@ -4,6 +4,7 @@ import {ApiProblemError} from '../api/problem.js';
 import {GroupType, PostStatus} from '../group/interface.js';
 import {getPublicApiContext} from '../api/publicUrls.js';
 import {assertContentPolicy} from './contentPolicy.js';
+import {normalizeSourceImageSet} from './sourceImageSet.js';
 import {isOwnedQueueGroup} from './sources.js';
 
 const leaseMs = 5 * 60 * 1000;
@@ -79,7 +80,8 @@ export function createNativePublisher(app, {PublicationJob: Job, PublicationDest
 				}
 				contents.push({id: content.id});
 			}
-			post = await app.ms.group.createPost(job.userId, {groupId: group.id, status: PostStatus.Published, contents}, {
+			post = await app.ms.group.createPost(job.userId, {groupId: group.id, status: PostStatus.Published, contents,
+				...(payload.sourceImageSet ? {propertiesJson: JSON.stringify({sourceImageSet: normalizeSourceImageSet(payload.sourceImageSet)})} : {})}, {
 				asyncDerivedState: false,
 				afterPersist: async (created, transaction) => {
 					const locked = await Job.findOne({where: claimWhere(job), transaction, lock: transaction.LOCK.UPDATE});

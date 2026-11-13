@@ -7,6 +7,36 @@ import {publicPostShareUrl} from '../app/modules/staticSiteGenerator/site/public
 
 describe('public subgroup Feed rendering', function () {
 	this.timeout(30000);
+	it('links only visible source collections in the same parent snapshot at every route depth', async () => {
+		const fixture = subgroupFeedFixture();
+		fixture.posts[22].propertiesJson = JSON.stringify({sourceImageSet: {groupId: 10, postId: 42}});
+		fixture.posts[21].propertiesJson = JSON.stringify({sourceImageSet: {groupId: 10, postId: 43}});
+		fixture.posts[20].propertiesJson = JSON.stringify({sourceImageSet: {groupId: 99, postId: 42}});
+		fixture.posts[0].propertiesJson = JSON.stringify({sourceImageSet: {groupId: 10, postId: 42}});
+		await buildSubgroupFeed(fixture.app, fixture.row, fixture.subgroup, {directory: '/linked', renew: async () => {}, tabs: fixture.tabs, parentPosts: new Map([['42', {imageCount: 103}]])});
+		for (const [path, href] of [['index.html', '../posts/42/'], ['posts/23/index.html', '../../../posts/42/'], ['page/2/index.html', '../../../posts/42/']]) {
+			const html = fixture.files.get('/linked/' + path).toString();
+			assert(html.includes(`href="${href}"`));
+			assert(html.includes('Image set (103 pics)'));
+			assert(!html.includes('posts/43/'));
+		}
+		const hidden = fixture.files.get('/linked/posts/22/index.html').toString();
+		const foreign = fixture.files.get('/linked/posts/21/index.html').toString();
+		assert(!hidden.includes('Image set (103 pics)'));
+		assert(!foreign.includes('Image set (103 pics)'));
+	});
+	it('uses the verified collection total instead of selected Feed images and falls back without a count', async () => {
+		const fixture = subgroupFeedFixture(2);
+		fixture.posts[0].propertiesJson = JSON.stringify({sourceImageSet: {groupId: 10, postId: 42}});
+		fixture.posts[1].propertiesJson = JSON.stringify({sourceImageSet: {groupId: 10, postId: 43}});
+		await buildSubgroupFeed(fixture.app, fixture.row, fixture.subgroup, {directory: '/counts', renew: async () => {}, tabs: fixture.tabs,
+			parentPosts: new Map([['42', {imageCount: 103}], ['43', {}]])});
+		const html = fixture.files.get('/counts/index.html').toString();
+		const state = JSON.parse(html.match(/<script id="site-data"[^>]*>([\s\S]*?)<\/script>/)[1]).creator;
+		assert.equal(state.posts.find(post => post.id === '1').previews.length, 1);
+		assert.equal(state.posts.find(post => post.id === '1').attachments[0].name, 'Image set (103 pics)');
+		assert.equal(state.posts.find(post => post.id === '2').attachments[0].name, 'Image set');
+	});
 	it('renders native public rich text and ordered images through the existing group projection and creator cards', async () => {
 		const fixture = subgroupFeedFixture();
 		const result = await buildSubgroupFeed(fixture.app, fixture.row, fixture.subgroup, {directory: '/staging/feed', renew: async () => {}, tabs: fixture.tabs});
