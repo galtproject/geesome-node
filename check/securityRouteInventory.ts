@@ -140,6 +140,8 @@ function notesFor(route: RouteRow, block: string): string[] {
     notes.add('publishing:local and UserGroupManagement; owned private source plus 1–20 enabled owned source-compatible destinations; bounded 10000 future queued jobs; row locks, atomic time-slot permutation per destination; durable owner/key replay prevents repeated shuffle; no due/processing/foreign mutation');
   } else if (route.moduleName === 'socNetPublishing' && routeLower.includes('/destination-groups')) {
     notes.add('publishing:local and UserGroupManagement; owner-only non-credential selection metadata; 1–20 distinct owned destination IDs; idempotent creation and optimistic revision replacement; no nested groups or job mutation');
+  } else if (route.moduleName === 'socNetPublishing' && routeLower.includes('/operations/')) {
+    notes.add('read-only owner-scoped durable request status; publishing:local + assets:write and group management; no replay or raw error projection');
   } else if (route.moduleName === 'socNetPublishing') {
     notes.add('publishing:local and UserGroupManagement; compose also requires assets:write; owner-scoped jobs; public-source edit permission or owned ordinary closed source at create/claim; bounded owner-only source selection; authoritative group/network/account routes; opt-in media preparation validates owned originals and uses server-only completed cache; original claim token for results; destination registration and claim bind executor to dedicated non-password API key ID; legacy claim excludes destination jobs; destination results require original client key');
   }
@@ -149,7 +151,9 @@ function notesFor(route: RouteRow, block: string): string[] {
     }
     notes.add('publishing:local and UserGroupManagement; owner-scoped bounded summary/history; dedicated client key binds local observations to client-mode entities; atomic monotonic UTC-day upserts; server refresh delegates to socNetAccount with encrypted owned credentials and fixed provider hosts; no secret projection');
   }
-  if (route.moduleName === 'imageComposition') {
+  if (route.moduleName === 'imageComposition' && routeLower.includes('/image-composition-operations/')) {
+    notes.add('read-only owner-scoped durable request status; existing content-save permission; no replay or raw error projection');
+  } else if (route.moduleName === 'imageComposition') {
     notes.add('module enforces actor-owned catalog Content and dependency authorization');
     if (routeLower.endsWith('/image-compositions') && route.method === 'GET') {
       notes.add('baked-only list projection; original/SVG dependency URLs omitted');

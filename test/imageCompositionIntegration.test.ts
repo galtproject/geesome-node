@@ -48,6 +48,31 @@ describe('image composition content persistence', function () {
 		catalogFolder = await app.ms.fileCatalog.createUserFolder(owner.id, null, 'Compositions');
 	});
 
+	it('accepts async image preparation before rendering and keeps owner-scoped status and source holds', async () => {
+		const key=await app.generateUserApiKey(owner.id,{scopes:['content:write']});
+		const otherKey=await app.generateUserApiKey(outsider.id,{scopes:['content:write']});
+		const module=app.ms.imageComposition;
+		const create=module.createImageCompositionContent.bind(module);
+		let release;const gate=new Promise<void>(resolve=>{release=resolve;});
+		module.createImageCompositionContent=async (userId,input)=>{await gate;return create(userId,input);};
+		const call=(path,body?,token=key)=>fetch(`http://127.0.0.1:7782/v1/user/${path}`,{method:body===undefined?'GET':'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});
+		try {
+			const input={...createInput({stickers:[]}),async:true};
+			const response=await call('image-compositions',input);assert.equal(response.status,202);const accepted=await response.json();assert.equal(accepted.status,'queued');
+			const {countStorageHolds}=await import('../app/modules/asyncOperation/storageHolds.js');
+			assert((await countStorageHolds(app,originalContent.storageId))>0);
+			assert.equal((await call(`image-composition-operations/${accepted.operationId}`,undefined,otherKey)).status,404);
+			assert.equal((await call('image-compositions',{...input,stickers:createInput().stickers})).status,409);
+			release();let status=accepted;
+			for(let attempt=0;attempt<100&&status.status!=='completed';attempt++) {
+				await new Promise(resolve=>setTimeout(resolve,100));const result=await call(`image-composition-operations/${accepted.operationId}`);assert.equal(result.status,200);status=await result.json();assert.notEqual(status.status,'failed',JSON.stringify(status));
+			}
+			assert.equal(status.status,'completed');assert.equal(status.result.type,'image-composition');
+			const replay=await call('image-compositions',input);assert.equal(replay.status,202);assert.equal((await replay.json()).result.composite.contentManifestId,status.result.composite.contentManifestId);
+		} finally {
+			release();module.createImageCompositionContent=create;
+		}
+	});
 	it('persists verified band removal across retries and revisions without modifying the original', async () => {
 		const driver = watermarkDriver({name: 'imageWatermark', module: 'convert', params: {text: 'eraofwave.com'}});
 		const marked = await addWatermark(originalPng, driver);

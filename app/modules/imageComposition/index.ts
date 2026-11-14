@@ -1,3 +1,5 @@
+import {createDurableRequests, defineDurableRequestModel, runAsAcceptingKey} from '../../durableRequests.js';
+import {withStorageWorker} from '../../storageLifecycle.js';
 import debug from 'debug';
 import {Op} from 'sequelize';
 import type {IGeesomeApp} from '../../interface.js';
@@ -38,6 +40,10 @@ export default async function initImageCompositionModule(app: IGeesomeApp) {
   app.checkModules(['database', 'api', 'content', 'fileCatalog', 'asyncOperation']);
   const models = await (await import('./models/index.js')).default(app.ms.database.sequelize, app.ms.database.models);
   const module = getModule(app, models);
+  const requests = createDurableRequests(await defineDurableRequestModel(app.ms.database.sequelize), 'image-composition',
+    (owner, input, context) => runAsAcceptingKey(app, owner, context, [], CorePermissionName.UserSaveData,
+      () => module.createImageCompositionContent(Number(owner), input)), {runWorker: run => withStorageWorker(app, run)});
+  Object.assign(module, {asyncRequests: requests, stop: () => requests.stop()});
   (await import('./api.js')).default(app, module);
   return module;
 }
@@ -699,6 +705,7 @@ export function getModule(app: IGeesomeApp, models): IGeesomeImageCompositionMod
     }
 
     async flushDatabase() {
+      await app.ms.database.sequelize.models.durableApiRequest?.destroy({where:{kind:'image-composition'}});
       await models.ImageCompositionIdentity.destroy({where: {}});
       await models.ImageCompositionOperation.destroy({where: {}});
     }

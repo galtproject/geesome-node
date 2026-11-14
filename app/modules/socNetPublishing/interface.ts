@@ -1,4 +1,8 @@
+import type {createDurableRequests} from '../../durableRequests.js';
 export default interface ISocNetPublishingModule {
+	asyncRequests?: ReturnType<typeof createDurableRequests>;
+	validateComposeRequest(input: any): any;
+	prepareAsyncCompose(userId: number, input: any): Promise<any[]>;
 	startDeviantArtOAuth(userId: number, input: any): Promise<any>;
 	getDeviantArtOAuth(userId: number, flowId: string): Promise<any>;
 	completeDeviantArtOAuth(input: any): Promise<any>;
@@ -19,7 +23,7 @@ export default interface ISocNetPublishingModule {
 	claimDestinationJob(userId: number, clientId: string, input: any): Promise<any>;
 	shuffleQueue(userId: number, input: any): Promise<any>;
 	flushDatabase(): Promise<void>;
-	compose(userId: number, input: any): Promise<any>;
+	compose(userId: number, input: any, expectedDestinations?: any[]): Promise<any>;
 	getOutbox(userId: number, query?: any): Promise<any>;
 	listSources(userId: number, query?: any): Promise<any>;
 	createSource(userId: number, input: any): Promise<any>;

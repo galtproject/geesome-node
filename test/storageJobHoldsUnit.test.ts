@@ -35,6 +35,12 @@ describe('storage holds derived from existing jobs', () => {
             inputJson: JSON.stringify({source: {storageId: cid}})}]), cid), 1);
     });
 
+    it('retains original and preview files for durable asynchronous requests', async () => {
+        const app=fixture([]);
+        (app.ms.database.sequelize as any).models={userOperationQueue:true,durableApiRequest:{findAll:async()=>[{id:'operation',context:{sources:[{storageId:cid}]}}]}};
+        assert.equal(await countStorageHolds(app,cid),1);
+    });
+
     it('releases only detached workflow holds and fails closed for unknown or overflowing work', async () => {
         const detached = job(1, {sources: [{storageId: cid}]}, {cleanup: {holdsReleased: true}});
         assert.equal(await countStorageHolds(fixture([detached]), cid), 0);

@@ -1,3 +1,6 @@
+import {createDurableRequests, defineDurableRequestModel, runAsAcceptingKey} from '../../durableRequests.js';
+import {CorePermissionName} from '../database/interface.js';
+import {withStorageWorker} from '../../storageLifecycle.js';
 import {getDeviantArtOAuthMethods} from './deviantartOAuth.js';
 import {normalizeDeviantArtTarget} from './deviantartTarget.js';
 import {getQueueShuffleMethods} from './queueShuffle.js';
@@ -26,6 +29,11 @@ export default async function socNetPublishing(app: IGeesomeApp) {
 	app.checkModules(['api', 'database', 'group', 'asset']);
 	const models = await (await import('./models.js')).default(app.ms.database.sequelize);
 	const module = getModule(app, models);
+	const requests = createDurableRequests(await defineDurableRequestModel(app.ms.database.sequelize), 'publication-compose',
+		(owner, input, context) => runAsAcceptingKey(app, owner, context, ['publishing:local', 'assets:write'], CorePermissionName.UserGroupManagement,
+			() => module.compose(Number(owner), input, context.destinations)), {runWorker: run => withStorageWorker(app, run)});
+	const stop = module.stop.bind(module);
+	Object.assign(module, {asyncRequests: requests, stop: async () => { await requests.stop(); await stop(); }});
 	(await import('./api.js')).default(app, module);
 	module.setCronWorker((await import('./cron.js')).default(app, module));
 	return module;
@@ -56,6 +64,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 		...getOutboxMethods(app, PublicationJob, {normalizeRequest, snapshot, plain, problem, boundedInteger, groupIds: normalizeGroupIds, jobViews, resolveDestination: destinations.resolveDestination, PublicationDestination}),
 		...getSourceMethods(app, {problem, boundedInteger}),
 		async flushDatabase() {
+			await app.ms.database.sequelize.models.durableApiRequest?.destroy({where:{kind:'publication-compose'}});
 			await PublicationOAuthFlow?.destroy({where: {}});
 			await PublicationQueueShuffle?.destroy({where: {}});
 			await PublicationJob.destroy({where: {}});

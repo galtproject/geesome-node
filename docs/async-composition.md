@@ -1,0 +1,15 @@
+# Durable asynchronous composition
+
+Issue #1646 adds optional `async: true` to `POST /v1/user/image-compositions` and `POST /v1/user/social-publications/compose` (including the legacy local-publications alias). Existing synchronous calls retain their result format.
+
+The server persists the request and owner-scoped retry identity before returning HTTP 202: `{async:true, operationId, status, retryAfterSeconds}`. Poll `GET /v1/user/image-composition-operations/:operationId` or `GET /v1/user/social-publications/operations/:operationId`. Status is `queued`, `processing`, `completed` or `failed`; completion includes the original API result in `result`, and failure includes a safe `errorCode`. Reads are private, uncached and never start work. A completed POST replay still returns the same operation and result; it does not publish again.
+
+Request keys are permanent receipts, and different content under the same key returns 409. Failed preparation requires an explicit same-key POST to retry. The accepting key is checked again for ownership, revocation, expiry, scopes and permissions at execution. Composition requires the existing content-save permission; publication composition retains publishing:local and assets:write requirements. Source files and previews are held against physical cleanup while work is accepted or processing.
+
+Requests run under renewable six-minute database claims. A new process resumes a stale claim after expiry using the same input and existing composition/outbox idempotency checkpoints. No fresh key is generated after an uncertain outcome. Workers do preparation and queue composition; normal scheduled delivery remains a separate job lifecycle. New tables are initialized by model sync; existing tables and rows require no schema alteration. Both workers stop before their dependent modules.
+
+Consumers can negotiate `asyncImageComposition` and `asyncPublicationComposition` in the outbox capabilities. Update the node first; a consumer can retain synchronous calls against older nodes while moving its own browser-facing orchestration into the background. Rolling back to an older node leaves accepted rows intact but requires restoring this version to resume pending requests; preserve original keys and reconcile existing jobs instead of resubmitting as new work.
+
+Verification covers concurrent acceptance/claims, owner isolation, conflicting keys, failed-operation reads, restart claims, key revocation, source holds, real image HTTP acceptance and real publication compose/replay with disposable SQL and Kubo. No provider publication is necessary for asynchronous acceptance tests.
+
+Asynchronous publication admission also freezes the resolved destination bindings. Execution rejects account/target drift before creating jobs, and retries keep those original bindings even when admission is attempted against changed settings. Existing composed jobs are reconciled before checking live destinations, so a lost response remains recoverable after later configuration edits.
