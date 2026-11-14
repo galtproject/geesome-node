@@ -1,9 +1,11 @@
 [Unit]
-Description=Restart IPFS container
+Description=Restart IPFS after draining storage writers
+After=docker.service geesome-docker.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/docker restart go_ipfs
+ExecStart=/bin/bash /root/geesome-node/bash/ipfs-safe-restart.sh
+TimeoutStartSec=300
 
 [Install]
 WantedBy=multi-user.target
