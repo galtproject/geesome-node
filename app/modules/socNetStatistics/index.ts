@@ -99,7 +99,7 @@ export function getModule(app, models, options: any = {}) {
 				}
 				where.network = query.network;
 			}
-			const destinationWhere = {...where};
+			const destinationWhere = {...where, enabled: true};
 			if (query.groupId !== undefined) {
 				const groupId = integer(query.groupId);
 				const generator: any = sequelize.getQueryInterface().queryGenerator;
@@ -130,7 +130,7 @@ export function getModule(app, models, options: any = {}) {
 					if (!guildAudiences.has(guildId)) {
 						guildAudiences.set(guildId, Promise.all([
 							latest(userId, 'group', destination.id, guildId),
-							Destination.count({where: {userId, network: 'discord', 'target.guildId': guildId}})
+							Destination.count({where: {userId, enabled: true, network: 'discord', 'target.guildId': guildId}})
 						]));
 					}
 					[statistics, sharedDestinations] = await guildAudiences.get(guildId);

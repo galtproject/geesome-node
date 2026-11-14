@@ -120,7 +120,7 @@ export default function registerApi(app, module) {
 	 * @apiQuery {Number{0-1000000}} [offset=0] Posted receipt offset.
 	 * @apiQuery {Number{0-1000000}} [destinationOffset=0] Destination offset, page size 50.
 	 * @apiSuccess {Object[]} posts Posted receipts with caption, source group, provider identity and latest statistics.
-	 * @apiSuccess {Object[]} groups Safe destination metadata with latest audience metrics, typed audience scope, and publicationCounts (last24Hours, last7Days, asOf). Counts are distinct confirmed remote IDs per destination, independent of receipt pagination.
+	 * @apiSuccess {Object[]} groups Enabled destination metadata with latest audience metrics, typed audience scope, and publicationCounts (last24Hours, last7Days, asOf). Counts are distinct confirmed remote IDs per destination, independent of receipt pagination.
 	 * @apiSuccess {Number} nextOffset Next receipt offset or null.
 	 * @apiSuccess {Number} nextDestinationOffset Next destination offset or null.
 	 * @apiSuccess {String} timezone UTC.
