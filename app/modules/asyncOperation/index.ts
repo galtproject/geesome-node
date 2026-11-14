@@ -33,6 +33,7 @@ export default async (app: IGeesomeApp) => {
 		await app.ms.content?.['processResaveQueue']?.();
 		await app.ms.imageComposition?.asyncRequests?.process();
 		await app.ms.socNetPublishing?.asyncRequests?.process();
+		await app.ms.content?.['processVideoWatermarkQueue']?.();
 		await app.ms.staticSiteGenerator?.['processPendingRenderRecoveries']?.();
 		await app.ms.staticSiteGenerator?.['processSiteReplacementQueue']?.();
 	}, {intervalMs: 2000, onError: error => console.error('storage_job_worker_error', error)});

@@ -52,6 +52,20 @@ describe('server social publishing foundation', function () {
 		const row = await models.PublicationDestination.findByPk(result.destination.id);
 		return {...result.destination, account: row.socNetAccountId};
 	}
+	it('lists queued jobs in sending order before pagination with stable ties and owner/network filters', async () => {
+		const destination = await registered();
+		const late = await queued(destination, {scheduledAt: '2030-01-03T00:00:00Z'});
+		const first = await queued(destination, {scheduledAt: '2030-01-01T00:00:00Z'});
+		const tied = await queued(destination, {scheduledAt: '2030-01-01T00:00:00Z'});
+		const posted = await queued(destination, {status: 'posted', scheduledAt: '2020-01-01T00:00:00Z'});
+		await queued(destination, {userId: 2, scheduledAt: '2000-01-01T00:00:00Z'});
+		await queued(destination, {network: 'discord', scheduledAt: '2000-01-01T00:00:00Z'});
+		const query = {order: 'queue', network: 'telegram', limit: 2};
+		assert.deepEqual((await module.listJobs(1, query)).map(job => job.id), [first.id, tied.id]);
+		assert.deepEqual((await module.listJobs(1, {...query, offset: 2})).map(job => job.id), [late.id, posted.id]);
+		assert.deepEqual((await module.listJobs(1, {ids: [late.id, first.id, tied.id, posted.id].join(',')})).map(job => job.id), [posted.id, tied.id, first.id, late.id]);
+		await assert.rejects(module.listJobs(1, {order: 'invalid'}), {status: 400});
+	});
 	it('encrypts write-only credentials, defaults disabled, reuses account and preserves destination identity', async () => {
 		const first = await module.setupServerDestination(1, setup());assert.equal(first.destination.enabled, false);
 		assert(!JSON.stringify(first).includes('fixture-bot-secret'));assert.equal(first.destination.clientId, undefined);assert.equal(first.destination.socNetAccountId, undefined);

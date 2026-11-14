@@ -31,13 +31,21 @@ describe('storage holds derived from existing jobs', () => {
             assert.equal(await countStorageHolds(app, variants(cid)[1]), 2);
             assert.equal(await countStorageHolds(app, cid, 1), 1);
         }
-        assert.equal(await countStorageHolds(fixture([{module: 'content-resave',
-            inputJson: JSON.stringify({source: {storageId: cid}})}]), cid), 1);
+        for (const module of ['content-resave', 'video-watermark']) {
+            assert.equal(await countStorageHolds(fixture([{module,
+                inputJson: JSON.stringify({source: {storageId: cid}})}]), cid), 1);
+        }
     });
 
     it('retains original and preview files for durable asynchronous requests', async () => {
-        const app=fixture([{id:1,module:'image-composition',inputJson:JSON.stringify({context:{sources:[{storageId:cid}]}})}]);
-        assert.equal(await countStorageHolds(app,cid),1);
+        const rows = ['image-composition', 'publication-compose'].map((module, id) => ({id: id + 1, module,
+            inputJson: JSON.stringify({context: {sources: [{storageId: cid, mediumPreviewStorageId: cid}]}})}));
+        rows.push({id: 3, module: 'video-watermark', inputJson: JSON.stringify({source: {storageId: cid}})});
+        rows.push({id: 4, module: 'content-resave', inputJson: JSON.stringify({source: {storageId: cid}})});
+        const app = fixture(rows);
+        assert.equal(await countStorageHolds(app, cid), 4);
+        assert.equal(await countStorageHolds(app, variants(cid)[1]), 4);
+        assert.equal(await countStorageHolds(app, cid, 3), 3);
     });
 
     it('releases only detached workflow holds and fails closed for unknown or overflowing work', async () => {
