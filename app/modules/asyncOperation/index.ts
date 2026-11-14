@@ -1,3 +1,4 @@
+import {retainedRequestModules} from './requests.js';
 import {startIntervalWorker} from '../../backgroundWorker.js';
 import {countStorageHolds} from './storageHolds.js';
 import _ from 'lodash';
@@ -30,6 +31,9 @@ export default async (app: IGeesomeApp) => {
 	const worker = startIntervalWorker(async () => {
 		await app.ms.content?.['durableUploads']?.processQueue();
 		await app.ms.content?.['processResaveQueue']?.();
+		await app.ms.imageComposition?.asyncRequests?.process();
+		await app.ms.socNetPublishing?.asyncRequests?.process();
+		await app.ms.content?.['processVideoWatermarkQueue']?.();
 		await app.ms.staticSiteGenerator?.['processPendingRenderRecoveries']?.();
 		await app.ms.staticSiteGenerator?.['processSiteReplacementQueue']?.();
 	}, {intervalMs: 2000, onError: error => console.error('storage_job_worker_error', error)});
@@ -354,6 +358,10 @@ export function getModule(app: IGeesomeApp, models) {
 				}
 				return result;
 			} catch (e) {
+				if (options.shouldRetry?.(e, waitingQueue, asyncOperation)) {
+					await this.updateUserAsyncOperation(asyncOperation.id, {inProcess: false, errorType: 'pending', errorMessage: null});
+					return null;
+				}
 				await options.onError?.(e, waitingQueue, asyncOperation);
 				await this.closeUserOperationQueueByAsyncOperationId(asyncOperation.id);
 				await this.errorAsyncOperation(waitingQueue.userId, asyncOperation.id, getErrorMessage(e));
@@ -410,7 +418,7 @@ export function getModule(app: IGeesomeApp, models) {
 				attributes: ['id'],
 				where: {
 					inProcess: false,
-					module: {[Op.or]: [{[Op.ne]: 'site-replacement'}, {[Op.is]: null}]},
+					module: {[Op.or]: [{[Op.notIn]: ['site-replacement', ...retainedRequestModules]}, {[Op.is]: null}]},
 					[Op.and]: literal(`NOT EXISTS (SELECT 1 FROM "userOperationQueues" AS waiting
 						WHERE waiting."asyncOperationId" = "userAsyncOperation"."id" AND (waiting."isWaiting" = true OR
                             (waiting.module = 'durable-upload' AND
@@ -431,6 +439,7 @@ export function getModule(app: IGeesomeApp, models) {
 				attributes: ['id'],
 				where: {
 					isWaiting: false,
+					module: {[Op.or]: [{[Op.notIn]: retainedRequestModules}, {[Op.is]: null}]},
 					asyncOperationId: null,
 					updatedAt: {[Op.lt]: cutoff}
 				},

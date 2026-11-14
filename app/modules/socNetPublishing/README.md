@@ -271,3 +271,8 @@ publication is part of deployment verification.
 `test/deviantartOAuth.test.ts` verifies real PostgreSQL owner isolation, encrypted
 PKCE state, concurrent callbacks, restart-before-callback, denial, expiry,
 malformed/unknown outcomes, bounds and API/header/access-log protections.
+
+Queue consumers can request `order=queue` on the job list: queued jobs appear
+first by scheduled time and ID ascending, followed by other statuses by scheduled
+time and ID descending. Ordering runs in SQL before pagination and combines with
+owner/group/network filters. The default remains newest-created order.
