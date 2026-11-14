@@ -1,4 +1,5 @@
 import {lookup as dnsLookup} from "node:dns/promises";
+import {Agent as HttpAgent} from "node:http";
 import {Agent as HttpsAgent} from "node:https";
 import {BlockList, isIP} from "node:net";
 
@@ -22,6 +23,23 @@ export async function createSafeHttpsAgent(
 	return new HttpsAgent({
 		lookup: getPinnedLookup(hostname, addresses, errorPrefix)
 	});
+}
+
+export async function createSafeHttpAndHttpsAgents(
+	hostname: string,
+	options: ISafeHttpsAgentOptions = {}
+): Promise<{httpAgent: HttpAgent; httpsAgent: HttpsAgent}> {
+	const errorPrefix = options.errorPrefix || 'outbound_http';
+	const addresses = await resolvePublicAddresses(
+		hostname,
+		options.lookup || dnsLookup,
+		errorPrefix
+	);
+	const lookup = getPinnedLookup(hostname, addresses, errorPrefix);
+	return {
+		httpAgent: new HttpAgent({lookup}),
+		httpsAgent: new HttpsAgent({lookup})
+	};
 }
 
 async function resolvePublicAddresses(
