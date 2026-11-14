@@ -1,10 +1,12 @@
+import AbstractDriver from '../abstractDriver.js';
+import {DriverInput} from '../interface.js';
 import {createHash} from 'node:crypto';
 import sharp from 'sharp';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {stat, writeFile} from 'node:fs/promises';
-import {validateAndNormalizeImageCompositionStickerSvg} from '../imageComposition/svg.js';
-import {problem} from './publicationInput.js';
+import {validateAndNormalizeImageCompositionStickerSvg} from '../../imageComposition/svg.js';
+import {problem} from '../../content/publicationInput.js';
 
 const exec = promisify(execFile);
 export const videoWatermarkPolicy = 'video-svg-h264-v1';
@@ -79,4 +81,31 @@ export async function renderWatermarkedVideo(inputPath: string, svg: string, dir
 	}
 	return {path: output, width: Math.ceil(geometry.width / 2) * 2,
 		height: Math.ceil(geometry.height / 2) * 2, duration: geometry.duration};
+}
+
+// The content service owns admission, source authorization, persistence and cleanup.
+export class VideoWatermarkDriver extends AbstractDriver {
+    supportedInputs = [DriverInput.Path];
+
+    async processByPath(path, options: any = {}) {
+        return renderWatermarkedVideo(path, options.svg, options.directory, options.mimeType, options.sourceStorageId);
+    }
+}
+
+export function videoWatermarkRequest(value) {
+    let driver = value;
+    if (typeof value === 'string') {
+        try {
+            driver = JSON.parse(value);
+        } catch {
+            return null;
+        }
+    }
+    if (driver?.name !== 'videoWatermark') {
+        return null;
+    }
+    if (driver.module !== 'convert' || typeof driver.params?.svg !== 'string') {
+        problem('video_watermark_driver_invalid', 400);
+    }
+    return {svg: driver.params.svg};
 }

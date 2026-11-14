@@ -1,3 +1,4 @@
+import {videoWatermarkRequest} from '../drivers/convert/videoWatermark.js';
 import {savePreparedImage, preparedMultipartFiles} from './preparedImage.js';
 import {maxImageBytes} from '../drivers/convert/imageOptimize.js';
 import {ContentResave} from './resave.js';
@@ -112,10 +113,16 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
 
     /**
      * @api {post} /v1/user/save-data Save data
-     * @apiDescription Store data (string or buffer), or resave an owned image by sourceContentId with an imageOptimize driver. Resaves reuse the existing operation queue and return its receipt, or a completed saved Content. Poll ordinary operation endpoints. Requires content:write for resaving.
+     * @apiDescription Store data (string or buffer), or transform owned media by sourceContentId with an imageOptimize or videoWatermark driver. Video watermark requests always use the durable queue; async=true is recommended. Completed video recipes reuse cached output without another overlay. Resaves reuse the existing operation queue and return its receipt, or a completed saved Content. Poll ordinary operation endpoints. Requires content:write for resaving.
      * @apiName UserSaveData
-     * @apiBody {Object} [driver] Use {name:"imageOptimize",module:"convert",params:{policy:"publication-jpeg95-v1",watermark:optionalImageWatermarkDriver}}. Saves JPEG quality 95 plus WebP previews without separate flags.
-     * @apiBody {Number} [sourceContentId] Existing owned image to resave, instead of content; requires an imageOptimize driver. Optional driver watermark is frozen in the queue; marked renditions are reused only when they satisfy that watermark.
+     * @apiBody {Boolean} [async] Request asynchronous processing.
+     * @apiError video_watermark_driver_invalid Invalid videoWatermark convert driver or missing SVG.
+     * @apiError video_watermark_svg_invalid Invalid or unsafe SVG.
+     * @apiError video_watermark_content_unavailable Source is unavailable or not owned, local and unencrypted.
+     * @apiError video_watermark_format_unsupported Source must be MP4, QuickTime or WebM.
+     * @apiError video_watermark_render_limit Video exceeds the bounded rendering limits.
+     * @apiBody {Object} [driver] Use {name:"imageOptimize",module:"convert",params:{policy:"publication-jpeg95-v1",watermark:optionalImageWatermarkDriver}}. Saves JPEG quality 95 plus WebP previews. For owned video use {name:"videoWatermark",module:"convert",params:{svg:"<svg>...</svg>"}}; validates a self-contained 400:88 SVG and queues bounded H.264 MP4 encoding. See docs/video-watermarks.md for limits and cache semantics.
+     * @apiBody {Number} [sourceContentId] Existing owned media to resave, instead of content; requires an imageOptimize or videoWatermark driver. Optional driver watermark is frozen in the queue; marked renditions are reused only when they satisfy that watermark.
      * @apiSuccess {String} [status] queued or completed for sourceContentId resaves.
      * @apiSuccess {Number} [id] Existing operation-queue ID when queued.
      * @apiSuccess {Number} [asyncOperationId] Existing operation ID when assigned.
@@ -123,7 +130,7 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiSuccess {Object} [timings] Opt-in GEESOME_IMAGE_RESAVE_TIMINGS=1 diagnostics for completed resaves; queued results expose execution timings in the ordinary operation output. Numeric elapsed spans with parent IDs, byte counters and explicit reuse, never CPU attribution.
      * @apiSuccess {Number} [timings.totalMs] Elapsed operation time; nested/overlapping spans are not additive.
      * @apiSuccess {Number} [timings.queueAgeMs] Queue age before this execution, including earlier attempts on resume; null for a direct cache hit.
-     * @apiError content_resave_input_invalid Conflicting content/sourceContentId or missing optimization driver.
+     * @apiError content_resave_input_invalid Conflicting content/sourceContentId or missing supported conversion driver.
      * @apiGroup UserContent
      *
      * @apiUse ApiKey
@@ -151,11 +158,19 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
             ...pick(req.body, ['groupId', 'folderId', 'mimeType', 'path', 'async', 'driver'])
         };
 
+        const video = videoWatermarkRequest(req.body.driver);
+        if (video && req.body.sourceContentId === undefined) {
+            throw new ApiProblemError(400, 'content_resave_input_invalid', 'videoWatermark requires sourceContentId');
+        }
         if (req.body.sourceContentId !== undefined) {
-            if (req.body.content !== undefined || !optimizationRequest(req.body.driver)) {
-                throw new ApiProblemError(400, 'content_resave_input_invalid', 'Supply sourceContentId and an imageOptimize driver without content');
+            if (req.body.content !== undefined || !video && !optimizationRequest(req.body.driver)) {
+                throw new ApiProblemError(400, 'content_resave_input_invalid', 'Supply sourceContentId and an imageOptimize or videoWatermark driver without content');
             }
             app.checkModules(['content']);
+            if (video) {
+                const result = await app.ms.content['requestVideoWatermark'](req.user.id, req.apiKey.id, {sourceContentId: req.body.sourceContentId, ...video});
+                return res.send(result, result.status === 'queued' ? 202 : 200);
+            }
             return res.send(await app.ms.content['requestResave'](req.user.id, req.body.sourceContentId, req.apiKey.id, req.body.driver), 202);
         }
 

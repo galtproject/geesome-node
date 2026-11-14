@@ -9,7 +9,7 @@ import {plain, sameCid} from '../../storageIdentity.js';
 import {withStorageFence, withStorageWorker} from '../../storageLifecycle.js';
 import {ContentResave, imageSourceSnapshot, properties} from './resave.js';
 import {problem} from './publicationInput.js';
-import {maxVideoBytes, normalizeVideoWatermark, renderWatermarkedVideo, videoWatermarkPolicy} from './videoWatermarkRender.js';
+import {maxVideoBytes, normalizeVideoWatermark, videoWatermarkPolicy} from '../drivers/convert/videoWatermark.js';
 
 export const videoWatermarkModule = 'video-watermark';
 
@@ -93,7 +93,7 @@ export class VideoWatermark {
 				}});
 				const path = join(directory, 'original');
 				await pipeline(await this.app.ms.storage.getFileStream(source.storageId), limit, createWriteStream(path, {mode: 0o600}));
-				const rendered = await renderWatermarkedVideo(path, input.svg, directory, source.mimeType, source.storageId);
+				const rendered = await this.app.ms.drivers.convert.videoWatermark.processByPath(path, {svg: input.svg, directory, mimeType: source.mimeType, sourceStorageId: source.storageId});
 				await this.app.ms.asyncOperation.handleOperationCancel(queue.userId, operation.id);
 				content = plain(await this.app.ms.content.saveData(queue.userId, createReadStream(rendered.path), 'branded-video.mp4', {
 					mimeType: 'video/mp4', driver: {raw: true}, waitForPin: true, skipFileCatalog: true,
