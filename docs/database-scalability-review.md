@@ -569,3 +569,11 @@ time and ID ascending; other statuses sort newest scheduled first. The CASE orde
 may require a database sort over the matching owner's rows; it does not load the
 full queue into the client or change worker claim queries. Existing consumers
 retain the default newest-created order; no schema or index migration is required.
+
+### Publication history views (#1655)
+
+Queue/history filters remain owner-scoped SQL status predicates before bounded
+limit/offset pagination. Queue sorts by scheduled time/ID ascending, History by
+updated time/ID descending. No full-queue hydration is introduced. The existing
+owner/status/scheduled index supports queue filtering; history may sort matching
+owner rows by updated time. No schema migration or worker query changes are needed.

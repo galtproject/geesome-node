@@ -276,3 +276,8 @@ Queue consumers can request `order=queue` on the job list: queued jobs appear
 first by scheduled time and ID ascending, followed by other statuses by scheduled
 time and ID descending. Ordering runs in SQL before pagination and combines with
 owner/group/network filters. The default remains newest-created order.
+
+Use `view=queue` for queued, processing, failed and needs_review jobs ordered by
+scheduled time/ID ascending, or `view=history` for posted and cancelled jobs by
+updated time/ID descending. Views filter before pagination and intersect with
+all existing filters. Omitting view preserves the earlier listing contract.

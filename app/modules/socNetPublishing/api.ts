@@ -508,6 +508,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiQuery {String} [groupIds] Comma-separated distinct positive group IDs (maximum 100), intersected with owner filters. Empty selects no jobs.
 	 * @apiQuery {String} [composeKey] Exact owner-scoped compose key (1–128 identifier characters) for read-only lost-response recovery.
 	 * @apiQuery {String} [ids] Comma-separated distinct positive job IDs (1–100), always intersected with authenticated owner/status filters.
+	 * @apiQuery {String="queue","history"} [view] Queue: queued/processing/failed/needs_review by scheduledAt/id ascending. History: posted/cancelled by updatedAt/id descending. Applied before pagination and intersected with all filters; overrides order.
 	 * @apiQuery {String="queue"} [order] Sending order before pagination; omitted preserves newest-created order.
 	 * @apiSuccess {Object[]} jobs Owner jobs with source groupId; newest creation by default. With order=queue, queued jobs first by scheduledAt/id ascending, then other statuses by scheduledAt/id descending.
 	 */

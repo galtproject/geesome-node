@@ -66,6 +66,25 @@ describe('server social publishing foundation', function () {
 		assert.deepEqual((await module.listJobs(1, {ids: [late.id, first.id, tied.id, posted.id].join(',')})).map(job => job.id), [posted.id, tied.id, first.id, late.id]);
 		await assert.rejects(module.listJobs(1, {order: 'invalid'}), {status: 400});
 	});
+	it('separates active queue from history before pagination and intersects explicit status and owner filters', async () => {
+		const destination = await registered();
+		const early = await queued(destination, {status: 'failed', scheduledAt: '2030-01-01T00:00:00Z'});
+		const later = await queued(destination, {status: 'processing', scheduledAt: '2030-01-02T00:00:00Z'});
+		const review = await queued(destination, {status: 'needs_review', scheduledAt: '2030-01-03T00:00:00Z'});
+		const pending = await queued(destination, {scheduledAt: '2030-01-04T00:00:00Z'});
+		const posted = await queued(destination, {status: 'posted'});
+		const cancelled = await queued(destination, {status: 'cancelled'});
+		await queued(destination, {userId: 2, status: 'posted'});
+		const ids = async query => (await module.listJobs(1, query)).map(job => job.id);
+		assert.deepEqual(await ids({view: 'queue', limit: 2}), [early.id, later.id]);
+		assert.deepEqual(await ids({view: 'queue', limit: 2, offset: 2}), [review.id, pending.id]);
+		assert.deepEqual(await ids({view: 'history', limit: 1}), [cancelled.id]);
+		assert.deepEqual(await ids({view: 'history', limit: 1, offset: 1}), [posted.id]);
+		assert.deepEqual(await ids({view: 'queue', status: 'posted'}), []);
+		assert.deepEqual(await ids({view: 'history', status: 'posted'}), [posted.id]);
+		assert.deepEqual(await ids({view: 'history', network: 'discord'}), []);
+		await assert.rejects(module.listJobs(1, {view: 'invalid'}), {status: 400});
+	});
 	it('encrypts write-only credentials, defaults disabled, reuses account and preserves destination identity', async () => {
 		const first = await module.setupServerDestination(1, setup());assert.equal(first.destination.enabled, false);
 		assert(!JSON.stringify(first).includes('fixture-bot-secret'));assert.equal(first.destination.clientId, undefined);assert.equal(first.destination.socNetAccountId, undefined);
