@@ -1,9 +1,21 @@
 # Video watermark preparation
 
-`POST /v1/user/video-watermarks` accepts `{sourceContentId, svg}` for an owned,
+`POST /v1/user/save-data` accepts the following driver request for an owned,
 local, unencrypted MP4, QuickTime or WebM. Requires UserSaveData and the
 `content:write` integration scope. SVG uses the existing image-composition
 allowlist. The original Content and its bytes remain available.
+
+```json
+{"sourceContentId":123,"async":true,"driver":{"module":"convert","name":"videoWatermark","params":{"svg":"<svg>...</svg>"}}}
+```
+
+Supply `sourceContentId` without `content`. Both object and JSON-string drivers
+are accepted. The video driver requires an owned saved source; ordinary video
+uploads still use their existing conversion path. Video preparation always uses
+the durable queue, including when `async` is omitted. Queued requests return HTTP
+202, cached results HTTP 200. The conversion driver renders; the content service
+owns authorization, queue admission, storage holds and receipt persistence.
+There is no separate video-watermarks endpoint.
 
 The response is either `{status:"completed", sourceContentId, content, policy}`
 or `{status:"queued", sourceContentId, id, asyncOperationId}`. Poll the ordinary
@@ -41,7 +53,7 @@ success and failure.
 
 Deploy the backend before clients begin video branding. No schema migration or
 new dependency is required. Existing still-image composition and video upload
-conversion remain unchanged. This endpoint prepares downloadable MP4s; it does
+conversion remain unchanged. This driver prepares downloadable MP4s; it does
 not add video support to existing image-only social publication providers.
 
 Verification: real FFmpeg frame/color, H.264, AAC byte preservation, duration,
@@ -49,3 +61,5 @@ faststart and original-byte checks; PostgreSQL/IPFS HTTP admission, scope,
 ownership, deduplication, storage holds, cache/deletion and already-applied
 checks; existing storage hold tests. Run the focused video tests through the
 repository Docker test tooling with PostgreSQL, IPFS and FFmpeg available.
+
+Driver API refactor: 8 Docker video/storage tests and 2 existing save-data image/raw-JSON regression tests passed. Coverage includes conflicting content/source input, missing source, invalid driver/module/SVG, JSON-string drivers and removal of the separate route. API documentation generation and security route inventory passed. The full backend suite was not run.
