@@ -12,6 +12,20 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Scheduled IPFS restarts under the storage fence (#1634)
+
+The systemd restart unit and installer/upgrader use a bounded host wrapper that
+drains shared storage writers, holds the existing exclusive PostgreSQL fence
+across Docker restart and readiness, and refuses an unfenced fallback. The helper
+uses the web container's existing database configuration through a private
+stdin/stdout session. No new API, queue, migration or upload replay is introduced.
+See [rollout and failure boundaries](ipfs-scheduled-restart.md).
+
+Verification: nine host-wrapper scenarios, fourteen PostgreSQL maintenance and
+admission tests, a real disposable Kubo restart preserving pinned bytes, and two
+Docker deployment helper tests passed. Production services were not restarted
+to test this change. Full crash recovery remains separate.
+
 ## Feed links to source image sets (#1629)
 
 Native compose accepts an optional numeric source reference and binds it to the

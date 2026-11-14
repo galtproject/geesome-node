@@ -73,6 +73,7 @@
     "test:frontend-cache:docker": "bash test/frontendBuildCacheDocker.test.sh",
     "test:docker-images:compose": "bash test/dockerImageCompose.test.sh",
     "test:kubo-migration": "bash test/kuboMigration.test.sh",
+    "test:ipfs-safe-restart": "bash bash/test-ipfs-safe-restart",
     "test:docker-images": "node --test test/dockerImageDeployment.test.mjs",
     "test:docker-retention": "bash test/dockerRetention.test.sh",
     "testCoverage": "GROUP_DERIVED_STATE_ASYNC=0 node --import tsx --experimental-global-customevent ./node_modules/.bin/nyc -r lcov -e .ts -x \"*.test.ts\" ./node_modules/.bin/mocha test/**/*.test.ts && nyc report",

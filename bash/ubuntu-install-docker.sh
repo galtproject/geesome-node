@@ -18,7 +18,7 @@ bash bash/docker-prepare-image.sh
 
 sed "s|/root/geesome-node|$PWD|g" < bash/geesome-docker.service | sudo tee /etc/systemd/system/geesome-docker.service > /dev/null
 
-sudo cp bash/geesome-ipfs-restart.service /etc/systemd/system/geesome-ipfs-restart.service
+sed "s|/root/geesome-node|$PWD|g" < bash/geesome-ipfs-restart.service | sudo tee /etc/systemd/system/geesome-ipfs-restart.service > /dev/null
 sudo cp bash/geesome-ipfs-restart.timer /etc/systemd/system/geesome-ipfs-restart.timer
 
 sudo systemctl daemon-reload

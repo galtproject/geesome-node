@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+node --test test/ipfsSafeRestart.test.mjs
+name="geesome-restart-test-$$"
+ipfs="$name-ipfs"
+cleanup() { docker rm -f "$name" "$ipfs" >/dev/null 2>&1 || true; }
+trap cleanup EXIT
+docker run --detach --name "$name" --publish 127.0.0.1::5432 \
+  --env POSTGRES_PASSWORD=disposable_test_only --env POSTGRES_USER=restart_test \
+  --env POSTGRES_DB=geesome_restart_test postgres:14-alpine >/dev/null
+for attempt in {1..30}; do
+  if docker exec "$name" pg_isready -U restart_test >/dev/null 2>&1; then break; fi
+  sleep 1
+done
+export DATABASE_HOST=127.0.0.1 DATABASE_PORT="$(docker port "$name" 5432 | sed 's/.*://')"
+export DATABASE_NAME=geesome_restart_test DATABASE_USER=restart_test DATABASE_PASSWORD=disposable_test_only
+node --import tsx ./node_modules/.bin/mocha test/storageMaintenance.test.ts test/storageAdmissionLifecycle.test.ts --timeout 15000
+docker run --detach --name "$ipfs" --publish 127.0.0.1::5001 --env IPFS_PROFILE=test ipfs/kubo:v0.42.0 >/dev/null
+for attempt in {1..30}; do
+  if docker exec "$ipfs" ipfs --api=/ip4/127.0.0.1/tcp/5001 diag healthy >/dev/null 2>&1; then break; fi
+  sleep 1
+done
+export GEESOME_RESTART_TEST_IPFS_CONTAINER="$ipfs"
+export GEESOME_RESTART_TEST_IPFS_URL="http://127.0.0.1:$(docker port "$ipfs" 5001 | sed 's/.*://')"
+node --import tsx --test test/ipfsSafeRestartKubo.test.mjs
