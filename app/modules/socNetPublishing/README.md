@@ -281,3 +281,35 @@ Use `view=queue` for queued, processing, failed and needs_review jobs ordered by
 scheduled time/ID ascending, or `view=history` for posted and cancelled jobs by
 updated time/ID descending. Views filter before pagination and intersect with
 all existing filters. Omitting view preserves the earlier listing contract.
+
+### Destination queue preferences
+
+`shuffleEnabled` defaults to true for every destination. Owners can save it with
+`defaultDelayMinutes` through `schedule-settings`; optional expected shuffle and
+desired shuffle values must be sent together. Interval-only clients preserve the
+shuffle setting. Null interval uses the producer fallback; supported intervals
+extend through 10080 minutes (one week). Registration preserves both preferences.
+The outbox advertises `destinationShuffleSettings`. Apply the additive
+`20261114000000-publication-destination-shuffle.cjs` migration before running the
+updated application against an existing database.
+
+Shuffle requests leave opted-out destinations untouched and persist a skipped
+receipt alongside enabled destinations. A preference save never rewrites existing
+job times. Durable shuffle retries return the original receipt. Verified by
+`test/publicationDestinationSchedule.test.ts` and `test/publicationQueueShuffle.test.ts`.
+
+Optional `randomDelayEnabled` defaults to false. After a destination's first job
+is due, automatic execution draws with probability 1/10 at most once per minute.
+The destination UPDATE lock and persisted `randomDelayNextCheckAt` prevent extra
+draws across workers/restarts, and keep later jobs from overtaking it. Successful
+draws also reserve the minute, bounding overdue batches to one dispatch per
+destination per minute. Explicit local Publish now bypasses this gate. Native
+processing recovery preserves its lease/manifest reconciliation behavior.
+Settings changes are conflict-checked alongside interval and shuffle, and older
+interval-only clients preserve both booleans.
+
+Tracking: #1661. Verified with 63 PostgreSQL-backed publication, migration and
+provider tests, API-doc generation and route-inventory checks. Migration testing
+covers fresh installs, existing rows, default values, reruns and rollback. The
+full migration audit requires a complete migrated database; the isolated test
+database only checks audit coverage and skips unrelated absent tables.

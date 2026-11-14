@@ -227,24 +227,28 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiDescription Requires publishing:local and group management. Owner-only safe metadata, never credentials. Client key identity is key:API-key-row-ID. Server destinations expose accountIdentity instead of local client fields; native geesome destinations expose executionMode native and target.groupId without account/client fields. Provider secrets and account references remain private.
 	 * @apiQuery {Number{1-100}} [limit=20] Page size.
 	 * @apiQuery {Number{0-1000000}} [offset=0] Offset.
-	 * @apiSuccess {Object[]} destinations Safe rows: id/clientId/localKey/sourceGroupId/localAccountId/network/label/executionMode/target/enabled/defaultDelayMinutes. Null interval uses the producer fallback.
+	 * @apiSuccess {Object[]} destinations Safe rows: id/clientId/localKey/sourceGroupId/localAccountId/network/label/executionMode/target/enabled/defaultDelayMinutes/shuffleEnabled/randomDelayEnabled. Null interval uses the producer fallback.
 	 */
 	api.onAuthorizedGet('user/social-publications/destinations', async (req, res) => {
 		await authorize(req);
 		res.send(await module.listDestinations(req.user.id, req.query));
 	});
 	/**
-	 * @api {post} /v1/user/social-publications/destinations/:destinationId/schedule-settings Set destination posting interval
+	 * @api {post} /v1/user/social-publications/destinations/:destinationId/schedule-settings Set destination posting preferences
 	 * @apiName PublicationDestinationSchedule
 	 * @apiGroup LocalPublications
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 * @apiUse ValidationErrors
-	 * @apiDescription Requires publishing:local and group management. Owner-scoped for client, server and native destinations. A stale expected value returns 409; exact retries succeed. Registration preserves this setting. Existing jobs keep their accepted schedule.
+	 * @apiDescription Requires publishing:local and group management. Owner-scoped for client, server and native destinations. A stale expected value returns 409; exact retries succeed. Registration preserves these settings. Optional shuffle fields must be supplied together. Existing jobs keep their accepted schedule.
 	 * @apiParam {Number} destinationId Owned destination ID.
-	 * @apiBody {Number} defaultDelayMinutes One of 10,30,60,120,240,480,720 or null to use the producer fallback.
+	 * @apiBody {Number} defaultDelayMinutes One of 10,30,60,120,240,480,720,1440,2880,4320,10080 or null to use the producer fallback.
 	 * @apiBody {Number} expectedDefaultDelayMinutes Last catalog value, including null.
-	 * @apiSuccess {Object} destination Safe metadata including nullable defaultDelayMinutes.
+	 * @apiBody {Boolean} [randomDelayEnabled] After becoming due, automatic publishing checks once per minute with probability 1/10; default false. Explicit local job claims bypass the gate.
+	 * @apiBody {Boolean} [expectedRandomDelayEnabled] Last catalog value; required with randomDelayEnabled.
+	 * @apiBody {Boolean} [shuffleEnabled] Shuffle this destination when a producer requests queue shuffle.
+	 * @apiBody {Boolean} [expectedShuffleEnabled] Last catalog shuffle value; required with shuffleEnabled.
+	 * @apiSuccess {Object} destination Safe metadata including nullable defaultDelayMinutes and shuffleEnabled (default true) and randomDelayEnabled (default false).
 	 */
 	api.onAuthorizedPost('user/social-publications/destinations/:destinationId/schedule-settings', async (req, res) => {
 		await authorize(req);
@@ -356,6 +360,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiDescription Independently permutes future queued v6 jobs per destination in the private source group. Preserves scheduled slots, payloads and routing. Due, processing, finished, deleted-source and foreign jobs are excluded. At most 10000 jobs; larger queues fail without changes. Retries return the original result without reshuffling. Legacy /user/local-publications alias uses identical authorization.
 	 * @apiSuccess {String} requestKey Original request key
 	 * @apiSuccess {Object[]} destinations Per-destination queuedJobs and changedJobs counts
+	 * @apiSuccess {Object[]} destinations Per-destination counts; shuffle-disabled destinations return skipped=true, reason=shuffle_disabled and changedJobs=0 without modifying slots.
 	 * @apiError (400) publication_queue_shuffle_invalid Invalid request
 	 * @apiError (403) publication_queue_shuffle_source_forbidden Source is not an owned private queue
 	 * @apiError (403) publication_queue_shuffle_destination_forbidden Destination is foreign, disabled or bound to another source

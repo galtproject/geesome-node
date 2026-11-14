@@ -1,3 +1,4 @@
+import {createRandomDelayGate} from './randomDelay.js';
 import {createQueuedRequests, runAsAcceptingKey} from '../asyncOperation/requests.js';
 import {CorePermissionName} from '../database/interface.js';
 import {getDeviantArtOAuthMethods} from './deviantartOAuth.js';
@@ -41,7 +42,9 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 	const sequelize = PublicationJob.sequelize;
 	const destinations = getDestinationMethods(PublicationDestination, {app, normalizeRequest, problem, boundedInteger, loadServerAccount: (userId, accountId, network, identity) => serverAccounts.loadServerAccount(userId, accountId, network, identity)});
 	const serverAccounts = getServerAccountMethods(app, PublicationDestination, {normalizeRequest, problem, boundedInteger}, options);
-	const native = createNativePublisher(app, {PublicationJob, PublicationDestination});
+	const randomDelay = createRandomDelayGate(PublicationDestination, options);
+	const deferred = Symbol('random-delay');
+	const native = createNativePublisher(app, {PublicationJob, PublicationDestination}, options);
 	let cronWorker = null;
 	let publisher;
 	let serverScanCursor = null;
@@ -57,6 +60,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 			return publisher.process(input);
 		},
 		listDestinations: destinations.listDestinations,
+		updateDestinationSchedule: destinations.updateDestinationSchedule,
 		disableDestination: destinations.disableDestination,
 		registerDestinations: destinations.registerDestinations,
 		...getOutboxMethods(app, PublicationJob, {normalizeRequest, snapshot, plain, problem, boundedInteger, groupIds: normalizeGroupIds, jobViews, resolveDestination: destinations.resolveDestination, PublicationDestination}),
@@ -155,7 +159,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 			const quote = table => sequelize.getQueryInterface().queryGenerator.quoteTable(table.getTableName());
 			const eligible = literal(`(SELECT d."id" FROM ${quote(PublicationDestination)} d JOIN ${quote(Account)} a ON a."id"=d."socNetAccountId" AND a."userId"=d."userId" AND a."socNet"=d."network" AND a."accountId"=d."accountIdentity" WHERE d."enabled"=true AND d."executionMode"='server' AND a."serverCredentialsEncrypted" IS NOT NULL)`);
 			for (let checked = 0; checked < 20; checked++) {
-				const candidate = await PublicationJob.findOne({where: {executionMode: 'server', intentVersion: 6, status: 'queued', destinationId: {[Op.in]: eligible}, scheduledAt: {[Op.lte]: new Date()}, ...(serverScanCursor ? {[Op.or]: [{scheduledAt: {[Op.gt]: serverScanCursor.scheduledAt}}, {scheduledAt: serverScanCursor.scheduledAt, id: {[Op.gt]: serverScanCursor.id}}]} : {})}, order: [['scheduledAt', 'ASC'], ['id', 'ASC']]});
+				const candidate = await PublicationJob.findOne({where: {executionMode: 'server', intentVersion: 6, status: 'queued', destinationId: {[Op.in]: eligible}, [Op.and]: [randomDelay.readyWhere()], scheduledAt: {[Op.lte]: new Date()}, ...(serverScanCursor ? {[Op.or]: [{scheduledAt: {[Op.gt]: serverScanCursor.scheduledAt}}, {scheduledAt: serverScanCursor.scheduledAt, id: {[Op.gt]: serverScanCursor.id}}]} : {})}, order: [['scheduledAt', 'ASC'], ['id', 'ASC']]});
 				if (!candidate) {
 					serverScanCursor = null;
 					return null;
@@ -172,12 +176,15 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 					continue;
 				}
 				const job = await sequelize.transaction(async transaction => {
-					const enabled = await PublicationDestination.findOne({where: {id: destination.id, userId: candidate.userId, executionMode: 'server', enabled: true}, transaction, lock: transaction.LOCK.SHARE});
+					const enabled = await PublicationDestination.findOne({where: {id: destination.id, userId: candidate.userId, executionMode: 'server', enabled: true}, transaction, lock: transaction.LOCK.UPDATE});
 					if (!enabled) {
 						return null;
 					}
 					const locked = await PublicationJob.findOne({where: {id: candidate.id, intentVersion: 6, executionMode: 'server', status: 'queued', scheduledAt: {[Op.lte]: new Date()}}, transaction, lock: transaction.LOCK.UPDATE, skipLocked: true});
 					if (!locked) {
+						return null;
+					}
+					if (!await randomDelay.allow(locked, enabled, transaction)) {
 						return null;
 					}
 					await locked.update({status: 'processing', processingAt: new Date(), claimToken: randomBytes(32).toString('hex')}, {transaction});
@@ -228,10 +235,10 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 			for (let checked = 0; checked < 20; checked++) {
 				const job = await sequelize.transaction(async transaction => {
 					const registered = clientContext ? await PublicationDestination.findAll({where: {userId, clientId: clientContext.clientId,
-						enabled: true, executionMode: 'client', id: {[Op.in]: clientContext.destinationIds}}, transaction, lock: transaction.LOCK.SHARE}) : [];
+						enabled: true, executionMode: 'client', id: {[Op.in]: clientContext.destinationIds}}, order: [['id', 'ASC']], transaction, lock: transaction.LOCK.UPDATE}) : [];
 					const destinationFilter = clientContext ? {clientId: clientContext.clientId, executionMode: 'client', destinationId: {[Op.in]: registered.map(row => row.id)}} : {destinationId: null};
 					const candidate = await PublicationJob.findOne({
-						where: {userId, intentVersion: 6, ...destinationFilter, status: 'queued', ...(jobId ? {id: jobId} : {scheduledAt: {[Op.lte]: new Date()}}),
+						where: {userId, intentVersion: 6, ...destinationFilter, status: 'queued', ...(!jobId ? {[Op.and]: [randomDelay.readyWhere()]} : {}), ...(jobId ? {id: jobId} : {scheduledAt: {[Op.lte]: new Date()}}),
 							...(groupIds ? {postId: postsInGroups(groupIds)} : {}),
 							...(clientContext ? {} : {[Op.or]: input.routes === undefined ? accounts : routes.map(route => ({network: route.network,
 								localAccountId: {[Op.in]: ['', route.localAccountId]}, postId: postsInGroups([route.groupId])}))})},
@@ -240,6 +247,9 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 					});
 					if (!candidate) {
 						return null;
+					}
+					if (!jobId && !await randomDelay.allow(candidate, registered.find(row => Number(row.id) === Number(candidate.destinationId)), transaction)) {
+						return deferred;
 					}
 					let binding = {};
 					if (candidate.localAccountId === '') {
@@ -257,6 +267,9 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 					await candidate.update({...binding, status: 'processing', processingAt: new Date(), claimToken: randomBytes(32).toString('hex')}, {transaction});
 					return candidate;
 				});
+				if (job === deferred) {
+					continue;
+				}
 				if (!job) {
 					return null;
 				}
