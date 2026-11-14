@@ -36,6 +36,24 @@ describe('publication queue shuffle', function () {
 		return rows;
 	}
 	async function snapshot() {return models.PublicationJob.findAll({order: [['id', 'ASC']], raw: true});}
+	it('leaves opted-out queues unchanged while shuffling enabled destinations and replaying exact receipts', async () => {
+		const a = await jobs(first);await jobs(second);
+		await first.update({shuffleEnabled: false});
+		try {
+			const body = input(), before = await snapshot();
+			const result = await service.shuffleQueue(1, body);
+			assert.deepEqual(result.destinations[0], {destinationId: first.id, queuedJobs: 3, changedJobs: 0, skipped: true, reason: 'shuffle_disabled'});
+			assert.equal(result.destinations[1].changedJobs, 3);
+			const ids = new Set(a.map(row => row.id));
+			assert.deepEqual((await snapshot()).filter(row => ids.has(row.id)), before.filter(row => ids.has(row.id)));
+			await first.update({shuffleEnabled: true});
+			const after = await snapshot();
+			assert.deepEqual(await service.shuffleQueue(1, body), result);
+			assert.deepEqual(await snapshot(), after);
+		} finally {
+			await first.update({shuffleEnabled: true});
+		}
+	});
 	it('independently permutes each destination while preserving slots, payload, routing and immutable request hashes', async () => {
 		const a = await jobs(first), b = await jobs(second);
 		const before = await snapshot();const result = await service.shuffleQueue(1, input());

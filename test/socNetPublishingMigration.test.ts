@@ -32,3 +32,34 @@ describe('server publication released-schema upgrade', function () {
 		assert.equal((await sequelize.query('SELECT * FROM "publicationJobs"', {type: QueryTypes.SELECT})).length, 2);
 	});
 });
+
+const shuffleMigration = createRequire(import.meta.url)('../app/modules/database/migrations/20261114000000-publication-destination-shuffle.cjs');
+describe('destination shuffle preference upgrade', function () {
+	this.timeout(30000);
+	let sequelize;
+	const schema = `shuffle_upgrade_${randomUUID().replaceAll('-', '')}`;
+	before(async () => {
+		sequelize = new Sequelize({...config, logging: false, pool: {max: 1}} as any);
+		await sequelize.createSchema(schema, {});
+		await sequelize.query(`SET search_path TO "${schema}"`);
+	});
+	after(async () => {await sequelize?.dropSchema(schema, {cascade: true});await sequelize?.close();});
+	it('handles fresh installs, backfills existing routes, preserves opt-outs on rerun and rolls back', async () => {
+		const query = sql => sequelize.query(sql, {type: QueryTypes.SELECT});
+		const qi = sequelize.getQueryInterface();
+		await shuffleMigration.up(qi);
+		await sequelize.query('CREATE TABLE "publicationDestinations" (id SERIAL PRIMARY KEY)');
+		await sequelize.query('INSERT INTO "publicationDestinations" DEFAULT VALUES');
+		await shuffleMigration.up(qi);
+		assert.equal((await query('SELECT * FROM "publicationDestinations"'))[0].shuffleEnabled, true);
+		assert.equal((await query('SELECT * FROM "publicationDestinations"'))[0].randomDelayEnabled, false);
+		assert.equal((await query('SELECT * FROM "publicationDestinations"'))[0].randomDelayNextCheckAt, null);
+		await sequelize.query('UPDATE "publicationDestinations" SET "shuffleEnabled"=false WHERE id=1');
+		await shuffleMigration.up(qi);
+		await sequelize.query('INSERT INTO "publicationDestinations" DEFAULT VALUES');
+		assert.deepEqual((await query('SELECT "shuffleEnabled" FROM "publicationDestinations" ORDER BY id')).map(row => row.shuffleEnabled), [false, true]);
+		await assert.rejects(sequelize.query('UPDATE "publicationDestinations" SET "shuffleEnabled"=NULL WHERE id=1'));
+		await shuffleMigration.down(qi);
+		assert.equal((await query('SELECT * FROM "publicationDestinations"')).length, 2);
+	});
+});

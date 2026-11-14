@@ -64,8 +64,16 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 			return {destinations: rows.map(destinationView)};
 		},
 		async updateDestinationSchedule(userId, id, input) {
-			const valid = value => value === null || [10, 30, 60, 120, 240, 480, 720].includes(value);
-			if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['defaultDelayMinutes', 'expectedDefaultDelayMinutes'].includes(key)) || !valid(input.defaultDelayMinutes) || !valid(input.expectedDefaultDelayMinutes)) {
+			const valid = value => value === null || [10, 30, 60, 120, 240, 480, 720, 1440, 2880, 4320, 10080].includes(value);
+			if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['defaultDelayMinutes', 'expectedDefaultDelayMinutes', 'shuffleEnabled', 'expectedShuffleEnabled', 'randomDelayEnabled', 'expectedRandomDelayEnabled'].includes(key)) || !valid(input.defaultDelayMinutes) || !valid(input.expectedDefaultDelayMinutes)) {
+				throw problem(400, 'local_publication_destination_invalid');
+			}
+			const updatesShuffle = Object.hasOwn(input, 'shuffleEnabled') || Object.hasOwn(input, 'expectedShuffleEnabled');
+			if (updatesShuffle && (typeof input.shuffleEnabled !== 'boolean' || typeof input.expectedShuffleEnabled !== 'boolean')) {
+				throw problem(400, 'local_publication_destination_invalid');
+			}
+			const updatesRandomDelay = Object.hasOwn(input, 'randomDelayEnabled') || Object.hasOwn(input, 'expectedRandomDelayEnabled');
+			if (updatesRandomDelay && (typeof input.randomDelayEnabled !== 'boolean' || typeof input.expectedRandomDelayEnabled !== 'boolean')) {
 				throw problem(400, 'local_publication_destination_invalid');
 			}
 			return Destination.sequelize.transaction(async transaction => {
@@ -74,10 +82,14 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 					throw problem(404, 'local_publication_destination_not_found');
 				}
 				const current = destination.defaultDelayMinutes ?? null;
-				if (current !== input.expectedDefaultDelayMinutes && current !== input.defaultDelayMinutes) {
+				const currentShuffle = destination.shuffleEnabled !== false;
+				const currentRandomDelay = destination.randomDelayEnabled === true;
+				const matchesExpected = current === input.expectedDefaultDelayMinutes && (!updatesShuffle || currentShuffle === input.expectedShuffleEnabled) && (!updatesRandomDelay || currentRandomDelay === input.expectedRandomDelayEnabled);
+				const matchesDesired = current === input.defaultDelayMinutes && (!updatesShuffle || currentShuffle === input.shuffleEnabled) && (!updatesRandomDelay || currentRandomDelay === input.randomDelayEnabled);
+				if (!matchesExpected && !matchesDesired) {
 					throw problem(409, 'local_publication_destination_changed');
 				}
-				await destination.update({defaultDelayMinutes: input.defaultDelayMinutes}, {transaction});
+				await destination.update({defaultDelayMinutes: input.defaultDelayMinutes, ...(updatesShuffle ? {shuffleEnabled: input.shuffleEnabled} : {}), ...(updatesRandomDelay ? {randomDelayEnabled: input.randomDelayEnabled} : {})}, {transaction});
 				return {destination: destinationView(destination)};
 			});
 		},
@@ -150,6 +162,6 @@ export function getDestinationMethods(Destination, {app, normalizeRequest, probl
 }
 
 export function destinationView(row) {
-	const {id, clientId, localKey, sourceGroupId, localAccountId, network, label, executionMode, accountIdentity, target, enabled, contentPolicy, defaultDelayMinutes} = row.toJSON();
-	return {id, localKey, sourceGroupId, network, label, executionMode, contentPolicy, target, enabled, defaultDelayMinutes: defaultDelayMinutes ?? null, ...(executionMode === 'server' ? {accountIdentity} : executionMode === 'native' ? {} : {clientId, localAccountId})};
+	const {id, clientId, localKey, sourceGroupId, localAccountId, network, label, executionMode, accountIdentity, target, enabled, contentPolicy, defaultDelayMinutes, shuffleEnabled, randomDelayEnabled} = row.toJSON();
+	return {id, localKey, sourceGroupId, network, label, executionMode, contentPolicy, target, enabled, defaultDelayMinutes: defaultDelayMinutes ?? null, shuffleEnabled: shuffleEnabled !== false, randomDelayEnabled: randomDelayEnabled === true, ...(executionMode === 'server' ? {accountIdentity} : executionMode === 'native' ? {} : {clientId, localAccountId})};
 }

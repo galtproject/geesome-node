@@ -78,6 +78,19 @@ describe('native Site Group publishing', function () {
 			payload: {text: 'Frozen title\n\n#frozen', attachments: [{storageId: 'QmFirst', mimeType: 'image/webp'}, {storageId: 'QmSecond', mimeType: 'image/webp'}]},
 			scheduledAt: new Date(0), status: 'queued', ...extra});
 	}
+	it('delays native publication without sending, persists draws across workers and preserves due order', async () => {
+		const destination = await registered();
+		await models.PublicationDestination.update({randomDelayEnabled: true}, {where: {id: destination.id}});
+		let clock = Date.now(), draws = 0, value = 9;
+		const options = {randomDelayNow: () => clock, randomDelayDraw: () => {draws++;return value;}};
+		const worker = getModule(app, models, options), other = getModule(app, models, options);
+		const first = await queued(destination), second = await queued(destination);
+		await Promise.all([worker.processServerQueue(), other.processServerQueue()]);
+		assert.equal(draws, 1);assert.equal(await Post.count(), 0);
+		clock += 60000;value = 0;await worker.processServerQueue();
+		assert.equal(draws, 2);assert.equal((await first.reload()).status, 'posted');assert.equal((await second.reload()).status, 'queued');assert.equal(await Post.count(), 1);
+		await other.processServerQueue();assert.equal(draws, 2);
+	});
 	it('registers one accountless owner destination across keys and concurrent retries', async () => {
 		const [first, second] = await Promise.all([registered(), registered({}, 'key:2')]);
 		assert.equal(first.id, second.id);assert.equal(first.executionMode, 'native');assert.equal(first.clientId, undefined);assert.equal(first.localAccountId, undefined);
