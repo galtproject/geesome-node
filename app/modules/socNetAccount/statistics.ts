@@ -1,7 +1,9 @@
+import {createDeviantArtStatisticsReader} from './deviantartStatistics.js';
 import {createTransport, readJson, check, snowflake, didPattern} from '../socNetPublishing/providers/common.js';
 
 export function createStatisticsReader(fetchImpl = fetch) {
 	const transport = createTransport(fetchImpl);
+	const deviantart = createDeviantArtStatisticsReader(fetchImpl);
 	const read = async (url, headers = {}) => {
 		try {
 			return await readJson(transport, url, {headers});
@@ -11,6 +13,9 @@ export function createStatisticsReader(fetchImpl = fetch) {
 		}
 	};
 	return async ({network, kind, account, target, remoteId}) => {
+		if (network === 'deviantart') {
+			return deviantart({kind, account, remoteId});
+		}
 		if (network === 'bluesky') {
 			check(didPattern.test(account.accountIdentity || ''), 'Invalid Bluesky identity');
 			const root = 'https://public.api.bsky.app/xrpc/';

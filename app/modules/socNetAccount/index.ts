@@ -60,6 +60,10 @@ export function getModule(app: IGeesomeApp, models, options: any = {}) {
 				await this.assertTelegramStatisticsAccount(userId, input.readerAccountId);
 				return app.ms.telegramClient.getPostStatistics(userId, input.readerAccountId, input.target, input.remoteId);
 			}
+			if (input.network === 'deviantart') {
+				const account = await app.ms.socNetPublishing.loadServerAccount(userId, input.accountId, input.network, input.accountIdentity);
+				return readStatistics({...input, account});
+			}
 			const account = await models.Account.findOne({where: {id: input.accountId, userId, socNet: input.network, accountId: input.accountIdentity}});
 			if (!account?.serverCredentialsEncrypted) {
 				throw new Error('social_statistics_account_unavailable');

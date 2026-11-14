@@ -91,6 +91,19 @@ describe('daily social statistics', function () {
 		assert.equal(serverCalls.length, 1);
 		await assert.rejects(module.refresh(2, {kind: 'group', id: destination.id}), /entity_not_found/);
 	});
+	it('preserves observations and returns safe reconnect guidance when DeviantArt access is denied', async () => {
+		await destination.update({executionMode: 'server', network: 'deviantart', socNetAccountId: 9, accountIdentity: 'deviantart:fixture'});
+		await module.refresh(1, {kind: 'group', id: destination.id});
+		const before = (await module.summary(1)).groups[0].statistics;
+		const app = {ms: {group: {getPostPure: async () => ({groupId: 2})}, socNetAccount: {getStatistics: async () => {
+			throw Object.assign(new Error('private-provider-body'), {statisticsStatus: 'reconnect_required'});
+		}}}};
+		const denied = getModule(app, models, {now: () => new Date('2026-11-11T12:00:00Z')});
+		const result = await denied.refresh(1, {kind: 'group', id: destination.id});
+		assert.equal(result.results[0].status, 'reconnect_required');
+		assert(!JSON.stringify(result).includes('private'));
+		assert.deepEqual((await denied.summary(1)).groups[0].statistics, before);
+	});
 	it('bounds and paginates receipts, destinations and source/network filters', async () => {
 		await publishing.PublicationJob.create({...job.toJSON(), id: undefined, requestKey: randomUUID(), remoteId: '124'});
 		const first = await module.summary(1, {groupId: 2, network: 'threads', limit: 1});
@@ -103,21 +116,27 @@ describe('daily social statistics', function () {
 		await assert.rejects(module.summary(1, {groupId: '1 OR 1=1'}));
 		await assert.rejects(module.summary(1, {network: 'arbitrary'}));
 	});
-	it('filters DeviantArt receipts and destinations while reporting metric collection unsupported', async () => {
-		const identity = 'deviantart:12345678-1234-1234-1234-123456789abc';
+	it('filters DeviantArt receipts and persists official account and post statistics', async () => {
+		const userid = '12345678-1234-1234-1234-123456789abc';
+		const identity = `deviantart:${userid}`;
+		const remoteId = 'abcdef12-1234-1234-1234-123456789abc';
 		const account = await accounts.Account.create({userId: 1, socNet: 'deviantart', accountId: identity, serverCredentialsEncrypted: 'encrypted-fixture'});
 		await destination.update({network: 'deviantart', executionMode: 'server', socNetAccountId: account.id, accountIdentity: identity});
-		await job.update({network: 'deviantart', executionMode: 'server', serverAccountId: account.id, accountIdentity: identity});
-		const socNetAccount = accountModule({decryptTextWithAppPass: async () => JSON.stringify({network: 'deviantart', accountIdentity: identity, credentials: {accessToken: 'private'}})} as any, accounts, {
-			reader: createStatisticsReader(async () => {throw Error('Unsupported statistics must not call the provider');})
-		});
+		await job.update({network: 'deviantart', executionMode: 'server', serverAccountId: account.id, accountIdentity: identity, remoteId});
+		const app = {ms: {socNetPublishing: {loadServerAccount: async (userId, accountId, network, expected) => {
+			assert.equal(userId, 1);assert.equal(accountId, account.id);assert.equal(network, 'deviantart');assert.equal(expected, identity);
+			return {accountIdentity: identity, credentials: {accessToken: 'private', clientId: '123', clientSecret: 'private', refreshToken: 'private'}};
+		}}}};
+		const socNetAccount = accountModule(app as any, accounts, {reader: createStatisticsReader(async url => new Response(JSON.stringify(
+			url.includes('/metadata?') ? {metadata: [{deviationid: remoteId, author: {userid}, stats: {views: 20, favourites: 4, comments: 2}}]} : {userid, username: 'Artist', stats: {watchers: 12}}
+		)))});
 		const statistics = getModule({ms: {group: {getPostPure: async () => ({groupId: 2})}, socNetAccount}}, models);
+		assert.equal((await statistics.refresh(1, {kind: 'post', id: job.id})).results[0].status, 'updated');
+		assert.equal((await statistics.refresh(1, {kind: 'group', id: destination.id})).results[0].status, 'updated');
 		const summary = await statistics.summary(1, {network: 'deviantart'});
 		assert.equal(summary.posts.length, 1);assert.equal(summary.groups.length, 1);
-		assert.equal(summary.posts[0].network, 'deviantart');assert.equal(summary.groups[0].network, 'deviantart');
-		assert.equal((await statistics.refresh(1, {kind: 'post', id: job.id})).results[0].status, 'unsupported');
-		assert.equal((await statistics.refresh(1, {kind: 'group', id: destination.id})).results[0].status, 'unsupported');
-		assert.equal(await models.SocialPostStatistic.count(), 0);assert.equal(await models.SocialGroupStatistic.count(), 0);
+		assert.deepEqual(summary.posts[0].statistics.metrics, {likes: 4, views: 20, replies: 2});
+		assert.deepEqual(summary.groups[0].statistics.metrics, {followers: 12});
 		assert(!JSON.stringify(summary).includes('private'));
 	});
 	it('counts all confirmed receipts by destination, with rolling boundaries and distinct remote IDs', async () => {

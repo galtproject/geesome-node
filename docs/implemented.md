@@ -1625,3 +1625,12 @@ Supported intervals are 10/30/60/120/240/480/720 minutes; null preserves produce
 Compare-and-set updates allow exact retries and reject stale writes. Registration and
 account changes preserve settings. Existing jobs are unchanged. Deploy the additive
 20261113000000 migration before updated code; rollback may drop only these defaults.
+
+## DeviantArt statistics and renewed consent (#1638)
+
+Added server-side watchers and per-deviation views/favourites/comments through
+fixed official API endpoints. OAuth requests browse for new/reconnected accounts.
+Expired credentials reuse the locked publication refresh-token rotation; reader
+identity checks cover both authenticated user and deviation author. Permission
+failures return reconnect_required without discarding stored measurements.
+See the statistics module overview for OAuth and metric semantics.
