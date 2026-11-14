@@ -1,3 +1,5 @@
+import {createQueuedRequests, runAsAcceptingKey} from '../asyncOperation/requests.js';
+import {CorePermissionName} from '../database/interface.js';
 import {getDeviantArtOAuthMethods} from './deviantartOAuth.js';
 import {normalizeDeviantArtTarget} from './deviantartTarget.js';
 import {getQueueShuffleMethods} from './queueShuffle.js';
@@ -26,6 +28,10 @@ export default async function socNetPublishing(app: IGeesomeApp) {
 	app.checkModules(['api', 'database', 'group', 'asset']);
 	const models = await (await import('./models.js')).default(app.ms.database.sequelize);
 	const module = getModule(app, models);
+	const requests = createQueuedRequests(app, 'publication-compose',
+		(owner, input, context) => runAsAcceptingKey(app, owner, context, ['publishing:local', 'assets:write'], CorePermissionName.UserGroupManagement,
+			() => module.compose(Number(owner), input, context.destinations)));
+	Object.assign(module, {asyncRequests: requests});
 	(await import('./api.js')).default(app, module);
 	module.setCronWorker((await import('./cron.js')).default(app, module));
 	return module;

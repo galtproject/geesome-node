@@ -50,6 +50,45 @@ describe('server publication canonical HTTP integration', function () {
 		assert(!JSON.stringify(configured).includes(botToken));
 		return {group: source.group, destination: configured.destination, setupInput};
 	}
+	it('freezes async destination routing across failures and explicit retries', async () => {
+		const {group,destination}=await setup();
+		const input={async:true,contentType:'nsfw',requestKey:randomUUID(),groupId:group.id,text:'Frozen async route',imageStorageIds:[],scheduledAt:'2099-01-01T00:00:00Z',destinations:[{destinationId:destination.id,network:'telegram',target:{}}]};
+		const module=app.ms.socNetPublishing;
+		const compose=module.compose.bind(module);
+		let release;const gate=new Promise<void>(resolve=>{release=resolve;});
+		module.compose=async (userId,input,bindings)=>{await gate;return compose(userId,input,bindings);};
+		try {
+			const response=await call('/compose',input);assert.equal(response.status,202);const accepted=await response.json();
+			const destinationModel=app.ms.database.sequelize.model('publicationDestination');
+			await destinationModel.update({target:{chatId:'-100999'}},{where:{id:destination.id}});release();
+			const wait=async expected=>{for(let i=0;i<100;i++){const status=await ok(await call(`/operations/${accepted.operationId}`));if(status.status===expected) {
+					return status;
+				}await new Promise(resolve=>setTimeout(resolve,100));}throw Error('Async state did not become '+expected);};
+			assert.equal((await wait('failed')).errorCode,'local_publication_destination_changed');
+			assert.equal(await app.ms.database.sequelize.model('publicationJob').count({where:{composeKey:input.requestKey}}),0);
+			assert.equal((await call('/compose',input)).status,202);
+			assert.equal((await wait('failed')).errorCode,'local_publication_destination_changed');
+			await destinationModel.update({target:destination.target},{where:{id:destination.id}});
+			const retried=await call('/compose',input);assert.equal((await retried.json()).operationId,accepted.operationId);
+			assert.equal((await wait('completed')).result.jobs[0].target.chatId,destination.target.chatId);
+		} finally {
+			release();module.compose=compose;
+		}
+	});
+	it('accepts durable asynchronous compose and returns the same completed jobs on retry', async () => {
+		const {group,destination}=await setup();
+		const input={async:true,contentType:'nsfw',requestKey:randomUUID(),groupId:group.id,text:'Async preparation',imageStorageIds:[],scheduledAt:'2099-01-01T00:00:00Z',destinations:[{destinationId:destination.id,network:'telegram',target:{}}]};
+		const response=await call('/compose',input);assert.equal(response.status,202);const accepted=await response.json();assert.equal(accepted.status,'queued');
+		const conflict=await call('/compose',{...input,text:'Different'});assert.equal(conflict.status,409);
+		let status=accepted;
+		for(let i=0;i<100&&status.status!=='completed';i++){
+			await new Promise(resolve=>setTimeout(resolve,100));
+			status=await ok(await call(`/operations/${accepted.operationId}`));
+			assert.notEqual(status.status,'failed',JSON.stringify(status));
+		}
+		assert.equal(status.status,'completed');assert.equal(status.result.jobs.length,1);
+		const repeated=await call('/compose',input);assert.equal(repeated.status,202);const replay=await repeated.json();assert.equal(replay.operationId,accepted.operationId);assert.equal(replay.result.jobs[0].id,status.result.jobs[0].id);
+	});
 	it('rejects unsafe content before source writes and freezes the accepted policy across edits and replay', async () => {
 		const {group, destination, setupInput} = await setup({contentPolicy: 'sfw', target: {chatId: '-100456'}});
 		assert.equal(destination.contentPolicy, 'sfw');

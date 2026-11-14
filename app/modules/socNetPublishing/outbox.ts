@@ -1,3 +1,4 @@
+import {requestHash as durableRequestHash} from '../asyncOperation/requests.js';
 import {normalizeSourceImageSet, validateSourceImageSet} from './sourceImageSet.js';
 import {normalizeContentType} from './contentPolicy.js';
 import {createHash} from 'node:crypto';
@@ -168,7 +169,12 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			...(sourceImageSet ? {sourceImageSet} : {}), scheduledAt: input.scheduledAt === undefined ? null : normalized.scheduledAt, postId: input.postId === undefined ? null : normalized.postId, ...(producer ? {producer} : {}), ...(input.groupId === undefined ? {} : {groupId: boundedInteger(input.groupId, 1, Number.MAX_SAFE_INTEGER)}), ...(input.mediaPolicy === undefined ? {} : {mediaPolicy: input.mediaPolicy})};
 	}
 	return {
-		async compose(userId, input) {
+		validateComposeRequest(input) { return normalize(input); },
+		async prepareAsyncCompose(userId, input) {
+			const request=normalize(input);
+			return request.destinations[0].destinationId === undefined ? request.destinations.map(item=>({...item,contentType:request.contentType})) : Promise.all(request.destinations.map(item=>resolveDestination(userId,{...item,contentType:request.contentType})));
+		},
+		async compose(userId, input, expectedDestinations = undefined) {
 			const request = normalize(input);
 			const hash = createHash('sha256').update(JSON.stringify(request)).digest('hex');
 			const previous = await replay(userId, request, hash);
@@ -179,6 +185,9 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 				validatePreparedPublication(request);
 			}
 			const resolved = request.destinations[0].destinationId === undefined ? request.destinations.map(item => ({...item, contentType: request.contentType})) : await Promise.all(request.destinations.map(item => resolveDestination(userId, {...item, contentType: request.contentType})));
+			if (expectedDestinations && durableRequestHash(resolved)!==durableRequestHash(expectedDestinations)) {
+				throw problem(409,'local_publication_destination_changed');
+			}
 			if (resolved.some(item => item.sourceGroupId != null && Number(item.sourceGroupId) !== Number(request.groupId))) {
 				throw problem(403, 'local_publication_source_forbidden');
 			}
@@ -294,10 +303,10 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			const eligible = groups.filter(group => isOwnedQueueGroup(group, userId));
 			const group = selected ? (eligible.length === 1 ? eligible[0] : null) : await getGroup(userId);
 			if (selected && !eligible.length) {
-				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, destinationScheduleDefaults: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true, sourceImageSetLinks: true, deviantartPublishing: true, deviantartOAuth: true}, group: null, groups: [], drafts: []};
+				return {ownerId: Number(userId), capabilities: {asyncPublicationComposition: true, asyncImageComposition: !!app.ms.imageComposition?.asyncRequests, ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, destinationScheduleDefaults: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true, sourceImageSetLinks: true, deviantartPublishing: true, deviantartOAuth: true}, group: null, groups: [], drafts: []};
 			}
 			if (!selected && !group) {
-				return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, destinationScheduleDefaults: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true, sourceImageSetLinks: true, deviantartPublishing: true, deviantartOAuth: true}, group: null, drafts: []};
+				return {ownerId: Number(userId), capabilities: {asyncPublicationComposition: true, asyncImageComposition: !!app.ms.imageComposition?.asyncRequests, ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, destinationScheduleDefaults: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true, sourceImageSetLinks: true, deviantartPublishing: true, deviantartOAuth: true}, group: null, drafts: []};
 			}
 			if (!selected && !isManagedOutbox(group, userId)) {
 				throw problem(409, 'local_publication_outbox_conflict');
@@ -322,7 +331,7 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 					drafts.push({postId: post.id, groupId: post.groupId, text: '', attachments: [], createdAt: post.createdAt, unavailable: true, error: 'This draft contains unsupported content. Edit it in GeeSome before scheduling.'});
 				}
 			}
-			return {ownerId: Number(userId), capabilities: {ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, destinationScheduleDefaults: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true, sourceImageSetLinks: true, deviantartPublishing: true, deviantartOAuth: true}, group: group ? groupView(group) : null, ...(selected ? {groups: eligible.map(groupView)} : {}), drafts};
+			return {ownerId: Number(userId), capabilities: {asyncPublicationComposition: true, asyncImageComposition: !!app.ms.imageComposition?.asyncRequests, ownedImageReferences: true, patreonPublishing: true, networkQueues: true, queueShuffle: true, publicationDestinations: true, destinationScheduleDefaults: true, socialPublishingApi: true, serverPublishing: true, contentTypePublishing: true, publicationDestinationGroups: true, nativeGroupPublishing: true, sourceImageSetLinks: true, deviantartPublishing: true, deviantartOAuth: true}, group: group ? groupView(group) : null, ...(selected ? {groups: eligible.map(groupView)} : {}), drafts};
 		}
 	};
 }
