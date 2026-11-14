@@ -26,7 +26,10 @@ new subscriptions or necessarily a 24-hour interval. The first day has no delta.
 
 These are new tables, created by `sync({})`, with no production-schema migrations.
 Existing posts/queues are not changed or republished. History begins on first
-measurement. Paused/disabled destinations retain readable history.
+measurement. Paused/disabled destinations retain readable history. Only enabled
+destinations appear as audience cards and count toward shared Discord destinations;
+this filter applies before pagination. Posted receipts remain visible after a
+destination is disabled.
 
 ## API and boundaries
 
