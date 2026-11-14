@@ -5,7 +5,7 @@ import {mkdtemp, readFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
-import {normalizeVideoWatermark, videoGeometry, videoWatermarkPlacement, probeVideo, renderWatermarkedVideo} from '../app/modules/content/videoWatermarkRender.js';
+import {normalizeVideoWatermark, videoGeometry, videoWatermarkPlacement, probeVideo, renderWatermarkedVideo} from '../app/modules/drivers/convert/videoWatermark.js';
 
 const exec = promisify(execFile);
 const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="88" viewBox="0 0 400 88"><rect width="400" height="88" fill="red"/></svg>';

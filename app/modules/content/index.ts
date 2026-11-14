@@ -122,8 +122,7 @@ export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
 	const resave = new ContentResave(app);
 	const videoWatermarks = new VideoWatermark(app);
-	Object.assign(module, {processVideoWatermarkQueue: videoWatermarks.processQueue.bind(videoWatermarks)});
-	(await import('./videoWatermarkApi.js')).default(app, videoWatermarks);
+	Object.assign(module, {requestVideoWatermark: videoWatermarks.request.bind(videoWatermarks), processVideoWatermarkQueue: videoWatermarks.processQueue.bind(videoWatermarks)});
 	Object.assign(module, {durableUploads: new DurableUploads(app)});
 	Object.assign(module, {publicationImages: resave, requestResave: resave.requestResave.bind(resave),
 		processResaveQueue: resave.processQueue.bind(resave)});
