@@ -76,12 +76,15 @@ describe('server social publishing foundation', function () {
 		const cancelled = await queued(destination, {status: 'cancelled'});
 		await queued(destination, {userId: 2, status: 'posted'});
 		const ids = async query => (await module.listJobs(1, query)).map(job => job.id);
-		assert.deepEqual(await ids({view: 'queue', limit: 2}), [early.id, later.id]);
-		assert.deepEqual(await ids({view: 'queue', limit: 2, offset: 2}), [review.id, pending.id]);
+		assert.deepEqual(await ids({view: 'queue', limit: 2}), [later.id, review.id]);
+		assert.deepEqual(await ids({view: 'queue', limit: 2, offset: 2}), [pending.id]);
 		assert.deepEqual(await ids({view: 'history', limit: 1}), [cancelled.id]);
 		assert.deepEqual(await ids({view: 'history', limit: 1, offset: 1}), [posted.id]);
 		assert.deepEqual(await ids({view: 'queue', status: 'posted'}), []);
 		assert.deepEqual(await ids({view: 'history', status: 'posted'}), [posted.id]);
+		assert.deepEqual(await ids({view: 'queue', status: 'failed'}), []);
+		assert.deepEqual(await ids({view: 'history', status: 'failed'}), [early.id]);
+		assert.deepEqual(await ids({view: 'history', limit: 1, offset: 2}), [early.id]);
 		assert.deepEqual(await ids({view: 'history', network: 'discord'}), []);
 		await assert.rejects(module.listJobs(1, {view: 'invalid'}), {status: 400});
 	});

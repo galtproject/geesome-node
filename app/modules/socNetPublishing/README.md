@@ -277,7 +277,7 @@ first by scheduled time and ID ascending, followed by other statuses by schedule
 time and ID descending. Ordering runs in SQL before pagination and combines with
 owner/group/network filters. The default remains newest-created order.
 
-Use `view=queue` for queued, processing, failed and needs_review jobs ordered by
-scheduled time/ID ascending, or `view=history` for posted and cancelled jobs by
+Use `view=queue` for queued, processing and needs_review jobs ordered by
+scheduled time/ID ascending, or `view=history` for posted, cancelled and failed jobs by
 updated time/ID descending. Views filter before pagination and intersect with
 all existing filters. Omitting view preserves the earlier listing contract.
