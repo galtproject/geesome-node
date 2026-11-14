@@ -12,6 +12,20 @@ directories.
 
 Last consolidated: 2026-07-31.
 
+## Scheduled IPFS restarts under the storage fence (#1634)
+
+The systemd restart unit and installer/upgrader use a bounded host wrapper that
+drains shared storage writers, holds the existing exclusive PostgreSQL fence
+across Docker restart and readiness, and refuses an unfenced fallback. The helper
+uses the web container's existing database configuration through a private
+stdin/stdout session. No new API, queue, migration or upload replay is introduced.
+See [rollout and failure boundaries](ipfs-scheduled-restart.md).
+
+Verification: nine host-wrapper scenarios, fourteen PostgreSQL maintenance and
+admission tests, a real disposable Kubo restart preserving pinned bytes, and two
+Docker deployment helper tests passed. Production services were not restarted
+to test this change. Full crash recovery remains separate.
+
 ## Feed links to source image sets (#1629)
 
 Native compose accepts an optional numeric source reference and binds it to the
@@ -1625,6 +1639,15 @@ Supported intervals are 10/30/60/120/240/480/720 minutes; null preserves produce
 Compare-and-set updates allow exact retries and reject stale writes. Registration and
 account changes preserve settings. Existing jobs are unchanged. Deploy the additive
 20261113000000 migration before updated code; rollback may drop only these defaults.
+
+## Retired destinations in statistics (#1636)
+
+Audience cards now select only enabled publication destinations before pagination
+and publication-count loading. Removing a local account retires its audience cards;
+posted receipts and saved audience/post history remain readable. Discord shared
+destination counts also exclude retired routes while preserving shared guild
+measurements. All 17 focused social-statistics tests passed against a disposable
+PostgreSQL database, including history retention, re-enabling and pagination.
 
 ## DeviantArt statistics and renewed consent (#1638)
 

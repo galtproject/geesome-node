@@ -70,3 +70,5 @@ can be used for the generated API page, this portal, and module docs.
 
 - [Uploads during storage cleanup](storage-idle-gc-uploads.md): quiet-period GC,
   persisted phase timing and durable multipart acceptance/restart policy.
+- [Scheduled IPFS restarts](ipfs-scheduled-restart.md): drain writers under the
+  existing storage fence before a planned container restart.

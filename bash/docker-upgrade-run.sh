@@ -13,6 +13,7 @@ bash bash/docker-prepare-image.sh
 SERVICE_DROPIN="${GEESOME_SYSTEMD_UNIT_DIR:-/etc/systemd/system}/geesome-docker.service.d"
 mkdir -p "$SERVICE_DROPIN"
 printf '[Service]\nExecStart=\nExecStart=/bin/bash %s/bash/docker-compose.sh up -d --no-build\nExecStop=\nExecStop=/bin/bash %s/bash/docker-compose.sh down\n' "$ROOT_DIR" "$ROOT_DIR" > "$SERVICE_DROPIN/image-selection.conf"
+sed "s|/root/geesome-node|$ROOT_DIR|g" < bash/geesome-ipfs-restart.service > "${GEESOME_SYSTEMD_UNIT_DIR:-/etc/systemd/system}/geesome-ipfs-restart.service"
 
 echo "==> [3/7] Checking IPFS repo ownership before restart..."
 ./bash/ipfs-ownership-preflight.sh

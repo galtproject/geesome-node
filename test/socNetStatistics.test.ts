@@ -116,6 +116,32 @@ describe('daily social statistics', function () {
 		await assert.rejects(module.summary(1, {groupId: '1 OR 1=1'}));
 		await assert.rejects(module.summary(1, {network: 'arbitrary'}));
 	});
+	it('omits retired audience destinations while retaining posted receipts and history', async () => {
+		await destination.update({network: 'rule34xxx'});
+		await job.update({network: 'rule34xxx'});
+		await module.record(1, 'key:1', {observations: [observed('group', destination.id, {followers: 12}), observed('post', job.id, {views: 7})]});
+		await destination.update({enabled: false});
+		const summary = await module.summary(1, {groupId: 2, network: 'rule34xxx'});
+		assert.deepEqual(summary.groups, []);
+		assert.equal(summary.nextDestinationOffset, null);
+		assert.equal(summary.posts[0].jobId, job.id);
+		assert.equal(summary.posts[0].statistics.metrics.views, 7);
+		assert.equal((await module.history(1, {kind: 'group', id: destination.id})).snapshots[0].metrics.followers, 12);
+		await destination.update({enabled: true});
+		assert.equal((await module.summary(1)).groups[0].statistics.metrics.followers, 12);
+	});
+	it('paginates enabled audience destinations after excluding retired routes', async () => {
+		await destination.update({enabled: false});
+		const active = await publishing.PublicationDestination.bulkCreate(Array.from({length: 51}, (_, index) => ({
+			...destination.toJSON(), id: undefined, localKey: `active-${index}`, enabled: true
+		})));
+		const first = await module.summary(1);
+		assert.deepEqual(first.groups.map(row => row.id), active.slice(0, 50).map(row => row.id));
+		assert.equal(first.nextDestinationOffset, 50);
+		const second = await module.summary(1, {destinationOffset: first.nextDestinationOffset});
+		assert.deepEqual(second.groups.map(row => row.id), [active[50].id]);
+		assert.equal(second.nextDestinationOffset, null);
+	});
 	it('filters DeviantArt receipts and persists official account and post statistics', async () => {
 		const userid = '12345678-1234-1234-1234-123456789abc';
 		const identity = `deviantart:${userid}`;
@@ -170,6 +196,11 @@ describe('daily social statistics', function () {
 		assert.equal((await module.summary(1)).groups[0].statistics.metrics.members, 105);
 		assert.equal((await module.summary(1)).groups[1].statistics.audienceDelta, 5);
 		assert.equal((await module.history(1, {kind: 'group', id: safe.id})).snapshots.length, 2);
+		await safe.update({enabled: false});
+		const remaining = (await module.summary(1)).groups;
+		assert.equal(remaining.length, 1);
+		assert.equal(remaining[0].audience.sharedDestinations, 1);
+		assert.equal(remaining[0].statistics.metrics.members, 105);
 	});
 	it('keeps a legacy local Discord destination without guild ID readable', async () => {
 		await destination.update({network: 'discord', target: {channelId: '456'}});
