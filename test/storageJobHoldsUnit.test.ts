@@ -31,8 +31,10 @@ describe('storage holds derived from existing jobs', () => {
             assert.equal(await countStorageHolds(app, variants(cid)[1]), 2);
             assert.equal(await countStorageHolds(app, cid, 1), 1);
         }
-        assert.equal(await countStorageHolds(fixture([{module: 'content-resave',
-            inputJson: JSON.stringify({source: {storageId: cid}})}]), cid), 1);
+        for (const module of ['content-resave', 'video-watermark']) {
+            assert.equal(await countStorageHolds(fixture([{module,
+                inputJson: JSON.stringify({source: {storageId: cid}})}]), cid), 1);
+        }
     });
 
     it('releases only detached workflow holds and fails closed for unknown or overflowing work', async () => {

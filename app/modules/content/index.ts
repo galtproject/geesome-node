@@ -1,3 +1,4 @@
+import {VideoWatermark} from './videoWatermark.js';
 import {DurableUploads} from './durableUploads.js';
 import {imageResaveSpan} from './resaveTimings.js';
 import {ImagePreviewDriver, imagePreviewEdge} from '../drivers/preview/image.js';
@@ -120,6 +121,9 @@ export function getContentServingSecurityHeaders(mimeType?: string) {
 export default async (app: IGeesomeApp) => {
 	const module = getModule(app);
 	const resave = new ContentResave(app);
+	const videoWatermarks = new VideoWatermark(app);
+	Object.assign(module, {processVideoWatermarkQueue: videoWatermarks.processQueue.bind(videoWatermarks)});
+	(await import('./videoWatermarkApi.js')).default(app, videoWatermarks);
 	Object.assign(module, {durableUploads: new DurableUploads(app)});
 	Object.assign(module, {publicationImages: resave, requestResave: resave.requestResave.bind(resave),
 		processResaveQueue: resave.processQueue.bind(resave)});

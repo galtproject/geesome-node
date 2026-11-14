@@ -1,5 +1,12 @@
 # GeeSome Node Implemented Work
 
+## Queued video watermarks (#1647)
+
+Owned videos can be branded with an allowlisted SVG through a bounded FFmpeg
+queue, with source/style/profile reuse, immutable originals, storage holds and
+matching-provenance reuse without duplicate overlays. See [video watermarks](video-watermarks.md)
+for the API, limits, deployment order and focused verification.
+
 ## Purpose
 
 This document records delivered foundations that were previously mixed into the
