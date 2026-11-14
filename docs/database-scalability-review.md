@@ -560,3 +560,12 @@ The new model-sync tables use unique owner/entity/UTC-day indexes for atomic mon
 ### Destination publication activity (#1599)
 
 Rolling per-destination counts use a posted-only `(userId,destinationId,confirmedAt)` index, a seven-day time bound and at most 50 destination IDs. Counts deduplicate remote publication receipts and do not depend on post pagination. Shared Discord audience history uses owner-scoped destination joins and one newest observation per day. Existing job confirmation timestamps are backfilled from terminal status times; index creation is concurrent and covered by migration-integrity checks.
+
+### Publication queue sending order (#1650)
+
+The opt-in `order=queue` listing keeps owner, group, network and status filters in
+SQL and sorts before bounded limit/offset pagination. Queued jobs sort by scheduled
+time and ID ascending; other statuses sort newest scheduled first. The CASE order
+may require a database sort over the matching owner's rows; it does not load the
+full queue into the client or change worker claim queries. Existing consumers
+retain the default newest-created order; no schema or index migration is required.
