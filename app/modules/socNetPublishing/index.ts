@@ -135,7 +135,7 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 				throw problem(400, 'local_publication_view_invalid');
 			}
 			if (query.view !== undefined) {
-				where[Op.and] = [{status: {[Op.in]: query.view === 'history' ? ['posted', 'cancelled'] : ['queued', 'processing', 'failed', 'needs_review']}}];
+				where[Op.and] = [{status: {[Op.in]: query.view === 'history' ? ['posted', 'cancelled', 'failed'] : ['queued', 'processing', 'needs_review']}}];
 			}
 			const order: Order = query.view === 'queue' ? [['scheduledAt', 'ASC'], ['id', 'ASC']]
 				: query.view === 'history' ? [['updatedAt', 'DESC'], ['id', 'DESC']]
