@@ -179,7 +179,7 @@ export function getModule(app, models, options: any = {}) {
 				await save(userId, {kind: query.kind, [keyFor(query.kind)]: owned.id, observedAt: now().toISOString(), metrics}, null, telegramUser ? 'telegramUser' : true);
 				return result('updated');
 			} catch (error) {
-				return result(['access_denied', 'rate_limited', 'connection_required'].includes(error.statisticsStatus) ? error.statisticsStatus : 'unavailable');
+				return result(['access_denied', 'rate_limited', 'connection_required', 'reconnect_required'].includes(error.statisticsStatus) ? error.statisticsStatus : 'unavailable');
 			}
 		}
 	};

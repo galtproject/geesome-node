@@ -125,3 +125,24 @@ The new model-sync telegramStatisticsReader table binds an owned destination to 
 Patreon group observations accept followers (total members) and paidMembers (a subset), validating nonnegative safe integers and paid ≤ total when both are present. Client performs its own credentialed campaign reads.
 
 Verification: 95 focused PostgreSQL/provider/account/login tests passed, including challenge ownership, expiry, 2FA, cancellation, failed-connection cleanup, exact message reads, reader isolation and observation protection. API documentation and security inventory were regenerated. Client additionally verified desktop/narrow login and Summary states with fixture API responses. Real Telegram authentication remains a user action. Repository-wide TypeScript checks retain unrelated errors; changed feature files have no diagnostics. The full Docker suite was not run.
+
+## DeviantArt (#1638)
+
+Server OAuth now requests `basic user browse stash publish`. Existing accounts
+must consent again for deviation statistics; refreshing a token cannot grant a
+new scope. Watchers use `user/whoami?expand=user.stats` (basic/user); deviation
+metadata with `ext_stats=true` supplies favourites (`likes`), views and comments
+(`replies`). The UI names favourites explicitly. Missing fields remain null;
+no profile-view or follower estimates are substituted.
+
+The reader checks the authenticated UUID and deviation author UUID against the
+owned account identity and only contacts fixed DeviantArt API hosts. Mature
+metadata is requested explicitly. Statistics use `loadServerAccount` and the same
+transaction/advisory lock used by publishing to persist refresh-token rotation
+before later failures. OAuth denial/revocation returns `reconnect_required`;
+429 returns `rate_limited`. Failed reads preserve prior snapshots. No publish,
+queue or destination settings are changed by a statistics refresh.
+
+Sources: [Who Am I](https://deviantart.readme.io/reference/user_whoami),
+[Deviation metadata](https://deviantart.readme.io/reference/deviation_metadata),
+[OAuth](https://deviantart.readme.io/docs/authentication).

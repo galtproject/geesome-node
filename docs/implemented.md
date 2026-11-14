@@ -1648,3 +1648,12 @@ posted receipts and saved audience/post history remain readable. Discord shared
 destination counts also exclude retired routes while preserving shared guild
 measurements. All 17 focused social-statistics tests passed against a disposable
 PostgreSQL database, including history retention, re-enabling and pagination.
+
+## DeviantArt statistics and renewed consent (#1638)
+
+Added server-side watchers and per-deviation views/favourites/comments through
+fixed official API endpoints. OAuth requests browse for new/reconnected accounts.
+Expired credentials reuse the locked publication refresh-token rotation; reader
+identity checks cover both authenticated user and deviation author. Permission
+failures return reconnect_required without discarding stored measurements.
+See the statistics module overview for OAuth and metric semantics.
