@@ -3,6 +3,7 @@ import {createServer} from 'node:http';
 import {Readable} from 'node:stream';
 import axios from 'axios';
 import contentModule from '../app/modules/content/index.js';
+import {YoutubeVideoUploadDriver} from '../app/modules/drivers/upload/youtubeVideo.js';
 
 describe('save-by-url security', function () {
 	this.timeout(10000);
@@ -33,7 +34,7 @@ describe('save-by-url security', function () {
 					onUnversionGet: () => null, onUnversionHead: () => null,
 					onAuthorizedGet: () => null, onAuthorizedPost: () => null
 				},
-				drivers: {upload: {}},
+				drivers: {upload: {youtubeVideo: new YoutubeVideoUploadDriver()}},
 				storage: {},
 				database: {getContentByStorageAndUserId: async () => existingContent}
 			},
@@ -87,6 +88,7 @@ describe('save-by-url security', function () {
 			assert.equal(config.url, url);
 			assert.equal(config.method, 'get');
 			assert.equal(config.responseType, 'stream');
+			assert.equal(config.proxy, false);
 			assert.equal(config.maxRedirects, 0);
 			for (const agent of [config.httpAgent, config.httpsAgent]) {
 				assert.ok(agent);
@@ -103,6 +105,21 @@ describe('save-by-url security', function () {
 			}
 			assert.deepEqual(savedStreams, [{userId: 7, data: 'downloaded file',
 				mimeType: 'text/plain', options: {extension: 'txt', driver: undefined}}]);
+		});
+	}
+
+	for (const url of [
+		'http://127.0.0.1/video.mp4', 'https://169.254.169.254/video.mp4',
+		'https://www.youtube.com.evil.example/watch?v=BaW_jenozKc',
+		'https://www.youtube.com/redirect?q=http://127.0.0.1/video.mp4',
+		'--exec=id', 'file:///etc/passwd'
+	]) {
+		it(`rejects unsafe source before invoking the youtubeVideo driver downloader: ${url}`, async () => {
+			await assert.rejects(content.saveDataByUrl(7, url, {driver: 'youtubeVideo'}), {
+				message: 'youtube_source_not_allowed'
+			});
+			assert.equal(requests.length, 0);
+			assert.equal(savedStreams.length, 0);
 		});
 	}
 

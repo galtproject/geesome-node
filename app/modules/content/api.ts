@@ -164,7 +164,9 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
 
     /**
      * @api {post} /v1/user/save-data-by-url Save data by url
-     * @apiDescription Download and store data by url
+     * @apiDescription Download and store data from public HTTP(S) addresses without following redirects or using environment proxies. The youtubeVideo driver accepts YouTube video links only and requires a direct HTTP(S) MP4 format. Metadata requests use a public-address-only HTTPS proxy; media and thumbnails use pinned public addresses without redirects. Local yt-dlp config files and plugins are disabled.
+     * @apiError youtube_source_not_allowed The youtubeVideo source is not a supported YouTube video link.
+     * @apiError youtube_direct_format_required No direct HTTP(S) MP4 format is available; manifest/external downloader fallback is disabled.
      * @apiName UserSaveDataByUrl
      * @apiGroup UserContent
      *

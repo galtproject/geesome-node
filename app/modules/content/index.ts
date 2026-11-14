@@ -1013,6 +1013,7 @@ function getModule(app: IGeesomeApp) {
 					url,
 					method: 'get',
 					responseType: 'stream',
+					proxy: false,
 					maxRedirects: 0,
 					httpAgent: sourceHttpAgent,
 					httpsAgent: sourceHttpsAgent
