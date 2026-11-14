@@ -9,6 +9,7 @@ import _ from 'lodash';
 import mime from 'mime';
 import debug from 'debug';
 import axios from "axios";
+import {createSafeHttpAndHttpsAgents} from "../../helpers/safeHttpsAgent.js";
 import pIteration from 'p-iteration';
 import uuidAPIKey from "uuid-apikey";
 import { BufferListStream } from 'bl';
@@ -1003,10 +1004,18 @@ function getModule(app: IGeesomeApp) {
 				extension = resultExtension;
 				properties = resultProperties;
 			} else {
+				const parsedSourceUrl = new URL(url);
+				if (parsedSourceUrl.protocol !== 'http:' && parsedSourceUrl.protocol !== 'https:') {
+					throw new Error('save_by_url_scheme_not_allowed');
+				}
+				const {httpAgent: sourceHttpAgent, httpsAgent: sourceHttpsAgent} = await createSafeHttpAndHttpsAgents(parsedSourceUrl.hostname, {errorPrefix: 'save_by_url'});
 				const {resultFile, resultMimeType, resultExtension, resultProperties} = await axios({
 					url,
 					method: 'get',
-					responseType: 'stream'
+					responseType: 'stream',
+					maxRedirects: 0,
+					httpAgent: sourceHttpAgent,
+					httpsAgent: sourceHttpsAgent
 				}).then((response) => {
 					const {status, statusText, data, headers} = response;
 					if (status !== 200) {
