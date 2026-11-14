@@ -31,7 +31,7 @@ function indexJobs(app, rows) {
             const state = row.module === 'site-replacement' ? storageJobState(row) : JSON.parse(row.inputJson);
             inputs.push({id: row.id, input: state});
             let ids: string[] = [];
-            if (row.module === 'content-resave') {
+            if (['content-resave', 'video-watermark'].includes(row.module)) {
                 ids = imageFiles(state.source);
             } else if (row.module === 'site-replacement' && state.result?.cleanup?.holdsReleased !== true) {
                 const retention = state.result?.externalLinksRetention;

@@ -30,6 +30,7 @@ export default async (app: IGeesomeApp) => {
 	const worker = startIntervalWorker(async () => {
 		await app.ms.content?.['durableUploads']?.processQueue();
 		await app.ms.content?.['processResaveQueue']?.();
+		await app.ms.content?.['processVideoWatermarkQueue']?.();
 		await app.ms.staticSiteGenerator?.['processPendingRenderRecoveries']?.();
 		await app.ms.staticSiteGenerator?.['processSiteReplacementQueue']?.();
 	}, {intervalMs: 2000, onError: error => console.error('storage_job_worker_error', error)});

@@ -1,0 +1,66 @@
+import assert from 'node:assert/strict';
+import {mkdtemp, readFile, rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {CorePermissionName} from '../app/modules/database/interface.js';
+import {VideoWatermark} from '../app/modules/content/videoWatermark.js';
+import {countStorageHolds} from '../app/modules/asyncOperation/storageHolds.js';
+
+const exec = promisify(execFile);
+const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="88" viewBox="0 0 400 88"><rect width="400" height="88" fill="red"/></svg>';
+describe('owned video watermark queue and persistence', function () {
+	this.timeout(120000);
+	let app, directory;
+	afterEach(async () => {
+		await app?.stop();
+		if (directory) {
+			await rm(directory, {recursive: true, force: true});
+		}
+	});
+	it('authenticates, holds the source, deduplicates admission, renders and reuses the owned result', async () => {
+		const config: any = (await import('../app/config.js')).default;
+		config.storageConfig.jsNode.pass = 'test test test test test test test test test test';
+		app = await (await import('../app/index.js')).default({storageConfig: config.storageConfig, port: 7782});
+		await app.flushDatabase();
+		await app.setup({email: 'admin@admin.com', name: 'admin', password: 'admin'});
+		const owner = await app.registerUser({email: 'video-owner@example.com', name: 'video-owner', password: 'owner', permissions: [CorePermissionName.UserAll]});
+		const other = await app.registerUser({email: 'video-other@example.com', name: 'video-other', password: 'other', permissions: [CorePermissionName.UserAll]});
+		const key = await app.generateUserApiKey(owner.id, {scopes: ['content:write']});
+		const otherKey = await app.generateUserApiKey(other.id, {scopes: ['content:write']});
+		const readOnly = await app.generateUserApiKey(owner.id, {scopes: ['assets:read-private']});
+		app.ms.content.processVideoWatermarkQueue = async () => {};
+		directory = await mkdtemp(join(tmpdir(), 'video-integration-'));
+		const path = join(directory, 'original.mp4');
+		await exec('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=blue:s=320x240:r=24:d=1', '-c:v', 'libx264', '-threads', '2', '-pix_fmt', 'yuv420p', path]);
+		const bytes = await readFile(path);
+		const original = await app.ms.content.saveData(owner.id, bytes, 'original.mp4', {mimeType: 'video/mp4', driver: {raw: true}, skipFileCatalog: true});
+		const input = {sourceContentId: original.id, svg};
+		const call = (token, body) => fetch('http://127.0.0.1:7782/v1/user/video-watermarks', {method: 'POST', headers: {Authorization: `Bearer ${token}`, 'content-type': 'application/json'}, body: JSON.stringify(body)});
+		assert.equal((await call(otherKey, input)).status, 403);
+		assert.equal((await call(readOnly, input)).status, 403);
+		assert.equal((await call(key, {...input, svg: '<script/>'})).status, 400);
+		const acceptedResponse = await call(key, input);
+		assert.equal(acceptedResponse.status, 200);
+		const accepted = await acceptedResponse.json();
+		assert.equal(accepted.status, 'queued');
+		assert.equal((await (await call(key, input)).json()).id, accepted.id);
+		assert.ok((await countStorageHolds(app, original.storageId)) > 0);
+		const service = new VideoWatermark(app);
+		await service.processQueue();
+		const completed = await (await call(key, input)).json();
+		assert.equal(completed.status, 'completed', JSON.stringify(completed));
+		assert.equal(completed.content.mimeType, 'video/mp4');
+		assert.notEqual(completed.content.storageId, original.storageId);
+		assert.equal((await (await call(key, input)).json()).content.id, completed.content.id);
+		assert.equal((await countStorageHolds(app, original.storageId)), 0);
+		assert.deepEqual(Buffer.from((await app.ms.storage.getFileData(original.storageId)).slice()), bytes);
+		const already = await (await call(key, {...input, sourceContentId: completed.content.id})).json();
+		assert.equal(already.alreadyApplied, true);
+		assert.equal(already.content.id, completed.content.id);
+		await app.ms.database.updateContent(completed.content.id, {isDeleted: true});
+		const retry = await (await call(key, input)).json();
+		assert.equal(retry.status, 'queued', 'deleted cache result is not returned');
+	});
+});
