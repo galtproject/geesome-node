@@ -6,7 +6,7 @@ const api = `${origin}/api/v1/oauth2`;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function createDeviantArtProvider(transport: any) {
-	const headers = accessToken => ({Authorization: `Bearer ${secret(accessToken)}`, 'dA-minor-version': '20240701'});
+	const headers = accessToken => ({Authorization: `Bearer ${secret(accessToken)}`, 'dA-minor-version': '20240701', 'User-Agent': 'GeeSome-Node', 'Accept-Encoding': 'gzip'});
 	async function request(path, accessToken, options: any = {}, mayPublish = false) {
 		const result = await readJson(transport, `${api}/${path}`, {...options, headers: {...headers(accessToken), ...options.headers}}, mayPublish);
 		check(result && !result.error && result.status !== 'error', 'DeviantArt rejected request', mayPublish);

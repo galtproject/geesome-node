@@ -68,7 +68,7 @@ export function getDeviantArtOAuthMethods(app, {PublicationOAuthFlow: Flow, Publ
 				await Flow.create({id: flowId, userId, stateHash: digest(state), status: 'pending', expiresAt, secretEncrypted: encrypted}, {transaction});
 			});
 			const authorization = new URL('https://www.deviantart.com/oauth2/authorize');
-			authorization.search = new URLSearchParams({response_type: 'code', client_id: input.clientId, redirect_uri: redirectUri, scope: 'basic user stash publish',
+			authorization.search = new URLSearchParams({response_type: 'code', client_id: input.clientId, redirect_uri: redirectUri, scope: 'basic user browse stash publish',
 				state, code_challenge: createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256'}).toString();
 			return {flowId, authorizationUrl: authorization.href, expiresAt: expiresAt.toISOString(), redirectUri};
 		},
