@@ -33,7 +33,7 @@ describe('publication destination schedule defaults', function () {
 	});
 	it('rejects foreign owners and invalid intervals without changing persisted settings', async () => {
 		await assert.rejects(methods.updateDestinationSchedule(2, rows[1].id, {defaultDelayMinutes: 10, expectedDefaultDelayMinutes: 60}), {status: 404});
-		for (const value of [0, -1, 1.5, '30', 1440, undefined]) {
+		for (const value of [0, -1, 1.5, '30', 1441, undefined]) {
 			await assert.rejects(methods.updateDestinationSchedule(1, rows[1].id, {defaultDelayMinutes: value, expectedDefaultDelayMinutes: 60}), {status: 400});
 		}
 		assert.equal((await methods.listDestinations(2)).destinations.length, 0);
@@ -43,6 +43,24 @@ describe('publication destination schedule defaults', function () {
 		await methods.updateDestinationSchedule(1, rows[0].id, {defaultDelayMinutes: 240, expectedDefaultDelayMinutes: null});
 		await methods.registerDestinations(1, 'key:1', {destinations: [{localKey: rows[0].localKey, network: 'twitter', localAccountId: 'account', label: 'Updated label', contentPolicy: 'nsfw', target: {}, enabled: true}]});
 		assert.equal((await methods.listDestinations(1)).destinations[0].defaultDelayMinutes, 240);
+	});
+	it('defaults shuffle on, saves atomically, detects stale edits and preserves interval-only clients', async () => {
+		const id = rows[0].id;
+		assert.equal((await methods.listDestinations(1)).destinations[0].shuffleEnabled, true);
+		const input = {defaultDelayMinutes: 1440, expectedDefaultDelayMinutes: 240, shuffleEnabled: false, expectedShuffleEnabled: true, randomDelayEnabled: true, expectedRandomDelayEnabled: false};
+		const result = await methods.updateDestinationSchedule(1, id, input);
+		assert.equal(result.destination.shuffleEnabled, false);
+		assert.equal(result.destination.randomDelayEnabled, true);
+		assert.deepEqual(await methods.updateDestinationSchedule(1, id, input), result);
+		await assert.rejects(methods.updateDestinationSchedule(1, id, {...input, defaultDelayMinutes: 2880}), {status: 409});
+		await assert.rejects(methods.updateDestinationSchedule(1, id, {...input, shuffleEnabled: 'false'}), {status: 400});
+		await assert.rejects(methods.updateDestinationSchedule(1, id, {...input, expectedShuffleEnabled: undefined}), {status: 400});
+		await assert.rejects(methods.updateDestinationSchedule(1, id, {...input, randomDelayEnabled: false}), {status: 409});
+		await assert.rejects(methods.updateDestinationSchedule(1, id, {...input, expectedRandomDelayEnabled: undefined}), {status: 400});
+		const legacy = await methods.updateDestinationSchedule(1, id, {defaultDelayMinutes: 10080, expectedDefaultDelayMinutes: 1440});
+		assert.equal(legacy.destination.shuffleEnabled, false);assert.equal(legacy.destination.randomDelayEnabled, true);
+		await methods.registerDestinations(1, 'key:1', {destinations: [{localKey: rows[0].localKey, network: 'twitter', localAccountId: 'account', label: 'Updated', contentPolicy: 'nsfw', target: {}, enabled: true}]});
+		assert.equal((await methods.listDestinations(1)).destinations[0].shuffleEnabled, false);
 	});
 	it('requires publishing scope and group management in both namespaces', async () => {
 		const routes = new Map();

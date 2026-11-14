@@ -1,3 +1,4 @@
+import {createRandomDelayGate} from './randomDelay.js';
 import {randomBytes} from 'node:crypto';
 import {Op} from 'sequelize';
 import {ApiProblemError} from '../api/problem.js';
@@ -21,24 +22,41 @@ export async function assertNativeTarget(app, userId, target) {
 	return group;
 }
 
-export function createNativePublisher(app, {PublicationJob: Job, PublicationDestination: Destination}) {
+export function createNativePublisher(app, {PublicationJob: Job, PublicationDestination: Destination}, options: any = {}) {
 	const sequelize = Job.sequelize;
+	const randomDelay = createRandomDelayGate(Destination, options);
+	const deferred = Symbol('random-delay');
 	async function claim() {
-		return sequelize.transaction(async transaction => {
-			const table = sequelize.getQueryInterface().queryGenerator.quoteTable(Destination.getTableName());
-			const enabled = sequelize.literal(`(SELECT "id" FROM ${table} WHERE "executionMode"='native' AND "enabled"=true)`);
-			const job = await Job.findOne({where: {executionMode: 'native', network: 'geesome', intentVersion: 6, scheduledAt: {[Op.lte]: new Date()},
-				[Op.and]: [
-					{[Op.or]: [{status: 'queued'}, {status: 'processing', processingAt: {[Op.lt]: new Date(Date.now() - leaseMs)}}]},
-					{[Op.or]: [{remoteId: {[Op.ne]: null}}, {destinationId: {[Op.in]: enabled}}]}
-				]},
-				order: [['scheduledAt', 'ASC'], ['id', 'ASC']], transaction, lock: transaction.LOCK.UPDATE, skipLocked: true});
-			if (!job) {
-				return null;
+		for (let checked = 0; checked < 20; checked++) {
+			const result = await sequelize.transaction(async transaction => {
+				const table = sequelize.getQueryInterface().queryGenerator.quoteTable(Destination.getTableName());
+				const enabled = sequelize.literal(`(SELECT "id" FROM ${table} WHERE "executionMode"='native' AND "enabled"=true)`);
+				const where = {executionMode: 'native', network: 'geesome', intentVersion: 6, scheduledAt: {[Op.lte]: new Date()},
+					[Op.and]: [randomDelay.readyWhere(),
+						{[Op.or]: [{status: 'queued'}, {status: 'processing', processingAt: {[Op.lt]: new Date(Date.now() - leaseMs)}}]},
+						{[Op.or]: [{remoteId: {[Op.ne]: null}}, {destinationId: {[Op.in]: enabled}}]}
+					]};
+				const candidate = await Job.findOne({where, order: [['scheduledAt', 'ASC'], ['id', 'ASC']], transaction});
+				if (!candidate) {
+					return null;
+				}
+				// Match the destination -> job lock order used by client/server claims and shuffle.
+				const destination = await Destination.findByPk(candidate.destinationId, {transaction, lock: transaction.LOCK.UPDATE});
+				const job = await Job.findOne({where: {...where, id: candidate.id}, transaction, lock: transaction.LOCK.UPDATE, skipLocked: true});
+				if (!job) {
+					return deferred;
+				}
+				if (!await randomDelay.allow(job, destination, transaction)) {
+					return deferred;
+				}
+				await job.update({status: 'processing', processingAt: new Date(), claimToken: randomBytes(32).toString('hex')}, {transaction});
+				return job.toJSON();
+			});
+			if (result !== deferred) {
+				return result;
 			}
-			await job.update({status: 'processing', processingAt: new Date(), claimToken: randomBytes(32).toString('hex')}, {transaction});
-			return job.toJSON();
-		});
+		}
+		return null;
 	}
 	const claimWhere = job => ({id: job.id, userId: job.userId, executionMode: 'native', status: 'processing', claimToken: job.claimToken});
 	async function publish(job) {
