@@ -54,7 +54,7 @@ describe('DeviantArt OAuth owner-bound PKCE lifecycle', function () {
 	it('returns a fixed HTTPS PKCE URL and encrypts application/verifier with hashed state, pending status is owner-scoped', async () => {
 		const flow = await start();const auth = new URL(flow.authorizationUrl);
 		assert.equal(auth.origin, 'https://www.deviantart.com');assert.equal(auth.pathname, '/oauth2/authorize');
-		assert.equal(auth.searchParams.get('scope'), 'basic user stash publish');assert.equal(auth.searchParams.get('redirect_uri'), redirectUri);
+		assert.equal(auth.searchParams.get('scope'), 'basic user browse stash publish');assert.equal(auth.searchParams.get('redirect_uri'), redirectUri);
 		assert.equal(auth.searchParams.get('code_challenge_method'), 'S256');assert.equal(flow.redirectUri, redirectUri);
 		assert(!JSON.stringify(flow).includes('private'));
 		const row = await models.PublicationOAuthFlow.findByPk(flow.flowId);

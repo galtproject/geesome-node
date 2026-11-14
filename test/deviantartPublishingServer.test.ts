@@ -6,6 +6,7 @@ import config from '../app/modules/database/config.js';
 import helpers from '../app/helpers.js';
 import createModels from '../app/modules/socNetPublishing/models.js';
 import createAccounts from '../app/modules/socNetAccount/models.js';
+import {getModule as getAccountModule} from '../app/modules/socNetAccount/index.js';
 import {getModule} from '../app/modules/socNetPublishing/index.js';
 import {createServerProviders} from '../app/modules/socNetPublishing/providers/index.js';
 import {GroupType, PostStatus} from '../app/modules/group/interface.js';
@@ -36,14 +37,14 @@ describe('DeviantArt encrypted server destination lifecycle', function () {
 		const group = {id: 2, creatorId: 1, type: GroupType.Channel, isPublic: false, isOpen: false};
 		const json = (value, status = 200) => new Response(JSON.stringify(value), {status});
 		fetchImpl = async (url, options) => {
-			if (url.endsWith('user/whoami')) {
+			if (url.includes('/user/whoami')) {
 				if (options.headers.Authorization !== `Bearer ${accessToken}` && !(acceptOldToken && options.headers.Authorization === 'Bearer access-secret')) {
 					return json({error: 'expired'}, 401);
 				}
 				if (rejectIdentity) {
 					return json({error: 'private'}, 503);
 				}
-				return json({userid, username: 'Fixture-Artist'});
+				return json({userid, username: 'Fixture-Artist', stats: {watchers: 12}});
 			}
 			if (url.endsWith('/oauth2/token')) {
 				assert.equal(options.body.get('refresh_token'), refreshToken);
@@ -91,6 +92,22 @@ describe('DeviantArt encrypted server destination lifecycle', function () {
 		await Promise.all(accounts.map(account => provider.verify('deviantart', account.credentials, {}, account.refreshCredentials)));
 		assert.equal(rotations, 1);assert.equal((await stored()).decoded.credentials.refreshToken, 'new-refresh-1');
 		assert.equal((await module.loadServerAccount(1, row.id, 'deviantart', identity)).credentials.accessToken, 'new-access-1');
+	});
+	it('serializes statistics refresh with publication credentials and keeps owner boundaries', async () => {
+		await module.setupServerDestination(1, setup());
+		app.ms.socNetPublishing = module;
+		const {row} = await stored();
+		const account = getAccountModule(app, {Account: sequelize.models.socNetAccount}, {fetch: (...args) => fetchImpl(...args)});
+		const input = {accountId: row.id, accountIdentity: identity, network: 'deviantart', kind: 'group' as const, target: {}};
+		await assert.rejects(account.getStatistics(2, input));
+		const stale = await module.loadServerAccount(1, row.id, 'deviantart', identity);
+		accessToken = 'expired';
+		const providers = createServerProviders({fetch: (...args) => fetchImpl(...args)});
+		const [metrics] = await Promise.all([account.getStatistics(1, input), providers.verify('deviantart', stale.credentials, {}, stale.refreshCredentials)]);
+		assert.deepEqual(metrics, {followers: 12});
+		assert.equal(rotations, 1);
+		assert.equal((await stored()).decoded.credentials.refreshToken, 'new-refresh-1');
+		assert.equal(publishes, 0);
 	});
 	it('keeps settings refresh committed even when the destination snapshot conflicts afterward', async () => {
 		const {destination} = await module.setupServerDestination(1, setup());accessToken = 'expired';
