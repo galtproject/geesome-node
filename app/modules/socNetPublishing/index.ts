@@ -131,7 +131,15 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 			if (query.order !== undefined && query.order !== 'queue') {
 				throw problem(400, 'local_publication_order_invalid');
 			}
-			const order: Order = query.order === 'queue' ? [
+			if (query.view !== undefined && !['queue', 'history'].includes(query.view)) {
+				throw problem(400, 'local_publication_view_invalid');
+			}
+			if (query.view !== undefined) {
+				where[Op.and] = [{status: {[Op.in]: query.view === 'history' ? ['posted', 'cancelled'] : ['queued', 'processing', 'failed', 'needs_review']}}];
+			}
+			const order: Order = query.view === 'queue' ? [['scheduledAt', 'ASC'], ['id', 'ASC']]
+				: query.view === 'history' ? [['updatedAt', 'DESC'], ['id', 'DESC']]
+				: query.order === 'queue' ? [
 				[literal(`CASE WHEN "status" = 'queued' THEN 0 ELSE 1 END`), 'ASC'],
 				[literal(`CASE WHEN "status" = 'queued' THEN "scheduledAt" END`), 'ASC'],
 				[literal(`CASE WHEN "status" = 'queued' THEN "id" END`), 'ASC'],
