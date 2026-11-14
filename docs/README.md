@@ -72,5 +72,6 @@ can be used for the generated API page, this portal, and module docs.
   persisted phase timing and durable multipart acceptance/restart policy.
 - [Scheduled IPFS restarts](ipfs-scheduled-restart.md): drain writers under the
   existing storage fence before a planned container restart.
+- [Durable asynchronous composition](async-composition.md): persisted image/outbox preparation, status, retry identity and restart recovery.
 
 - [Video watermarks](video-watermarks.md): bounded, queued SVG overlays for owned videos.

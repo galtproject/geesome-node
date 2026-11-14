@@ -98,6 +98,7 @@ export interface IUserOperationQueue {
 
 export interface IModuleOperationQueueProcessorOptions {
 	resumeInterrupted?: boolean;
+	shouldRetry?: (error: any, waitingQueue: IUserOperationQueue, operation: IUserAsyncOperation) => boolean;
 	// Durable accepted jobs may report inProcess while still awaiting execution.
 	isPendingOperation?: (waitingQueue: IUserOperationQueue) => boolean;
 	onError?: (error: any, waitingQueue: IUserOperationQueue, operation: IUserAsyncOperation) => Promise<void>;

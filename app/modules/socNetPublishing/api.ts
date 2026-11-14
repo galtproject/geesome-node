@@ -1,3 +1,4 @@
+import {acceptStorageRequest} from '../asyncOperation/requests.js';
 import {IGeesomeApp} from '../../interface.js';
 import {CorePermissionName} from '../database/interface.js';
 import {requireIntegrationScopes} from '../api/integrationScopes.js';
@@ -377,6 +378,8 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiDescription Requires publishing:local and assets:write. Creates a native ordinary closed owner outbox lazily, or uses an explicitly chosen owned ordinary closed channel. Source post and all destination jobs commit atomically before provider calls. Omitted schedule means now on first creation; identical request retries return the same source/jobs. Existing draft edits are rejected explicitly. No social credentials accepted. Image references resolve owned Assets or local, non-deleted, non-remote, unencrypted Content. Check outbox capabilities.ownedImageReferences before using Content-only references with older nodes.
 	 * @apiBody {String="sfw","nsfw"} contentType Canonical classification frozen on every job; absent or old target classification is rejected.
 	 * @apiBody {String="social-images-v1"} [mediaPolicy] Prepare provider-ready JPEG images before source/job acceptance. Original refs stay in the private source post; per-job payload.mediaPreparation binds original refs and prepared refs. Omit for exact legacy behavior.
+	 * @apiBody {Boolean} [async=false] Return durable 202 receipt; poll /user/social-publications/operations/:operationId.
+	 * @apiSuccess {Number} [operationId] Existing owner-scoped operation queue id for async=true.
 	 * @apiBody {String} requestKey Owner-scoped compose idempotency key.
 	 * @apiBody {String} text New text (maximum 40000 characters).
 	 * @apiBody {String[]} imageStorageIds Owned Asset or local Content storage IDs (maximum 20).
@@ -402,8 +405,42 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	api.onAuthorizedPost('user/social-publications/compose', async (req, res) => {
 		await authorize(req);
 		requireIntegrationScopes(req.apiKey, ['assets:write']);
-		res.send(await module.compose(req.user.id, req.body));
+		if (req.body.async !== undefined && typeof req.body.async !== 'boolean') {
+			throw new ApiProblemError(400, 'async_request_invalid', 'async must be a boolean');
+		}
+		const {async: asynchronous, ...input} = req.body;
+		if (asynchronous) {
+			module.validateComposeRequest(input);
+			const existing=await module.asyncRequests.peek(String(req.user.id),input.requestKey,input);
+			if (existing && existing.status!=='failed') {
+				res.send(existing,202);
+				return;
+			}
+			const destinations=await module.prepareAsyncCompose(req.user.id,input);
+			res.send(await acceptStorageRequest(app, module.asyncRequests, req.user.id, input.requestKey, input, req.apiKey.id, input.imageStorageIds, {destinations}), 202);
+			return;
+		}
+		res.send(await module.compose(req.user.id, input));
 	});
+	/**
+	 * @api {get} /v1/user/social-publications/operations/:operationId Read asynchronous composition status
+	 * @apiName PublicationComposeOperation
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiDescription Owner-scoped read only receipt. Requires publishing:local and assets:write; never replays failed work. Legacy local-publications alias is identical.
+	 * @apiParam {Number} operationId Native operation queue id.
+	 * @apiSuccess {String} status queued, processing, completed or failed.
+	 * @apiSuccess {Object} [result] Original compose result containing jobs on completion.
+	 * @apiSuccess {String} [errorCode] Safe failure code.
+	 */
+	api.onAuthorizedGet('user/social-publications/operations/:operationId', async (req, res) => {
+		await authorize(req);
+		requireIntegrationScopes(req.apiKey, ['assets:write']);
+		res.setHeader('Cache-Control', 'no-store');
+		res.send(await module.asyncRequests.get(String(req.user.id), req.params.operationId));
+	}, {storageReadOnly: true});
+
 	/**
 	 * @api {get} /v1/user/social-publications/outbox List unscheduled private outbox sources
 	 * @apiName LocalPublicationOutbox

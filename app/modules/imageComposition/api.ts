@@ -1,3 +1,7 @@
+import {ApiProblemError} from '../api/problem.js';
+import {CorePermissionName} from '../database/interface.js';
+import {acceptStorageRequest, requestHash} from '../asyncOperation/requests.js';
+import {normalizeImageCompositionContentCreateInput} from './helpers.js';
 import type {IGeesomeApp} from '../../interface.js';
 import type IGeesomeImageCompositionModule from './interface.js';
 import {ImageCompositionApiError} from './helpers.js';
@@ -31,6 +35,8 @@ export default function registerImageCompositionApi(app: IGeesomeApp, module: IG
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 * @apiUse ImageCompositionErrors
+	 * @apiBody {Boolean} [async=false] Persist preparation and return 202 with operationId; poll /user/image-composition-operations/:operationId.
+	 * @apiSuccess {Number} [operationId] Existing owner-scoped operation queue id for async=true.
 	 * @apiBody {String} idempotencyKey Stable retry key.
 	 * @apiBody {String} compositionId Stable composition lineage id.
 	 * @apiBody {String} originalContentManifestId Original raster Content manifest id.
@@ -47,9 +53,35 @@ export default function registerImageCompositionApi(app: IGeesomeApp, module: IG
 	 */
 	app.ms.api.onAuthorizedPost('user/image-compositions', async (req, res) => {
 		await withImageCompositionErrorResponse(res, async () => {
+			if (req.body.async !== undefined && typeof req.body.async !== 'boolean') {
+				throw new ImageCompositionApiError('composition_invalid', 400);
+			}
+			if (req.body.async === true) {
+				await app.checkUserCan(req.user.id,CorePermissionName.UserSaveData);
+				const input = normalizeImageCompositionContentCreateInput(req.body);
+				res.send(await acceptStorageRequest(app, module.asyncRequests, req.user.id, requestHash({compositionId: input.compositionId, idempotencyKey: input.idempotencyKey}), input, req.apiKey.id, [input.originalContentManifestId]), 202);
+				return;
+			}
 			res.send(await module.createImageCompositionContent(req.user.id, req.body), 200);
 		});
 	});
+
+	/**
+	 * @api {get} /v1/user/image-composition-operations/:operationId Read asynchronous composition status
+	 * @apiName UserImageCompositionOperation
+	 * @apiGroup ImageComposition
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiParam {Number} operationId Native owner-scoped operation queue id.
+	 * @apiSuccess {String} status queued, processing, completed or failed.
+	 * @apiSuccess {Object} [result] Original composition result on completion.
+	 * @apiSuccess {String} [errorCode] Safe failure code; POST the same original key to retry explicitly.
+	 */
+	app.ms.api.onAuthorizedGet('user/image-composition-operations/:operationId', async (req, res) => {
+		await app.checkUserCan(req.user.id,CorePermissionName.UserSaveData);
+		res.setHeader('Cache-Control', 'no-store');
+		res.send(await module.asyncRequests.get(String(req.user.id), req.params.operationId));
+	}, {storageReadOnly: true});
 
 	/**
 	 * @api {get} /v1/user/image-compositions/:contentManifestId Get composite content recipe
@@ -111,6 +143,9 @@ export async function withImageCompositionErrorResponse(res, callback) {
 	try {
 		return await callback();
 	} catch (error) {
+		if (error instanceof ApiProblemError) {
+			throw error;
+		}
 		if (!(error instanceof ImageCompositionApiError)) {
 			const message = String((error as Error)?.message || error || '');
 			error = /not[_ -]?permitted|permission|forbidden/i.test(message)

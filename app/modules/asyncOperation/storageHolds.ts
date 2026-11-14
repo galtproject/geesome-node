@@ -31,7 +31,9 @@ function indexJobs(app, rows) {
             const state = row.module === 'site-replacement' ? storageJobState(row) : JSON.parse(row.inputJson);
             inputs.push({id: row.id, input: state});
             let ids: string[] = [];
-            if (['content-resave', 'video-watermark'].includes(row.module)) {
+            if (['image-composition', 'publication-compose'].includes(row.module)) {
+                ids = state.context.sources.flatMap(imageFiles);
+            } else if (['content-resave', 'video-watermark'].includes(row.module)) {
                 ids = imageFiles(state.source);
             } else if (row.module === 'site-replacement' && state.result?.cleanup?.holdsReleased !== true) {
                 const retention = state.result?.externalLinksRetention;

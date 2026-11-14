@@ -37,6 +37,17 @@ describe('storage holds derived from existing jobs', () => {
         }
     });
 
+    it('retains original and preview files for durable asynchronous requests', async () => {
+        const rows = ['image-composition', 'publication-compose'].map((module, id) => ({id: id + 1, module,
+            inputJson: JSON.stringify({context: {sources: [{storageId: cid, mediumPreviewStorageId: cid}]}})}));
+        rows.push({id: 3, module: 'video-watermark', inputJson: JSON.stringify({source: {storageId: cid}})});
+        rows.push({id: 4, module: 'content-resave', inputJson: JSON.stringify({source: {storageId: cid}})});
+        const app = fixture(rows);
+        assert.equal(await countStorageHolds(app, cid), 4);
+        assert.equal(await countStorageHolds(app, variants(cid)[1]), 4);
+        assert.equal(await countStorageHolds(app, cid, 3), 3);
+    });
+
     it('releases only detached workflow holds and fails closed for unknown or overflowing work', async () => {
         const detached = job(1, {sources: [{storageId: cid}]}, {cleanup: {holdsReleased: true}});
         assert.equal(await countStorageHolds(fixture([detached]), cid), 0);

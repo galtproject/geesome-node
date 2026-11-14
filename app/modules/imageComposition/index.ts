@@ -1,3 +1,4 @@
+import {createQueuedRequests, runAsAcceptingKey} from '../asyncOperation/requests.js';
 import debug from 'debug';
 import {Op} from 'sequelize';
 import type {IGeesomeApp} from '../../interface.js';
@@ -38,6 +39,10 @@ export default async function initImageCompositionModule(app: IGeesomeApp) {
   app.checkModules(['database', 'api', 'content', 'fileCatalog', 'asyncOperation']);
   const models = await (await import('./models/index.js')).default(app.ms.database.sequelize, app.ms.database.models);
   const module = getModule(app, models);
+  const requests = createQueuedRequests(app, 'image-composition',
+    (owner, input, context) => runAsAcceptingKey(app, owner, context, [], CorePermissionName.UserSaveData,
+      () => module.createImageCompositionContent(Number(owner), input)));
+  Object.assign(module, {asyncRequests: requests});
   (await import('./api.js')).default(app, module);
   return module;
 }
