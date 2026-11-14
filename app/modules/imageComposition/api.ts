@@ -1,6 +1,6 @@
 import {ApiProblemError} from '../api/problem.js';
 import {CorePermissionName} from '../database/interface.js';
-import {acceptStorageRequest, requestHash} from '../../durableRequests.js';
+import {acceptStorageRequest, requestHash} from '../asyncOperation/requests.js';
 import {normalizeImageCompositionContentCreateInput} from './helpers.js';
 import type {IGeesomeApp} from '../../interface.js';
 import type IGeesomeImageCompositionModule from './interface.js';
@@ -36,7 +36,7 @@ export default function registerImageCompositionApi(app: IGeesomeApp, module: IG
 	 * @apiUse AuthErrors
 	 * @apiUse ImageCompositionErrors
 	 * @apiBody {Boolean} [async=false] Persist preparation and return 202 with operationId; poll /user/image-composition-operations/:operationId.
-	 * @apiSuccess {String} [operationId] Owner-scoped durable operation id for async=true.
+	 * @apiSuccess {Number} [operationId] Existing owner-scoped operation queue id for async=true.
 	 * @apiBody {String} idempotencyKey Stable retry key.
 	 * @apiBody {String} compositionId Stable composition lineage id.
 	 * @apiBody {String} originalContentManifestId Original raster Content manifest id.
@@ -72,7 +72,7 @@ export default function registerImageCompositionApi(app: IGeesomeApp, module: IG
 	 * @apiGroup ImageComposition
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
-	 * @apiParam {String} operationId Accepted owner-scoped UUID.
+	 * @apiParam {Number} operationId Native owner-scoped operation queue id.
 	 * @apiSuccess {String} status queued, processing, completed or failed.
 	 * @apiSuccess {Object} [result] Original composition result on completion.
 	 * @apiSuccess {String} [errorCode] Safe failure code; POST the same original key to retry explicitly.
@@ -81,7 +81,7 @@ export default function registerImageCompositionApi(app: IGeesomeApp, module: IG
 		await app.checkUserCan(req.user.id,CorePermissionName.UserSaveData);
 		res.setHeader('Cache-Control', 'no-store');
 		res.send(await module.asyncRequests.get(String(req.user.id), req.params.operationId));
-	});
+	}, {storageReadOnly: true});
 
 	/**
 	 * @api {get} /v1/user/image-compositions/:contentManifestId Get composite content recipe

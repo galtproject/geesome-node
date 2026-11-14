@@ -36,8 +36,7 @@ describe('storage holds derived from existing jobs', () => {
     });
 
     it('retains original and preview files for durable asynchronous requests', async () => {
-        const app=fixture([]);
-        (app.ms.database.sequelize as any).models={userOperationQueue:true,durableApiRequest:{findAll:async()=>[{id:'operation',context:{sources:[{storageId:cid}]}}]}};
+        const app=fixture([{id:1,module:'image-composition',inputJson:JSON.stringify({context:{sources:[{storageId:cid}]}})}]);
         assert.equal(await countStorageHolds(app,cid),1);
     });
 

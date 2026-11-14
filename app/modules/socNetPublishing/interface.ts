@@ -1,6 +1,6 @@
-import type {createDurableRequests} from '../../durableRequests.js';
+import type {createQueuedRequests} from '../asyncOperation/requests.js';
 export default interface ISocNetPublishingModule {
-	asyncRequests?: ReturnType<typeof createDurableRequests>;
+	asyncRequests?: ReturnType<typeof createQueuedRequests>;
 	validateComposeRequest(input: any): any;
 	prepareAsyncCompose(userId: number, input: any): Promise<any[]>;
 	startDeviantArtOAuth(userId: number, input: any): Promise<any>;

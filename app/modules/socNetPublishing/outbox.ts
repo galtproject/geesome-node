@@ -1,4 +1,4 @@
-import {requestHash as durableRequestHash} from '../../durableRequests.js';
+import {requestHash as durableRequestHash} from '../asyncOperation/requests.js';
 import {normalizeSourceImageSet, validateSourceImageSet} from './sourceImageSet.js';
 import {normalizeContentType} from './contentPolicy.js';
 import {createHash} from 'node:crypto';

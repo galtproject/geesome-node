@@ -1,4 +1,4 @@
-import {acceptStorageRequest} from '../../durableRequests.js';
+import {acceptStorageRequest} from '../asyncOperation/requests.js';
 import {IGeesomeApp} from '../../interface.js';
 import {CorePermissionName} from '../database/interface.js';
 import {requireIntegrationScopes} from '../api/integrationScopes.js';
@@ -379,7 +379,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiBody {String="sfw","nsfw"} contentType Canonical classification frozen on every job; absent or old target classification is rejected.
 	 * @apiBody {String="social-images-v1"} [mediaPolicy] Prepare provider-ready JPEG images before source/job acceptance. Original refs stay in the private source post; per-job payload.mediaPreparation binds original refs and prepared refs. Omit for exact legacy behavior.
 	 * @apiBody {Boolean} [async=false] Return durable 202 receipt; poll /user/social-publications/operations/:operationId.
-	 * @apiSuccess {String} [operationId] Owner-scoped durable operation id for async=true.
+	 * @apiSuccess {Number} [operationId] Existing owner-scoped operation queue id for async=true.
 	 * @apiBody {String} requestKey Owner-scoped compose idempotency key.
 	 * @apiBody {String} text New text (maximum 40000 characters).
 	 * @apiBody {String[]} imageStorageIds Owned Asset or local Content storage IDs (maximum 20).
@@ -429,7 +429,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 * @apiDescription Owner-scoped read only receipt. Requires publishing:local and assets:write; never replays failed work. Legacy local-publications alias is identical.
-	 * @apiParam {String} operationId Accepted UUID.
+	 * @apiParam {Number} operationId Native operation queue id.
 	 * @apiSuccess {String} status queued, processing, completed or failed.
 	 * @apiSuccess {Object} [result] Original compose result containing jobs on completion.
 	 * @apiSuccess {String} [errorCode] Safe failure code.
@@ -439,7 +439,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 		requireIntegrationScopes(req.apiKey, ['assets:write']);
 		res.setHeader('Cache-Control', 'no-store');
 		res.send(await module.asyncRequests.get(String(req.user.id), req.params.operationId));
-	});
+	}, {storageReadOnly: true});
 
 	/**
 	 * @api {get} /v1/user/social-publications/outbox List unscheduled private outbox sources

@@ -13,12 +13,10 @@ export async function storageJobs(app) {
     // their terminal receipts in the same bounded snapshot as active jobs.
     // Coarse text matching avoids casting malformed historical output to JSON;
     // indexJobs validates matching receipts and fails closed on unknown state.
-    const queues = await sequelize.model('userOperationQueue').findAll({where: {[Op.or]: [
+    return sequelize.model('userOperationQueue').findAll({where: {[Op.or]: [
         {isWaiting: true},
         {module: 'site-replacement', '$asyncOperation.output$': {[Op.like]: '%"externalLinksRetention"%'}},
     ]}, include: [{association: 'asyncOperation', attributes: ['output']}], limit: 1001});
-    const requests = sequelize.models?.durableApiRequest ? await sequelize.models.durableApiRequest.findAll({where: {status: {[Op.in]: ['queued', 'processing']}}, limit: 1001}) : [];
-    return [...queues, ...requests.map(row => ({id: `request:${row.id}`, module: 'durable-api-request', inputJson: JSON.stringify(row.context)}))];
 }
 export function storageJobState(row) {
     const accepted = JSON.parse(row.inputJson);
@@ -33,8 +31,8 @@ function indexJobs(app, rows) {
             const state = row.module === 'site-replacement' ? storageJobState(row) : JSON.parse(row.inputJson);
             inputs.push({id: row.id, input: state});
             let ids: string[] = [];
-            if (row.module === 'durable-api-request') {
-                ids = state.sources.flatMap(imageFiles);
+            if (['image-composition', 'publication-compose'].includes(row.module)) {
+                ids = state.context.sources.flatMap(imageFiles);
             } else if (row.module === 'content-resave') {
                 ids = imageFiles(state.source);
             } else if (row.module === 'site-replacement' && state.result?.cleanup?.holdsReleased !== true) {
