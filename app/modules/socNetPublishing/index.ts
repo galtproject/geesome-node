@@ -5,7 +5,7 @@ import {normalizeContentType} from './contentPolicy.js';
 import {createHash, randomBytes} from 'node:crypto';
 import {isIP} from 'node:net';
 import {contentTextToRichText, richTextToPlainText} from '../../richText.js';
-import {Op, literal} from 'sequelize';
+import {Op, literal, type Order} from 'sequelize';
 import {IGeesomeApp} from '../../interface.js';
 import {ApiProblemError} from '../api/problem.js';
 import {getPublicApiContext} from '../api/publicUrls.js';
@@ -122,7 +122,16 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 				}
 				where.status = query.status;
 			}
-			return jobViews(await PublicationJob.findAll({where, limit, offset, order: [['createdAt', 'DESC'], ['id', 'DESC']]}));
+			if (query.order !== undefined && query.order !== 'queue') {
+				throw problem(400, 'local_publication_order_invalid');
+			}
+			const order: Order = query.order === 'queue' ? [
+				[literal(`CASE WHEN "status" = 'queued' THEN 0 ELSE 1 END`), 'ASC'],
+				[literal(`CASE WHEN "status" = 'queued' THEN "scheduledAt" END`), 'ASC'],
+				[literal(`CASE WHEN "status" = 'queued' THEN "id" END`), 'ASC'],
+				['scheduledAt', 'DESC'], ['id', 'DESC']
+			] : [['createdAt', 'DESC'], ['id', 'DESC']];
+			return jobViews(await PublicationJob.findAll({where, limit, offset, order}));
 		},
 		async claimServerJob() {
 			const Account = app.ms.database?.sequelize?.models?.socNetAccount;
