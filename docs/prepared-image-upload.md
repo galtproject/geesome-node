@@ -3,6 +3,7 @@
 ## Contents
 
 - [Contract and trust](#contract-and-trust)
+- [Durable asynchronous upload](#durable-asynchronous-upload)
 - [Local command](#local-command)
 - [Publication workflow](#publication-workflow)
 - [Implementation and verification](#implementation-and-verification)
@@ -33,6 +34,38 @@ command uses the same backend encoder implementations, including watermark and
 already-applied watermark handling; do not expose this producer to untrusted
 encoders. The capability advertises this distinction. Ordinary uploads do not
 create these policy receipts.
+
+## Durable asynchronous upload
+
+Issue #1668 extends the same multipart endpoint with `async=true`. After validation,
+all four files are fsynced to bounded private staging and the ordinary operation
+queue is committed before returning `asyncOperationId`, `channel`, `bundleHash`,
+`sourceContentId` and `sourceStorageId`. Admission to IPFS storage happens in the
+background worker, outside the HTTP storage-admission deadline. Synchronous
+callers (the default) wait for that same operation and retain the completed
+`status`, `reused`, `content` and source identity response.
+
+`bundleHash` is SHA-256 of `JSON.stringify(manifest)` with its property order
+preserved. `GET /v1/user/prepared-image-operations/:bundleHash` returns
+`{operation: receipt}` for the authenticated owner, or `{operation: null}` when
+not accepted. Both upload and lookup require ordinary save permission plus
+`content:write`. Poll the returned ID using the existing owner endpoint
+`POST /v1/user/get-async-operation/:id`; its persisted output includes the bundle
+hash and completed content. The operation belongs to module `prepared-image-upload`.
+Lookup and polling do not acquire the storage writer fence.
+
+Acceptance is serialized by owner and bundle hash. A lost receipt, concurrent
+submission or client restart returns the original operation instead of another
+import. Four-file staging shares ordinary upload owner/global/job/free-space
+budgets and is bounded to 64 MiB. Source ownership/CID, watermark, hashes,
+permission and quota checks remain; the worker rechecks them before import.
+
+Prepared operations use a distinct queue module so older ordinary-upload workers cannot import or delete their staged bundles. Startup resumes fully staged work. An interrupted import remains
+`upload_outcome_unknown` with staged bytes retained; it is never automatically
+replayed or replaced by a new operation. A terminal failed/missing operation
+requires reconciliation. Completed output is checkpointed before local cleanup.
+Clients retain their original operation IDs, bundle files and overall deadlines;
+HTTP response loss does not authorize another render or upload identity.
 
 ## Local command
 
@@ -74,7 +107,7 @@ existing membership replacement/render/archive/Patreon stages. Media/storage I/O
 locked only during final upload receipt commitment; the source CID must still match. The
 result and source record ordinary publicationImage/publicationImages receipts,
 so existing `/v1/user/save-data` resave requests return the uploaded Content.
-The microwave-girls preparation stage can consume that result unchanged.
+A consuming publication pipeline can reuse that result unchanged.
 
 Before a real migration, freeze the source IDs/CIDs and driver in the existing
 replacement plan, then use those exact values to prepare each image. Preupload
@@ -114,3 +147,12 @@ one-connection SQL pool. The CLI preparation/reopen smoke passed; all five bundl
 files were mode 0600. API documentation generation and route inventory passed.
 The entire unrelated backend suite was not repeated for this follow-up. No
 production prepared-image uploads or Patreon writes were performed.
+
+
+For rollback, pause new prepared admissions and drain the new module before
+returning to an older version. Its queue and staging must be preserved if draining
+is impossible: the older worker ignores the new format, and the newer version
+recovers staged receipts after re-upgrade. Older staging quota accounting does
+not include the new module. Verification for #1668: 48 image/upload/retirement
+integration cases and 29 focused validation/async-operation cases pass, with API
+docs, security route inventory and scalability inventory checked.

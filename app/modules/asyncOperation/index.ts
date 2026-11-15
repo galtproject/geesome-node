@@ -406,7 +406,7 @@ export function getModule(app: IGeesomeApp, models) {
 		}
 
 		async closeAllAsyncOperation() {
-			return models.UserAsyncOperation.update({inProcess: false, errorType: 'node-restart'}, {where: {inProcess: true, [Op.or]: [{module: {[Op.ne]: 'durable-upload'}}, {module: null}]}});
+			return models.UserAsyncOperation.update({inProcess: false, errorType: 'node-restart'}, {where: {inProcess: true, [Op.or]: [{module: {[Op.notIn]: ['durable-upload', 'prepared-image-upload']}}, {module: null}]}});
 		}
 
 		async cleanupFinishedAsyncOperations(options: any = {}) {
@@ -421,7 +421,7 @@ export function getModule(app: IGeesomeApp, models) {
 					module: {[Op.or]: [{[Op.notIn]: ['site-replacement', ...retainedRequestModules]}, {[Op.is]: null}]},
 					[Op.and]: literal(`NOT EXISTS (SELECT 1 FROM "userOperationQueues" AS waiting
 						WHERE waiting."asyncOperationId" = "userAsyncOperation"."id" AND (waiting."isWaiting" = true OR
-                            (waiting.module = 'durable-upload' AND
+                            (waiting.module IN ('durable-upload', 'prepared-image-upload') AND
                                 (waiting."inputJson"::jsonb->>'reservedBytes')::bigint > 0)))`),
 					updatedAt: {[Op.lt]: cutoff}
 				},
