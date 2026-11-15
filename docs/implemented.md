@@ -1665,3 +1665,12 @@ Expired credentials reuse the locked publication refresh-token rotation; reader
 identity checks cover both authenticated user and deviation author. Permission
 failures return reconnect_required without discarding stored measurements.
 See the statistics module overview for OAuth and metric semantics.
+
+## Leading API version normalization (#1666)
+
+The API request adapter strips only the leading `/v1/` path segment. Unversioned
+IPFS gateway CIDs and later path/query values containing `v1/` remain byte-exact;
+versioned routes still receive their existing module-relative paths. This repairs
+registered immutable roots whose CID ends in `v1` without changing storage
+permissions, route registration or content identity. Real loopback GET/HEAD tests
+cover root and asset paths plus embedded path versions and query strings.
