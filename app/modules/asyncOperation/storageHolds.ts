@@ -15,6 +15,7 @@ export async function storageJobs(app) {
     // indexJobs validates matching receipts and fails closed on unknown state.
     return sequelize.model('userOperationQueue').findAll({where: {[Op.or]: [
         {isWaiting: true},
+        {module: 'prepared-image-upload', [Op.and]: literal("(\"userOperationQueue\".\"inputJson\"::jsonb->>'reservedBytes')::bigint > 0")},
         {module: 'site-replacement', '$asyncOperation.output$': {[Op.like]: '%"externalLinksRetention"%'}},
     ]}, include: [{association: 'asyncOperation', attributes: ['output']}], limit: 1001});
 }
@@ -33,7 +34,7 @@ function indexJobs(app, rows) {
             let ids: string[] = [];
             if (['image-composition', 'publication-compose'].includes(row.module)) {
                 ids = state.context.sources.flatMap(imageFiles);
-            } else if (['content-resave', 'video-watermark'].includes(row.module)) {
+            } else if (['content-resave', 'video-watermark', 'prepared-image-upload'].includes(row.module)) {
                 ids = imageFiles(state.source);
             } else if (row.module === 'site-replacement' && state.result?.cleanup?.holdsReleased !== true) {
                 const retention = state.result?.externalLinksRetention;

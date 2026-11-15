@@ -1,6 +1,4 @@
 import {videoWatermarkRequest} from '../drivers/convert/videoWatermark.js';
-import {savePreparedImage, preparedMultipartFiles} from './preparedImage.js';
-import {maxImageBytes} from '../drivers/convert/imageOptimize.js';
 import {ContentResave} from './resave.js';
 import {optimizationRequest} from '../drivers/convert/imageOptimize.js';
 import _ from 'lodash';
@@ -70,7 +68,10 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiUse ApiKey
      * @apiUse AuthErrors
      * @apiUse UploadErrors
-     * @apiDescription Trusted owner-side encoder upload, bound to an owned source CID. Does not encode or publish. Decodes and checks dimensions/hashes before storing. JPEG quality and watermark pixels are client declarations, not independently verified. Reuses ordinary source policy receipts. No async multipart replay.
+     * @apiDescription Trusted owner-side encoder upload, bound to an owned source CID. Does not encode or publish. Decodes and checks dimensions/hashes before storing. JPEG quality and watermark pixels are client declarations, not independently verified. Reuses ordinary source policy receipts. async=true returns a durable operation after bounded local staging; poll the ordinary operation endpoint. Interrupted imports remain unknown and are not automatically replayed.
+     * @apiBody {Boolean} [async=false] Return a durable operation receipt after staging.
+     * @apiSuccess {Number} [asyncOperationId] Accepted durable operation when async=true.
+     * @apiSuccess {String} [bundleHash] Stable prepared bundle identity.
      * @apiBody {String} manifest JSON contract 1, producer trusted-client, sourceContentId, sourceStorageId, imageOptimize JPEG95 driver, watermarkIdentity, codec and files SHA-256 map (file/small/medium/large).
      * @apiBody {File} file Prepared JPEG95 image.
      * @apiBody {File} small WebP85 preview, 512px bounding edge without enlargement.
@@ -84,31 +85,27 @@ export default (app: IGeesomeApp, contentModule: IGeesomeContentModule) => {
      * @apiError image_optimization_source_changed Source CID no longer matches.
      */
     app.ms.api.onAuthorizedPost('user/save-prepared-image', async (req, res) => {
-        await new ContentResave(app).authorize(req.user.id, req.apiKey.id);
-        const quota = await app.getUserLimitRemained(req.user.id, UserLimitName.SaveContentSize);
-        const remaining = quota == null ? maxImageBytes : Math.max(0, Math.min(quota, maxImageBytes));
-        if (!remaining) {
-            throw new ApiProblemError(413, 'prepared_image_too_large', 'Upload quota exhausted');
+        const uploads = (contentModule as any).durableUploads;
+        const accepted = await uploads.acceptPrepared(req);
+        if (accepted.async) {
+            return res.send(accepted.receipt);
         }
-        const {files, fields} = await asyncBusboy(req.stream, {headers: req.headers,
-            // Busboy emits partsLimit upon reaching the count, so five allowed parts need six here.
-            limits: {files: 4, fields: 1, parts: 6, fieldSize: 8192, fileSize: remaining}});
-        try {
-            let manifest;
-            try {
-                manifest = JSON.parse(fields.manifest);
-            } catch {
-                throw new ApiProblemError(400, 'prepared_image_manifest_invalid', 'Invalid prepared image manifest');
-            }
-            const bytes = await preparedMultipartFiles(files, remaining);
-            res.send(await savePreparedImage(app, req.user.id, req.apiKey.id, manifest, bytes));
-        } finally {
-            for (const file of files) {
-                file.on('error', () => {});
-                file.destroy();
-                file.emitFinish();
-            }
-        }
+        const result = await uploads.wait(accepted.receipt, req, res, true);
+        res.send({...result, reused: accepted.reused || result.reused, status: 'completed', sourceContentId: accepted.receipt.sourceContentId});
+    }, {storageFence: 'handler'});
+
+    /**
+     * @api {get} /v1/user/prepared-image-operations/:bundleHash Find accepted prepared upload
+     * @apiName UserPreparedImageOperation
+     * @apiGroup UserContent
+     * @apiUse ApiKey
+     * @apiUse AuthErrors
+     * @apiParam {String} bundleHash SHA-256 of JSON.stringify(manifest), preserving property order.
+     * @apiSuccess {Object|null} operation Owned durable receipt, or null when not accepted.
+     * @apiDescription Requires source-resave authorization. Read-only receipt lookup after a lost upload reply; monitor the returned asyncOperationId through the ordinary owner operation endpoint.
+     */
+    app.ms.api.onAuthorizedGet('user/prepared-image-operations/:bundleHash', async (req, res) => {
+        res.send({operation: await (contentModule as any).durableUploads.findPrepared(req.user.id, req.apiKey.id, req.params.bundleHash)});
     });
 
     /**

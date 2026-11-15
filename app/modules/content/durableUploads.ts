@@ -5,11 +5,16 @@ import {randomUUID, createHash} from 'node:crypto';
 import {finished} from 'node:stream/promises';
 import {Op, literal} from 'sequelize';
 import asyncBusboy from './asyncBusboy.js';
+import {acceptPreparedUpload, findPreparedUpload} from './preparedUploads.js';
+import {preparedImageSlots, validateImageBundle, savePreparedImage} from './preparedImage.js';
+import {ContentResave} from './resave.js';
 import {ApiProblemError} from '../api/problem.js';
 import {CorePermissionName, UserLimitName} from '../database/interface.js';
 import {withStorageFence, withStorageWorker} from '../../storageLifecycle.js';
 
 export const durableUploadModule = 'durable-upload';
+export const preparedUploadModule = 'prepared-image-upload';
+const uploadModules = [durableUploadModule, preparedUploadModule];
 const MiB = 1024 * 1024;
 
 export function uploadStagingPolicy(environment = process.env) {
@@ -59,14 +64,14 @@ export class DurableUploads {
 		await this.app.checkUserCan(userId, CorePermissionName.UserSaveData, key);
 		return key;
 	}
-	async reserve(userId, apiKeyId, contentLength?: string) {
+	async reserve(userId, apiKeyId, contentLength?: string, moduleName = durableUploadModule) {
 		await this.authorize(userId, apiKeyId);
 		await fsp.mkdir(this.policy.directory, {recursive: true, mode: 0o700});
 		const remaining = await this.app.getUserLimitRemained(userId, UserLimitName.SaveContentSize);
 		return this.sequelize.transaction(async transaction => {
 			await this.sequelize.query('SELECT pg_advisory_xact_lock(17422, 1)', {transaction});
 			const live = await this.Queue.findAll({attributes: ['userId', 'inputJson'],
-				where: {module: durableUploadModule, [Op.and]: literal("(\"userOperationQueue\".\"inputJson\"::jsonb->>'reservedBytes')::bigint > 0")}, transaction, limit: this.policy.maxJobs + 1});
+				where: {module: {[Op.in]: uploadModules}, [Op.and]: literal("(\"userOperationQueue\".\"inputJson\"::jsonb->>'reservedBytes')::bigint > 0")}, transaction, limit: this.policy.maxJobs + 1});
 			const reservations = live.map(row => ({userId: row.userId, bytes: JSON.parse(row.inputJson).reservedBytes || 0}));
 			const total = reservations.reduce((sum, item) => sum + item.bytes, 0);
 			const owned = reservations.filter(item => item.userId === userId).reduce((sum, item) => sum + item.bytes, 0);
@@ -80,10 +85,10 @@ export class DurableUploads {
 			const declared = typeof contentLength === 'string' && /^[1-9][0-9]*$/.test(contentLength)
 				&& Number.isSafeInteger(Number(contentLength)) ? Number(contentLength) : 16 * MiB;
 			const input = {fileId: randomUUID(), reservedBytes: Math.min(capacity, declared)};
-			const operation = await this.Operation.create({userId, userApiKeyId: apiKeyId, module: durableUploadModule,
+			const operation = await this.Operation.create({userId, userApiKeyId: apiKeyId, module: moduleName,
 				name: 'save-data', channel: `upload:${input.fileId}`, inProcess: true,
 				output: JSON.stringify({upload: {phase: 'receiving'}})}, {transaction});
-			const queue = await this.Queue.create({userId, userApiKeyId: apiKeyId, module: durableUploadModule,
+			const queue = await this.Queue.create({userId, userApiKeyId: apiKeyId, module: moduleName,
 				inputHash: input.fileId, inputJson: JSON.stringify(input), isWaiting: false, asyncOperationId: operation.id}, {transaction});
 			return {queue, operation, input};
 		});
@@ -100,7 +105,7 @@ export class DurableUploads {
 				throw new ApiProblemError(409, 'upload_not_receiving', 'Upload reception already closed');
 			}
 			const live = await this.Queue.findAll({attributes: ['userId', 'inputJson'],
-				where: {module: durableUploadModule, [Op.and]: literal('(\"userOperationQueue\".\"inputJson\"::jsonb->>\'reservedBytes\')::bigint > 0')}, transaction,
+				where: {module: {[Op.in]: uploadModules}, [Op.and]: literal('(\"userOperationQueue\".\"inputJson\"::jsonb->>\'reservedBytes\')::bigint > 0')}, transaction,
 				limit: this.policy.maxJobs + 1});
 			const reservations = live.map(row => ({userId: row.userId, bytes: JSON.parse(row.inputJson).reservedBytes || 0}));
 			const total = reservations.reduce((sum, item) => sum + item.bytes, 0) - input.reservedBytes;
@@ -119,6 +124,8 @@ export class DurableUploads {
 		input.reservedBytes = reserved;
 	}
 
+	acceptPrepared(req) { return acceptPreparedUpload(this, req); }
+	findPrepared(userId, apiKeyId, bundleHash) { return findPreparedUpload(this, userId, apiKeyId, bundleHash); }
 	async accept(req) {
 		const {queue, operation, input} = await this.reserve(req.user.id, req.apiKey.id, req.headers['content-length']);
 		let files = [];
@@ -193,7 +200,7 @@ export class DurableUploads {
 		await fsp.mkdir(this.policy.directory, {recursive: true, mode: 0o700});
 		// The node's startup recovery runs before workers. Only staged, never
 		// started bytes can be replayed. Interrupted imports remain explicit unknowns.
-		const rows = await this.Queue.findAll({where: {module: durableUploadModule, [Op.and]: literal("(\"userOperationQueue\".\"inputJson\"::jsonb->>'reservedBytes')::bigint > 0")},
+		const rows = await this.Queue.findAll({where: {module: {[Op.in]: uploadModules}, [Op.and]: literal("(\"userOperationQueue\".\"inputJson\"::jsonb->>'reservedBytes')::bigint > 0")},
 			include: [{association: 'asyncOperation', required: true}]});
 		for (const queue of rows) {
 			const input = JSON.parse(queue.inputJson);
@@ -227,14 +234,22 @@ export class DurableUploads {
 			await this.removeFile(queue, input);
 			throw new Error('upload_cancelled');
 		}
+		const prepared = input.kind === 'prepared-image';
+		let preparedFiles;
+		if (prepared) {
+			await new ContentResave(this.app).authorize(queue.userId, queue.userApiKeyId);
+			preparedFiles = Object.fromEntries(await Promise.all(preparedImageSlots.map(async slot =>
+				[slot, await fsp.readFile(path.join(path.dirname(this.file(input.fileId)), slot))])));
+			await validateImageBundle(input.manifest, preparedFiles);
+		}
 		const file = this.file(input.fileId);
 		const hash = createHash('sha256');
 		let bytes = 0;
-		for await (const chunk of fs.createReadStream(file)) {
+		for await (const chunk of prepared ? Object.values(preparedFiles) as Buffer[] : fs.createReadStream(file)) {
 			hash.update(chunk);
 			bytes += chunk.length;
 		}
-		if (bytes !== input.bytes || hash.digest('hex') !== input.sha256) {
+		if (bytes !== input.bytes || (!prepared && hash.digest('hex') !== input.sha256)) {
 			throw new Error('upload_staging_integrity_failed');
 		}
 		const remaining = await this.app.getUserLimitRemained(queue.userId, UserLimitName.SaveContentSize);
@@ -242,19 +257,20 @@ export class DurableUploads {
 			throw new ApiProblemError(413, 'upload_quota_exhausted', 'Owner upload quota exhausted before import');
 		}
 		await this.Operation.update({output: JSON.stringify({upload: {phase: 'importing', startedAt: new Date().toISOString()}})}, {where: {id: operation.id}});
-		const stream = fs.createReadStream(file);
+		const stream = prepared ? null : fs.createReadStream(file);
 		let saved: any;
 		try {
-			saved = await this.app.runWithApiKey(key, () => this.app.ms.content.saveData(queue.userId,
-				stream, input.filename, {...input.options, waitForPin: true}));
+			saved = await this.app.runWithApiKey(key, () => prepared
+				? savePreparedImage(this.app, queue.userId, queue.userApiKeyId, input.manifest, preparedFiles)
+				: this.app.ms.content.saveData(queue.userId, stream, input.filename, {...input.options, waitForPin: true}));
 		} catch (error) {
 			await this.markUnknown(previous);
 			throw new Error('upload_outcome_unknown: Check Media before uploading again. Staged bytes retained.');
 		} finally {
-			stream.destroy();
+			stream?.destroy();
 		}
-		const content = saved.toJSON ? saved.toJSON() : saved;
-		const result = {content, upload: {phase: 'imported', completedAt: new Date().toISOString()}};
+		const content = prepared ? saved.content : saved.toJSON ? saved.toJSON() : saved;
+		const result = {...(prepared ? {...saved, bundleHash: input.bundleHash} : {}), content, upload: {phase: 'imported', completedAt: new Date().toISOString()}};
 		// Checkpoint confirmed result before deleting the only local original.
 		await this.Operation.update({output: JSON.stringify(result), contentId: content.id, inProcess: false, finishedAt: new Date()}, {where: {id: operation.id}});
 		try {
@@ -268,17 +284,17 @@ export class DurableUploads {
 	}
 
 	async processQueue() {
-		const pending = await this.Queue.findOne({where: {module: durableUploadModule, isWaiting: true},
+		const pending = await this.Queue.findOne({where: {module: {[Op.in]: uploadModules}, isWaiting: true},
 			include: [{association: 'asyncOperation', required: true, where: {finishedAt: null}}]});
 		if (!pending) {
 			return {processed: 0};
 		}
 		try {
 			return await withStorageWorker(this.app, () => withStorageFence(this.app, 'shared', () =>
-				this.app.ms.asyncOperation.processModuleOperationQueue(durableUploadModule, {
+				this.app.ms.asyncOperation.processModuleOperationQueue(pending.module, {
 					limit: 10, resumeInterrupted: true,
 					isPendingOperation: queue => JSON.parse(queue.asyncOperation?.output || '{}').upload?.phase === 'staged',
-					getAsyncOperationData: () => ({name: 'save-data'}),
+					getAsyncOperationData: queue => ({name: JSON.parse(queue.inputJson).kind === 'prepared-image' ? 'save-prepared-image' : 'save-data'}),
 					onError: async (_error, queue, operation) => {
 						const latest = await this.Operation.findByPk(operation.id);
 						if (JSON.parse(latest.output || '{}').upload?.phase === 'staged') {
@@ -294,7 +310,7 @@ export class DurableUploads {
 			throw error;
 		}
 	}
-	async wait(receipt, req, res) {
+	async wait(receipt, req, res, fullResult = false) {
 		while (!req.stream?.aborted && !res.stream?.destroyed) {
 			await this.processQueue();
 			const operation = await this.Operation.findByPk(receipt.asyncOperationId);
@@ -302,7 +318,7 @@ export class DurableUploads {
 				if (operation.errorMessage) {
 					throw new ApiProblemError(409, operation.errorType || 'upload_failed', operation.errorMessage);
 				}
-				return JSON.parse(operation.output).content;
+				return fullResult ? JSON.parse(operation.output) : JSON.parse(operation.output).content;
 			}
 			await new Promise(resolve => setTimeout(resolve, 250));
 		}

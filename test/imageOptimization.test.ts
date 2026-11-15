@@ -1,4 +1,6 @@
 import {noteStorageActivity} from '../app/modules/staticSiteGenerator/cleanupActivity.js';
+import {countStorageHolds} from '../app/modules/asyncOperation/storageHolds.js';
+import {DurableUploads} from '../app/modules/content/durableUploads.js';
 import {prepareImageBundle, savePreparedImage} from '../app/modules/content/preparedImage.js';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
@@ -126,6 +128,144 @@ describe('persisted image saving and local site retirement', function () {
         }
         assert.equal(contents[0].storageId, contents[1].storageId);
         assert.notEqual(contents[0].id, contents[1].id);
+    });
+
+    it('stages prepared bundles during maintenance, deduplicates lost receipts and recovers the same queued operation', async () => {
+        const bytes = await sharp({create: {width: 37, height: 49, channels: 3, background: '#7342ae'}}).png().toBuffer();
+        const source = await app.ms.content.saveData(user.id, bytes, 'async-prepared-source.png', {driver: {raw: true}, waitForPin: true});
+        const bundle = await prepareImageBundle(bytes, source);
+        const token = await app.generateUserApiKey(user.id, {scopes: ['content:write']});
+        const foreignToken = await app.generateUserApiKey(admin.id, {scopes: ['content:write']});
+        const url = `http://127.0.0.1:${process.env.PORT || 7771}/v1/user/`;
+        const send = async (key = token) => {
+            const form = new FormData();
+            form.append('manifest', JSON.stringify(bundle.manifest));
+            form.append('async', 'true');
+            for (const [slot, value] of Object.entries(bundle.files)) {
+                form.append(slot, new Blob([value as Buffer]), slot);
+            }
+            return fetch(url + 'save-prepared-image', {method: 'POST', headers: {Authorization: `Bearer ${key}`,
+                'X-Geesome-Storage-Admission-Ms': '1'}, body: form});
+        };
+        let enter, release;
+        const entered = new Promise<void>(resolve => {enter = resolve;});
+        const held = new Promise<void>(resolve => {release = resolve;});
+        const maintenance = withStorageFence(app, 'exclusive', async () => {enter(); await held;});
+        await entered;
+        let accepted;
+        try {
+            const response = await send();
+            assert.equal(response.status, 200, await response.clone().text());
+            accepted = await response.json() as any;
+            assert.ok(accepted.asyncOperationId);
+            assert.equal(accepted.bundleHash, digest(bundle.manifest));
+            assert.equal(accepted.sourceContentId, source.id);
+            const lookup = async key => (await (await fetch(url + 'prepared-image-operations/' + accepted.bundleHash,
+                {headers: {Authorization: `Bearer ${key}`}})).json()) as any;
+            assert.equal((await lookup(token)).operation.asyncOperationId, accepted.asyncOperationId);
+            assert.equal((await lookup(foreignToken)).operation, null);
+            assert.equal((await (await send()).json() as any).asyncOperationId, accepted.asyncOperationId);
+            assert.equal((await send(foreignToken)).status, 403);
+            const uploads = app.ms.content.durableUploads;
+            await uploads.processQueue();
+            const operation = await uploads.Operation.findByPk(accepted.asyncOperationId);
+            assert.equal(operation.finishedAt, null);
+            assert.equal(operation.module, 'prepared-image-upload');
+            await app.ms.asyncOperation.closeAllAsyncOperation();
+            await operation.reload();
+            assert.equal(operation.errorType, null);
+            assert.equal(await countStorageHolds(app, source.storageId) > 0, true);
+            // Startup can resume staged bytes without creating another operation.
+            await new DurableUploads(app, uploads.policy).recover();
+        } finally {release(); await maintenance;}
+        await app.ms.content.durableUploads.processQueue();
+        const operation = await app.ms.content.durableUploads.Operation.findByPk(accepted.asyncOperationId);
+        const result = JSON.parse(operation.output);
+        assert.equal(operation.errorMessage, null);
+        assert.equal(result.bundleHash, accepted.bundleHash);
+        assert.ok(result.content.id);
+        assert.equal((await app.ms.content.requestResave(user.id, source.id, null, imageDriver(null, 'publication-jpeg95-v1'))).content.id, result.content.id);
+        const duplicate = await (await send()).json() as any;
+        assert.equal(duplicate.asyncOperationId, accepted.asyncOperationId);
+    });
+
+    it('retains an interrupted prepared import as unknown and refuses implicit replay of that bundle', async () => {
+        const bytes = await sharp({create: {width: 17, height: 29, channels: 3, background: '#9e5b7a'}}).png().toBuffer();
+        const source = await app.ms.content.saveData(user.id, bytes, 'unknown-prepared-source.png', {driver: {raw: true}, waitForPin: true});
+        const bundle = await prepareImageBundle(bytes, source);
+        const token = await app.generateUserApiKey(user.id, {scopes: ['content:write']});
+        const form = new FormData();
+        form.append('manifest', JSON.stringify(bundle.manifest));
+        form.append('async', 'true');
+        for (const [slot, value] of Object.entries(bundle.files)) {
+            form.append(slot, new Blob([value as Buffer]), slot);
+        }
+        // Hold the existing worker mutex while staging and simulating the crash.
+        let entered = false;
+        await withStorageWorker(app, async () => {
+            const response = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-prepared-image`,
+                {method: 'POST', headers: {Authorization: `Bearer ${token}`}, body: form});
+            assert.equal(response.status, 200, await response.clone().text());
+            const receipt = await response.json() as any;
+            const uploads = app.ms.content.durableUploads;
+            const operation = await uploads.Operation.findByPk(receipt.asyncOperationId);
+            entered = true;
+            await operation.update({output: JSON.stringify({upload: {phase: 'importing'}})});
+            await new DurableUploads(app, uploads.policy).recover();
+            await operation.reload();
+            assert.equal(operation.errorType, 'upload_outcome_unknown');
+            assert.equal((await uploads.findPrepared(user.id, (await app.getUserByApiToken(token)).apiKey.id, digest(bundle.manifest))).asyncOperationId,
+                receipt.asyncOperationId);
+            const queue = await uploads.Queue.findOne({where: {asyncOperationId: operation.id}});
+            assert.equal(queue.isWaiting, false);
+            assert.ok(JSON.parse(queue.inputJson).reservedBytes > 0);
+            assert.ok(await countStorageHolds(app, source.storageId) > 0);
+            await operation.update({updatedAt: new Date(1)}, {silent: true});
+            await app.ms.asyncOperation.cleanupFinishedAsyncOperations();
+            assert.ok(await uploads.Operation.findByPk(operation.id));
+            assert.equal(((await app.ms.database.getContent(source.id)).propertiesJson || '{}').includes('publication-jpeg95-v1'), false);
+        });
+        assert.equal(entered, true);
+    });
+
+    it('rechecks prepared-upload key permissions and staged file integrity before storage execution', async () => {
+        for (const mode of ['revoked', 'corrupt']) {
+            const bytes = await sharp({create: {width: 23, height: 31, channels: 3, background: mode === 'revoked' ? '#6179b2' : '#5267aa'}}).png().toBuffer();
+            const source = await app.ms.content.saveData(user.id, bytes, `guarded-prepared-${mode}.png`, {driver: {raw: true}, waitForPin: true});
+            const bundle = await prepareImageBundle(bytes, source);
+            const token = await app.generateUserApiKey(user.id, {scopes: ['content:write']});
+            const uploads = app.ms.content.durableUploads;
+            let receipt;
+            await withStorageWorker(app, async () => {
+                const form = new FormData();
+                form.append('manifest', JSON.stringify(bundle.manifest));
+                form.append('async', 'true');
+                for (const [slot, value] of Object.entries(bundle.files)) {
+                    form.append(slot, new Blob([value as Buffer]), slot);
+                }
+                const response = await fetch(`http://127.0.0.1:${process.env.PORT || 7771}/v1/user/save-prepared-image`,
+                    {method: 'POST', headers: {Authorization: `Bearer ${token}`}, body: form});
+                assert.equal(response.status, 200, await response.clone().text());
+                receipt = await response.json() as any;
+                if (mode === 'revoked') {
+                    const identity = await app.getUserByApiToken(token);
+                    await app.ms.database.updateApiKey(identity.apiKey.id, {isDisabled: true});
+                } else {
+                    const queue = await uploads.Queue.findOne({where: {asyncOperationId: receipt.asyncOperationId}});
+                    const input = JSON.parse(queue.inputJson);
+                    const {promises: fs} = await import('node:fs');
+                    const path = await import('node:path');
+                    await fs.writeFile(path.join(path.dirname(uploads.file(input.fileId)), 'small'), 'corrupt');
+                }
+            });
+            await uploads.processQueue();
+            const operation = await uploads.Operation.findByPk(receipt.asyncOperationId);
+            assert.equal(operation.inProcess, false);
+            assert.ok(operation.errorMessage);
+            const queue = await uploads.Queue.findOne({where: {asyncOperationId: receipt.asyncOperationId}});
+            assert.equal(JSON.parse(queue.inputJson).reservedBytes, 0);
+            assert.equal(((await app.ms.database.getContent(source.id)).propertiesJson || '{}').includes('publication-jpeg95-v1'), false);
+        }
     });
 
     it('uploads prepared JPEG and previews without encoding, reuses on retry and supplies ordinary resave receipts', async () => {
@@ -1093,6 +1233,7 @@ describe('persisted image saving and local site retirement', function () {
         assert.deepEqual(await caps.json(), {contract: 1, policy: 'publication-jpeg95-v1', imagePolicies: ['publication-webp-v1', 'publication-jpeg95-v1'], resave: true, watermark: true, imageOptimizeDriver: true, retirement: true,
             retainOriginalForExternalLinks: true,
             preparedImage: {contract: 1, policy: 'publication-jpeg95-v1', producer: 'trusted-client', maxBytes: 64 * 1024 * 1024,
+                async: true, operationLookup: '/v1/user/prepared-image-operations/:bundleHash',
                 slots: ['file', 'small', 'medium', 'large'], previewEdges: {small: 512, medium: 1024, large: 2048}}});
         const png = await sharp({create: {width: 40, height: 60, channels: 3, background: '#123abc'}}).png().toBuffer();
         const content = await app.ms.content.saveData(user.id, png, 'http-contract.png', {driver: imageDriver(), waitForPin: true});
