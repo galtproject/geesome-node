@@ -12,6 +12,7 @@ import {problem, contentIds} from './publicationInput.js';
 
 export const preparedImageSlots = ['file', 'small', 'medium', 'large'];
 export const preparedImageContract = {contract: 1, policy, producer: 'trusted-client', maxBytes: maxImageBytes,
+    async: true, operationLookup: '/v1/user/prepared-image-operations/:bundleHash',
     slots: preparedImageSlots, previewEdges: {small: 512, medium: 1024, large: 2048}};
 export const imageBytesHash = bytes => createHash('sha256').update(bytes).digest('hex');
 
@@ -91,26 +92,28 @@ export async function validateImageBundle(manifest, files: Record<string, Buffer
     return {request, total};
 }
 
+export function validatePreparedSource(source, userId, manifest, request) {
+    if (!source || Number(source.userId) !== Number(userId) || source.isRemote) {
+        problem('image_optimization_content_unavailable', 403);
+    }
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/avif', 'image/tiff', 'image/heif'].includes(source.mimeType)) {
+        problem('image_optimization_format_unsupported', 415);
+    }
+    if (!sameCid(source.storageId, manifest.sourceStorageId)) {
+        problem('image_optimization_source_changed');
+    }
+    const appliedIdentity = watermarkIdentity(request.watermark) || properties(source).imageWatermark?.identity || null;
+    if (manifest.watermarkIdentity !== appliedIdentity) {
+        problem('prepared_image_watermark_mismatch', 400);
+    }
+}
+
 export async function savePreparedImage(app, userId, apiKeyId, manifest, files) {
     const resave = new ContentResave(app);
     await resave.authorize(userId, apiKeyId);
     const {request, total} = await validateImageBundle(manifest, files);
     return withStorageFence(app, 'shared', async () => {
-        const checkSource = source => {
-            if (!source || Number(source.userId) !== Number(userId) || source.isRemote) {
-                problem('image_optimization_content_unavailable', 403);
-            }
-            if (!['image/png', 'image/jpeg', 'image/webp', 'image/avif', 'image/tiff', 'image/heif'].includes(source.mimeType)) {
-                problem('image_optimization_format_unsupported', 415);
-            }
-            if (!sameCid(source.storageId, manifest.sourceStorageId)) {
-                problem('image_optimization_source_changed');
-            }
-            const appliedIdentity = watermarkIdentity(request.watermark) || properties(source).imageWatermark?.identity || null;
-            if (manifest.watermarkIdentity !== appliedIdentity) {
-                problem('prepared_image_watermark_mismatch', 400);
-            }
-        };
+        const checkSource = source => validatePreparedSource(source, userId, manifest, request);
         const source = await resave.owned(userId, manifest.sourceContentId, true);
         checkSource(source);
         const saved = await resave.saved(userId, source.id, source, undefined, request.watermark, policy);
