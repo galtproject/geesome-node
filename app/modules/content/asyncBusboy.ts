@@ -86,7 +86,7 @@ function onFile (filePromises, signal, tempDir, fileByteBudget, file, stream, in
         meter = new Transform({transform(chunk, _encoding, callback) {
           hash.update(chunk)
           bytes += chunk.length
-          Promise.resolve(fileByteBudget?.(bytes)).then(() => callback(null, chunk), callback)
+          Promise.resolve(fileByteBudget?.(bytes, saveTo)).then(() => callback(null, chunk), callback)
         }})
         meter.on('error', err => {
           writeStream.destroy(err)

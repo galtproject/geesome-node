@@ -52,6 +52,33 @@ describe('server social publishing foundation', function () {
 		const row = await models.PublicationDestination.findByPk(result.destination.id);
 		return {...result.destination, account: row.socNetAccountId};
 	}
+	it('checks local and server random delays once per minute across workers, keeping queue order and manual override', async () => {
+		const serverDestination = await registered();
+		let clock = Date.now(), draws = 0, value = 9;
+		const options = {randomDelayNow: () => clock, randomDelayDraw: () => {draws++;return value;}};
+		const worker = getModule(app, models, options), other = getModule(app, models, options);
+		assert.equal(typeof worker.updateDestinationSchedule, 'function');
+		await models.PublicationDestination.update({randomDelayEnabled: true}, {where: {id: serverDestination.id}});
+		const serverJob = await queued(serverDestination);
+		assert.equal(await worker.claimServerJob(), null);assert.equal(draws, 1);
+		assert.equal(await other.claimServerJob(), null);assert.equal(draws, 1);
+		clock += 60000;value = 0;
+		assert.equal((await worker.claimServerJob()).job.id, serverJob.id);assert.equal(draws, 2);
+		const local = await models.PublicationDestination.create({userId: 1, clientId: 'key:1', localKey: 'local', network: 'twitter', localAccountId: 'account', label: 'Local', executionMode: 'client', target: {}, randomDelayEnabled: true});
+		const localJob = () => queued({...local.toJSON(), account: null}, {network: 'twitter', executionMode: 'client', localAccountId: 'account', clientId: 'key:1', target: {}});
+		const first = await localJob(), second = await localJob();
+		const input = {intentVersion: 6, destinationIds: [local.id]};
+		value = 9;
+		const claims = await Promise.all([worker.claimDestinationJob(1, 'key:1', input), other.claimDestinationJob(1, 'key:1', input)]);
+		assert.deepEqual(claims, [null, null]);assert.equal(draws, 3);
+		await other.claimDestinationJob(1, 'key:1', input);assert.equal(draws, 3);
+		clock += 60000;value = 0;
+		assert.equal((await worker.claimDestinationJob(1, 'key:1', input)).id, first.id);assert.equal(draws, 4);
+		assert.equal(await other.claimDestinationJob(1, 'key:1', input), null);assert.equal(draws, 4);
+		assert.equal((await worker.claimDestinationJob(1, 'key:1', {...input, jobId: second.id})).id, second.id);assert.equal(draws, 4);
+		const third = await localJob();await local.update({randomDelayEnabled: false});
+		assert.equal((await other.claimDestinationJob(1, 'key:1', input)).id, third.id);assert.equal(draws, 4);
+	});
 	it('lists queued jobs in sending order before pagination with stable ties and owner/network filters', async () => {
 		const destination = await registered();
 		const late = await queued(destination, {scheduledAt: '2030-01-03T00:00:00Z'});

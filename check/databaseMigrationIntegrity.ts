@@ -78,6 +78,7 @@ const migrationDirs: Record<MigrationModule, string> = {
 };
 
 const coveredMigrations: CoveredMigration[] = [
+  {module: 'database', file: '20261114000000-publication-destination-shuffle.cjs', verifies: ['destination shuffle defaults on and random delay defaults off', 'persisted per-destination random delay checks']},
   {module: 'database', file: '20261113000000-publication-destination-delay.cjs', verifies: ['nullable destination posting interval']},
   {module: 'database', file: '20261110001000-server-social-publishing.cjs', verifies: ['server publication account binding columns', 'server managed credential storage', 'server destination key uniqueness']},
   {module: 'database', file: '20261111000000-publication-confirmed-at.cjs', verifies: ['first publication acknowledgement time', 'destination confirmation-time index']},
@@ -249,6 +250,8 @@ const coveredMigrations: CoveredMigration[] = [
 
 const expectedColumns: ExpectedColumn[] = [
   {table: 'publicationDestinations', columns: ['defaultDelayMinutes'], type: 'integer'},
+  {table: 'publicationDestinations', columns: ['shuffleEnabled', 'randomDelayEnabled'], type: 'boolean'},
+  {table: 'publicationDestinations', columns: ['randomDelayNextCheckAt'], type: 'timestamp with time zone'},
   {table: 'publicationJobs', columns: ['confirmedAt'], type: 'timestamp with time zone'},
   {table: 'publicationJobs', columns: ['serverAccountId'], type: 'integer'},
   {table: 'publicationJobs', columns: ['accountIdentity'], type: 'character varying'},

@@ -46,6 +46,10 @@ export function getQueueShuffleMethods(app, {PublicationJob: Job, PublicationDes
 					const result: {requestKey: string; destinations: any[]} = {requestKey: input.requestKey, destinations: []};
 					for (const destinationId of destinationIds) {
 						const members = jobs.filter(job => job.destinationId === destinationId);
+						if (destinations.find(row => Number(row.id) === destinationId).shuffleEnabled === false) {
+							result.destinations.push({destinationId, queuedJobs: members.length, changedJobs: 0, skipped: true, reason: 'shuffle_disabled'});
+							continue;
+						}
 						const slots = members.map(job => new Date(job.scheduledAt)).sort((a, b) => a.getTime() - b.getTime());
 						const shuffled = [...members];
 						for (let index = shuffled.length - 1; index > 0; index--) {
