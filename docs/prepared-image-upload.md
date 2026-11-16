@@ -6,6 +6,7 @@
 - [Local command](#local-command)
 - [Publication workflow](#publication-workflow)
 - [Implementation and verification](#implementation-and-verification)
+- [Preview dimensions](#preview-dimensions)
 
 ## Contract and trust
 
@@ -114,3 +115,15 @@ one-connection SQL pool. The CLI preparation/reopen smoke passed; all five bundl
 files were mode 0600. API documentation generation and route inventory passed.
 The entire unrelated backend suite was not repeated for this follow-up. No
 production prepared-image uploads or Patreon writes were performed.
+
+## Preview dimensions
+
+The capability `preparedImage.previewDimensionPolicy=inside-integer-v1` accepts
+the floor or ceiling of the fractional short axis for an inside resize. The long
+edge must equal the configured preview edge, capped at the original long edge.
+Integer ratios and images that require no downscaling remain exact. This covers
+JPEG shrink-on-load rounding without changing the encoder or manifest. Hash, full
+decode, format, pixel/byte bounds, source and ownership validation still apply.
+Pinned producers may use the advertised validation rule while retaining their
+original encoder fingerprint, source identity and prepared bytes; older servers
+retain their original validation behavior.
