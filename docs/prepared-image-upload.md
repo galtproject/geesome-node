@@ -7,6 +7,7 @@
 - [Local command](#local-command)
 - [Publication workflow](#publication-workflow)
 - [Implementation and verification](#implementation-and-verification)
+- [Preview dimensions](#preview-dimensions)
 
 ## Contract and trust
 
@@ -156,3 +157,15 @@ recovers staged receipts after re-upgrade. Older staging quota accounting does
 not include the new module. Verification for #1668: 48 image/upload/retirement
 integration cases and 29 focused validation/async-operation cases pass, with API
 docs, security route inventory and scalability inventory checked.
+
+## Preview dimensions
+
+The capability `preparedImage.previewDimensionPolicy=inside-integer-v1` accepts
+the floor or ceiling of the fractional short axis for an inside resize. The long
+edge must equal the configured preview edge, capped at the original long edge.
+Integer ratios and images that require no downscaling remain exact. This covers
+JPEG shrink-on-load rounding without changing the encoder or manifest. Hash, full
+decode, format, pixel/byte bounds, source and ownership validation still apply.
+Pinned producers may use the advertised validation rule while retaining their
+original encoder fingerprint, source identity and prepared bytes; older servers
+retain their original validation behavior.

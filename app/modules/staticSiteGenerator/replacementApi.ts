@@ -3,6 +3,7 @@ export default function (app, service) {
     /**
      * @api {get} /v1/user/image-optimization/capabilities Image saving and retirement capabilities
      * @apiSuccess {Object} preparedImage Trusted-client multipart upload contract, slots and byte bounds.
+     * @apiSuccess {String} preparedImage.previewDimensionPolicy inside-integer-v1: exact long edge and floor/ceil short axis.
      * @apiName ImageOptimizationCapabilities
      * @apiGroup StaticSiteGenerator
      * @apiUse ApiKey
