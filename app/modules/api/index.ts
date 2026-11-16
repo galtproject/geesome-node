@@ -317,6 +317,13 @@ async function getModule(app: IGeesomeApp, version, port, host, admissionTimeout
 		}
 	}
 
+	function stripApiVersionPrefix(route: string): string {
+		if (!route.startsWith('/' + version + '/')) {
+			return route;
+		}
+		return route.slice(version.length + 1);
+	}
+
 	function reqToModuleInput(req) {
 		if (req.stream) {
 			return req;
@@ -327,8 +334,8 @@ async function getModule(app: IGeesomeApp, version, port, host, admissionTimeout
 			token: req.token,
 			user: req.user,
 			query: req.query,
-			route: req.url.replace(version + '/', ''),
-			fullRoute: req.originalUrl.replace(version + '/', ''),
+			route: stripApiVersionPrefix(req.url),
+			fullRoute: stripApiVersionPrefix(req.originalUrl),
 			requestId: req.requestId || req.locals?.requestId,
 			stream: req
 		};
