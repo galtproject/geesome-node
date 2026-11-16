@@ -313,3 +313,18 @@ provider tests, API-doc generation and route-inventory checks. Migration testing
 covers fresh installs, existing rows, default values, reruns and rollback. The
 full migration audit requires a complete migrated database; the isolated test
 database only checks audit coverage and skips unrelated absent tables.
+
+### Editing queued content
+
+`POST /user/social-publications/:jobId/edit` (also in the legacy namespace)
+requires `publishing:local`, `assets:write` and group management. It accepts
+`{expected: {payload, target}, text, imageStorageIds, tags}`. Only an owned v6
+queued job from an owned private source is editable. Images must be owned local
+references; provider limits and the social image preparation policy apply. Native
+tags are supported for DeviantArt and Rule34; other providers use hashtags in text.
+The exact expected snapshot and queued status are rechecked under the same row
+lock used by claiming, after media preparation. Conflicts return 409; edits never
+requeue a claimed task. Source posts, sibling jobs, routing, schedule, content type
+and original compose/producer receipts stay unchanged. Those receipts describe
+the original accepted request, while the job payload describes the edited send.
+Deploy this endpoint before enabling the client's queue editor.
