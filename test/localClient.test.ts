@@ -510,14 +510,15 @@ describe('local publication queue', function () {
 describe('local publication API authorization', () => {
 	it('requires publishing scope and user group permission on all operations', async () => {
 		const routes = new Map(), calls = [];
-		const module = Object.fromEntries(['shuffleQueue','createJob','listJobs','claimJob','reportResult','cancelJob','compose','getOutbox','listSources','createSource','listDestinations','registerDestinations','claimDestinationJob','disableDestination','setupServerDestination','updateServerDestinationSettings','startDeviantArtOAuth','getDeviantArtOAuth','listDestinationGroups','createDestinationGroup','updateDestinationGroup'].map(name => [name, async (...args) => {calls.push(args); return null;} ]));
+		const module = Object.fromEntries(['editJob','publishNativeNow','updateDestinationSchedule','shuffleQueue','createJob','listJobs','claimJob','reportResult','cancelJob','compose','getOutbox','listSources','createSource','listDestinations','registerDestinations','claimDestinationJob','disableDestination','setupServerDestination','updateServerDestinationSettings','startDeviantArtOAuth','getDeviantArtOAuth','listDestinationGroups','createDestinationGroup','updateDestinationGroup'].map(name => [name, async (...args) => {calls.push(args); return null;} ]));
+		(module as any).asyncRequests = {get: async (owner, id) => {calls.push([Number(owner), id]); return {};}};
 		let permission = true;
 		registerApi({ms: {api: {
 			onGet() {},
 			onAuthorizedPost: (path, handler) => routes.set(`POST ${path}`, handler),
 			onAuthorizedGet: (path, handler) => routes.set(`GET ${path}`, handler)
 		}}, checkUserCan: async (userId, name) => {assert.equal(name, CorePermissionName.UserGroupManagement); if (!permission) {throw new Error('not_permitted');}}} as any, module as any);
-		assert.equal(routes.size, 44);
+		assert.equal(routes.size, 52);
 		for (const [path, handler] of routes.entries()) {
 			const req = {user: {id: 7}, apiKey: {id: 1, scopes: ['assets:write']}, body: {}, query: {}, params: {jobId: 1}};
 			await assert.rejects(handler(req, {send() {}, setHeader() {}}), {code: 'insufficient_scope'});

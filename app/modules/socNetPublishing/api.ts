@@ -585,6 +585,26 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 		res.send({job: await module.publishNativeNow(req.user.id, req.params.jobId)});
 	});
 	/**
+	 * @api {post} /v1/user/social-publications/:jobId/edit Edit queued publication content
+	 * @apiName EditQueuedPublication
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Requires publishing:local, assets:write and group management. Owner/private source only. Changes a single queued job; preserves routing, schedule and original request receipts. Media prepared before row lock; stale/claimed/legacy jobs return 409. Legacy namespace supported.
+	 * @apiParam {Number} jobId Owned queued job.
+	 * @apiBody {Object} expected Exact original payload and target snapshot.
+	 * @apiBody {String} text New text (up to 40000, provider limits apply).
+	 * @apiBody {String[]} imageStorageIds Owned image references, in display order.
+	 * @apiBody {String[]} tags Native tags for DeviantArt/Rule34; empty for other providers (hashtags belong in text).
+	 * @apiSuccess {Object} job Updated publication.
+	 */
+	api.onAuthorizedPost('user/social-publications/:jobId/edit', async (req, res) => {
+		await authorize(req);
+		requireIntegrationScopes(req.apiKey, ['assets:write']);
+		res.send({job: await module.editJob(req.user.id, req.params.jobId, req.body)});
+	});
+	/**
 	 * @api {post} /v1/user/social-publications/:jobId/cancel Cancel queued local publication
 	 * @apiName LocalPublicationCancel
 	 * @apiGroup LocalPublications

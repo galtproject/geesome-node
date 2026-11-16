@@ -32,5 +32,6 @@ export default interface ISocNetPublishingModule {
 	listJobs(userId: number, query?: any): Promise<any[]>;
 	claimJob(userId: number, input: any, clientContext?: any): Promise<any>;
 	reportResult(userId: number, jobId: any, input: any, clientId?: string): Promise<any>;
+	editJob(userId: number, jobId: any, input: any): Promise<any>;
 	cancelJob(userId: number, jobId: any): Promise<any>;
 }

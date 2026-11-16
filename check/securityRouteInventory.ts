@@ -136,6 +136,8 @@ function notesFor(route: RouteRow, block: string): string[] {
     notes.add('owner + UserGroupManagement; explicit publishing:manage scope or owner password session; encrypted app credentials/PKCE verifier; owner-only flow status; no token projection; bounded pending flows; fixed configured callback; no publication');
   } else if (route.moduleName === 'socNetPublishing' && (routeLower.includes('/server-destinations') || routeLower.endsWith('/server-result'))) {
     notes.add('owner + UserGroupManagement; explicit publishing:manage scope or owner password session; write-only app-pass encrypted credentials; provider identity checked before setup; manual result also requires original claim token and never sends');
+  } else if (route.moduleName === 'socNetPublishing' && routeLower.endsWith('/:jobid/edit')) {
+    notes.add('publishing:local + assets:write and UserGroupManagement; owned private source and v6 queued job; exact payload/target snapshot checked under claim row lock; owned media preparation and provider limits; only selected payload and native tags change; routing/schedule/source/request receipts preserved');
   } else if (route.moduleName === 'socNetPublishing' && routeLower.endsWith('/queue-shuffle')) {
     notes.add('publishing:local and UserGroupManagement; owned private source plus 1–20 enabled owned source-compatible destinations; bounded 10000 future queued jobs; row locks, atomic time-slot permutation per destination; durable owner/key replay prevents repeated shuffle; no due/processing/foreign mutation');
   } else if (route.moduleName === 'socNetPublishing' && routeLower.includes('/destination-groups')) {

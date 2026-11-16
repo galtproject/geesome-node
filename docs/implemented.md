@@ -1677,3 +1677,26 @@ already claimed jobs cannot be submitted through this endpoint.
 Verification: PostgreSQL native publication suite covers future jobs, concurrent
 requests, owner isolation, disabled destinations and permission rejection; route
 checks cover scopes and group management on both aliases.
+
+
+## Durable asynchronous prepared-image uploads (#1668)
+
+Prepared JPEG/WebP bundles now enter bounded private staging through the existing
+operation infrastructure. `async=true` returns a durable source/bundle-bound
+receipt; owner-scoped hash lookup recovers a lost acceptance reply. Storage
+execution is outside the receiving request's admission deadline. Synchronous
+responses remain compatible. The separate `prepared-image-upload` module prevents
+older ordinary-upload workers from importing or deleting the four-file format.
+Staging quotas cover both upload kinds; pending/unknown prepared work holds its
+source references, survives operation retention and yields cleanup priority to
+foreground storage work. Interrupted imports remain unknown without automatic
+replay; permissions, source identity, watermark, file integrity and quota are
+rechecked before import.
+
+Verified: 48 real PostgreSQL/Kubo image/upload/retirement tests and 29 focused
+validation/async-operation tests. API-doc generation, security route inventory and
+database scalability inventory pass. The unrelated full backend suite was not
+repeated for this slice. No schema migration is required. Before rollback to an
+older release, pause admissions and drain prepared work or preserve its queue and
+staging for recovery on the newer version; older quota accounting does not include
+the new module. Registry publication waits for the user-owned release merge.

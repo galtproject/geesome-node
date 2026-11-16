@@ -169,6 +169,62 @@ export function getOutboxMethods(app: IGeesomeApp, Job: any, helpers) {
 			...(sourceImageSet ? {sourceImageSet} : {}), scheduledAt: input.scheduledAt === undefined ? null : normalized.scheduledAt, postId: input.postId === undefined ? null : normalized.postId, ...(producer ? {producer} : {}), ...(input.groupId === undefined ? {} : {groupId: boundedInteger(input.groupId, 1, Number.MAX_SAFE_INTEGER)}), ...(input.mediaPolicy === undefined ? {} : {mediaPolicy: input.mediaPolicy})};
 	}
 	return {
+		async editJob(userId, jobId, input) {
+			if (!input || Object.keys(input).some(key => !['expected', 'text', 'imageStorageIds', 'tags'].includes(key)) ||
+				!input.expected || Object.keys(input.expected).some(key => !['payload', 'target'].includes(key)) || !input.expected.payload || !input.expected.target ||
+				!Array.isArray(input.tags) || input.tags.length > 100 || input.tags.some(tag => typeof tag !== 'string' || !tag.trim() || tag.length > 100 || /[\x00-\x1f]/.test(tag))) {
+				throw problem(400, 'local_publication_input_invalid');
+			}
+			const where = {id: boundedInteger(jobId, 1, Number.MAX_SAFE_INTEGER), userId};
+			const original = await Job.findOne({where});
+			if (!original) {
+				throw problem(404, 'local_publication_not_found');
+			}
+			const identity = job => durableRequestHash({payload: job.payload, target: job.target});
+			const expected = durableRequestHash(input.expected);
+			function assertEditable(job) {
+				if (!job || job.status !== 'queued' || job.intentVersion !== 6 || identity(job) !== expected) {
+					throw problem(409, 'local_publication_edit_conflict');
+				}
+			}
+			assertEditable(original);
+			const post = await app.ms.group.getPost(userId, original.postId);
+			if (!post || Number(post.userId) !== Number(userId) || post.isDeleted || post.isEncrypted || post.isRemote || !isOwnedQueueGroup(post.group, userId)) {
+				throw problem(403, 'local_publication_source_forbidden');
+			}
+			const target = {...original.target};
+			if (original.network === 'deviantart') {
+				target.tags = input.tags;
+			} else if (original.network === 'rule34xxx') {
+				target.tags = input.tags.join(' ');
+			} else if (input.tags.length) {
+				throw problem(400, 'local_publication_tags_unsupported');
+			}
+			if (original.network === 'reddit' && target.kind !== 'link' && Array.isArray(input.imageStorageIds)) {
+				target.kind = input.imageStorageIds.length ? 'image' : 'self';
+				target.title = input.text?.trim().replace(/\s+/g, ' ');
+			}
+			const destination = {network: original.network, target, ...(original.destinationId ? {destinationId: original.destinationId} : {localAccountId: original.localAccountId})};
+			const request = normalize({contentType: original.contentType, requestKey: 'edit-validation', groupId: post.groupId,
+				text: input.text, imageStorageIds: input.imageStorageIds, destinations: [destination], mediaPolicy: socialImagePolicy});
+			validatePreparedPublication(request);
+			const sameImages = JSON.stringify(input.imageStorageIds) === JSON.stringify((original.payload.attachments || []).map(item => item.storageId));
+			let payload = {...original.payload, text: input.text};
+			if (!sameImages) {
+				const contents = await images(userId, input.imageStorageIds);
+				const prepared = await prepareImages(userId, contents, [destination]);
+				const sourceAttachments = contents.map(content => imageAttachment(app, content));
+				const attachments = prepared.get(imageLimit(original.network)).map(content => imageAttachment(app, content));
+				payload = {text: input.text, attachments, mediaPreparation: {policy: socialImagePolicy, sourceAttachments,
+					digest: preparedMediaDigest(original.network, sourceAttachments, attachments)}};
+			}
+			return sequelize.transaction(async transaction => {
+				const job = await Job.findOne({where, transaction, lock: transaction.LOCK.UPDATE});
+				assertEditable(job);
+				await job.update({payload, target: request.destinations[0].target}, {transaction});
+				return (await jobViews([job]))[0];
+			});
+		},
 		validateComposeRequest(input) { return normalize(input); },
 		async prepareAsyncCompose(userId, input) {
 			const request=normalize(input);
