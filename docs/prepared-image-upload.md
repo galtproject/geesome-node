@@ -169,3 +169,14 @@ decode, format, pixel/byte bounds, source and ownership validation still apply.
 Pinned producers may use the advertised validation rule while retaining their
 original encoder fingerprint, source identity and prepared bytes; older servers
 retain their original validation behavior.
+
+Verification for #1672: six focused validator cases pass on both the integration
+revision and its narrow runtime backport. The Docker validator/upload/retirement
+integration selection passes all35 cases, including the explicit advertised
+capability and owner/scoped-key HTTP contract. API docs and route inventory pass.
+The initial broad Docker run finished with1156 passing,47 pending and14 failing.
+One failure was the old capability response fixture, corrected and covered by the
+35-case rerun. The remaining13 failures are in two-node chat, composition, local
+publication, destination schedule setup, terminal-hold unit mocks and video
+watermark integration. Their causes are outside this dimension change and were
+not repaired or baseline-retested here; the broad suite is not reported green.

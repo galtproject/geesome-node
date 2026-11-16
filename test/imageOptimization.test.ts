@@ -1234,7 +1234,8 @@ describe('persisted image saving and local site retirement', function () {
             retainOriginalForExternalLinks: true,
             preparedImage: {contract: 1, policy: 'publication-jpeg95-v1', producer: 'trusted-client', maxBytes: 64 * 1024 * 1024,
                 async: true, operationLookup: '/v1/user/prepared-image-operations/:bundleHash',
-                slots: ['file', 'small', 'medium', 'large'], previewEdges: {small: 512, medium: 1024, large: 2048}}});
+                slots: ['file', 'small', 'medium', 'large'], previewEdges: {small: 512, medium: 1024, large: 2048},
+                previewDimensionPolicy: 'inside-integer-v1'}});
         const png = await sharp({create: {width: 40, height: 60, channels: 3, background: '#123abc'}}).png().toBuffer();
         const content = await app.ms.content.saveData(user.id, png, 'http-contract.png', {driver: imageDriver(), waitForPin: true});
         const body = {requestKey: randomUUID(), driver: imageDriver(), contentIds: [content.id], deleteReplacedFiles: false};
