@@ -9,6 +9,7 @@ export default interface ISocNetPublishingModule {
 	setCronWorker(worker: any): void;
 	stop(): Promise<void>;
 	processServerQueue(input?: any): Promise<any>;
+	publishNativeNow(userId: number, jobId: any): Promise<any>;
 	claimServerJob(): Promise<any>;
 	updateServerDestinationSettings(userId: number, id: number, input: any): Promise<any>;
 	setupServerDestination(userId: number, input: any): Promise<any>;

@@ -569,6 +569,22 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 		res.send({job: await module.reportResult(req.user.id, req.params.jobId, req.body, req.apiKey?.id && req.apiKey.type !== 'password_auth' ? `key:${req.apiKey.id}` : null)});
 	});
 	/**
+	 * @api {post} /v1/user/social-publications/:jobId/publish-now Publish a native group job now
+	 * @apiName NativePublicationNow
+	 * @apiGroup LocalPublications
+	 * @apiUse ApiKey
+	 * @apiUse AuthErrors
+	 * @apiUse ValidationErrors
+	 * @apiDescription Requires publishing:local and group management. Executes only the owner's selected queued native geesome job, bypassing its schedule and random delay. Destination, source, content and target permission checks remain enforced. Does not claim local or server-provider jobs or resend processing/completed work.
+	 * @apiParam {Number} jobId Owner queued native job ID.
+	 * @apiSuccess {Object} job Current job after execution; inspect status because publication may fail or remain processing for safe lease recovery.
+	 * @apiError (409) NativePublicationNotQueued Job is unavailable, disabled, non-native or already claimed.
+	 */
+	api.onAuthorizedPost('user/social-publications/:jobId/publish-now', async (req, res) => {
+		await authorize(req);
+		res.send({job: await module.publishNativeNow(req.user.id, req.params.jobId)});
+	});
+	/**
 	 * @api {post} /v1/user/social-publications/:jobId/edit Edit queued publication content
 	 * @apiName EditQueuedPublication
 	 * @apiGroup LocalPublications

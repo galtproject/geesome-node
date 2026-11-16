@@ -1666,6 +1666,18 @@ identity checks cover both authenticated user and deviation author. Permission
 failures return reconnect_required without discarding stored measurements.
 See the statistics module overview for OAuth and metric semantics.
 
+### Immediate native group publication
+
+The owner-authorized `POST /v1/user/social-publications/:jobId/publish-now`
+(and legacy local-publications alias) executes one queued native group job.
+It bypasses its date and random delay while preserving validation, destination/job
+lock order and the persisted-post recovery protocol. Client/server-provider and
+already claimed jobs cannot be submitted through this endpoint.
+
+Verification: PostgreSQL native publication suite covers future jobs, concurrent
+requests, owner isolation, disabled destinations and permission rejection; route
+checks cover scopes and group management on both aliases.
+
 ## Leading API version normalization (#1666)
 
 The API request adapter strips only the leading `/v1/` path segment. Unversioned

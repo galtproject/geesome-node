@@ -518,7 +518,7 @@ describe('local publication API authorization', () => {
 			onAuthorizedPost: (path, handler) => routes.set(`POST ${path}`, handler),
 			onAuthorizedGet: (path, handler) => routes.set(`GET ${path}`, handler)
 		}}, checkUserCan: async (userId, name) => {assert.equal(name, CorePermissionName.UserGroupManagement); if (!permission) {throw new Error('not_permitted');}}} as any, module as any);
-		assert.equal(routes.size, 50);
+		assert.equal(routes.size, 52);
 		for (const [path, handler] of routes.entries()) {
 			const req = {user: {id: 7}, apiKey: {id: 1, scopes: ['assets:write']}, body: {}, query: {}, params: {jobId: 1}};
 			await assert.rejects(handler(req, {send() {}, setHeader() {}}), {code: 'insufficient_scope'});

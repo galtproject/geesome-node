@@ -59,6 +59,13 @@ export function getModule(app: IGeesomeApp, {PublicationJob, PublicationDestinat
 			publisher ||= createServerPublisher(app, module, {...options, native});
 			return publisher.process(input);
 		},
+		async publishNativeNow(userId, jobId) {
+			const id = boundedInteger(jobId, 1, Number.MAX_SAFE_INTEGER);
+			if (!await native.processNext({userId, id})) {
+				throw problem(409, 'native_publication_not_queued');
+			}
+			return plain(await PublicationJob.findOne({where: {id, userId}}));
+		},
 		listDestinations: destinations.listDestinations,
 		updateDestinationSchedule: destinations.updateDestinationSchedule,
 		disableDestination: destinations.disableDestination,
