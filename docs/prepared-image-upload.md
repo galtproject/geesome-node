@@ -7,6 +7,7 @@
 - [Local command](#local-command)
 - [Publication workflow](#publication-workflow)
 - [Implementation and verification](#implementation-and-verification)
+- [Preview dimensions](#preview-dimensions)
 
 ## Contract and trust
 
@@ -156,3 +157,26 @@ recovers staged receipts after re-upgrade. Older staging quota accounting does
 not include the new module. Verification for #1668: 48 image/upload/retirement
 integration cases and 29 focused validation/async-operation cases pass, with API
 docs, security route inventory and scalability inventory checked.
+
+## Preview dimensions
+
+The capability `preparedImage.previewDimensionPolicy=inside-integer-v1` accepts
+the floor or ceiling of the fractional short axis for an inside resize. The long
+edge must equal the configured preview edge, capped at the original long edge.
+Integer ratios and images that require no downscaling remain exact. This covers
+JPEG shrink-on-load rounding without changing the encoder or manifest. Hash, full
+decode, format, pixel/byte bounds, source and ownership validation still apply.
+Pinned producers may use the advertised validation rule while retaining their
+original encoder fingerprint, source identity and prepared bytes; older servers
+retain their original validation behavior.
+
+Verification for #1672: six focused validator cases pass on both the integration
+revision and its narrow runtime backport. The Docker validator/upload/retirement
+integration selection passes all35 cases, including the explicit advertised
+capability and owner/scoped-key HTTP contract. API docs and route inventory pass.
+The initial broad Docker run finished with1156 passing,47 pending and14 failing.
+One failure was the old capability response fixture, corrected and covered by the
+35-case rerun. The remaining13 failures are in two-node chat, composition, local
+publication, destination schedule setup, terminal-hold unit mocks and video
+watermark integration. Their causes are outside this dimension change and were
+not repaired or baseline-retested here; the broad suite is not reported green.
