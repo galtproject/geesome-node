@@ -3,17 +3,17 @@ import {withStorageFence, storageFenceSignal} from '../../storageLifecycle.js';
 import {CorePermissionName} from '../database/interface.js';
 import {Op} from 'sequelize';
 import {variants} from '../../storageIdentity.js';
-import {releasePublicKey, verifyReleaseEnvelope, compareReleaseVersions, releaseProblem} from './manifest.js';
+import {verifyReleaseEnvelope, compareReleaseVersions, releaseProblem} from './manifest.js';
+import {configuredReleaseKey} from './trust.js';
 import createModel from './models.js';
 import registerApi from './api.js';
 
 export default async function clientReleases(app) {
-	const pem = app.config.clientReleasesConfig?.publicKey;
-	if (!pem) {
+	const key = configuredReleaseKey(app.config.clientReleasesConfig);
+	if (!key) {
 		return {enabled: false};
 	}
 	app.checkModules(['api', 'database', 'storage', 'content']);
-	const key = releasePublicKey(pem);
 	const Release = await createModel(app.ms.database.sequelize);
 	app.ms.database.registerStorageIdReferenceSource(releaseReferenceSource(Release));
 	const module = getModule(app, Release, key);

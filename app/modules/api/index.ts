@@ -461,7 +461,7 @@ async function getModule(app: IGeesomeApp, version, port, host, admissionTimeout
 	 * @apiSuccess {String} apiBaseUrl Absolute public API base URL.
 	 * @apiSuccess {String} gatewayBaseUrl Absolute public gateway base URL.
 	 * @apiSuccess {String} openapiUrl Absolute OpenAPI URL.
-	 * @apiSuccess {Object} [capabilities.clientReleases] Enabled signed Windows client distribution: schemaVersion, platforms, stableUrl and installGuideUrl. Absent when no trusted release key/module is configured. No key is needed for public discovery/download.
+	 * @apiSuccess {Object} [capabilities.clientReleases] Enabled signed Windows client distribution: schemaVersion, platforms, stableUrl and installGuideUrl. Official publisher key is bundled by default; absent when disabled or module omitted. No key is needed for public discovery/download.
 	 */
 	const wellKnownDiscoveryHandler = (req, res) => res.send(buildPublicDiscovery(app, version, port));
 	apiModule.onUnversionGet('.well-known/geesome', wellKnownDiscoveryHandler);

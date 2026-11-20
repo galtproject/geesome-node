@@ -22,8 +22,9 @@ the same pull request.
 
 - Build and validate the first Windows x64 client installer on Windows, then publish a signed
   descriptor through the configured operator node; no production installer has been advertised.
-- Operator must provision the same Ed25519 public key on node and client build, retain its private
-  key locally, and choose an explicit manual retention policy before pruning old release rows/pins.
+- Original publisher must retain its signing key locally; ordinary node owners use bundled public
+  trust and signed-release import without that private key. Choose an explicit manual retention
+  policy before pruning old release rows/pins.
 
 ## Current Priority
 

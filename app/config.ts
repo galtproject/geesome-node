@@ -24,7 +24,7 @@ export default {
     maxUploadBytes: process.env.GEESOME_MAX_UPLOAD_BYTES || 2000 * 1024 * 1024
   },
   socNetPublishingConfig: {serverWorker: process.env.SOC_NET_PUBLISHING_WORKER !== '0', intervalMs: process.env.SOC_NET_PUBLISHING_INTERVAL_MS, batchSize: process.env.SOC_NET_PUBLISHING_BATCH_SIZE},
-  clientReleasesConfig: {publicKey: process.env.GEESOME_CLIENT_RELEASE_PUBLIC_KEY || ''},
+  clientReleasesConfig: {enabled: process.env.GEESOME_CLIENT_RELEASES !== '0', publicKey: process.env.GEESOME_CLIENT_RELEASE_PUBLIC_KEY || ''},
   databaseModule: 'sql',
   databaseConfig: {
 
