@@ -9,7 +9,7 @@
 
 //TODO: move communicator and fileCatalog to improve
 const modulePacks = {
-  'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'staticId', 'asyncOperation', 'asset', 'privateGroup', 'group', 'socNetPublishing', 'socNetStatistics', 'chat', 'fileCatalog', 'entityJsonManifest', 'imageComposition', 'remoteGroup'],
+  'main': ['drivers', 'database', 'api', 'accountStorage', 'communicator', 'storage', 'content', 'clientReleases', 'staticId', 'asyncOperation', 'asset', 'privateGroup', 'group', 'socNetPublishing', 'socNetStatistics', 'chat', 'fileCatalog', 'entityJsonManifest', 'imageComposition', 'remoteGroup'],
   'improve': ['groupCategory', 'invite', 'staticSiteGenerator', 'archive', 'rss', 'activityPub', 'autoActions', 'pin', 'foreignAccounts', 'ethereumAuthorization', 'storageSpace', 'gateway', 'googleAuthorization', 'payments', 'membership'],
   'socNet': ['socNetAccount', 'socNetImport', 'bluesky', 'telegramClient', 'twitterClient', 'tgContentBot']
 };
@@ -24,6 +24,7 @@ export default {
     maxUploadBytes: process.env.GEESOME_MAX_UPLOAD_BYTES || 2000 * 1024 * 1024
   },
   socNetPublishingConfig: {serverWorker: process.env.SOC_NET_PUBLISHING_WORKER !== '0', intervalMs: process.env.SOC_NET_PUBLISHING_INTERVAL_MS, batchSize: process.env.SOC_NET_PUBLISHING_BATCH_SIZE},
+  clientReleasesConfig: {publicKey: process.env.GEESOME_CLIENT_RELEASE_PUBLIC_KEY || ''},
   databaseModule: 'sql',
   databaseConfig: {
 

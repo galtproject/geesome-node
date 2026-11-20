@@ -74,6 +74,7 @@ export interface IGeesomeApp {
     telegramClient: IGeesomeTelegramClient;
     socNetPublishing: ISocNetPublishingModule;
     socNetStatistics: ReturnType<typeof import('./modules/socNetStatistics/index.js').getModule>;
+    clientReleases?: ReturnType<typeof import('./modules/clientReleases/index.js').getModule> | {enabled: false};
     /** @deprecated Use socNetPublishing. */
     localClient: ISocNetPublishingModule;
     communicator: IGeesomeCommunicatorModule;
