@@ -87,7 +87,7 @@ services:
       - POSTGRES_DB=geesome_node
 
   client:
-    image: nginx
+    image: nginx:1.31.9
     ports:
       - "127.0.0.1:2042:80"
     volumes:
