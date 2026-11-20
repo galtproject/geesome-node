@@ -26,12 +26,12 @@ export function createNativePublisher(app, {PublicationJob: Job, PublicationDest
 	const sequelize = Job.sequelize;
 	const randomDelay = createRandomDelayGate(Destination, options);
 	const deferred = Symbol('random-delay');
-	async function claim() {
+	async function claim(selected: any = null) {
 		for (let checked = 0; checked < 20; checked++) {
 			const result = await sequelize.transaction(async transaction => {
 				const table = sequelize.getQueryInterface().queryGenerator.quoteTable(Destination.getTableName());
 				const enabled = sequelize.literal(`(SELECT "id" FROM ${table} WHERE "executionMode"='native' AND "enabled"=true)`);
-				const where = {executionMode: 'native', network: 'geesome', intentVersion: 6, scheduledAt: {[Op.lte]: new Date()},
+				const where = selected ? {id: selected.id, userId: selected.userId, executionMode: 'native', network: 'geesome', intentVersion: 6, status: 'queued', destinationId: {[Op.in]: enabled}} : {executionMode: 'native', network: 'geesome', intentVersion: 6, scheduledAt: {[Op.lte]: new Date()},
 					[Op.and]: [randomDelay.readyWhere(),
 						{[Op.or]: [{status: 'queued'}, {status: 'processing', processingAt: {[Op.lt]: new Date(Date.now() - leaseMs)}}]},
 						{[Op.or]: [{remoteId: {[Op.ne]: null}}, {destinationId: {[Op.in]: enabled}}]}
@@ -46,7 +46,7 @@ export function createNativePublisher(app, {PublicationJob: Job, PublicationDest
 				if (!job) {
 					return deferred;
 				}
-				if (!await randomDelay.allow(job, destination, transaction)) {
+				if (!selected && !await randomDelay.allow(job, destination, transaction)) {
 					return deferred;
 				}
 				await job.update({status: 'processing', processingAt: new Date(), claimToken: randomBytes(32).toString('hex')}, {transaction});
@@ -114,8 +114,8 @@ export function createNativePublisher(app, {PublicationJob: Job, PublicationDest
 		await Job.update({status: 'posted', remoteId: String(post.id), remoteUrl: `${publicUrl}/#/group/${group.id}/posts/${post.id}`, confirmedAt: new Date(), error: null}, {where: claimWhere(job)});
 	}
 	return {
-		async processNext() {
-			const job = await claim();
+		async processNext(selected: any = null) {
+			const job = await claim(selected);
 			if (!job) {
 				return false;
 			}

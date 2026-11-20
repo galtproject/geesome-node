@@ -53,7 +53,7 @@ export function configureSiteReplacements(app, service) {
             }
         }
         const foregroundWaiting = () => service.jobs.Queue.findOne({attributes: ['id'], where: {isWaiting: true,
-            module: {[Op.in]: ['content-resave', 'static-site-generator', 'content-archive', 'durable-upload']}}});
+            module: {[Op.in]: ['content-resave', 'static-site-generator', 'content-archive', 'durable-upload', 'prepared-image-upload']}}});
         const foreground = await foregroundWaiting();
         const activity = storageActivitySnapshot(app);
         if (!cleanupBatchReady(batch, Boolean(foreground), Date.now(), activity, await cleanupDiskPressure())) {

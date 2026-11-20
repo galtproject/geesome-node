@@ -40,4 +40,32 @@ describe('prepared publication image validation', function () {
             await validateImageBundle(tiny.manifest, tiny.files);
         }
     });
+    it('accepts the native inside resize rounding produced for odd JPEG dimensions', async () => {
+        for (const [width, height] of [[1640, 2662], [2662, 1640]]) {
+            const bytes = await sharp({create: {width, height, channels: 3, background: 'blue'}}).png().toBuffer();
+            const prepared = await prepareImageBundle(bytes, source);
+            await validateImageBundle(prepared.manifest, prepared.files);
+            const small = await sharp(prepared.files.small).metadata();
+            assert.equal(Math.max(small.width, small.height), 512);
+            assert.ok([315, 316].includes(Math.min(small.width, small.height)));
+            for (const [w, h] of [[314, 512], [317, 512], [316, 513]]) {
+                const bad = await sharp(prepared.files.small).resize(w, h, {fit: 'fill'}).webp().toBuffer();
+                const files = {...prepared.files, small: bad};
+                const manifest = {...prepared.manifest, files: {...prepared.manifest.files, small: imageBytesHash(bad)}};
+                await assert.rejects(validateImageBundle(manifest, files), /dimensions invalid/);
+            }
+        }
+    });
+    it('keeps integer aspect ratios and non-upscaled dimensions strict', async () => {
+        for (const [width, height] of [[1024, 512], [31, 1]]) {
+            const bytes = await sharp({create: {width, height, channels: 3, background: 'red'}}).png().toBuffer();
+            const prepared = await prepareImageBundle(bytes, source);
+            await validateImageBundle(prepared.manifest, prepared.files);
+            const m = await sharp(prepared.files.small).metadata();
+            const bad = await sharp(prepared.files.small).resize(m.width, m.height + 1, {fit: 'fill'}).webp().toBuffer();
+            const files = {...prepared.files, small: bad};
+            const manifest = {...prepared.manifest, files: {...prepared.manifest.files, small: imageBytesHash(bad)}};
+            await assert.rejects(validateImageBundle(manifest, files), /dimensions invalid/);
+        }
+    });
 });

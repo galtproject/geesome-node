@@ -37,6 +37,47 @@ describe('api unversioned POST routes', function () {
 			api?.stop();
 		}
 	});
+	it('preserves gateway CID bytes, embedded versions and queries for GET and HEAD', async () => {
+		const port = await getAvailablePort();
+		const previousPort = process.env.PORT;
+		let api;
+		delete process.env.PORT;
+		try {
+			api = await apiModule(getAppStub(port));
+			api.onUnversionHead('/ipfs/*', async (req, res) => {
+				res.writeHead(200, {'X-Observed-Route': req.route});
+				res.stream.end();
+			});
+			api.onUnversionGet('/ipfs/*', async (req, res) => {
+				res.send({route: req.route, fullRoute: req.fullRoute, query: req.query});
+			});
+			api.onGet('echo/*', async (req, res) => {
+				res.send({route: req.route, fullRoute: req.fullRoute, query: req.query});
+			});
+			const cid = 'Qm' + 'a'.repeat(42) + 'v1';
+			for (const suffix of ['/', '/clientData.js', '/style.css?next=/v1/keep']) {
+				const path = '/ipfs/' + cid + suffix;
+				const response = await fetch('http://127.0.0.1:' + port + path);
+				assert.equal(response.status, 200);
+				const input = await response.json();
+				assert.equal(input.route, path);
+				assert.equal(input.fullRoute, path);
+				const head = await fetch('http://127.0.0.1:' + port + path, {method: 'HEAD'});
+				assert.equal(head.status, 200);
+				assert.equal(head.headers.get('x-observed-route'), path);
+			}
+			const versioned = await fetch('http://127.0.0.1:' + port + '/v1/echo/public/v1/file?next=/v1/keep');
+			assert.equal(versioned.status, 200);
+			const input = await versioned.json();
+			assert.equal(input.route, '/echo/public/v1/file?next=/v1/keep');
+			assert.equal(input.fullRoute, '/echo/public/v1/file?next=/v1/keep');
+			assert.equal(input.query.next, '/v1/keep');
+		} finally {
+			restorePort(previousPort);
+			await api?.stop();
+		}
+	});
+
 });
 
 async function getAvailablePort(): Promise<number> {

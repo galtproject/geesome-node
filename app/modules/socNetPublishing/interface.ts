@@ -9,6 +9,7 @@ export default interface ISocNetPublishingModule {
 	setCronWorker(worker: any): void;
 	stop(): Promise<void>;
 	processServerQueue(input?: any): Promise<any>;
+	publishNativeNow(userId: number, jobId: any): Promise<any>;
 	claimServerJob(): Promise<any>;
 	updateServerDestinationSettings(userId: number, id: number, input: any): Promise<any>;
 	setupServerDestination(userId: number, input: any): Promise<any>;
@@ -31,5 +32,6 @@ export default interface ISocNetPublishingModule {
 	listJobs(userId: number, query?: any): Promise<any[]>;
 	claimJob(userId: number, input: any, clientContext?: any): Promise<any>;
 	reportResult(userId: number, jobId: any, input: any, clientId?: string): Promise<any>;
+	editJob(userId: number, jobId: any, input: any): Promise<any>;
 	cancelJob(userId: number, jobId: any): Promise<any>;
 }

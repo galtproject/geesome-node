@@ -1,5 +1,10 @@
 # Docker image publication and deployment
 
+The frontend `client` service uses `nginx:1.31.9`, which includes the NGINX2Root
+security fixes. Keep its image version explicit when upgrading so deployments
+do not depend on the floating `latest` tag. The localhost port binding and
+frontend content volume remain unchanged.
+
 ## Release publication
 
 Images are addressed by the exact clean Git revision:

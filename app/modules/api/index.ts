@@ -317,6 +317,13 @@ async function getModule(app: IGeesomeApp, version, port, host, admissionTimeout
 		}
 	}
 
+	function stripApiVersionPrefix(route: string): string {
+		if (!route.startsWith('/' + version + '/')) {
+			return route;
+		}
+		return route.slice(version.length + 1);
+	}
+
 	function reqToModuleInput(req) {
 		if (req.stream) {
 			return req;
@@ -327,8 +334,8 @@ async function getModule(app: IGeesomeApp, version, port, host, admissionTimeout
 			token: req.token,
 			user: req.user,
 			query: req.query,
-			route: req.url.replace(version + '/', ''),
-			fullRoute: req.originalUrl.replace(version + '/', ''),
+			route: stripApiVersionPrefix(req.url),
+			fullRoute: stripApiVersionPrefix(req.originalUrl),
 			requestId: req.requestId || req.locals?.requestId,
 			stream: req
 		};
@@ -454,6 +461,7 @@ async function getModule(app: IGeesomeApp, version, port, host, admissionTimeout
 	 * @apiSuccess {String} apiBaseUrl Absolute public API base URL.
 	 * @apiSuccess {String} gatewayBaseUrl Absolute public gateway base URL.
 	 * @apiSuccess {String} openapiUrl Absolute OpenAPI URL.
+	 * @apiSuccess {Object} [capabilities.clientReleases] Enabled signed Windows client distribution: schemaVersion, platforms, stableUrl and installGuideUrl. Absent when no trusted release key/module is configured. No key is needed for public discovery/download.
 	 */
 	const wellKnownDiscoveryHandler = (req, res) => res.send(buildPublicDiscovery(app, version, port));
 	apiModule.onUnversionGet('.well-known/geesome', wellKnownDiscoveryHandler);
@@ -542,6 +550,12 @@ function buildPublicDiscovery(app: IGeesomeApp, version: string, port: number | 
 		docsUrl: docsLinks.apiHtml,
 		healthUrl: `${context.apiBaseUrl}/health`,
 		capabilities: {
+			...(app.ms.clientReleases?.enabled ? {clientReleases: {
+				schemaVersion: 1,
+				platforms: ['windows-x64'],
+				stableUrl: `${context.apiBaseUrl}/client-releases/stable/windows-x64`,
+				installGuideUrl: `${context.apiBaseUrl}/client-releases/install`
+			}} : {}),
 			contentUpload: Boolean(app.ms.content),
 			rawContentUpload: Boolean(app.ms.content),
 			assetUpload: Boolean(app.ms['asset']),

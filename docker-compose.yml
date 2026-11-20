@@ -28,6 +28,7 @@ services:
       - GEESOME_API_BASE_PATH
       - GEESOME_VERSION
       - GEESOME_MAX_UPLOAD_BYTES
+      - GEESOME_CLIENT_RELEASE_PUBLIC_KEY=${GEESOME_CLIENT_RELEASE_PUBLIC_KEY:-}
       # Durable upload staging lives in the existing persistent data volume.
       - GEESOME_UPLOAD_STAGING_BYTES=${GEESOME_UPLOAD_STAGING_BYTES:-}
       - GEESOME_UPLOAD_STAGING_USER_BYTES=${GEESOME_UPLOAD_STAGING_USER_BYTES:-}
@@ -87,7 +88,7 @@ services:
       - POSTGRES_DB=geesome_node
 
   client:
-    image: nginx
+    image: nginx:1.31.9
     ports:
       - "127.0.0.1:2042:80"
     volumes:

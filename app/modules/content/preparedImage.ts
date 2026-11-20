@@ -11,8 +11,11 @@ import {withStorageFence} from '../../storageLifecycle.js';
 import {problem, contentIds} from './publicationInput.js';
 
 export const preparedImageSlots = ['file', 'small', 'medium', 'large'];
+export const preparedPreviewDimensionPolicy = 'inside-integer-v1';
 export const preparedImageContract = {contract: 1, policy, producer: 'trusted-client', maxBytes: maxImageBytes,
-    slots: preparedImageSlots, previewEdges: {small: 512, medium: 1024, large: 2048}};
+    async: true, operationLookup: '/v1/user/prepared-image-operations/:bundleHash',
+    slots: preparedImageSlots, previewEdges: {small: 512, medium: 1024, large: 2048},
+    previewDimensionPolicy: preparedPreviewDimensionPolicy};
 export const imageBytesHash = bytes => createHash('sha256').update(bytes).digest('hex');
 
 // Uses the same encoders as server resaves. Preview inputs are the encoded JPEG,
@@ -82,13 +85,36 @@ export async function validateImageBundle(manifest, files: Record<string, Buffer
     }
     const main = metadata.file;
     for (const slot of preparedImageSlots.slice(1)) {
-        const scale = Math.min(1, imagePreviewEdge(slot) / Math.max(main.width, main.height));
+        const edge = Math.min(imagePreviewEdge(slot), Math.max(main.width, main.height));
         const m = metadata[slot];
-        if (m.width !== Math.max(1, Math.round(main.width * scale)) || m.height !== Math.max(1, Math.round(main.height * scale))) {
+        const landscape = main.width >= main.height;
+        const short = landscape ? main.height * edge / main.width : main.width * edge / main.height;
+        const actualShort = landscape ? m.height : m.width;
+        const actualLong = landscape ? m.width : m.height;
+        // JPEG shrink-on-load may round the short axis either way. Keep the
+        // long edge exact, including integer ratios and non-upscaled images.
+        if (actualLong !== edge || actualShort < Math.max(1, Math.floor(short))
+            || actualShort > Math.max(1, Math.ceil(short))) {
             problem('prepared_image_dimensions_invalid', 400);
         }
     }
     return {request, total};
+}
+
+export function validatePreparedSource(source, userId, manifest, request) {
+    if (!source || Number(source.userId) !== Number(userId) || source.isRemote) {
+        problem('image_optimization_content_unavailable', 403);
+    }
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/avif', 'image/tiff', 'image/heif'].includes(source.mimeType)) {
+        problem('image_optimization_format_unsupported', 415);
+    }
+    if (!sameCid(source.storageId, manifest.sourceStorageId)) {
+        problem('image_optimization_source_changed');
+    }
+    const appliedIdentity = watermarkIdentity(request.watermark) || properties(source).imageWatermark?.identity || null;
+    if (manifest.watermarkIdentity !== appliedIdentity) {
+        problem('prepared_image_watermark_mismatch', 400);
+    }
 }
 
 export async function savePreparedImage(app, userId, apiKeyId, manifest, files) {
@@ -96,21 +122,7 @@ export async function savePreparedImage(app, userId, apiKeyId, manifest, files) 
     await resave.authorize(userId, apiKeyId);
     const {request, total} = await validateImageBundle(manifest, files);
     return withStorageFence(app, 'shared', async () => {
-        const checkSource = source => {
-            if (!source || Number(source.userId) !== Number(userId) || source.isRemote) {
-                problem('image_optimization_content_unavailable', 403);
-            }
-            if (!['image/png', 'image/jpeg', 'image/webp', 'image/avif', 'image/tiff', 'image/heif'].includes(source.mimeType)) {
-                problem('image_optimization_format_unsupported', 415);
-            }
-            if (!sameCid(source.storageId, manifest.sourceStorageId)) {
-                problem('image_optimization_source_changed');
-            }
-            const appliedIdentity = watermarkIdentity(request.watermark) || properties(source).imageWatermark?.identity || null;
-            if (manifest.watermarkIdentity !== appliedIdentity) {
-                problem('prepared_image_watermark_mismatch', 400);
-            }
-        };
+        const checkSource = source => validatePreparedSource(source, userId, manifest, request);
         const source = await resave.owned(userId, manifest.sourceContentId, true);
         checkSource(source);
         const saved = await resave.saved(userId, source.id, source, undefined, request.watermark, policy);

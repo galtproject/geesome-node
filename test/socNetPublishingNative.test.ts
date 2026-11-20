@@ -3,6 +3,8 @@ import {randomUUID} from 'node:crypto';
 import {DataTypes, Sequelize} from 'sequelize';
 import config from '../app/modules/database/config.js';
 import createModels from '../app/modules/socNetPublishing/models.js';
+import registerApi from '../app/modules/socNetPublishing/api.js';
+import {CorePermissionName} from '../app/modules/database/interface.js';
 import {getModule} from '../app/modules/socNetPublishing/index.js';
 import {createServerPublisher} from '../app/modules/socNetPublishing/serverPublisher.js';
 import createPostModel from '../app/modules/group/models/post.js';
@@ -78,6 +80,52 @@ describe('native Site Group publishing', function () {
 			payload: {text: 'Frozen title\n\n#frozen', attachments: [{storageId: 'QmFirst', mimeType: 'image/webp'}, {storageId: 'QmSecond', mimeType: 'image/webp'}]},
 			scheduledAt: new Date(0), status: 'queued', ...extra});
 	}
+	it('authorizes both immediate-publication route aliases before invoking the owner-scoped executor', async () => {
+		const routes = new Map(), calls = [];
+		let denyPermission = false;
+		registerApi({ms: {api: {onGet() {}, onAuthorizedGet() {}, onAuthorizedPost: (path, handler) => routes.set(path, handler)}},
+			checkUserCan: async (userId, permission) => {
+				assert.equal(userId, 1);assert.equal(permission, CorePermissionName.UserGroupManagement);
+				if (denyPermission) {
+					throw Object.assign(Error('not_permitted'), {status: 403});
+				}
+			}} as any, {publishNativeNow: async (...args) => {calls.push(args);return {id: 7, status: 'posted'};}} as any);
+		for (const prefix of ['social-publications', 'local-publications']) {
+			const handler = routes.get(`user/${prefix}/:jobId/publish-now`);
+			const req = {user: {id: 1}, apiKey: {type: 'user_manual', scopes: ['assets:write']}, params: {jobId: '7'}};
+			await assert.rejects(handler(req, {send() {}}), {code: 'insufficient_scope'});
+			req.apiKey.scopes = ['publishing:local'];denyPermission = true;
+			await assert.rejects(handler(req, {send() {}}), {status: 403});denyPermission = false;
+			await handler(req, {send(value) {assert.equal(value.job.status, 'posted');}});
+		}
+		assert.deepEqual(calls, [[1, '7'], [1, '7']]);
+	});
+	it('publishes only the selected future job now, bypasses random delay and rejects duplicate/foreign claims', async () => {
+		const destination = await registered();
+		await models.PublicationDestination.update({randomDelayEnabled: true, randomDelayNextCheckAt: new Date('2099-01-01')}, {where: {id: destination.id}});
+		const first = await queued(destination, {scheduledAt: new Date('2099-01-01')});
+		const selected = await queued(destination, {scheduledAt: new Date('2099-01-02')});
+		await assert.rejects(module.publishNativeNow(2, selected.id), {status: 409});
+		const results = await Promise.allSettled([module.publishNativeNow(1, selected.id), module.publishNativeNow(1, selected.id)]);
+		assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+		assert.equal((await selected.reload()).status, 'posted');
+		assert.equal((await first.reload()).status, 'queued');
+		assert.equal(await Post.count(), 1);
+		await assert.rejects(module.publishNativeNow(1, selected.id), {status: 409});
+	});
+	it('rejects disabled and non-native jobs and preserves target permission checks for immediate publication', async () => {
+		const destination = await registered();
+		const job = await queued(destination, {scheduledAt: new Date('2099-01-01')});
+		await models.PublicationDestination.update({enabled: false}, {where: {id: destination.id}});
+		await assert.rejects(module.publishNativeNow(1, job.id), {status: 409});
+		await models.PublicationDestination.update({enabled: true}, {where: {id: destination.id}});
+		await job.update({executionMode: 'client'});
+		await assert.rejects(module.publishNativeNow(1, job.id), {status: 409});
+		await job.update({executionMode: 'native'});
+		allowed = false;
+		assert.equal((await module.publishNativeNow(1, job.id)).status, 'failed');
+		assert.equal(await Post.count(), 0);
+	});
 	it('delays native publication without sending, persists draws across workers and preserves due order', async () => {
 		const destination = await registered();
 		await models.PublicationDestination.update({randomDelayEnabled: true}, {where: {id: destination.id}});

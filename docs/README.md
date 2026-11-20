@@ -5,6 +5,8 @@ API reference output with handwritten architecture, operations, and module notes
 
 ## Start Here
 
+- [Client releases](../app/modules/clientReleases/docs/overview.md): signed installer hosting, public download/discovery and release operations.
+
 - [Generated API reference](./index.html): rendered apiDoc output generated from
   route annotations in `app/modules`.
 - [Module docs index](./modules.md): map of modules and module-owned docs under

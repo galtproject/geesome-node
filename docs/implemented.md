@@ -1,5 +1,14 @@
 # GeeSome Node Implemented Work
 
+## Signed client release distribution (#1677)
+
+Optional `clientReleases` reuses existing uploads/IPFS serving and adds signed stable metadata,
+administrator-key promotion, public installation instructions and additive discovery links.
+Artifacts are streamed and verified before pin/promotion under the existing storage fence; durable
+release references block ordinary cleanup. See [module overview](../app/modules/clientReleases/docs/overview.md)
+and [implementation evidence](client-releases-implementation.md). Windows installer execution is
+client-side verification and is not established by these node tests.
+
 ## Queued video watermarks (#1647)
 
 Owned videos can be branded with an allowlisted SVG through a bounded FFmpeg
@@ -1665,3 +1674,47 @@ Expired credentials reuse the locked publication refresh-token rotation; reader
 identity checks cover both authenticated user and deviation author. Permission
 failures return reconnect_required without discarding stored measurements.
 See the statistics module overview for OAuth and metric semantics.
+
+### Immediate native group publication
+
+The owner-authorized `POST /v1/user/social-publications/:jobId/publish-now`
+(and legacy local-publications alias) executes one queued native group job.
+It bypasses its date and random delay while preserving validation, destination/job
+lock order and the persisted-post recovery protocol. Client/server-provider and
+already claimed jobs cannot be submitted through this endpoint.
+
+Verification: PostgreSQL native publication suite covers future jobs, concurrent
+requests, owner isolation, disabled destinations and permission rejection; route
+checks cover scopes and group management on both aliases.
+
+## Leading API version normalization (#1666)
+
+The API request adapter strips only the leading `/v1/` path segment. Unversioned
+IPFS gateway CIDs and later path/query values containing `v1/` remain byte-exact;
+versioned routes still receive their existing module-relative paths. This repairs
+registered immutable roots whose CID ends in `v1` without changing storage
+permissions, route registration or content identity. Real loopback GET/HEAD tests
+cover root and asset paths plus embedded path versions and query strings.
+
+
+## Durable asynchronous prepared-image uploads (#1668)
+
+Prepared JPEG/WebP bundles now enter bounded private staging through the existing
+operation infrastructure. `async=true` returns a durable source/bundle-bound
+receipt; owner-scoped hash lookup recovers a lost acceptance reply. Storage
+execution is outside the receiving request's admission deadline. Synchronous
+responses remain compatible. The separate `prepared-image-upload` module prevents
+older ordinary-upload workers from importing or deleting the four-file format.
+Staging quotas cover both upload kinds; pending/unknown prepared work holds its
+source references, survives operation retention and yields cleanup priority to
+foreground storage work. Interrupted imports remain unknown without automatic
+replay; permissions, source identity, watermark, file integrity and quota are
+rechecked before import.
+
+Verified: 48 real PostgreSQL/Kubo image/upload/retirement tests and 29 focused
+validation/async-operation tests. API-doc generation, security route inventory and
+database scalability inventory pass. The unrelated full backend suite was not
+repeated for this slice. No schema migration is required. Before rollback to an
+older release, pause admissions and drain prepared work or preserve its queue and
+staging for recovery on the newer version; older quota accounting does not include
+the new module. Registry publication waits for the user-owned release merge.
