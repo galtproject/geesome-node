@@ -1807,52 +1807,12 @@
     "@libp2p/logger" "^6.2.6"
     interface-datastore "^9.0.1"
 
-"@libp2p/crypto@^5.0.0":
-  version "5.0.6"
-  resolved "https://registry.yarnpkg.com/@libp2p/crypto/-/crypto-5.0.6.tgz#3141bec0e59eea51c729e7bcc6f06d09118f5e6b"
-  integrity sha512-5mD/riNxUuSOerk3aPXUUMN96lwZsrU33lp97ySfffloh2WhLZcjVJszibBgIP7DP5nqmSOWY9++rqrBuYHvnQ==
+"@libp2p/crypto@^5.0.0", "@libp2p/crypto@^5.0.9", "@libp2p/crypto@^5.1.15", "@libp2p/crypto@^5.1.17", "@libp2p/crypto@^5.1.18", "@libp2p/crypto@^5.1.23", "@libp2p/crypto@^5.1.9":
+  version "5.2.0"
+  resolved "https://registry.npmjs.org/@libp2p/crypto/-/crypto-5.2.0.tgz#78184da1df237dfd4749aaaac9e3b8da07b97686"
+  integrity sha512-nLKTzyX6PKQoGFrb+OKds4NyFnedBcCgr50jYd5sIwFPVOEiQiCYBeQSdBbqjn9crFFca/l7dxBcFtXQ5qKiVw==
   dependencies:
-    "@libp2p/interface" "^2.2.0"
-    "@noble/curves" "^1.4.0"
-    "@noble/hashes" "^1.4.0"
-    asn1js "^3.0.5"
-    multiformats "^13.1.0"
-    protons-runtime "^5.4.0"
-    uint8arraylist "^2.4.8"
-    uint8arrays "^5.1.0"
-
-"@libp2p/crypto@^5.0.9", "@libp2p/crypto@^5.1.15", "@libp2p/crypto@^5.1.17", "@libp2p/crypto@^5.1.9":
-  version "5.1.17"
-  resolved "https://registry.yarnpkg.com/@libp2p/crypto/-/crypto-5.1.17.tgz#d98e02f99fa3dd6c1b4915722cf5abb2545f5224"
-  integrity sha512-gzn9b3tX9D5xCiXb36PF0rH16kGkLW5ESbT+nmXKUp1HCDD30RXQT/oHSylz5I3GN39BC1C3hBOBNaIQYuO+qw==
-  dependencies:
-    "@libp2p/interface" "^3.2.2"
-    "@noble/curves" "^2.0.1"
-    "@noble/hashes" "^2.0.1"
-    multiformats "^13.4.0"
-    protons-runtime "^6.0.1"
-    uint8arraylist "^2.4.8"
-    uint8arrays "^5.1.0"
-
-"@libp2p/crypto@^5.1.18":
-  version "5.1.18"
-  resolved "https://registry.yarnpkg.com/@libp2p/crypto/-/crypto-5.1.18.tgz#414d3c755527d7a4ccac1c8c8603a8497c19f182"
-  integrity sha512-sCm+dFFZmH4LJIHTCzPy7+EBRhzkndFUcIU8bui6iaxK6SDSRVa11+/O6DzW8hn/U9LgDXe6jXnzWM8bM7OoCA==
-  dependencies:
-    "@libp2p/interface" "^3.2.2"
-    "@noble/curves" "^2.0.1"
-    "@noble/hashes" "^2.0.1"
-    multiformats "^13.4.0"
-    protons-runtime "^6.0.1"
-    uint8arraylist "^2.4.8"
-    uint8arrays "^5.1.0"
-
-"@libp2p/crypto@^5.1.23":
-  version "5.1.23"
-  resolved "https://registry.npmjs.org/@libp2p/crypto/-/crypto-5.1.23.tgz#03400ba3cffab0d4cb06ca2aab74bc440a25aea8"
-  integrity sha512-u6XVMD1YpUJgjS5MAayrxlzi+hQcj3FHY0wS6/M/T93ntyCW13BmmRzFb2ESamk65PEuSCAChmQeSzRV2sh2rQ==
-  dependencies:
-    "@libp2p/interface" "^3.3.0"
+    "@libp2p/interface" "^3.4.0"
     "@noble/curves" "^2.0.1"
     "@noble/hashes" "^2.0.1"
     multiformats "^14.0.0"
@@ -1985,18 +1945,6 @@
     "@multiformats/multiaddr" "^13.0.1"
     progress-events "^1.0.1"
 
-"@libp2p/interface@^2.2.0":
-  version "2.2.0"
-  resolved "https://registry.yarnpkg.com/@libp2p/interface/-/interface-2.2.0.tgz#8718c29a0cf8c82b00d2ff9b140bcec9185578a2"
-  integrity sha512-Pn3P5ixDggBjDyuULT0GvwdgD3JA426OqZ0e521mI7ysS+/M9Z9fp4Qcy8JrkJ45bLmIi9cgrNrefuU/Zu+bAQ==
-  dependencies:
-    "@multiformats/multiaddr" "^12.2.3"
-    it-pushable "^3.2.3"
-    it-stream-types "^2.0.1"
-    multiformats "^13.1.0"
-    progress-events "^1.0.0"
-    uint8arraylist "^2.4.8"
-
 "@libp2p/interface@^3.0.0", "@libp2p/interface@^3.0.2", "@libp2p/interface@^3.1.0", "@libp2p/interface@^3.2.0", "@libp2p/interface@^3.2.2":
   version "3.2.2"
   resolved "https://registry.yarnpkg.com/@libp2p/interface/-/interface-3.2.2.tgz#3bcced692a6c4f24a657018c22c94ca54ccd17d7"
@@ -2017,6 +1965,18 @@
     "@multiformats/dns" "^1.0.6"
     "@multiformats/multiaddr" "^13.0.3"
     main-event "^1.0.1"
+    multiformats "^14.0.0"
+    progress-events "^1.1.0"
+    uint8arraylist "^3.0.2"
+
+"@libp2p/interface@^3.4.0":
+  version "3.4.0"
+  resolved "https://registry.npmjs.org/@libp2p/interface/-/interface-3.4.0.tgz#a4d52462abe63419617fab23ef9cdbde8e53d4b9"
+  integrity sha512-WBBw0NyLAWZz2HYfG2bXjBB2Qa0Aa6ssrQQCLZXHaMEJTdXiEagmQDojqXpy2Y6uvn1C+c4vBJkUulrgV0nfsg==
+  dependencies:
+    "@multiformats/dns" "^1.0.6"
+    "@multiformats/multiaddr" "^13.0.3"
+    main-event "^1.0.5"
     multiformats "^14.0.0"
     progress-events "^1.1.0"
     uint8arraylist "^3.0.2"
@@ -2516,7 +2476,7 @@
     progress-events "^1.0.0"
     uint8arrays "^5.0.2"
 
-"@multiformats/dns@^1.0.3", "@multiformats/dns@^1.0.6":
+"@multiformats/dns@^1.0.6":
   version "1.0.6"
   resolved "https://registry.yarnpkg.com/@multiformats/dns/-/dns-1.0.6.tgz#b8c7de11459a02a5f4e609d35d3cdb95cb6ad152"
   integrity sha512-nt/5UqjMPtyvkG9BQYdJ4GfLK3nMqGpFZOzf4hAmIa0sJh2LlS9YKXZ4FgwBDsaHvzZqR/rUFIywIc7pkHNNuw==
@@ -2542,18 +2502,6 @@
   integrity sha512-3uIEBCiy8tfzxYYBl81x1tISiNBQ7mHU4pGjippbJRoQYHzy/ZdZM/7JvTldr8pc/dzpkaNJxnsuxxlhsPOJsA==
   dependencies:
     "@multiformats/multiaddr" "^13.0.0"
-
-"@multiformats/multiaddr@^12.2.3":
-  version "12.3.1"
-  resolved "https://registry.yarnpkg.com/@multiformats/multiaddr/-/multiaddr-12.3.1.tgz#953ceb4ae3b39125b7b2c721230ea7b398cf49fe"
-  integrity sha512-yoGODQY4nIj41ENJClucS8FtBoe8w682bzbKldEQr9lSlfdHqAsRC+vpJAOBpiMwPps1tHua4kxrDmvprdhoDQ==
-  dependencies:
-    "@chainsafe/is-ip" "^2.0.1"
-    "@chainsafe/netmask" "^2.0.0"
-    "@multiformats/dns" "^1.0.3"
-    multiformats "^13.0.0"
-    uint8-varint "^2.0.1"
-    uint8arrays "^5.0.0"
 
 "@multiformats/multiaddr@^13.0.0", "@multiformats/multiaddr@^13.0.1":
   version "13.0.1"
@@ -2617,13 +2565,6 @@
   dependencies:
     "@noble/hashes" "1.8.0"
 
-"@noble/curves@^1.4.0":
-  version "1.6.0"
-  resolved "https://registry.yarnpkg.com/@noble/curves/-/curves-1.6.0.tgz#be5296ebcd5a1730fccea4786d420f87abfeb40b"
-  integrity sha512-TlaHRXDehJuRNR9TfZDNQ45mMEd5dwUwmicsafcIX4SsNiqnCHKjE/1alYPd/lDRVhxdhUAlv8uEhMCI5zjIJQ==
-  dependencies:
-    "@noble/hashes" "1.5.0"
-
 "@noble/curves@^2.0.1":
   version "2.2.0"
   resolved "https://registry.yarnpkg.com/@noble/curves/-/curves-2.2.0.tgz#981be3aadc3bbfbcdb245e78cc97aa6f759246c2"
@@ -2635,11 +2576,6 @@
   version "1.3.2"
   resolved "https://registry.npmjs.org/@noble/hashes/-/hashes-1.3.2.tgz#6f26dbc8fbc7205873ce3cee2f690eba0d421b39"
   integrity sha512-MVC8EAQp7MvEcm30KWENFjgR+Mkmf+D189XJTkFIlwohU5hcBbn1ZkKq7KVTi2Hme3PMGF390DaL52beVrIihQ==
-
-"@noble/hashes@1.5.0", "@noble/hashes@^1.4.0":
-  version "1.5.0"
-  resolved "https://registry.yarnpkg.com/@noble/hashes/-/hashes-1.5.0.tgz#abadc5ca20332db2b1b2aa3e496e9af1213570b0"
-  integrity sha512-1j6kQFb7QRru7eKN3ZDvRcP13rugwdxZqCjbiAVZfIJwgj2A65UmT4TgARXGlXgnRkORLTDTrO19ZErt7+QXgA==
 
 "@noble/hashes@1.8.0", "@noble/hashes@~1.8.0":
   version "1.8.0"
@@ -9045,6 +8981,11 @@ main-event@^1.0.0, main-event@^1.0.1:
   resolved "https://registry.yarnpkg.com/main-event/-/main-event-1.0.4.tgz#371eb627575ba4379fa35c854b8952208f1fcdc3"
   integrity sha512-sKazUjIy2Jalv5lkQ446iOcrx8Q7TkaCuk6xfnzg5uUqMusMLDMPmRDmSNE2kjSVpSTJo4j1bQZusS+Ib7Bvrg==
 
+main-event@^1.0.5:
+  version "1.0.5"
+  resolved "https://registry.npmjs.org/main-event/-/main-event-1.0.5.tgz#956db3cd0d730cc96df9440e4da78a2519702ce9"
+  integrity sha512-4l9z8r7Q446mhhVTwdHmfPksOYBwN2xa7ewEW2yxPVNQapIaAf57ORFLMB91SpMEMa4wXowect7fq3uMLjDnGA==
+
 map-cache@^0.2.2:
   version "0.2.2"
   resolved "https://registry.yarnpkg.com/map-cache/-/map-cache-0.2.2.tgz#c32abd0bd6525d9b051645bb4f26ac5dc98a0dbf"
@@ -10336,7 +10277,7 @@ protobufjs@7.5.5, protobufjs@^6.10.2, protobufjs@^6.11.2:
     "@types/node" ">=13.7.0"
     long "^5.0.0"
 
-protons-runtime@5.5.0, protons-runtime@^5.4.0:
+protons-runtime@5.5.0:
   version "5.5.0"
   resolved "https://registry.yarnpkg.com/protons-runtime/-/protons-runtime-5.5.0.tgz#ea06d9ef843aad77ea5de3e1ebafa81b58c24570"
   integrity sha512-EsALjF9QsrEk6gbCx3lmfHxVN0ah7nG3cY7GySD4xf4g8cr7g543zB88Foh897Sr1RQJ9yDCUsoT1i1H/cVUFA==
