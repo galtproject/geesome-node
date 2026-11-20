@@ -3,6 +3,10 @@
 This guide is for a user-authorized desktop agent or the user. Public downloads require no API
 key. Configuring the user's GeeSome/social accounts is a separate step; never request or install
 the operator's release-publication key. Installation is Windows x64, per-user, without elevation.
+Official publisher trust is bundled in both the node and client; ordinary users and node owners
+do not need to configure a PEM key. A node owner can mirror a published release with
+`npm run client:releases:import -- --source https://source.example --node https://your-node.example`
+using only their destination administrator key in `GEESOME_RELEASE_API_KEY`.
 
 1. Start with the trusted HTTPS node URL supplied by the user. Read `/.well-known/geesome`
    (older proxies may expose `/api/.well-known/geesome`). Use the returned absolute `apiBaseUrl`,
