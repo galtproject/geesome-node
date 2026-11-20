@@ -1,4 +1,5 @@
 import {lookup as dnsLookup} from "node:dns/promises";
+import {Agent as HttpAgent} from "node:http";
 import {Agent as HttpsAgent} from "node:https";
 import {BlockList, isIP} from "node:net";
 
@@ -14,14 +15,27 @@ export async function createSafeHttpsAgent(
 	options: ISafeHttpsAgentOptions = {}
 ): Promise<HttpsAgent> {
 	const errorPrefix = options.errorPrefix || 'outbound_https';
-	const addresses = await resolvePublicAddresses(
-		hostname,
-		options.lookup || dnsLookup,
-		errorPrefix
-	);
 	return new HttpsAgent({
-		lookup: getPinnedLookup(hostname, addresses, errorPrefix)
+		lookup: await createSafeLookup(hostname, {...options, errorPrefix})
 	});
+}
+
+export async function createSafeHttpAndHttpsAgents(
+	hostname: string,
+	options: ISafeHttpsAgentOptions = {}
+): Promise<{httpAgent: HttpAgent; httpsAgent: HttpsAgent}> {
+	const errorPrefix = options.errorPrefix || 'outbound_http';
+	const lookup = await createSafeLookup(hostname, {...options, errorPrefix});
+	return {
+		httpAgent: new HttpAgent({lookup}),
+		httpsAgent: new HttpsAgent({lookup})
+	};
+}
+
+export async function createSafeLookup(hostname: string, options: ISafeHttpsAgentOptions = {}) {
+	const errorPrefix = options.errorPrefix || 'outbound_http';
+	const addresses = await resolvePublicAddresses(hostname, options.lookup || dnsLookup, errorPrefix);
+	return getPinnedLookup(hostname, addresses, errorPrefix);
 }
 
 async function resolvePublicAddresses(

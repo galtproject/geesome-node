@@ -19,11 +19,11 @@ export class YoutubeVideoUploadDriver extends AbstractDriver {
 
   async processBySource(url, options: any = {}) {
     const videoInfo: any = await getYoutubeInfo(url);
-    const bestFormat = orderBy(videoInfo.formats.filter(f => f.ext === 'mp4'), [(f) => f.filesize], ['desc'])[0];
-    if(!bestFormat) {
-      throw new Error('video_not_found');
+    const bestFormat = orderBy(videoInfo.formats.filter(f => f.ext === 'mp4' && ['http', 'https'].includes(f.protocol)), [(f) => f.filesize], ['desc'])[0];
+    if (!bestFormat) {
+      throw new Error('youtube_direct_format_required');
     }
-    let stream = streamYoutubeFormat(url, bestFormat.format_id);
+    const stream = await streamYoutubeFormat(url, bestFormat.format_id, videoInfo);
     
     return {
       stream,
