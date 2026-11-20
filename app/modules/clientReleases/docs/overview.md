@@ -1,18 +1,48 @@
 # Client releases
 
-`clientReleases` is an optional release-metadata module for the local Windows publisher client.
+`clientReleases` is a release-metadata module for the local Windows publisher client.
 It hosts ready-built installers; it never builds or executes them on the server.
 
 ## Enable
 
-Set `GEESOME_CLIENT_RELEASE_PUBLIC_KEY` to the operator's Ed25519 public PEM key (with real
-newlines), or supply `clientReleasesConfig.publicKey` in extended configuration. The default main
-module pack includes `clientReleases`; custom `MODULES` must include it after api/database/storage/content.
-Without a public key it stays disabled, creates no table/routes, and advertises no capability.
-A malformed configured key fails initialization instead of silently trusting another key. Keep the
-private signing key outside server/client repositories and outside installer payloads.
+The default main module pack includes `clientReleases` and the official publisher public key;
+node owners do not need to copy a PEM or obtain a publisher signing key. Custom `MODULES` must
+include it after api/database/storage/content. The bundled key is the same trust anchor shipped
+in the official client (`official-public-key.pem`, SPKI SHA-256
+`76f028c3cb38aab0e4db1348435ab3ac48638f02b828d435200d050d2c62c144`).
 
-## Publication and discovery
+Set `GEESOME_CLIENT_RELEASES=0` or `clientReleasesConfig.enabled=false` to explicitly disable the
+module, table initialization, routes and capability. An omitted/empty key now means the official
+default, not disabled. For deliberate custom distributions only, set
+`GEESOME_CLIENT_RELEASE_PUBLIC_KEY` to a different Ed25519 public PEM (with real newlines), or
+`clientReleasesConfig.publicKey` in extended configuration. A malformed override fails initialization;
+remote discovery never replaces trust. Official installed clients still trust their embedded key.
+
+## Import an official release
+
+Set `GEESOME_RELEASE_API_KEY` to the **destination** node's existing administrator API key, then:
+
+```bash
+npm run client:releases:import -- --source https://source.example --node https://your-node.example
+```
+
+No private signing key, PEM setup or re-signing is required. The command discovers the source,
+verifies its signed stable descriptor with the bundled key and posts the exact same envelope to
+your node. Your node fetches the original CID through IPFS, checks full byte size/hash, pins it,
+and only then selects stable. The source must keep that CID reachable through IPFS; gateway-only
+availability is not sufficient. Failed retrieval/verification leaves the previous stable unchanged.
+The command does not unpack/re-encode the EXE or change its signed CID. The administrator key is
+sent only to the target publication endpoint, never to the source or public discovery/downloads.
+
+Repeat imports of the same signed descriptor are no-ops. Newer destination versions and conflicting
+descriptors are refused. Proxy API prefixes are discovered, redirects and cross-origin discovery
+are rejected, metadata is bounded, and no server-side arbitrary URL fetcher is added. If the source
+has not yet published a stable installer, the command explains that and changes nothing. This imports
+an existing publisher release, not an untested new local build.
+
+## Publisher signing and public discovery
+
+The following signing steps are for the original publisher, not owners mirroring an official release.
 
 1. Build/test the Windows installer locally. Upload exact EXE bytes using existing
    `POST <apiBaseUrl>/user/save-file`, no media driver; wait for any async operation to finish.

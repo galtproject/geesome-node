@@ -1,5 +1,13 @@
 # GeeSome Node Implemented Work
 
+## Official client release import without manual keys (#1682)
+
+Node defaults to the same public publisher key as the official client. Owners can mirror a signed
+release with `npm run client:releases:import -- --source SOURCE --node TARGET`, using only their
+destination administrator API key. The original signed descriptor/CID is preserved and existing
+IPFS verification/pinning precedes stable promotion. Explicit disable/custom-key options remain.
+See [module operations](../app/modules/clientReleases/docs/overview.md).
+
 ## Signed client release distribution (#1677)
 
 Optional `clientReleases` reuses existing uploads/IPFS serving and adds signed stable metadata,

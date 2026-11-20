@@ -59,6 +59,20 @@ It defines the structure of social network data to describe familiar to the mode
 ## GeeSome UI
 [GeeSome UI](https://github.com/galtproject/geesome-ui) - it's Vue application, that using GeeSome node API for saving content and IPFS in-browser node for getting content. It's completly separated client from node and can be connected to any other GeeSome node. There are also many cases when it’s not necessary to use GeeSome UI. You can use GeeSome node API and GeesomeClient library in your project to build you own UI with some important features special for you.
 
+## Distribute the Windows client
+
+Official publisher trust is bundled in GeeSome Node. To mirror an already signed client release,
+set `GEESOME_RELEASE_API_KEY` to your destination node's administrator API key and run:
+
+```bash
+npm run client:releases:import -- --source https://source.example --node https://your-node.example
+```
+
+No publisher private key or manual PEM configuration is needed. The destination verifies and pins
+the original signed CID through IPFS before advertising it through public installation discovery.
+See [release operations](app/modules/clientReleases/docs/overview.md) for custom trust, disable,
+retention and source-availability details.
+
 ## Summary
 With the help of GeeSome Node, anyone can create an instance of a decentralized social network, with groups like in YouTube, Instagram or Telegram but with content preservation and no locks or censorship thanks to the concept of personal GeeSome Node using IPFS Node to store content, access data and receive updates by libp2p.
 
