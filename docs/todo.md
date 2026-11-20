@@ -17,6 +17,14 @@ When a section is completed, move its durable outcome and verification evidence
 to `implemented.md`, remove it from this file, and update the README summary in
 the same pull request.
 
+<!-- todo-section: client-release-production-validation -->
+## Client release production validation
+
+- Build and validate the first Windows x64 client installer on Windows, then publish a signed
+  descriptor through the configured operator node; no production installer has been advertised.
+- Operator must provision the same Ed25519 public key on node and client build, retain its private
+  key locally, and choose an explicit manual retention policy before pruning old release rows/pins.
+
 ## Current Priority
 
 1. Complete browser-first secure chat beyond direct messages.

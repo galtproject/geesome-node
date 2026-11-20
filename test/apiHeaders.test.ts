@@ -88,6 +88,7 @@ describe("api headers", function () {
 			assert.equal(discovery.body.openapiUrl, "https://geesome.example/api/v1/openapi.json");
 			assert.equal(discovery.body.gatewayBaseUrl, "https://geesome.example");
 			assert.equal(discovery.body.storage.contentDigest, "sha-256");
+			assert.equal(Object.hasOwn(discovery.body.capabilities, 'clientReleases'), false);
 		} finally {
 			if (previousPort === undefined) {
 				delete process.env.PORT;

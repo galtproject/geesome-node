@@ -6,6 +6,8 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 
 ## Documented Modules
 
+- `clientReleases`: [signed Windows installers and public installation discovery](../app/modules/clientReleases/docs/overview.md)
+
 - `socNetStatistics`: [daily post/group statistics and client/server collection](../app/modules/socNetStatistics/docs/overview.md)
 
 - `socNetPublishing`: [local and server social publishing](../app/modules/socNetPublishing/docs/overview.md)
@@ -62,6 +64,7 @@ and implementation notes belong under `app/modules/<module>/docs/`.
 | `asyncOperation` | Tracks long-running user operations and processes queued background work. | [Overview](../app/modules/asyncOperation/docs/overview.md) |
 | `autoActions` | Stores and claims scheduled module function calls. | [Overview](../app/modules/autoActions/docs/overview.md) |
 | `bluesky` | Imports, refreshes, reads local feed views, verifies user-scoped accounts, and cross-posts safe text/image posts for native Bluesky/ATProto. | [Overview](../app/modules/bluesky/docs/overview.md) |
+| `clientReleases` | Distributes signed Windows client installers with privileged promotion and public agent installation discovery. | [Overview](../app/modules/clientReleases/docs/overview.md) |
 | `chat` | Persists browser-encrypted chat device bundles, opaque events, ordered heads, and receipts without receiving plaintext or private keys. | [Overview](../app/modules/chat/docs/overview.md), [conversation model review](../app/modules/chat/docs/conversation-data-model-review.md) |
 | `communicator` | Provides network communication, static-id lookup/binding, and pubsub-style event hooks. | [Overview](../app/modules/communicator/docs/overview.md) |
 | `content` | Creates, serves, previews, restores, and deletes user content records. | [Overview](../app/modules/content/docs/overview.md) |

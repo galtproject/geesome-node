@@ -1,5 +1,14 @@
 # GeeSome Node Implemented Work
 
+## Signed client release distribution (#1677)
+
+Optional `clientReleases` reuses existing uploads/IPFS serving and adds signed stable metadata,
+administrator-key promotion, public installation instructions and additive discovery links.
+Artifacts are streamed and verified before pin/promotion under the existing storage fence; durable
+release references block ordinary cleanup. See [module overview](../app/modules/clientReleases/docs/overview.md)
+and [implementation evidence](client-releases-implementation.md). Windows installer execution is
+client-side verification and is not established by these node tests.
+
 ## Queued video watermarks (#1647)
 
 Owned videos can be branded with an allowlisted SVG through a bounded FFmpeg
