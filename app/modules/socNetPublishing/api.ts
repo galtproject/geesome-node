@@ -28,14 +28,15 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 * @apiUse ValidationErrors
-	 * @apiDescription Owner management authorization required. Creates an encrypted, owner-bound ten-minute PKCE flow. No provider publication occurs. Callback URI is fixed by server configuration; client-provided callback URLs are rejected.
-	 * @apiBody {String} requestKey Stable destination setup key.
-	 * @apiBody {String} label Destination label (1–200 characters).
+	 * @apiDescription Owner management authorization required. Creates an encrypted, owner-bound ten-minute PKCE flow. No provider publication occurs. Callback URI is fixed by server configuration; client-provided callback URLs are rejected. Reconnect accepts only destinationId and optional paired application credential overrides; saved credentials stay server-side and callback preserves destination settings and account identity.
+	 * @apiBody {Number} [destinationId] Existing owned server DeviantArt destination; omit setup fields for reconnect.
+	 * @apiBody {String} [requestKey] Stable destination setup key; required for new connections.
+	 * @apiBody {String} [label] Destination label (1–200 characters); required for new connections.
 	 * @apiBody {Number} [sourceGroupId] Owned private source group.
-	 * @apiBody {String="sfw","nsfw"} contentPolicy Explicit content restriction.
+	 * @apiBody {String="sfw","nsfw"} [contentPolicy] Explicit content restriction; required for new connections.
 	 * @apiBody {Boolean} [enabled=false] Enable new jobs after successful consent.
-	 * @apiBody {String} clientId Confidential OAuth application ID.
-	 * @apiBody {String} clientSecret Write-only OAuth application secret.
+	 * @apiBody {String} [clientId] Confidential OAuth application ID; required for new connections, optional paired override for reconnect.
+	 * @apiBody {String} [clientSecret] Write-only OAuth application secret; required with clientId.
 	 * @apiSuccess {String} flowId Opaque owner-scoped status identifier.
 	 * @apiSuccess {String} authorizationUrl Open in a separate browser window.
 	 * @apiSuccess {String} expiresAt Expiration instant.

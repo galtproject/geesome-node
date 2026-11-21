@@ -29,7 +29,14 @@ export function deviantArtRedirectUri(app, override = process.env.DEVIANTART_OAU
 }
 
 export function getDeviantArtOAuthMethods(app, {PublicationOAuthFlow: Flow, PublicationDestination: Destination}, accounts, options: any = {}) {
-	const transport = createTransport(options.fetch);
+	const transport = createTransport(async (url, request) => {
+		const response = await (options.fetch || fetch)(url, request);
+		// Token errors can use HTTP 400; retain bounded parsing to distinguish an invalid app from a rejected code.
+		if (response.status === 400 && new URL(url).pathname === '/oauth2/token') {
+			return new Response(response.body, {status: 200, headers: response.headers});
+		}
+		return response;
+	});
 	const now = () => new Date();
 	async function expire() {
 		await Flow.update({status: 'expired', secretEncrypted: null, error: 'deviantart_oauth_expired'}, {where: {expiresAt: {[Op.lte]: now()}, status: {[Op.in]: ['pending', 'processing']}}});
@@ -37,6 +44,31 @@ export function getDeviantArtOAuthMethods(app, {PublicationOAuthFlow: Flow, Publ
 	}
 	return {
 		async startDeviantArtOAuth(userId, input) {
+			let reconnect;
+			if (input && Object.hasOwn(input, 'destinationId')) {
+				if (Object.keys(input).some(key => !['destinationId', 'clientId', 'clientSecret'].includes(key)) || !Number.isSafeInteger(input.destinationId) || input.destinationId < 1 ||
+					Object.hasOwn(input, 'clientId') !== Object.hasOwn(input, 'clientSecret')) {
+					problem(400, 'deviantart_oauth_input_invalid');
+				}
+				const destination = await Destination.findOne({where: {id: input.destinationId, userId, executionMode: 'server', network: 'deviantart'}});
+				if (!destination) {
+					problem(404, 'local_publication_destination_not_found');
+				}
+				let credentials = input;
+				if (!Object.hasOwn(input, 'clientId')) {
+					try {
+						credentials = (await accounts.loadServerAccount(userId, destination.socNetAccountId, 'deviantart', destination.accountIdentity)).credentials;
+					} catch {
+						problem(409, 'deviantart_oauth_credentials_required');
+					}
+					if (!/^[1-9][0-9]{0,19}$/.test(credentials.clientId || '') || typeof credentials.clientSecret !== 'string' || !credentials.clientSecret || /[\u0000-\u0020\u007f]/.test(credentials.clientSecret)) {
+						problem(409, 'deviantart_oauth_credentials_required');
+					}
+				}
+				reconnect = {destinationId: destination.id, accountId: destination.socNetAccountId, accountIdentity: destination.accountIdentity};
+				input = {requestKey: destination.localKey.slice('server:'.length), label: destination.label, sourceGroupId: destination.sourceGroupId,
+					contentPolicy: destination.contentPolicy, enabled: destination.enabled, clientId: credentials.clientId, clientSecret: credentials.clientSecret};
+			}
 			if (!Flow || !input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['requestKey', 'label', 'sourceGroupId', 'contentPolicy', 'enabled', 'clientId', 'clientSecret'].includes(key)) ||
 				typeof input.requestKey !== 'string' || !/^[A-Za-z0-9_.:-]{1,128}$/.test(input.requestKey) || typeof input.label !== 'string' || !input.label.trim() || input.label.length > 200 || /[\u0000-\u001f\u007f]/.test(input.label) ||
 				typeof input.clientId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(input.clientId) || input.enabled !== undefined && typeof input.enabled !== 'boolean' ||
@@ -58,7 +90,7 @@ export function getDeviantArtOAuthMethods(app, {PublicationOAuthFlow: Flow, Publ
 			const state = randomBytes(32).toString('hex');
 			const verifier = randomBytes(48).toString('base64url');
 			const expiresAt = new Date(Date.now() + ttlMs);
-			const encrypted = await app.encryptTextWithAppPass(JSON.stringify({clientId: input.clientId, clientSecret: input.clientSecret, verifier, redirectUri,
+			const encrypted = await app.encryptTextWithAppPass(JSON.stringify({clientId: input.clientId, clientSecret: input.clientSecret, verifier, redirectUri, reconnect,
 				setup: {network: 'deviantart', requestKey: input.requestKey, label: input.label.trim(), sourceGroupId: input.sourceGroupId ?? null, contentPolicy, enabled: input.enabled === true, target: {}}}));
 			await Flow.sequelize.transaction(async transaction => {
 				await Flow.sequelize.query('SELECT pg_advisory_xact_lock(163130, :owner)', {replacements: {owner: userId}, transaction});
@@ -105,7 +137,18 @@ export function getDeviantArtOAuthMethods(app, {PublicationOAuthFlow: Flow, Publ
 				const data = JSON.parse(await app.decryptTextWithAppPass(row.secretEncrypted));
 				const body = new URLSearchParams({grant_type: 'authorization_code', client_id: data.clientId, client_secret: data.clientSecret, code: input.code,
 					redirect_uri: data.redirectUri, code_verifier: data.verifier});
-				const token = await readJson(transport, 'https://www.deviantart.com/oauth2/token', {method: 'POST', body});
+				let token;
+				try {
+					token = await readJson(transport, 'https://www.deviantart.com/oauth2/token', {method: 'POST', body});
+				} catch (error) {
+					if (error.httpStatus === 401) {
+						throw Object.assign(new Error('Application credentials rejected'), {code: 'deviantart_oauth_credentials_required'});
+					}
+					throw error;
+				}
+				if (token?.error === 'invalid_client') {
+					throw Object.assign(new Error('Application credentials rejected'), {code: 'deviantart_oauth_credentials_required'});
+				}
 				if (!token || token.error || token.token_type?.toLowerCase() !== 'bearer') {
 					throw new Error('token_invalid');
 				}
@@ -113,12 +156,12 @@ export function getDeviantArtOAuthMethods(app, {PublicationOAuthFlow: Flow, Publ
 				secret(token.refresh_token);
 				const account = {clientId: data.clientId, clientSecret: data.clientSecret, accessToken: token.access_token, refreshToken: token.refresh_token};
 				// Keep exchanged tokens encrypted during setup; a crashed processing flow requires fresh consent, never a repeated code exchange.
-				await row.update({secretEncrypted: await app.encryptTextWithAppPass(JSON.stringify({setup: data.setup, account}))});
-				const result = await accounts.setupServerDestination(row.userId, {...data.setup, account});
+				await row.update({secretEncrypted: await app.encryptTextWithAppPass(JSON.stringify({setup: data.setup, reconnect: data.reconnect, account}))});
+				const result = data.reconnect ? await accounts.reconnectDeviantArtDestination(row.userId, data.reconnect, account) : await accounts.setupServerDestination(row.userId, {...data.setup, account});
 				await row.update({status: 'connected', destinationId: result.destination.id, secretEncrypted: null, error: null});
 				return {status: 'connected'};
-			} catch {
-				await row.update({status: 'failed', secretEncrypted: null, error: input.error ? 'deviantart_oauth_denied' : 'deviantart_oauth_failed'});
+			} catch (error) {
+				await row.update({status: 'failed', secretEncrypted: null, error: input.error ? 'deviantart_oauth_denied' : error.code === 'deviantart_oauth_credentials_required' ? error.code : 'deviantart_oauth_failed'});
 				return {status: 'failed'};
 			}
 		}

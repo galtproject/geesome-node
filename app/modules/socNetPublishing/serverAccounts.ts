@@ -187,6 +187,29 @@ export function getServerAccountMethods(app, Destination, {normalizeRequest, bou
 			});
 		},
 
+		async reconnectDeviantArtDestination(userId, expected, credentials) {
+			const verified = await providers.verify('deviantart', credentials, {});
+			if (verified.accountIdentity !== expected.accountIdentity) {
+				throw problem(409, 'deviantart_oauth_account_changed');
+			}
+			return Destination.sequelize.transaction(async transaction => {
+				await credentialLock(userId, transaction);
+				const destination = await Destination.findOne({where: {id: expected.destinationId, userId, network: 'deviantart', executionMode: 'server'}, transaction, lock: transaction.LOCK.UPDATE});
+				if (!destination || destination.socNetAccountId !== expected.accountId || destination.accountIdentity !== expected.accountIdentity) {
+					throw problem(409, 'local_publication_destination_changed');
+				}
+				if (destination.sourceGroupId && !isOwnedQueueGroup(await app.ms.group.getGroup(destination.sourceGroupId), userId)) {
+					throw problem(403, 'local_publication_source_forbidden');
+				}
+				const account = await accounts().findOne({where: {id: expected.accountId, userId, socNet: 'deviantart', accountId: expected.accountIdentity}, transaction, lock: transaction.LOCK.UPDATE});
+				if (!account) {
+					throw problem(409, 'server_publication_credentials_unavailable');
+				}
+				await saveCredentials(account, verified.credentials || credentials, transaction, true);
+				return {destination: destinationView(destination)};
+			});
+		},
+
 		async loadServerAccount(userId, accountId, network, identity) {
 			const account = await accounts()?.findOne({where: {id: accountId, userId, socNet: network, accountId: identity}});
 			if (!account?.serverCredentialsEncrypted) {

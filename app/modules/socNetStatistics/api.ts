@@ -177,7 +177,7 @@ export default function registerApi(app, module) {
 	 * @apiDescription Owner-only publishing:local plus group management. Reads fixed provider endpoints with encrypted server accounts. Never publishes. Processes one owned server entity per request. Failed/unsupported providers preserve stored history and return safe per-entity status.
 	 * @apiBody {String="post","group"} kind Entity kind.
 	 * @apiBody {Number} id Owned server job or destination ID.
-	 * @apiSuccess {Object[]} results Entity kind/id and updated, unavailable, unsupported, access_denied, rate_limited, connection_required or reconnect_required status. DeviantArt reconnect_required means renewed OAuth consent is needed; previous snapshots are preserved.
+	 * @apiSuccess {Object[]} results Entity kind/id and updated, unavailable, unsupported, access_denied, rate_limited, connection_required consent_required, authorization_required or legacy reconnect_required status. DeviantArt consent_required means additional permissions are needed; authorization_required means credentials could not be renewed; previous snapshots are preserved.
 	 */
 	app.ms.api.onAuthorizedPost('user/social-statistics/refresh', async (req, res) => {
 		await authorize(req);
