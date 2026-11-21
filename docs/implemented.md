@@ -1,5 +1,23 @@
 # GeeSome Node Implemented Work
 
+## DeviantArt reconnect with saved application credentials (#1686)
+
+Owner-authorized OAuth start accepts an existing server destination ID and loads
+its encrypted application credentials. Consent stays bound to the original
+account identity; callback updates only the shared account credentials and
+preserves current destination settings. Missing/rejected application credentials
+produce a safe repair signal. Existing new-destination OAuth remains supported.
+Outbox advertises `deviantartOAuthReconnect:true`; deploy Node before Client.
+
+Statistics distinguishes missing consent, unusable authorization, access denial,
+rate limits and temporary failures. A metadata token rejection gets one serialized
+refresh and read retry, with rotation committed before reuse. Publication sends
+are never retried by this path. Existing daily observations remain readable.
+
+Verification: targeted PostgreSQL OAuth, statistics and publication regression
+suites; API documentation generation and security route inventory checks. No
+schema migration is required.
+
 ## Official client release import without manual keys (#1682)
 
 Node defaults to the same public publisher key as the official client. Owners can mirror a signed

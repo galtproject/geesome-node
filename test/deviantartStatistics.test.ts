@@ -28,6 +28,54 @@ function fixture(override?: any) {
 	return {reader, requests, input};
 }
 describe('DeviantArt statistics', () => {
+	it('refreshes once when metadata rejects a token after successful identity verification, persists before retry', async () => {
+		for (const responseKind of ['http', 'json', 'always-expired']) {
+			let metadataReads = 0, refreshes = 0, persisted = false;
+			const f = fixture((url, options) => {
+				if (url.endsWith('/oauth2/token')) {
+					refreshes++;
+					return json({token_type: 'bearer', access_token: 'rotated-access', refresh_token: 'rotated-refresh'});
+				}
+				if (url.includes('/metadata?')) {
+					metadataReads++;
+					if (metadataReads === 1 || responseKind === 'always-expired') {
+						return json({error: 'invalid_token'}, responseKind === 'http' ? 401 : 400);
+					}
+					assert(persisted);
+					assert.equal(options.headers.Authorization, 'Bearer rotated-access');
+				}
+			});
+			f.input.account.refreshCredentials = async renew => {
+				const updated = await renew(credentials);
+				persisted = true;
+				assert.equal(updated.refreshToken, 'rotated-refresh');
+				return updated;
+			};
+			if (responseKind === 'always-expired') {
+				await assert.rejects(f.reader(f.input), (error: any) => error.statisticsStatus === 'authorization_required');
+			} else {
+				assert.deepEqual(await f.reader(f.input), {likes: 0, views: 42, replies: 2});
+			}
+			assert.equal(metadataReads, 2);
+			assert.equal(refreshes, 1);
+		}
+	});
+
+	it('distinguishes revoked refresh from a temporary token endpoint failure after metadata expiry', async () => {
+		for (const [http, status] of [[400, 'authorization_required'], [503, 'unavailable'], [429, 'rate_limited']]) {
+			const f = fixture(url => url.includes('/metadata?') ? json({error: 'invalid_token'}, 400) : url.endsWith('/oauth2/token') ? json({error: 'invalid_grant'}, http as number) : undefined);
+			f.input.account.refreshCredentials = renew => renew(credentials);
+			await assert.rejects(f.reader(f.input), (error: any) => error.statisticsStatus === status);
+		}
+	});
+	it('does not refresh or request consent for generic OAuth or transient errors', async () => {
+		for (const [body, http, status] of [[{error: 'oauth_error'}, 400, 'access_denied'], [{error: 'private'}, 503, 'unavailable']]) {
+			const f = fixture(url => url.includes('/metadata?') ? json(body, http as number) : undefined);
+			f.input.account.refreshCredentials = async () => { throw new Error('Must not refresh'); };
+			await assert.rejects(f.reader(f.input), (error: any) => error.statisticsStatus === status);
+		}
+	});
+
 	it('reads watchers, favourites, views and comments, preserving real zeros', async () => {
 		const f = fixture();
 		assert.deepEqual(await f.reader({...f.input, kind: 'group'}), {followers: 0});
@@ -52,15 +100,15 @@ describe('DeviantArt statistics', () => {
 		await assert.rejects(changed.reader(changed.input));
 		await assert.rejects(f.reader({...f.input, account: {...f.input.account, accountIdentity: `deviantart:${remoteId}`}}));
 	});
-	it('returns reconnect for denied access, rate_limited for throttling and unavailable for missing works', async () => {
-		for (const [http, status] of [[403, 'reconnect_required'], [429, 'rate_limited'], [404, 'unavailable'], [400, 'unavailable']]) {
+	it('returns access_denied for denied access, rate_limited for throttling and unavailable for missing works', async () => {
+		for (const [http, status] of [[403, 'access_denied'], [429, 'rate_limited'], [404, 'unavailable'], [400, 'unavailable']]) {
 			const f = fixture(url => url.includes('/metadata?') ? json({error: 'private-secret'}, http as number) : undefined);
 			await assert.rejects(f.reader(f.input), (error: any) => error.statisticsStatus === status && !error.message.includes('private'));
 		}
 	});
 	it('recognizes OAuth scope errors returned as HTTP 400 JSON', async () => {
 		const f = fixture(url => url.includes('/metadata?') ? json({error: 'insufficient_scope', error_description: 'private-secret'}, 400) : undefined);
-		await assert.rejects(f.reader(f.input), (error: any) => error.statisticsStatus === 'reconnect_required' && !error.message.includes('private'));
+		await assert.rejects(f.reader(f.input), (error: any) => error.statisticsStatus === 'consent_required' && !error.message.includes('private'));
 	});
 	it('uses managed token rotation before statistics and asks reconnect when refresh is revoked', async () => {
 		const f = fixture((url, options) => {
@@ -81,6 +129,6 @@ describe('DeviantArt statistics', () => {
 		assert.equal(f.requests.at(-1).options.headers.Authorization, 'Bearer new-access');
 		const revoked = fixture(url => url.endsWith('/user/whoami') ? json({}, 401) : url.endsWith('/oauth2/token') ? json({error: 'invalid_grant'}, 400) : undefined);
 		revoked.input.account.refreshCredentials = renew => renew(credentials);
-		await assert.rejects(revoked.reader(revoked.input), (error: any) => error.statisticsStatus === 'reconnect_required');
+		await assert.rejects(revoked.reader(revoked.input), (error: any) => error.statisticsStatus === 'authorization_required');
 	});
 });
