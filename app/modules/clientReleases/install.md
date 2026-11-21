@@ -53,6 +53,39 @@ using only their destination administrator key in `GEESOME_RELEASE_API_KEY`.
    Uninstall using Windows Installed Apps or the installed uninstaller; the login task and program
    are removed, while local credentials/state are preserved unless the user explicitly deletes them.
 
+## Connect a local AI agent
+
+MCP-capable client versions include **Settings → AI agent**. The early 0.1.1 and 0.1.2
+installers do not include this block; update to a release that includes MCP before configuring it.
+The public release discovery above locates installers, not private MCP credentials.
+
+When the user requests agent access:
+
+1. Open the local client in the browser and select **Settings → AI agent → Connect agent**.
+   The client generates its own private key. Do not use a node administrator, release-publication
+   or social-network key for MCP.
+2. Select **Copy for .env** and add the returned `GEESOME_CLIENT_MCP_URL` and
+   `GEESOME_CLIENT_MCP_TOKEN` lines to `.env` in the user's project root. Keep `.env` in
+   `.gitignore`; never print the token, commit it or send it to this node.
+3. Select **Copy agent instructions**. Configure the agent host to load the variables into a
+   Streamable HTTP connection, using the token in the `Authorization: Bearer` header.
+   Adding a `.env` file alone does not register an MCP server. Use the host's supported
+   configuration format; do not assume a universal MCP config file or environment interpolation.
+4. Keep the client running and run the agent on the same computer. The MCP endpoint is local
+   (normally `http://127.0.0.1:7347/mcp`); a hosted agent cannot reach it directly.
+5. After connecting, call `get_app_info` and `list_destinations`. Explain the returned browser
+   URLs and available destinations. The browser supports social account setup, text/image
+   composition, queues, schedules, publication history, manual review, statistics and updates.
+   MCP exposes configured local-account destinations; server/native destinations remain in the UI.
+6. Prepare with `create_draft`, publish with `publish_draft` only when the user requests it,
+   and inspect outcomes with `get_publication_status`. Queue acceptance is not proof of delivery.
+   An uncertain response must reuse the same draft ID; never create a second draft to retry a
+   possibly accepted publication. Existing sending pauses remain in force.
+
+**Replace key** invalidates the old token; update `.env` and reload the MCP connection.
+**Disable access** revokes MCP access while preserving accounts, existing jobs and user data.
+Social credentials and the MCP key remain on the user's computer.
+
 An agent without Windows execution/UI access can locate and verify the download and provide these
 steps, but must not report that it installed the application. Unsigned Authenticode installers may
 produce Windows warnings; manifest signatures do not suppress those warnings.
