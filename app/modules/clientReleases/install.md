@@ -39,8 +39,11 @@ using only their destination administrator key in `GEESOME_RELEASE_API_KEY`.
    requests silent installation, only when the user authorized that mode. Do not pass Inno Setup
    switches. Installation or upgrade can refuse when a publication is active or unacknowledged;
    wait for completion and retry. Never force-kill the client or replay an uncertain publication.
-5. Program files are under `%LOCALAPPDATA%\Programs\GeeSome Client`. Runtime state/logs are under
-   `%LOCALAPPDATA%\GeeSome Client`, preserved across upgrades. The installer enables background
+5. Version 0.1.2 and later use `%LOCALAPPDATA%\Programs\geesome-client` for program files and
+   `%LOCALAPPDATA%\geesome-client` for runtime state/logs, preserved across subsequent upgrades.
+   The bootstrap 0.1.1 installer used `%LOCALAPPDATA%\Programs\GeeSome Client` and
+   `%LOCALAPPDATA%\GeeSome Client`; this early naming change does not migrate those directories.
+   The installer enables background
    startup after this user logs in, without an administrator or stored password.
 6. Open `http://localhost:7347` using the GeeSome Client shortcut. Verify this is the client UI;
    an occupied port alone is not proof of successful installation. The user connects their own
