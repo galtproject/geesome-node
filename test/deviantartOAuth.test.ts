@@ -37,10 +37,13 @@ describe('DeviantArt OAuth owner-bound PKCE lifecycle', function () {
 			requests.push({url, options});
 			assert.equal(new URL(url).origin, 'https://www.deviantart.com');assert.equal(options.redirect, 'error');
 			if (url.endsWith('/oauth2/token')) {
+				if (mode === 'invalid-client') {
+					return new Response(JSON.stringify({error: 'invalid_client', error_description: 'private-secret'}), {status: 400});
+				}
 				if (mode === 'unknown') {
 					throw new Error('provider-private-secret');
 				}
-				return new Response(JSON.stringify(mode === 'bad-token' ? {error: '<script>private</script>'} : {access_token: 'private-access', refresh_token: 'private-refresh', token_type: 'Bearer'}));
+				return new Response(JSON.stringify(mode === 'bad-token' ? {error: '<script>private</script>'} : {access_token: mode === 'reconnected' ? 'reconnected-access' : 'private-access', refresh_token: mode === 'reconnected' ? 'reconnected-refresh' : 'private-refresh', token_type: 'Bearer'}));
 			}
 			if (url.endsWith('user/whoami')) {
 				return new Response(JSON.stringify({userid: identity, username: 'Artist'}));
@@ -80,6 +83,55 @@ describe('DeviantArt OAuth owner-bound PKCE lifecycle', function () {
 		await assert.rejects(module.completeDeviantArtOAuth({state: state(flow), code: 'code'}), {status: 409});
 		assert(!requests.some(item => item.url.includes('stash/')));
 	});
+
+	it('reconnects an owned shared account without secrets in input and preserves concurrent destination settings', async () => {
+		const initial = await start();
+		await module.completeDeviantArtOAuth({state: state(initial), code: 'initial'});
+		const destination = (await module.getDeviantArtOAuth(1, initial.flowId)).destination;
+		const shared = await module.setupServerDestination(1, {label: input.label, sourceGroupId: input.sourceGroupId, requestKey: 'second', network: 'deviantart', target: {}, account: {clientId: input.clientId, clientSecret: input.clientSecret, accessToken: 'old-access', refreshToken: 'old-refresh'}, contentPolicy: 'nsfw', enabled: true});
+		requests.length = 0;
+		const flow = await module.startDeviantArtOAuth(1, {destinationId: destination.id});
+		assert.equal(requests.length, 0);
+		assert(!JSON.stringify(flow).includes(input.clientSecret));
+		assert.equal(new URL(flow.authorizationUrl).searchParams.get('scope'), 'basic user browse stash publish');
+		await models.PublicationDestination.update({enabled: true, label: 'Edited during consent', contentPolicy: 'nsfw'}, {where: {id: destination.id}});
+		mode = 'reconnected';
+		assert.deepEqual(await module.completeDeviantArtOAuth({state: state(flow), code: 'reconnect'}), {status: 'connected'});
+		const current = (await module.getDeviantArtOAuth(1, flow.flowId)).destination;
+		assert.equal(current.id, destination.id);assert.equal(current.label, 'Edited during consent');assert.equal(current.enabled, true);assert.equal(current.contentPolicy, 'nsfw');
+		const second = await models.PublicationDestination.findByPk(shared.destination.id);
+		const first = await models.PublicationDestination.findByPk(destination.id);
+		assert.equal(second.socNetAccountId, first.socNetAccountId);
+		assert.equal(second.enabled, true);assert.equal(second.contentPolicy, 'nsfw');
+		const account = await module.loadServerAccount(1, second.socNetAccountId, 'deviantart', second.accountIdentity);
+		assert.equal(account.credentials.accessToken, 'reconnected-access');
+		assert.equal(await sequelize.models.socNetAccount.count(), 1);
+		assert(!requests.some(item => item.url.includes('stash/')));
+	});
+	it('rejects foreign destinations, mixed reconnect inputs and consent for another account without mutating credentials', async () => {
+		const initial = await start();await module.completeDeviantArtOAuth({state: state(initial), code: 'initial'});
+		const destination = (await module.getDeviantArtOAuth(1, initial.flowId)).destination;
+		await assert.rejects(module.startDeviantArtOAuth(2, {destinationId: destination.id}), {status: 404});
+		for (const bad of [{destinationId: 0}, {destinationId: destination.id, enabled: true}, {destinationId: destination.id, clientId: '123'}]) {
+			await assert.rejects(module.startDeviantArtOAuth(1, bad), {status: 400});
+		}
+		const saved = (await sequelize.models.socNetAccount.findOne()).serverCredentialsEncrypted;
+		const flow = await module.startDeviantArtOAuth(1, {destinationId: destination.id});
+		const differentFetch = async (url, options) => url.endsWith('user/whoami') ? new Response(JSON.stringify({userid: 'aaaaaaaa-1234-1234-1234-123456789abc', username: 'Other'})) : providerFetch(url, options);
+		const other = getModule(app, models, {redirectUri, fetch: differentFetch});
+		assert.deepEqual(await other.completeDeviantArtOAuth({state: state(flow), code: 'wrong-account'}), {status: 'failed'});
+		assert.equal((await sequelize.models.socNetAccount.findOne()).serverCredentialsEncrypted, saved);
+		assert.equal(await sequelize.models.socNetAccount.count(), 1);
+	});
+	it('requests application credentials only when unavailable and accepts paired overrides without exposing them', async () => {
+		const initial = await start();await module.completeDeviantArtOAuth({state: state(initial), code: 'initial'});
+		const destination = (await module.getDeviantArtOAuth(1, initial.flowId)).destination;
+		await sequelize.models.socNetAccount.update({serverCredentialsEncrypted: null}, {where: {}});
+		await assert.rejects(module.startDeviantArtOAuth(1, {destinationId: destination.id}), (error: any) => error.code === 'deviantart_oauth_credentials_required');
+		const flow = await module.startDeviantArtOAuth(1, {destinationId: destination.id, clientId: input.clientId, clientSecret: input.clientSecret});
+		assert(!JSON.stringify(flow).includes(input.clientSecret));
+		assert.deepEqual(await module.completeDeviantArtOAuth({state: state(flow), code: 'repair'}), {status: 'connected'});
+	});
 	it('survives module restart between start and callback, retains pending owner binding', async () => {
 		const flow = await start();const reloaded = getModule(app, models, {redirectUri, fetch: providerFetch});
 		assert.equal((await reloaded.getDeviantArtOAuth(1, flow.flowId)).status, 'pending');
@@ -99,6 +151,14 @@ describe('DeviantArt OAuth owner-bound PKCE lifecycle', function () {
 		for (const bad of [{state: ['a', 'b'], code: 'code'}, {state: state(flow), code: ['x', 'y']}, {state: state(flow), error: ['x']}, {state: 'not-state', code: 'code'}]) {
 			await assert.rejects(module.completeDeviantArtOAuth(bad), {status: 400});
 		}
+	});
+
+	it('signals rejected application credentials without exposing token endpoint details', async () => {
+		const flow = await start();mode = 'invalid-client';
+		assert.deepEqual(await module.completeDeviantArtOAuth({state: state(flow), code: 'code'}), {status: 'failed'});
+		const outcome = await module.getDeviantArtOAuth(1, flow.flowId);
+		assert.equal(outcome.error, 'deviantart_oauth_credentials_required');
+		assert(!JSON.stringify(outcome).includes('private-secret'));
 	});
 	it('turns exchange errors into safe failed outcomes and never retries an ambiguous code', async () => {
 		for (const failure of ['bad-token', 'unknown']) {

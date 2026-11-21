@@ -95,14 +95,18 @@ describe('daily social statistics', function () {
 		await destination.update({executionMode: 'server', network: 'deviantart', socNetAccountId: 9, accountIdentity: 'deviantart:fixture'});
 		await module.refresh(1, {kind: 'group', id: destination.id});
 		const before = (await module.summary(1)).groups[0].statistics;
+		let expectedStatus = 'reconnect_required';
 		const app = {ms: {group: {getPostPure: async () => ({groupId: 2})}, socNetAccount: {getStatistics: async () => {
-			throw Object.assign(new Error('private-provider-body'), {statisticsStatus: 'reconnect_required'});
+			throw Object.assign(new Error('private-provider-body'), {statisticsStatus: expectedStatus});
 		}}}};
 		const denied = getModule(app, models, {now: () => new Date('2026-11-11T12:00:00Z')});
-		const result = await denied.refresh(1, {kind: 'group', id: destination.id});
-		assert.equal(result.results[0].status, 'reconnect_required');
-		assert(!JSON.stringify(result).includes('private'));
-		assert.deepEqual((await denied.summary(1)).groups[0].statistics, before);
+		for (const status of ['reconnect_required', 'consent_required', 'authorization_required', 'access_denied', 'unavailable']) {
+			expectedStatus = status;
+			const result = await denied.refresh(1, {kind: 'group', id: destination.id});
+			assert.equal(result.results[0].status, status);
+			assert(!JSON.stringify(result).includes('private'));
+			assert.deepEqual((await denied.summary(1)).groups[0].statistics, before);
+		}
 	});
 	it('bounds and paginates receipts, destinations and source/network filters', async () => {
 		await publishing.PublicationJob.create({...job.toJSON(), id: undefined, requestKey: randomUUID(), remoteId: '124'});

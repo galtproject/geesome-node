@@ -30,9 +30,15 @@ export function createDeviantArtProvider(transport: any) {
 			}
 		}
 		check(refreshCredentials || allowUnmanagedRefresh, 'DeviantArt first connection requires a current access token');
+		return refreshSession(credentials, refreshCredentials);
+	}
+	async function refreshSession(credentials, refreshCredentials, rejectedAccessToken?) {
 		async function renew(current) {
 			// Another process may have refreshed this account while we waited for its lock.
 			try {
+				if (current.accessToken === rejectedAccessToken) {
+					throw Object.assign(new Error('Expired access token'), {httpStatus: 401});
+				}
 				await whoami(current);
 				return current;
 			} catch (error) {
@@ -41,7 +47,15 @@ export function createDeviantArtProvider(transport: any) {
 				}
 			}
 			const body = new URLSearchParams({grant_type: 'refresh_token', client_id: current.clientId, client_secret: current.clientSecret, refresh_token: current.refreshToken});
-			const refreshed = await readJson(transport, `${origin}/oauth2/token`, {method: 'POST', body});
+			let refreshed;
+			try {
+				refreshed = await readJson(transport, `${origin}/oauth2/token`, {method: 'POST', body});
+			} catch (error) {
+				if ([400, 401].includes(error.httpStatus)) {
+					error.authorizationRequired = true;
+				}
+				throw error;
+			}
 			check(refreshed && !refreshed.error && refreshed.token_type?.toLowerCase() === 'bearer', 'DeviantArt token refresh failed');
 			secret(refreshed.access_token);
 			secret(refreshed.refresh_token);
@@ -52,6 +66,7 @@ export function createDeviantArtProvider(transport: any) {
 		return {...await whoami(refreshed), credentials: refreshed};
 	}
 	return {
+		refreshSession,
 		async verify(credentials: any, target: any = {}, refreshCredentials?: any) {
 			check(target && Object.keys(target).length === 0, 'DeviantArt destination parameters are invalid');
 			const connected = await session(credentials, refreshCredentials, false);
