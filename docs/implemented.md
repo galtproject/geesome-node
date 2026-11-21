@@ -1,5 +1,14 @@
 # GeeSome Node Implemented Work
 
+## Client installation guide: local MCP connection (#1691)
+
+The public installer guide explains opt-in **Settings → AI agent** setup in MCP-capable
+client releases, generated project-root `.env` variables, host configuration, browser
+capabilities and safe publication retries. It explicitly excludes the early 0.1.1/0.1.2
+installers. MCP credentials stay on the user's computer; no node API or database change
+is involved. Verification: guide-source review against the client tool/variable names
+and whitespace validation. Runtime tests were not run for this documentation-only change.
+
 ## DeviantArt reconnect with saved application credentials (#1686)
 
 Owner-authorized OAuth start accepts an existing server destination ID and loads
