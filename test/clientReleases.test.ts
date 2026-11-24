@@ -166,6 +166,12 @@ describe('client release public discovery and API', function () {
         assert.match(guide.headers.get('content-type') || '', /text\/markdown/);
         const text = await guide.text();
         assert.match(text, /localhost:7347/);
+        assert.match(text, /native Windows x64 GeeSome Client EXE/);
+        assert.match(text, /Do not substitute one when EXE installation fails/);
+        assert.match(text, /Required completion checks/);
+        assert.match(text, /localhost:7347\/api\/health/);
+        assert.match(text, /Windows Installed Apps/);
+        assert.match(text, /partial repair/);
         assert.match(text, /separate trusted channel/);
         assert.match(text, /first-install bootstrap authority/);
         assert.equal((await fetch(`${origin}/v1/client-releases/stable/windows-x64`)).status, 404);

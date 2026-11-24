@@ -1,5 +1,21 @@
 # GeeSome Node Implemented Work
 
+## Native client installation discovery (#1693)
+
+The pinned frontend adds public home/menu links and a desktop download page using
+unauthenticated signed-release discovery. Root HTML also exposes native-install
+and discovery guidance for readers without JavaScript. All setup copy is English.
+The installation guide explicitly rejects Firefox/PWA substitution and requires the
+local health identity/version, local UI, enabled per-user login task and Installed
+Apps entry before reporting success. Unsupported, unpublished and invalid releases
+are not replaced with a website shortcut. This changes no installer bytes or API
+schema; deploy the updated frontend and node guide together after merging the UI
+and node PRs.
+
+Verification: UI Node 18 production build and desktop/mobile screenshot/browser
+coverage; node client-release HTTP tests; frontend publication and Docker cache
+checks. Windows installation is not established by these web/discovery checks.
+
 ## Client installation guide: local MCP connection (#1691)
 
 The public installer guide explains opt-in **Settings → AI agent** setup in MCP-capable

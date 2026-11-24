@@ -1,5 +1,18 @@
 # Install GeeSome Client on Windows
 
+## Installation contract
+
+Install the **native Windows x64 GeeSome Client EXE**, which runs a local background
+process and serves its UI at `http://localhost:7347`. The HTTPS node website distributes
+the installer; it is not the installed local client. A Firefox web app, PWA, browser
+shortcut, pinned tab or remote website window does **not** satisfy this request.
+Do not substitute one when EXE installation fails. Report the failure and the last
+completed step instead. A downloaded file alone is not installation success either.
+
+Read the discovery/verification steps below before choosing how to install. Public
+install/download discovery is available without signing in. Use the node's **Download
+desktop client** page when available; an older web frontend may not show that link yet.
+
 This guide is for a user-authorized desktop agent or the user. Public downloads require no API
 key. Configuring the user's GeeSome/social accounts is a separate step; never request or install
 the operator's release-publication key. Installation is Windows x64, per-user, without elevation.
@@ -52,6 +65,28 @@ using only their destination administrator key in `GEESOME_RELEASE_API_KEY`.
 7. Reinstall a newer verified EXE to upgrade. User state stays outside replaceable program files.
    Uninstall using Windows Installed Apps or the installed uninstaller; the login task and program
    are removed, while local credentials/state are preserved unless the user explicitly deletes them.
+
+## Required completion checks
+
+Before reporting successful installation, verify and report each item:
+
+- The verified Windows EXE was actually run and the installer completed successfully.
+  Record its release version; do not confuse a browser web-app registration with it.
+- `GET http://localhost:7347/api/health` returns JSON with `product: "geesome-client"`
+  and the installed release version. A responding port, remote node health check or
+  website title is insufficient. A version mismatch is an incomplete upgrade.
+- The local `http://localhost:7347/posting` page opens. Verify the address is local,
+  rather than the HTTPS node website, and explain how the user can reopen it.
+- The per-user login task `GeeSome Client (<current-user SID>)` is registered and enabled.
+  Do not claim login persistence was tested unless a real sign-out/sign-in was checked.
+- GeeSome Client appears in **Windows Installed Apps**, with its version and uninstaller.
+  A manually copied payload without installer registration is a partial repair, not
+  a completed normal installation.
+
+If the agent cannot execute Windows commands or inspect one of these results, report
+that limitation and the remaining checks explicitly. Never report success based only
+on download completion or opening the remote website. Preserve existing user state;
+respect safe-shutdown refusals rather than force-killing an active publication.
 
 ## Connect a local AI agent
 
