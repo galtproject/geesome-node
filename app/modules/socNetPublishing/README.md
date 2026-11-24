@@ -227,15 +227,28 @@ Configure the exact public HTTPS callback in the application's redirect whitelis
 https://example.com/v1/user/social-publications/deviantart/oauth/callback
 ```
 
-The server derives this URI from `apiConfig.publicUrl`, or an operator can set
-`DEVIANTART_OAUTH_REDIRECT_URI` when a separately hosted site proxies the callback.
-The override accepts HTTPS only, the exact canonical callback path, and no
-credentials, port, query or fragment. It is forwarded by Docker Compose. The
-client cannot supply a callback URL. Configure the site's reverse proxy to pass
-this exact GET path to the node's `/v1/user/social-publications/deviantart/oauth/callback`
-route and disable proxy access logs on it to keep authorization code/state out
-of URL logs. Node also suppresses its optional request access log for this path.
-Do not rewrite or append query parameters.
+By default Node derives this URI from its public API base URL, including the
+configured API prefix (usually `/api/v1`). Operators can set
+`DEVIANTART_OAUTH_REDIRECT_URI` explicitly. No consuming-site domain is a built-in
+default. With capability `deviantartOAuthCustomCallback:true`, an owner can supply
+optional `redirectUri` when starting a new connection or reconnecting. It must be
+an exact HTTPS URL with the canonical callback path, optionally prefixed by
+`/api`, and no credentials, port, query, fragment or whitespace. Node does not
+fetch this URL. Its host must proxy the callback to this Node; registering the
+URL in DeviantArt alone does not configure that proxy.
+
+The selected URI is frozen in the encrypted flow and used unchanged for both
+provider authorization and token exchange. After success it stays with encrypted
+account credentials; reconnect without an override reuses it, including when
+replacement application credentials are supplied. Legacy accounts without a
+saved callback use the Node default. Existing pending flows retain their original
+URI. Callback pages never redirect the browser to the supplied URL.
+
+Configure the site's reverse proxy to pass this exact GET path to the node's
+`/v1/user/social-publications/deviantart/oauth/callback` route and disable access
+logs on it to keep authorization code/state out of URL logs. Node also suppresses
+its optional request access log for this path. Do not rewrite or append query
+parameters.
 
 The owner-authorized `POST /user/social-publications/deviantart/oauth/start` takes
 `requestKey`, `label`, optional `sourceGroupId`, explicit `contentPolicy`, optional

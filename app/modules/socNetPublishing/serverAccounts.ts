@@ -3,6 +3,7 @@ import {isOwnedQueueGroup} from './sources.js';
 import {destinationView, resolveDestinationTarget} from './destinations.js';
 import {createServerProviders} from './providers/index.js';
 import {normalizeContentPolicy} from './contentPolicy.js';
+import {validateDeviantArtRedirectUri} from './deviantartOAuth.js';
 
 export function getServerAccountMethods(app, Destination, {normalizeRequest, boundedInteger, problem}, options: any = {}) {
 	const providers = options.providers || createServerProviders({fetch: options.fetch});
@@ -92,9 +93,12 @@ export function getServerAccountMethods(app, Destination, {normalizeRequest, bou
 			}
 			const credentials = input.account;
 			const allowed = input.network === 'deviantart' ? ['accessToken', 'clientId', 'clientSecret', 'refreshToken'] : input.network === 'bluesky' ? ['identifier', 'appPassword'] : ['botToken'];
-			if (!credentials || typeof credentials !== 'object' || Array.isArray(credentials) || Object.keys(credentials).some(key => !allowed.includes(key)) ||
+			if (!credentials || typeof credentials !== 'object' || Array.isArray(credentials) || Object.keys(credentials).some(key => !allowed.includes(key) && !(input.network === 'deviantart' && key === 'redirectUri')) ||
 				allowed.some(key => typeof credentials[key] !== 'string' || !credentials[key] || credentials[key].length > 4096 || /[\u0000-\u001f\u007f]/.test(credentials[key]))) {
 				throw problem(400, 'server_publication_credentials_invalid');
+			}
+			if (input.network === 'deviantart' && Object.hasOwn(credentials, 'redirectUri')) {
+				validateDeviantArtRedirectUri(credentials.redirectUri);
 			}
 			const configured = input.target ?? {};
 			const contentPolicy = normalizeContentPolicy(input.contentPolicy);

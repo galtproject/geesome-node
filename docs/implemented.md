@@ -1,5 +1,21 @@
 # GeeSome Node Implemented Work
 
+## Per-connection DeviantArt OAuth callback (#1697)
+
+Owners can supply an exact validated HTTPS redirectUri on OAuth start/reconnect.
+Node freezes it in encrypted flow state, uses it unchanged for token exchange and
+retains it with encrypted account credentials for future reconnects. The public
+API capability advertises support before clients send custom settings. Omitted
+values use the saved account callback or public Node API callback; no consuming
+site is built into the default. Existing pending flows keep their frozen URI.
+No schema migration or frontend package change is required in Node. Deploy Node
+before the updated Client; each custom host must proxy the callback and owners
+must whitelist the exact URI in their provider application.
+
+Verification: PostgreSQL-backed OAuth lifecycle/server publishing regressions,
+including default API prefix, invalid callbacks, exact exchange binding and
+reconnect reuse/override. Provider calls are mocked; no live consent/publication.
+
 ## Unrestricted manual API key publishing scopes (#1695)
 
 New `user_manual` keys created without permissions/scopes inherit the owner's

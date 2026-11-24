@@ -16,16 +16,25 @@ function problem(status, code): never {
 }
 
 export function deviantArtRedirectUri(app, override = process.env.DEVIANTART_OAUTH_REDIRECT_URI) {
+	return validateDeviantArtRedirectUri(override || `${getPublicApiContext(app).apiBaseUrl}/user/social-publications/deviantart/oauth/callback`, 409);
+}
+
+export function validateDeviantArtRedirectUri(value, status = 400) {
+	const code = status === 400 ? 'deviantart_oauth_redirect_uri_invalid' : 'deviantart_oauth_callback_unconfigured';
+	if (typeof value !== 'string' || !value || value.length > 2048 || /[\u0000-\u0020\u007f]/.test(value)) {
+		problem(status, code);
+	}
 	let url;
 	try {
-		url = new URL(override || `${getPublicApiContext(app).publicUrl}${callbackPath}`);
+		url = new URL(value);
 	} catch {
-		problem(409, 'deviantart_oauth_callback_unconfigured');
+		problem(status, code);
 	}
-	if (url.protocol !== 'https:' || url.username || url.password || url.port || url.search || url.hash || url.pathname !== callbackPath) {
-		problem(409, 'deviantart_oauth_callback_unconfigured');
+	if (url.protocol !== 'https:' || url.username || url.password || url.port || url.search || url.hash ||
+		![callbackPath, `/api${callbackPath}`].includes(url.pathname) || url.href !== value) {
+		problem(status, code);
 	}
-	return url.href;
+	return value;
 }
 
 export function getDeviantArtOAuthMethods(app, {PublicationOAuthFlow: Flow, PublicationDestination: Destination}, accounts, options: any = {}) {
@@ -46,7 +55,7 @@ export function getDeviantArtOAuthMethods(app, {PublicationOAuthFlow: Flow, Publ
 		async startDeviantArtOAuth(userId, input) {
 			let reconnect;
 			if (input && Object.hasOwn(input, 'destinationId')) {
-				if (Object.keys(input).some(key => !['destinationId', 'clientId', 'clientSecret'].includes(key)) || !Number.isSafeInteger(input.destinationId) || input.destinationId < 1 ||
+				if (Object.keys(input).some(key => !['destinationId', 'clientId', 'clientSecret', 'redirectUri'].includes(key)) || !Number.isSafeInteger(input.destinationId) || input.destinationId < 1 ||
 					Object.hasOwn(input, 'clientId') !== Object.hasOwn(input, 'clientSecret')) {
 					problem(400, 'deviantart_oauth_input_invalid');
 				}
@@ -54,10 +63,19 @@ export function getDeviantArtOAuthMethods(app, {PublicationOAuthFlow: Flow, Publ
 				if (!destination) {
 					problem(404, 'local_publication_destination_not_found');
 				}
+				let savedCredentials;
+				try {
+					savedCredentials = (await accounts.loadServerAccount(userId, destination.socNetAccountId, 'deviantart', destination.accountIdentity)).credentials;
+				} catch {
+					// Replacement app credentials can repair an unavailable saved account.
+				}
 				let credentials = input;
 				if (!Object.hasOwn(input, 'clientId')) {
 					try {
-						credentials = (await accounts.loadServerAccount(userId, destination.socNetAccountId, 'deviantart', destination.accountIdentity)).credentials;
+						credentials = savedCredentials;
+						if (!credentials) {
+							throw new Error('missing_credentials');
+						}
 					} catch {
 						problem(409, 'deviantart_oauth_credentials_required');
 					}
@@ -67,9 +85,10 @@ export function getDeviantArtOAuthMethods(app, {PublicationOAuthFlow: Flow, Publ
 				}
 				reconnect = {destinationId: destination.id, accountId: destination.socNetAccountId, accountIdentity: destination.accountIdentity};
 				input = {requestKey: destination.localKey.slice('server:'.length), label: destination.label, sourceGroupId: destination.sourceGroupId,
-					contentPolicy: destination.contentPolicy, enabled: destination.enabled, clientId: credentials.clientId, clientSecret: credentials.clientSecret};
+					contentPolicy: destination.contentPolicy, enabled: destination.enabled, clientId: credentials.clientId, clientSecret: credentials.clientSecret,
+					...(Object.hasOwn(input, 'redirectUri') ? {redirectUri: input.redirectUri} : savedCredentials?.redirectUri ? {redirectUri: savedCredentials.redirectUri} : {})};
 			}
-			if (!Flow || !input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['requestKey', 'label', 'sourceGroupId', 'contentPolicy', 'enabled', 'clientId', 'clientSecret'].includes(key)) ||
+			if (!Flow || !input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !['requestKey', 'label', 'sourceGroupId', 'contentPolicy', 'enabled', 'clientId', 'clientSecret', 'redirectUri'].includes(key)) ||
 				typeof input.requestKey !== 'string' || !/^[A-Za-z0-9_.:-]{1,128}$/.test(input.requestKey) || typeof input.label !== 'string' || !input.label.trim() || input.label.length > 200 || /[\u0000-\u001f\u007f]/.test(input.label) ||
 				typeof input.clientId !== 'string' || !/^[1-9][0-9]{0,19}$/.test(input.clientId) || input.enabled !== undefined && typeof input.enabled !== 'boolean' ||
 				input.sourceGroupId != null && (!Number.isSafeInteger(input.sourceGroupId) || input.sourceGroupId < 1)) {
@@ -84,7 +103,7 @@ export function getDeviantArtOAuthMethods(app, {PublicationOAuthFlow: Flow, Publ
 			if (input.sourceGroupId && !isOwnedQueueGroup(await app.ms.group.getGroup(input.sourceGroupId), userId)) {
 				problem(403, 'local_publication_source_forbidden');
 			}
-			const redirectUri = deviantArtRedirectUri(app, options.redirectUri);
+			const redirectUri = Object.hasOwn(input, 'redirectUri') ? validateDeviantArtRedirectUri(input.redirectUri) : deviantArtRedirectUri(app, options.redirectUri);
 			await expire();
 			const flowId = randomBytes(32).toString('hex');
 			const state = randomBytes(32).toString('hex');
@@ -154,7 +173,7 @@ export function getDeviantArtOAuthMethods(app, {PublicationOAuthFlow: Flow, Publ
 				}
 				secret(token.access_token);
 				secret(token.refresh_token);
-				const account = {clientId: data.clientId, clientSecret: data.clientSecret, accessToken: token.access_token, refreshToken: token.refresh_token};
+				const account = {clientId: data.clientId, clientSecret: data.clientSecret, redirectUri: data.redirectUri, accessToken: token.access_token, refreshToken: token.refresh_token};
 				// Keep exchanged tokens encrypted during setup; a crashed processing flow requires fresh consent, never a repeated code exchange.
 				await row.update({secretEncrypted: await app.encryptTextWithAppPass(JSON.stringify({setup: data.setup, reconnect: data.reconnect, account}))});
 				const result = data.reconnect ? await accounts.reconnectDeviantArtDestination(row.userId, data.reconnect, account) : await accounts.setupServerDestination(row.userId, {...data.setup, account});
