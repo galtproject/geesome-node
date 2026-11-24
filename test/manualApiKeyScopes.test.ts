@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import createApp from '../app/index.js';
 import {CorePermissionName as P} from '../app/modules/database/interface.js';
-import {getApiKeyScopes} from '../app/modules/api/integrationScopes.js';
+import {getApiKeyScopes, getScopePermissions, normalizeIntegrationScopes, requireIntegrationScopes} from '../app/modules/api/integrationScopes.js';
 import registerPublishingApi from '../app/modules/socNetPublishing/api.js';
 
 describe('manual API key creation scopes', () => {
@@ -23,7 +23,7 @@ describe('manual API key creation scopes', () => {
 	it('creates an unrestricted manual key that can start DeviantArt OAuth', async () => {
 		await app.generateUserApiKey(1, {type: 'user_manual', title: 'Publisher'});
 		assert.deepEqual(JSON.parse(saved.permissions), [P.UserAll]);
-		for (const scope of ['publishing:manage', 'publishing:local', 'assets:write']) {
+		for (const scope of ['publishing:all', 'publishing:manage', 'publishing:local', 'assets:write']) {
 			assert(getApiKeyScopes(saved).includes(scope));
 		}
 		const routes = [];
@@ -40,7 +40,7 @@ describe('manual API key creation scopes', () => {
 	it('derives management only when the owner has group management', async () => {
 		permissions = [P.UserApiKeyManagement, P.UserGroupManagement];
 		await app.generateUserApiKey(1, {type: 'user_manual'});
-		assert.deepEqual(getApiKeyScopes(saved), ['publishing:local', 'publishing:manage']);
+		assert.deepEqual(getApiKeyScopes(saved), ['publishing:all', 'publishing:local', 'publishing:manage']);
 		permissions = [P.UserApiKeyManagement, P.UserSaveData];
 		await app.generateUserApiKey(1, {type: 'user_manual'});
 		assert(getApiKeyScopes(saved).includes('assets:write'));
@@ -73,5 +73,17 @@ describe('manual API key creation scopes', () => {
 			assert.equal(saved.scopes, undefined);
 			assert(!getApiKeyScopes(saved).includes('publishing:manage'));
 		}
+	});
+
+	it('accepts explicit publishing:all and expands it for authorization and credential discovery', async () => {
+		assert.deepEqual(normalizeIntegrationScopes(['publishing:all']), ['publishing:all']);
+		assert.deepEqual(getScopePermissions(['publishing:all']), [P.UserGroupManagement]);
+		await app.generateUserApiKey(1, {type: 'user_manual', scopes: ['publishing:all']});
+		assert.deepEqual(JSON.parse(saved.scopes), ['publishing:all']);
+		assert.deepEqual(getApiKeyScopes(saved), ['publishing:all', 'publishing:local', 'publishing:manage']);
+		requireIntegrationScopes(saved, ['publishing:manage', 'publishing:local']);
+		assert.throws(() => requireIntegrationScopes(saved, ['assets:write']), {code: 'insufficient_scope'});
+		permissions = [P.UserApiKeyManagement, P.UserSaveData];
+		await assert.rejects(app.generateUserApiKey(1, {scopes: ['publishing:all']}), /not_permitted/);
 	});
 });

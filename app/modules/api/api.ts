@@ -290,7 +290,7 @@ export default (app: IGeesomeApp, module: IGeesomeApiModule) => {
 	 * @api {post} /v1/user/api-key/add Create user API key
 	 * @apiName UserApiKeyAdd
 	 * @apiGroup UserApiKey
-	 * @apiDescription A user_manual key with omitted permissions and scopes inherits the owner's core permissions and corresponding explicit integration scopes, including publishing:manage when group management is allowed. Explicit permissions/scopes remain restricted as supplied. Existing keys are not expanded.
+	 * @apiDescription A user_manual key with omitted permissions and scopes inherits the owner's core permissions and corresponding explicit integration scopes, including publishing:all (publishing:local and publishing:manage) when group management is allowed. Explicit permissions/scopes remain restricted as supplied. Existing keys are not expanded.
 	 *
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors

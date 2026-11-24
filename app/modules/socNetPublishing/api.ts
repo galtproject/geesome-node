@@ -1,7 +1,7 @@
 import {acceptStorageRequest} from '../asyncOperation/requests.js';
 import {IGeesomeApp} from '../../interface.js';
 import {CorePermissionName} from '../database/interface.js';
-import {requireIntegrationScopes} from '../api/integrationScopes.js';
+import {getApiKeyScopes, requireIntegrationScopes} from '../api/integrationScopes.js';
 import {ApiProblemError} from '../api/problem.js';
 import {publicationClientId} from './destinations.js';
 import ISocNetPublishingModule from './interface.js';
@@ -13,11 +13,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	}]));
 	async function authorizeManagement(req) {
 		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
-		let scopes = req.apiKey?.scopes;
-		if (typeof scopes === 'string') {
-			try { scopes = JSON.parse(scopes); } catch { scopes = []; }
-		}
-		if (req.apiKey?.type !== 'password_auth' && !(Array.isArray(scopes) && scopes.includes('publishing:manage'))) {
+		if (req.apiKey?.type !== 'password_auth' && !getApiKeyScopes(req.apiKey).includes('publishing:manage')) {
 			throw new ApiProblemError(403, 'insufficient_scope', 'Server publishing management requires an explicit publishing:manage key or owner session');
 		}
 	}

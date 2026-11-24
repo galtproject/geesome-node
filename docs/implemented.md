@@ -5,7 +5,9 @@
 New `user_manual` keys created without permissions/scopes inherit the owner's
 core permissions and receive corresponding explicit integration scopes. Owners
 with group management permission can connect server publishing accounts immediately
-because these keys include `publishing:manage`. Explicitly restricted keys, other
+because these keys include `publishing:all`, which expands to `publishing:local`
+and `publishing:manage` in authorization and credential discovery. The umbrella
+scope can also be requested explicitly; it does not include asset upload rights. Explicitly restricted keys, other
 key types and legacy keys retain their existing behavior. No database migration
 or automatic expansion of existing credentials is performed.
 

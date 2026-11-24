@@ -432,7 +432,7 @@ function getModule(config, appPass) {
         if (data.type === 'user_manual' && data.scopes === undefined) {
           const scopes = getApiKeyScopes(data);
           if (permissions.includes(CorePermissionName.UserGroupManagement) || permissions.includes(CorePermissionName.UserAll)) {
-            scopes.push('publishing:manage');
+            scopes.push('publishing:all');
           }
           data.scopes = JSON.stringify(normalizeIntegrationScopes(scopes));
         }
