@@ -244,7 +244,13 @@ The owner-authorized `POST /user/social-publications/deviantart/oauth/start` tak
 provider URL in a separate window and poll authenticated
 `GET /user/social-publications/deviantart/oauth/:flowId` for safe status and, when
 connected, the destination view. Both require UserGroupManagement plus explicit
-`publishing:manage` or an owner password session. The callback itself is public,
+`publishing:manage` or an owner password session. Newly created unrestricted
+`user_manual` API keys receive this scope explicitly when the owner has group
+management permission, along with the other scopes supported by their inherited
+permissions. Keys created with explicit permissions/scopes and existing keys keep
+their restrictions; legacy `user:all` alone does not grant `publishing:manage`.
+Publication workflows also need `publishing:local` and image uploads need
+`assets:write`. The callback itself is public,
 protected by a random one-use state and S256 PKCE rather than a browser session.
 There is no return-to URL or arbitrary redirect.
 

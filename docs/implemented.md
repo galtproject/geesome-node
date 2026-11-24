@@ -1,5 +1,18 @@
 # GeeSome Node Implemented Work
 
+## Unrestricted manual API key publishing scopes (#1695)
+
+New `user_manual` keys created without permissions/scopes inherit the owner's
+core permissions and receive corresponding explicit integration scopes. Owners
+with group management permission can connect server publishing accounts immediately
+because these keys include `publishing:manage`. Explicitly restricted keys, other
+key types and legacy keys retain their existing behavior. No database migration
+or automatic expansion of existing credentials is performed.
+
+Verification: application key-creation tests cover successful DeviantArt OAuth
+route authorization, legacy-key rejection, limited owner permissions, explicit
+permissions/scopes and non-manual keys; application bootstrap regressions pass.
+
 ## Native client installation discovery (#1693)
 
 The pinned frontend adds public home/menu links and a desktop download page using

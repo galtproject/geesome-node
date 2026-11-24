@@ -58,7 +58,7 @@ import config from './config.js';
 import {startMemoryProfiler} from './memoryProfiler.js';
 import type {MemoryProfilerHandle} from './memoryProfiler.js';
 import {cleanupAndRethrow, cleanupResource} from './resourceCleanup.js';
-import {getScopePermissions, normalizeIntegrationScopes, serializeApiKey} from './modules/api/integrationScopes.js';
+import {getApiKeyScopes, getScopePermissions, normalizeIntegrationScopes, serializeApiKey} from './modules/api/integrationScopes.js';
 const {pick, merge, isUndefined, startsWith, reverse, clone, extend, isString} = _;
 const log = debug('geesome:app');
 const apiKeyListParams: IListParamsOptions = {
@@ -427,7 +427,15 @@ function getModule(config, appPass) {
       }
 
       if (!data.permissions) {
-        data.permissions = JSON.stringify(await this.ms.database.getCorePermissions(userId).then(list => list.map(i => i.name)));
+        const permissions = await this.ms.database.getCorePermissions(userId).then(list => list.map(i => i.name));
+        data.permissions = JSON.stringify(permissions);
+        if (data.type === 'user_manual' && data.scopes === undefined) {
+          const scopes = getApiKeyScopes(data);
+          if (permissions.includes(CorePermissionName.UserGroupManagement) || permissions.includes(CorePermissionName.UserAll)) {
+            scopes.push('publishing:manage');
+          }
+          data.scopes = JSON.stringify(normalizeIntegrationScopes(scopes));
+        }
       } else if (Array.isArray(data.permissions)) {
         data.permissions = JSON.stringify(data.permissions);
       }
