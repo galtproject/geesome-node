@@ -1,7 +1,7 @@
 import {acceptStorageRequest} from '../asyncOperation/requests.js';
 import {IGeesomeApp} from '../../interface.js';
 import {CorePermissionName} from '../database/interface.js';
-import {requireIntegrationScopes} from '../api/integrationScopes.js';
+import {getApiKeyScopes, requireIntegrationScopes} from '../api/integrationScopes.js';
 import {ApiProblemError} from '../api/problem.js';
 import {publicationClientId} from './destinations.js';
 import ISocNetPublishingModule from './interface.js';
@@ -13,11 +13,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	}]));
 	async function authorizeManagement(req) {
 		await app.checkUserCan(req.user.id, CorePermissionName.UserGroupManagement);
-		let scopes = req.apiKey?.scopes;
-		if (typeof scopes === 'string') {
-			try { scopes = JSON.parse(scopes); } catch { scopes = []; }
-		}
-		if (req.apiKey?.type !== 'password_auth' && !(Array.isArray(scopes) && scopes.includes('publishing:manage'))) {
+		if (req.apiKey?.type !== 'password_auth' && !getApiKeyScopes(req.apiKey).includes('publishing:manage')) {
 			throw new ApiProblemError(403, 'insufficient_scope', 'Server publishing management requires an explicit publishing:manage key or owner session');
 		}
 	}
@@ -28,7 +24,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiUse ApiKey
 	 * @apiUse AuthErrors
 	 * @apiUse ValidationErrors
-	 * @apiDescription Owner management authorization required. Creates an encrypted, owner-bound ten-minute PKCE flow. No provider publication occurs. Callback URI is fixed by server configuration; client-provided callback URLs are rejected. Reconnect accepts only destinationId and optional paired application credential overrides; saved credentials stay server-side and callback preserves destination settings and account identity.
+	 * @apiDescription Owner management authorization required. Creates an encrypted, owner-bound ten-minute PKCE flow. No provider publication occurs. Optional redirectUri selects an exact validated HTTPS callback for this flow; otherwise the saved reconnect callback or public Node API callback is used. Reconnect accepts only destinationId and optional paired application credential overrides; saved credentials stay server-side and callback preserves destination settings and account identity.
 	 * @apiBody {Number} [destinationId] Existing owned server DeviantArt destination; omit setup fields for reconnect.
 	 * @apiBody {String} [requestKey] Stable destination setup key; required for new connections.
 	 * @apiBody {String} [label] Destination label (1–200 characters); required for new connections.
@@ -40,7 +36,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiSuccess {String} flowId Opaque owner-scoped status identifier.
 	 * @apiSuccess {String} authorizationUrl Open in a separate browser window.
 	 * @apiSuccess {String} expiresAt Expiration instant.
-	 * @apiSuccess {String} redirectUri Exact server-configured whitelist entry.
+	 * @apiSuccess {String} redirectUri Exact selected whitelist entry.
 	 */
 	api.onAuthorizedPost('user/social-publications/deviantart/oauth/start', async (req, res) => {
 		await authorizeManagement(req);

@@ -1,5 +1,61 @@
 # GeeSome Node Implemented Work
 
+## Per-connection DeviantArt OAuth callback (#1697)
+
+Owners can supply an exact validated HTTPS redirectUri on OAuth start/reconnect.
+Node freezes it in encrypted flow state, uses it unchanged for token exchange and
+retains it with encrypted account credentials for future reconnects. The public
+API capability advertises support before clients send custom settings. Omitted
+values use the saved account callback or public Node API callback; no consuming
+site is built into the default. Existing pending flows keep their frozen URI.
+No schema migration or frontend package change is required in Node. Deploy Node
+before the updated Client; each custom host must proxy the callback and owners
+must whitelist the exact URI in their provider application.
+
+Verification: PostgreSQL-backed OAuth lifecycle/server publishing regressions,
+including default API prefix, invalid callbacks, exact exchange binding and
+reconnect reuse/override. Provider calls are mocked; no live consent/publication.
+
+## Unrestricted manual API key publishing scopes (#1695)
+
+New `user_manual` keys created without permissions/scopes inherit the owner's
+core permissions and receive corresponding explicit integration scopes. Owners
+with group management permission can connect server publishing accounts immediately
+because these keys include `publishing:all`, which expands to `publishing:local`
+and `publishing:manage` in authorization and credential discovery. The umbrella
+scope can also be requested explicitly; it does not include asset upload rights. Explicitly restricted keys, other
+key types and legacy keys retain their existing behavior. No database migration
+or automatic expansion of existing credentials is performed.
+
+Verification: application key-creation tests cover successful DeviantArt OAuth
+route authorization, legacy-key rejection, limited owner permissions, explicit
+permissions/scopes and non-manual keys; application bootstrap regressions pass.
+
+## Native client installation discovery (#1693)
+
+The pinned frontend adds public home/menu links and a desktop download page using
+unauthenticated signed-release discovery. Root HTML also exposes native-install
+and discovery guidance for readers without JavaScript. All setup copy is English.
+The installation guide explicitly rejects Firefox/PWA substitution and requires the
+local health identity/version, local UI, enabled per-user login task and Installed
+Apps entry before reporting success. Unsupported, unpublished and invalid releases
+are not replaced with a website shortcut. This changes no installer bytes or API
+schema; deploy the updated frontend and node guide together after merging the UI
+and node PRs.
+
+Verification: UI Node 18 production build and desktop/mobile screenshot/browser
+coverage; node client-release HTTP tests; frontend publication and Docker cache
+checks. Windows installation is not established by these web/discovery checks.
+
+## Client installation guide: local MCP connection (#1691)
+
+The public installer guide explains opt-in **Settings → AI agent** setup in MCP-capable
+client releases, generated project-root `.env` variables, host configuration, browser
+capabilities and safe publication retries. It explicitly excludes the early 0.1.1/0.1.2
+installers. MCP credentials stay on the user's computer; no node API or database change
+is involved. Verification: guide-source review against the client tool/variable names
+and whitespace validation. Runtime tests were not run for this documentation-only change.
+
 ## DeviantArt reconnect with saved application credentials (#1686)
 
 Owner-authorized OAuth start accepts an existing server destination ID and loads

@@ -54,6 +54,39 @@ describe('DeviantArt OAuth owner-bound PKCE lifecycle', function () {
 	});
 	const start = async (extra = {}) => module.startDeviantArtOAuth(1, {...input, ...extra});
 	const state = flow => new URL(flow.authorizationUrl).searchParams.get('state');
+	it('defaults to the public Node API callback and accepts no consuming-site default', () => {
+		assert.equal(deviantArtRedirectUri(app, ''), 'https://example.com/api/v1/user/social-publications/deviantart/oauth/callback');
+	});
+	it('freezes a custom callback for exchange and retains it for reconnect with optional replacement', async () => {
+		const custom = 'https://owner.example/v1/user/social-publications/deviantart/oauth/callback';
+		const flow = await start({redirectUri: custom});
+		assert.equal(flow.redirectUri, custom);
+		assert.equal(new URL(flow.authorizationUrl).searchParams.get('redirect_uri'), custom);
+		app.config.apiConfig.publicUrl = 'https://changed.example';
+		assert.deepEqual(await module.completeDeviantArtOAuth({state: state(flow), code: 'custom'}), {status: 'connected'});
+		assert.equal(requests[0].options.body.get('redirect_uri'), custom);
+		const result = await module.getDeviantArtOAuth(1, flow.flowId);
+		assert(!JSON.stringify(result).includes(custom));
+		const destination = await models.PublicationDestination.findByPk(result.destination.id);
+		const saved = await module.loadServerAccount(1, destination.socNetAccountId, 'deviantart', destination.accountIdentity);
+		assert.equal(saved.credentials.redirectUri, custom);
+		assert.equal((await module.startDeviantArtOAuth(1, {destinationId: destination.id})).redirectUri, custom);
+		const replacement = 'https://other.example/api/v1/user/social-publications/deviantart/oauth/callback';
+		assert.equal((await module.startDeviantArtOAuth(1, {destinationId: destination.id, redirectUri: replacement})).redirectUri, replacement);
+		assert.equal((await module.startDeviantArtOAuth(1, {destinationId: destination.id, clientId: '456', clientSecret: 'replacement-secret'})).redirectUri, custom);
+	});
+	it('rejects malformed custom callbacks before creating a flow or contacting providers', async () => {
+		for (const redirectUri of [null, '', 123, 'http://owner.example/v1/user/social-publications/deviantart/oauth/callback',
+			'https://owner.example/wrong', 'https://user:pass@owner.example/v1/user/social-publications/deviantart/oauth/callback',
+			'https://owner.example:443/v1/user/social-publications/deviantart/oauth/callback',
+			'https://owner.example/v1/user/social-publications/deviantart/oauth/callback?x=1',
+			'https://owner.example/v1/user/social-publications/deviantart/oauth/callback#x',
+			'https://owner.example/\\n/v1/user/social-publications/deviantart/oauth/callback', 'x'.repeat(2049)]) {
+			await assert.rejects(start({redirectUri}), {status: 400, code: 'deviantart_oauth_redirect_uri_invalid'});
+		}
+		assert.equal(await models.PublicationOAuthFlow.count(), 0);
+		assert.equal(requests.length, 0);
+	});
 	it('returns a fixed HTTPS PKCE URL and encrypts application/verifier with hashed state, pending status is owner-scoped', async () => {
 		const flow = await start();const auth = new URL(flow.authorizationUrl);
 		assert.equal(auth.origin, 'https://www.deviantart.com');assert.equal(auth.pathname, '/oauth2/authorize');
