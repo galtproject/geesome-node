@@ -323,6 +323,7 @@ export default function registerApi(app: IGeesomeApp, module: ISocNetPublishingM
 	 * @apiQuery {String} [ids] Comma-separated 1–100 distinct positive IDs; intersects owner/eligibility filters.
 	 * @apiSuccess {Number} ownerId Authenticated GeeSome owner.
 	 * @apiSuccess {Object[]} groups Group id/name/title/lastPostAt, with null lastPostAt for empty groups.
+	 * @apiSuccess {Boolean} groups.isPublicationQueue True for groups created by the publication source API with a valid persisted intent. Ordinary private groups are false.
 	 */
 	api.onAuthorizedGet('user/social-publications/sources', async (req, res) => {
 		await authorize(req);

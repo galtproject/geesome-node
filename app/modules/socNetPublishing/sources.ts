@@ -8,7 +8,12 @@ export function isOwnedQueueGroup(group, userId) {
 }
 
 export function sourceView(group, lastPostAt = null) {
-	return {id: group.id, name: group.name, title: group.title, lastPostAt};
+	let intent;
+	try {
+		intent = JSON.parse(group.propertiesJson || '{}').localPublishingSource;
+	} catch {}
+	const isPublicationQueue = typeof intent === 'string' && /^[a-f0-9]{64}$/.test(intent);
+	return {id: group.id, name: group.name, title: group.title, lastPostAt, isPublicationQueue};
 }
 
 export function getSourceMethods(app, helpers) {
