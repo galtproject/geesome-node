@@ -1,5 +1,17 @@
 # GeeSome Node Implemented Work
 
+## Publication queue provenance (#1703)
+
+Owned private source metadata now includes `isPublicationQueue`, derived only
+from the persisted source-creation intent. Local clients can distinguish a
+publication queue from ordinary private channels without guessing from names or
+receiving the intent hash. Existing source permissions and pagination are unchanged;
+no migration or new endpoint is required. Deploy Node before clients that use
+the flag for single-account onboarding. Older clients ignore the additive field.
+
+Verification: source metadata tests cover valid, absent, malformed and misleading
+name cases; API documentation generation and security route inventory pass.
+
 ## Per-connection DeviantArt OAuth callback (#1697)
 
 Owners can supply an exact validated HTTPS redirectUri on OAuth start/reconnect.
