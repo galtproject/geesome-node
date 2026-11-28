@@ -90,6 +90,7 @@
     "test:creator-membership:docker": "bash bash/test-creator-membership",
     "client:releases:import": "node --env-file-if-exists=.env --import tsx check/importClientRelease.ts",
     "test:client-releases": "node --import tsx ./node_modules/.bin/mocha test/clientReleases.test.ts test/clientReleaseImport.test.ts test/apiHeaders.test.ts --timeout 15000",
+    "test:publication-sources": "node --import tsx --test test/publicationSources.test.mjs",
     "test:publishing-worker-config": "node --import tsx --test test/publishingWorkerConfig.test.mjs",
     "test:creator-docker-config": "node --test test/creatorDockerConfig.test.mjs"
   },
